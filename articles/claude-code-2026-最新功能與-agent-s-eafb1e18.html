@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code 2026 最新功能與 Agent SDK 完整指南">
+  <title>Claude Code 2026 最新功能與 Agent SDK 完整指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code 2026 最新功能與 Agent SDK 完整指南</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-12</span>
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">AI工具</span><span class="tag">技術研究</span><span class="tag">Agent SDK</span><span class="tag">Anthropic</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code 2026 最新功能與 Agent SDK 完整指南</h1>
+<h2>主題概述</h2>
+<p>Claude Code 在 2026 年迎來重大更新，最顯著的變化是 <strong>Claude Code SDK 更名為 Claude Agent SDK</strong>，成為獨立的 AI Agent 開發框架。新版本引入 Agent Teams 多代理協作模式、Claude Opus 4.6 支援（1M token context window）、以及 Apple Xcode 26.3 原生整合。這些更新讓開發者能以程式化方式建構與 Claude Code CLI 同等能力的自主 Agent。</p>
+<hr>
+<h2>Claude Agent SDK 核心功能</h2>
+<h3>安裝方式</h3>
+<pre><code class="language-bash"># Python
+pip install claude-agent-sdk
+
+# TypeScript
+npm install @anthropic-ai/claude-agent-sdk</code></pre>
+<h3>基本使用</h3>
+<pre><code class="language-python">import asyncio
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+async def main():
+    async for message in query(
+        prompt=&quot;Find and fix the bug in auth.py&quot;,
+        options=ClaudeAgentOptions(allowed_tools=[&quot;Read&quot;, &quot;Edit&quot;, &quot;Bash&quot;]),
+    ):
+        print(message)
+
+asyncio.run(main())</code></pre>
+<h3>內建工具</h3>
+<table>
+<tr><th>工具</th><th>功能</th></tr>
+<tr><td><strong>Read</strong></td><td>讀取工作目錄內任意檔案</td></tr>
+<tr><td><strong>Write</strong></td><td>建立新檔案</td></tr>
+<tr><td><strong>Edit</strong></td><td>精確編輯現有檔案</td></tr>
+<tr><td><strong>Bash</strong></td><td>執行終端指令、腳本、git 操作</td></tr>
+<tr><td><strong>Glob</strong></td><td>依模式搜尋檔案</td></tr>
+<tr><td><strong>Grep</strong></td><td>正規表達式搜尋檔案內容</td></tr>
+<tr><td><strong>WebSearch</strong></td><td>網路搜尋</td></tr>
+<tr><td><strong>WebFetch</strong></td><td>抓取網頁內容</td></tr>
+<tr><td><strong>AskUserQuestion</strong></td><td>向使用者提問（多選）</td></tr>
+</table>
+<hr>
+<h2>Agent 架構設計模式</h2>
+<h3>四階段反饋循環</h3>
+<ol>
+<li><strong>Gather Context</strong> - 存取檔案、搜尋資料、擷取資訊</li>
+<li><strong>Take Action</strong> - 執行工具、寫程式碼、跑 bash 指令</li>
+<li><strong>Verify Work</strong> - 依規則與視覺回饋驗證輸出</li>
+<li><strong>Iterate</strong> - 持續精進直到成功</li>
+</ol>
+<h3>Subagents（子代理）</h3>
+<pre><code class="language-python">from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition
+
+async for message in query(
+    prompt=&quot;Use the code-reviewer agent to review this codebase&quot;,
+    options=ClaudeAgentOptions(
+        allowed_tools=[&quot;Read&quot;, &quot;Glob&quot;, &quot;Grep&quot;, &quot;Task&quot;],
+        agents={
+            &quot;code-reviewer&quot;: AgentDefinition(
+                description=&quot;Expert code reviewer.&quot;,
+                prompt=&quot;Analyze code quality and suggest improvements.&quot;,
+                tools=[&quot;Read&quot;, &quot;Glob&quot;, &quot;Grep&quot;],
+            )
+        },
+    ),
+):
+    print(message)</code></pre>
+<h3>Hooks（生命週期鉤子）</h3>
+<p>可用鉤子：<code>PreToolUse</code>、<code>PostToolUse</code>、<code>Stop</code>、<code>SessionStart</code>、<code>SessionEnd</code>、<code>UserPromptSubmit</code></p>
+<pre><code class="language-python">async def log_file_change(input_data, tool_use_id, context):
+    file_path = input_data.get(&quot;tool_input&quot;, {}).get(&quot;file_path&quot;, &quot;unknown&quot;)
+    with open(&quot;./audit.log&quot;, &quot;a&quot;) as f:
+        f.write(f&quot;{datetime.now()}: modified {file_path}\n&quot;)
+    return {}</code></pre>
+<h3>MCP 整合</h3>
+<p>連接外部系統（資料庫、瀏覽器、API）：</p>
+<pre><code class="language-python">async for message in query(
+    prompt=&quot;Open example.com and describe what you see&quot;,
+    options=ClaudeAgentOptions(
+        mcp_servers={
+            &quot;playwright&quot;: {&quot;command&quot;: &quot;npx&quot;, &quot;args&quot;: [&quot;@playwright/mcp@latest&quot;]}
+        }
+    ),
+):
+    print(message)</code></pre>
+<h3>Context Compaction</h3>
+<p>當接近 context limit 時，SDK 自動摘要先前訊息，讓 Agent 能持續運行不會耗盡 context。</p>
+<hr>
+<h2>Claude Code CLI 2026 新功能</h2>
+<h3>Agent Teams（研究預覽）</h3>
+<p>多個 Agent 並行協作，適合可拆分為獨立、讀取密集型工作的任務（如 codebase review）。</p>
+<p>啟用方式：設定環境變數 <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code></p>
+<h3>Checkpoints 系統</h3>
+<p>自動儲存每次程式碼變更前的狀態，可透過 <code>Esc</code> 兩次或 <code>/rewind</code> 指令回滾到先前版本。</p>
+<h3>Claude Opus 4.6</h3>
+<ul>
+<li>1M token context window（beta）</li>
+<li>改進 coding 能力：更謹慎規劃、更長時間維持 agentic 任務</li>
+<li>大型 codebase 更可靠操作</li>
+<li>更佳的 code review 與 debugging 能力</li>
+</ul>
+<h3>其他重要更新</h3>
+<ul>
+<li><strong>Automatic Memory</strong>：自動記錄與回憶工作記憶</li>
+<li><strong>PDF 增強</strong>：<code>pages</code> 參數支援指定頁面範圍</li>
+<li><strong>LSP 工具</strong>：go-to-definition、find references、hover documentation</li>
+<li><strong>VS Code Extension</strong>（beta）：原生整合，即時 inline diff</li>
+<li><strong>Sandbox Mode</strong>：Linux/Mac 上的 BashTool 沙盒模式</li>
+<li><strong>Shift+Enter</strong>：插入換行，無需設定</li>
+<li><strong>/debug</strong>：除錯當前 session</li>
+<li><strong>/teleport</strong>：將 session 傳送到 claude.ai/code</li>
+</ul>
+<hr>
+<h2>Apple Xcode 26.3 整合</h2>
+<p>Xcode 26.3 原生整合 Claude Agent SDK，開發者可在 IDE 內使用完整 Claude Code 功能，包括 subagents、background tasks、plugins。</p>
+<hr>
+<h2>實用技巧</h2>
+<h3>驗證策略</h3>
+<ol>
+<li><strong>Rules-Based Feedback</strong>：提供具體驗證規則，TypeScript 比 JavaScript 提供更多回饋層</li>
+<li><strong>Visual Feedback</strong>：UI 任務截圖比對</li>
+<li><strong>LLM-as-Judge</strong>：用次級模型評估輸出（增加延遲）</li>
+</ol>
+<h3>效能改善檢查清單</h3>
+<ul>
+<li>Agent 效能不佳時檢查：</li>
+</ul>
+<p>  - 缺少 context？重構搜尋 API
+  - 重複失敗？加入正式驗證規則
+  - 彈性不足？擴展工具種類
+  - 表現不一致？建立代表性測試資料集</p>
+<h3>Session 管理</h3>
+<pre><code class="language-python"># 捕獲 session_id 以便後續 resume
+async for message in query(prompt=&quot;Read the authentication module&quot;, ...):
+    if hasattr(message, &quot;subtype&quot;) and message.subtype == &quot;init&quot;:
+        session_id = message.session_id
+
+# Resume 時保留完整 context
+async for message in query(
+    prompt=&quot;Now find all places that call it&quot;,
+    options=ClaudeAgentOptions(resume=session_id),
+):
+    print(message)</code></pre>
+<hr>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://platform.claude.com/docs/en/agent-sdk/overview">Agent SDK Overview</a></li>
+<li><a href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk">Building Agents with Claude Agent SDK</a></li>
+<li><a href="https://www.anthropic.com/news/enabling-claude-code-to-work-more-autonomously">Enabling Claude Code to Work More Autonomously</a></li>
+<li><a href="https://github.com/anthropics/claude-code">Claude Code GitHub Repository</a></li>
+<li><a href="https://github.com/anthropics/claude-agent-sdk-python">Claude Agent SDK Python</a></li>
+<li><a href="https://github.com/anthropics/claude-agent-sdk-typescript">Claude Agent SDK TypeScript</a></li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

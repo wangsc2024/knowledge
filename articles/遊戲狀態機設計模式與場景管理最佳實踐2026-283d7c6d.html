@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="遊戲狀態機設計模式與場景管理最佳實踐（2026）">
+  <title>遊戲狀態機設計模式與場景管理最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>遊戲狀態機設計模式與場景管理最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">狀態機</span><span class="tag">FSM</span><span class="tag">Phaser</span><span class="tag">JavaScript</span><span class="tag">設計模式</span><span class="tag">場景管理</span><span class="tag">HTML5</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>遊戲狀態機設計模式與場景管理最佳實踐</h1>
+<p>本筆記整理 HTML5/JavaScript 遊戲中狀態機（Finite State Machine, FSM）的設計模式與場景管理策略，涵蓋理論基礎、實作模式與常見陷阱。</p>
+<hr>
+<h2>一、為何需要狀態機？</h2>
+<h3>問題：布林旗標地獄</h3>
+<p>初學者常用多個布林變數管理遊戲狀態：</p>
+<pre><code class="language-javascript">let isJumping = false;
+let isDucking = false;
+let isFiring = false;</code></pre>
+<p><strong>問題</strong>：</p>
+<ul>
+<li>容易出現非法組合（如同時跳躍又蹲下）</li>
+<li>狀態邏輯分散在多個 if-else 中</li>
+<li>難以追蹤狀態轉換邏輯</li>
+<li>新增狀態時需修改大量程式碼</li>
+</ul>
+<h3>解決：有限狀態機（FSM）</h3>
+<p>FSM 具備以下特性：</p>
+<ul>
+<li><strong>固定狀態集合</strong>：明確定義所有可能狀態（站立、跳躍、蹲下、攻擊）</li>
+<li><strong>單一活動狀態</strong>：任何時刻只有一個狀態活躍</li>
+<li><strong>輸入驅動轉換</strong>：按鍵/事件觸發狀態切換</li>
+<li><strong>轉換規則</strong>：每個狀態定義允許的轉換目標</li>
+</ul>
+<hr>
+<h2>二、狀態機實作模式（由簡到繁）</h2>
+<h3>模式 1：Enum Switch（最簡單）</h3>
+<p>適合狀態少、邏輯簡單的遊戲：</p>
+<pre><code class="language-javascript">const State = {
+  STANDING: &#x27;standing&#x27;,
+  JUMPING: &#x27;jumping&#x27;,
+  DUCKING: &#x27;ducking&#x27;,
+  DIVING: &#x27;diving&#x27;
+};
+
+let currentState = State.STANDING;
+
+function handleInput(input) {
+  switch (currentState) {
+    case State.STANDING:
+      if (input === &#x27;PRESS_JUMP&#x27;) {
+        currentState = State.JUMPING;
+        velocity.y = JUMP_VELOCITY;
+      } else if (input === &#x27;PRESS_DOWN&#x27;) {
+        currentState = State.DUCKING;
+      }
+      break;
+    case State.JUMPING:
+      if (input === &#x27;PRESS_DOWN&#x27;) {
+        currentState = State.DIVING;
+      }
+      break;
+    // ... 其他狀態
+  }
+}</code></pre>
+<p><strong>優點</strong>：簡單直觀、無額外依賴
+<strong>缺點</strong>：狀態增加後 switch 變得龐大、難以共用邏輯</p>
+<h3>模式 2：State Pattern（物件導向）</h3>
+<p>將每個狀態封裝為獨立物件，實現關注點分離：</p>
+<pre><code class="language-javascript">class State {
+  enter(entity) {}
+  handleInput(entity, input) {}
+  update(entity, dt) {}
+  exit(entity) {}
+}
+
+class StandingState extends State {
+  enter(entity) {
+    entity.setAnimation(&#x27;idle&#x27;);
+  }
+  
+  handleInput(entity, input) {
+    if (input === &#x27;PRESS_JUMP&#x27;) {
+      return new JumpingState();
+    }
+    if (input === &#x27;PRESS_DOWN&#x27;) {
+      return new DuckingState();
+    }
+    return null;
+  }
+}
+
+class JumpingState extends State {
+  enter(entity) {
+    entity.velocity.y = JUMP_VELOCITY;
+    entity.setAnimation(&#x27;jump&#x27;);
+  }
+  
+  update(entity, dt) {
+    if (entity.isOnGround()) {
+      return new StandingState();
+    }
+    return null;
+  }
+}</code></pre>
+<p><strong>主角色類別</strong>：</p>
+<pre><code class="language-javascript">class Hero {
+  constructor() {
+    this.state = new StandingState();
+    this.state.enter(this);
+  }
+  
+  handleInput(input) {
+    const newState = this.state.handleInput(this, input);
+    if (newState) {
+      this.state.exit(this);
+      this.state = newState;
+      this.state.enter(this);
+    }
+  }
+  
+  update(dt) {
+    const newState = this.state.update(this, dt);
+    if (newState) {
+      this.state.exit(this);
+      this.state = newState;
+      this.state.enter(this);
+    }
+  }
+}</code></pre>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>狀態邏輯封裝在各自的類別</li>
+<li>狀態可攜帶專屬資料（如蓄力時間）</li>
+<li>易於測試與擴展</li>
+<li>進入/退出動作集中管理</li>
+</ul>
+<h3>模式 3：Hierarchical FSM（階層式）</h3>
+<p>當多個狀態共享相同行為時（如所有地面狀態都可跳躍）：</p>
+<pre><code class="language-javascript">class OnGroundState extends State {
+  handleInput(entity, input) {
+    if (input === &#x27;PRESS_JUMP&#x27;) {
+      return new JumpingState();
+    }
+    return null;  // 讓子狀態處理
+  }
+}
+
+class StandingState extends OnGroundState {
+  handleInput(entity, input) {
+    if (input === &#x27;PRESS_DOWN&#x27;) {
+      return new DuckingState();
+    }
+    return super.handleInput(entity, input);  // 委派給父狀態
+  }
+}
+
+class WalkingState extends OnGroundState {
+  handleInput(entity, input) {
+    if (input === &#x27;RELEASE_MOVE&#x27;) {
+      return new StandingState();
+    }
+    return super.handleInput(entity, input);
+  }
+}</code></pre>
+<p><strong>優點</strong>：消除重複程式碼、邏輯層次清晰</p>
+<h3>模式 4：Pushdown Automata（堆疊式）</h3>
+<p>當需要「返回上一個狀態」時（如暫停畫面、對話框）：</p>
+<pre><code class="language-javascript">class StateStack {
+  constructor() {
+    this.stack = [];
+  }
+  
+  push(state, entity) {
+    state.enter(entity);
+    this.stack.push(state);
+  }
+  
+  pop(entity) {
+    const oldState = this.stack.pop();
+    oldState.exit(entity);
+    // 自動回到堆疊頂端的前一個狀態
+    return this.current();
+  }
+  
+  current() {
+    return this.stack[this.stack.length - 1];
+  }
+  
+  update(entity, dt) {
+    this.current()?.update(entity, dt);
+  }
+}</code></pre>
+<p><strong>使用情境</strong>：</p>
+<ul>
+<li>開火時 push <code>FiringState</code>，完成後 pop 自動回到行走/站立</li>
+<li>開啟背包 push <code>InventoryState</code>，關閉後回到遊戲</li>
+<li>暫停選單疊加在遊戲畫面上</li>
+</ul>
+<hr>
+<h2>三、Phaser 3 場景管理</h2>
+<p>Phaser 3 的 Scene 系統本質上就是狀態機的框架級實現。</p>
+<h3>場景生命週期</h3>
+<pre><code class="language-javascript">class GameScene extends Phaser.Scene {
+  init(data) {
+    // 初始化（每次啟動都會呼叫）
+    this.score = 0;  // 重要：在此重設狀態變數！
+  }
+  
+  preload() {
+    // 載入資源
+    this.load.image(&#x27;player&#x27;, &#x27;assets/player.png&#x27;);
+  }
+  
+  create() {
+    // 建立遊戲物件
+    this.player = this.add.sprite(100, 100, &#x27;player&#x27;);
+  }
+  
+  update(time, delta) {
+    // 每幀更新
+  }
+}</code></pre>
+<h3>場景狀態</h3>
+<table>
+<tr><th>狀態</th><th>說明</th><th>用途</th></tr>
+<tr><td>RUNNING</td><td>更新 + 渲染</td><td>正常遊玩</td></tr>
+<tr><td>PAUSED</td><td>僅渲染</td><td>暫停選單（遊戲背景仍顯示）</td></tr>
+<tr><td>SLEEPING</td><td>無更新無渲染</td><td>隱藏但保留狀態</td></tr>
+<tr><td>SHUTDOWN</td><td>已停止</td><td>可重新啟動</td></tr>
+</table>
+<h3>場景切換方法</h3>
+<pre><code class="language-javascript">// 方法 1：完全取代
+this.scene.start(&#x27;NextLevel&#x27;);  // 停止目前場景，啟動新場景
+
+// 方法 2：疊加（適合 UI、暫停畫面）
+this.scene.launch(&#x27;PauseMenu&#x27;);  // 保持目前場景，疊加新場景
+this.scene.pause();  // 暫停目前場景
+
+// 方法 3：睡眠（保留狀態）
+this.scene.sleep();  // 睡眠目前場景
+this.scene.switch(&#x27;AnotherScene&#x27;);  // 切換到另一個已存在的場景
+
+// 恢復
+this.scene.resume(&#x27;GameScene&#x27;);
+this.scene.wake(&#x27;GameScene&#x27;);</code></pre>
+<h3>跨場景通訊</h3>
+<pre><code class="language-javascript">// 方法 1：Registry（全域資料）
+this.registry.set(&#x27;playerHP&#x27;, 100);
+const hp = this.registry.get(&#x27;playerHP&#x27;);
+
+// 方法 2：傳遞資料給新場景
+this.scene.start(&#x27;NextLevel&#x27;, { score: this.score, lives: 3 });
+
+// 在 NextLevel 的 init 中接收
+init(data) {
+  this.score = data.score;
+  this.lives = data.lives;
+}
+
+// 方法 3：事件系統
+this.events.emit(&#x27;playerDied&#x27;);
+this.events.on(&#x27;playerDied&#x27;, this.handleDeath, this);</code></pre>
+<hr>
+<h2>四、常見陷阱與解決方案</h2>
+<h3>陷阱 1：重啟場景時變數未重設</h3>
+<p><strong>問題</strong>：<code>scene.restart()</code> 或 <code>scene.start(&#x27;SameScene&#x27;)</code> 時，類別屬性保留上次值。</p>
+<p><strong>解決</strong>：在 <code>init()</code> 中初始化所有狀態變數，而非 constructor。</p>
+<pre><code class="language-javascript">init() {
+  this.score = 0;
+  this.lives = 3;
+  this.isGameOver = false;
+}</code></pre>
+<h3>陷阱 2：事件監聽器殘留</h3>
+<p><strong>問題</strong>：場景重啟後，舊的事件監聽器仍在，導致重複觸發。</p>
+<p><strong>解決</strong>：在場景關閉時清除監聽器。</p>
+<pre><code class="language-javascript">shutdown() {
+  this.input.off(&#x27;pointerdown&#x27;);
+  this.events.off(&#x27;playerDied&#x27;);
+}</code></pre>
+<p>或使用 <code>once()</code> 註冊一次性監聽器。</p>
+<h3>陷阱 3：狀態爆炸（Combinatorial Explosion）</h3>
+<p><strong>問題</strong>：角色可持槍時，需要「站立」「站立持槍」「跳躍」「跳躍持槍」... 狀態數量指數成長。</p>
+<p><strong>解決</strong>：</p>
+<ul>
+<li>使用並行狀態機（主動作 + 裝備各一個 FSM）</li>
+<li>使用行為樹（Behavior Tree）取代 FSM</li>
+</ul>
+<h3>陷阱 4：狀態轉換遺漏</h3>
+<p><strong>問題</strong>：某些狀態忘記處理某些輸入，導致玩家卡住。</p>
+<p><strong>解決</strong>：設計狀態轉換表，確保所有輸入都有對應處理。</p>
+<table>
+<tr><th>狀態 \ 輸入</th><th>JUMP</th><th>DOWN</th><th>ATTACK</th><th>PAUSE</th></tr>
+<tr><td>Standing</td><td>→ Jumping</td><td>→ Ducking</td><td>→ Attacking</td><td>→ Paused</td></tr>
+<tr><td>Jumping</td><td>(空中跳?)</td><td>→ Diving</td><td>→ AirAttack</td><td>→ Paused</td></tr>
+<tr><td>Ducking</td><td>→ Jumping</td><td>維持</td><td>→ DuckAttack</td><td>→ Paused</td></tr>
+</table>
+<hr>
+<h2>五、進階：何時超越 FSM？</h2>
+<p>FSM 適合：</p>
+<ul>
+<li>玩家輸入處理</li>
+<li>簡單 NPC 行為</li>
+<li>選單導航</li>
+<li>網路協議解析</li>
+</ul>
+<p>考慮其他方案：</p>
+<ul>
+<li><strong>行為樹（Behavior Tree）</strong>：複雜 AI、多條件決策</li>
+<li><strong>規劃系統（GOAP）</strong>：目標導向、動態決策</li>
+<li><strong>狀態圖（Statecharts/XState）</strong>：並行狀態、歷史狀態、延遲轉換</li>
+</ul>
+<hr>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://gameprogrammingpatterns.com/state.html">Game Programming Patterns - State</a></li>
+<li><a href="https://docs.phaser.io/phaser/concepts/scenes">Phaser 3 Scenes Documentation</a></li>
+<li><a href="https://idiallo.com/blog/javascript-game-state-stack-engine">Creating a State Stack Engine for your game with JavaScript</a></li>
+<li><a href="https://medium.com/@parameesupipiinduwari/finite-state-machines-in-game-development-3c12dc4d667a">Finite State Machines in Game Development - Medium</a></li>
+<li><a href="https://blog.openreplay.com/state-machines-for-javascript-developers-how-to-use-them-in-your-apps/">State Machines for JavaScript Developers</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-15</em>
+<em>研究者：Claude Code Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

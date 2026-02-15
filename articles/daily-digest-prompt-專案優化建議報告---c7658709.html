@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 專案優化建議報告 - 2026-02-15">
+  <title>Daily-Digest-Prompt 專案優化建議報告 - 2026-02-15 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Daily-Digest-Prompt 專案優化建議報告 - 2026-02-15</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-02-15</span><span class="tag">Hooks</span><span class="tag">日誌系統</span><span class="tag">系統分析</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 專案優化建議報告</h1>
+<blockquote><p>分析日期：2026-02-15
+分析依據：專案近期提交變更、Hooks 機器強制層實施狀況、團隊模式運作效能</p>
+</blockquote>
+<hr>
+<h2>一、專案當前狀態摘要</h2>
+<h3>近期重大變更</h3>
+<ol>
+<li><strong>Hooks 機器強制層上線</strong>（9bcaf1d）</li>
+</ol>
+<p>   - pre_bash_guard.py：攔截 nul 重導向、危險操作
+   - pre_write_guard.py：攔截 nul 檔案建立、敏感檔案寫入
+   - post_tool_logger.py：結構化 JSONL 日誌
+   - on_stop_alert.py：Session 結束自動告警</p>
+<ol>
+<li><strong>文件驅動架構完成</strong>（3a5e4a4）</li>
+</ol>
+<p>   - 7 個 YAML 配置文件抽離
+   - 5 個子 Agent 模板
+   - 3 個自動任務 prompt</p>
+<ol>
+<li><strong>團隊模式 Todoist Agent</strong>（run-todoist-agent-team.ps1）</li>
+</ol>
+<p>   - Phase 1：todoist-query.md 並行查詢
+   - Phase 2：自動任務分發</p>
+<h3>系統健康度</h3>
+<ul>
+<li>執行成功率：待確認（需查 scheduler-state.json）</li>
+<li>結構化日誌：已啟用，可查詢攔截/錯誤/快取使用</li>
+</ul>
+<hr>
+<h2>二、新發現的優化建議（與昨日報告差異化）</h2>
+<h3>P0：緊急 — 子 Agent 輸出捕獲問題</h3>
+<p><strong>問題描述</strong>：子 Agent 執行時輸出經常被截斷或為空，導致 DONE_CERT 無法解析，進入失敗處理流程。</p>
+<p><strong>根因分析</strong>：</p>
+<ul>
+<li>Windows 環境下 <code>$(cat prompt.md | claude -p 2&gt;&amp;1)</code> 的 stdout 捕獲不穩定</li>
+<li>AGENT_OUTPUT 變數有時為空即使 Agent 實際已完成工作</li>
+</ul>
+<p><strong>建議修正</strong>：</p>
+<ol>
+<li>改用 <code>claude -p &lt; prompt.md &gt; output.txt 2&gt;&amp;1</code> 直接寫檔</li>
+<li>或使用 <code>tee</code> 同時輸出和寫檔</li>
+<li>增加輸出檔案存在性檢查</li>
+</ol>
+<p><strong>預估工時</strong>：2 小時</p>
+<h3>P1：高 — Hooks 日誌查詢整合</h3>
+<p><strong>問題描述</strong>：post_tool_logger.py 產生 JSONL 日誌，但 check-health.ps1 尚未整合這些資料。</p>
+<p><strong>建議修正</strong>：</p>
+<ol>
+<li>check-health.ps1 增加 hooks 日誌摘要區塊</li>
+<li>顯示：今日攔截次數、錯誤次數、快取命中率</li>
+<li>整合 query_logs.py 的輸出</li>
+</ol>
+<p><strong>預估工時</strong>：3 小時</p>
+<h3>P1：高 — 團隊模式 timeout 機制強化</h3>
+<p><strong>問題描述</strong>：run-todoist-agent-team.ps1 的 Phase 1 timeout 為 180 秒，但單一任務執行時間可達 600 秒。</p>
+<p><strong>建議修正</strong>：</p>
+<ol>
+<li>Phase 1（query）維持 180 秒</li>
+<li>Phase 2（execute）個別任務 timeout 獨立控制</li>
+<li>增加 graceful shutdown 機制</li>
+</ol>
+<p><strong>預估工時</strong>：4 小時</p>
+<h3>P2：中 — 配置熱重載</h3>
+<p><strong>問題描述</strong>：修改 config/*.yaml 後需重新執行整個 Agent，無法即時生效。</p>
+<p><strong>建議修正</strong>：</p>
+<ol>
+<li>在 Agent 執行初期動態讀取配置</li>
+<li>建立配置版本號機制</li>
+<li>支援 <code>--reload-config</code> 參數</li>
+</ol>
+<p><strong>預估工時</strong>：6 小時</p>
+<h3>P2：中 — 結構化日誌可視化</h3>
+<p><strong>問題描述</strong>：JSONL 日誌需用 CLI 查詢，缺乏可視化介面。</p>
+<p><strong>建議修正</strong>：</p>
+<ol>
+<li>建立簡易 HTML 報表生成器</li>
+<li>或整合至 game_web 網站作為管理介面</li>
+<li>圖表顯示：每日執行統計、錯誤趨勢、API 呼叫量</li>
+</ol>
+<p><strong>預估工時</strong>：8 小時</p>
+<h3>P3：低 — Skill 版本管理</h3>
+<p><strong>問題描述</strong>：skills/ 目錄從 D:\Source\skills\ 複製，版本同步需手動處理。</p>
+<p><strong>建議修正</strong>：</p>
+<ol>
+<li>建立 skill-sync.ps1 腳本</li>
+<li>檢查來源 Skill 版本號</li>
+<li>自動同步新版本並記錄變更</li>
+</ol>
+<p><strong>預估工時</strong>：4 小時</p>
+<hr>
+<h2>三、與昨日報告的差異</h2>
+<table>
+<tr><th>昨日報告建議</th><th>今日報告建議</th></tr>
+<tr><td>Agent Teams 原生功能</td><td>子 Agent 輸出捕獲問題（新發現的實際問題）</td></tr>
+<tr><td>快取命中優化</td><td>Hooks 日誌查詢整合（基於新上線功能）</td></tr>
+<tr><td>Prompt 模組化</td><td>團隊模式 timeout 強化（實際運行後發現）</td></tr>
+<tr><td>RAG 關聯增強</td><td>配置熱重載 + 日誌可視化（運維需求）</td></tr>
+</table>
+<hr>
+<h2>四、實施建議</h2>
+<p><strong>第一週優先處理</strong>：</p>
+<ul>
+<li>P0：子 Agent 輸出捕獲（影響所有任務執行）</li>
+<li>P1：Hooks 日誌整合（提升可觀測性）</li>
+</ul>
+<p><strong>第二週處理</strong>：</p>
+<ul>
+<li>P1：timeout 機制強化</li>
+<li>P2：配置熱重載</li>
+</ul>
+<hr>
+<p><em>報告生成者：Claude Code Agent</em>
+<em>報告日期：2026-02-15</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

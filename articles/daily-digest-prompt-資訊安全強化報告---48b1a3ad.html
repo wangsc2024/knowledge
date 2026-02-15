@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 資訊安全強化報告 - 2026-02-15">
+  <title>Daily-Digest-Prompt 資訊安全強化報告 - 2026-02-15 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Daily-Digest-Prompt 資訊安全強化報告 - 2026-02-15</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">安全強化</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-02-15</span><span class="tag">Hook系統</span><span class="tag">資訊安全</span><span class="tag">路徑遍歷防護</span><span class="tag">環境變數保護</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 資訊安全強化報告</h1>
+<blockquote><p>執行日期：2026-02-15
+執行者：Claude Code Agent
+重點：Hook 機器強制層的安全強化</p>
+</blockquote>
+<hr>
+<h2>一、執行摘要</h2>
+<p>本次優化聚焦於 <strong>Hooks 機器強制層的資訊安全強化</strong>，實作了以下改進：</p>
+<table>
+<tr><th>優化項目</th><th>檔案</th><th>安全等級提升</th></tr>
+<tr><td>安全暫存檔處理</td><td><code>on_stop_alert.py</code></td><td>中 → 高</td></tr>
+<tr><td>路徑遍歷防護</td><td><code>pre_write_guard.py</code></td><td>無 → 高</td></tr>
+<tr><td>敏感環境變數保護</td><td><code>pre_bash_guard.py</code></td><td>無 → 高</td></tr>
+<tr><td>機密外洩防護</td><td><code>pre_bash_guard.py</code></td><td>無 → 高</td></tr>
+</table>
+<hr>
+<h2>二、具體優化內容</h2>
+<h3>2.1 安全暫存檔處理（on_stop_alert.py）</h3>
+<p><strong>問題</strong>：原本使用固定檔名 <code>hooks_alert_temp.json</code> 建立暫存檔，存在以下風險：</p>
+<ul>
+<li>競爭條件（Race Condition）：多個 session 同時執行時可能覆蓋</li>
+<li>清理失敗時檔案殘留</li>
+<li>可預測的檔名容易被攻擊</li>
+</ul>
+<p><strong>解決方案</strong>：</p>
+<pre><code class="language-python">import tempfile
+
+fd = tempfile.NamedTemporaryFile(
+    mode=&#x27;w&#x27;,
+    suffix=&#x27;.json&#x27;,
+    prefix=&#x27;ntfy_alert_&#x27;,
+    encoding=&#x27;utf-8&#x27;,
+    delete=False  # Windows 需要
+)
+json.dump(payload, fd, ensure_ascii=False)
+fd.close()
+# ... 使用後確保清理
+os.unlink(fd.name)</code></pre>
+<p><strong>效果</strong>：</p>
+<ul>
+<li>使用 <code>tempfile.NamedTemporaryFile</code> 產生唯一暫存檔名</li>
+<li><code>finally</code> 區塊確保無論成功或失敗都會清理</li>
+<li>防止競爭條件和檔案殘留</li>
+</ul>
+<h3>2.2 路徑遍歷防護（pre_write_guard.py）</h3>
+<p><strong>問題</strong>：原本未檢查 <code>../</code> 路徑遍歷攻擊，Agent 可能被誘導寫入專案目錄外的檔案。</p>
+<p><strong>解決方案</strong>：</p>
+<pre><code class="language-python"># Rule 4: Block path traversal attacks
+if &quot;..&quot; in file_path:
+    normalized = os.path.normpath(file_path)
+    resolved = os.path.abspath(normalized)
+    project_root = os.path.normpath(os.getcwd())
+    if not resolved.startswith(project_root):
+        # BLOCK: 路徑遍歷攻擊</code></pre>
+<p><strong>攔截範例</strong>：</p>
+<ul>
+<li><code>../../../etc/passwd</code> → 攔截</li>
+<li><code>logs/../../../secrets.json</code> → 攔截</li>
+<li><code>cache/test.json</code> → 允許</li>
+</ul>
+<h3>2.3 敏感環境變數保護（pre_bash_guard.py）</h3>
+<p><strong>問題</strong>：Agent 可能被指示讀取並顯示敏感環境變數（API Token、密碼等）。</p>
+<p><strong>新增規則</strong>：</p>
+<pre><code class="language-python">sensitive_env_patterns = [
+    r&quot;echo\s+\$[A-Z_]*TOKEN&quot;,
+    r&quot;echo\s+\$[A-Z_]*SECRET&quot;,
+    r&quot;echo\s+\$[A-Z_]*KEY&quot;,
+    r&quot;echo\s+\$[A-Z_]*PASSWORD&quot;,
+    r&quot;printenv\s+.*TOKEN&quot;,
+    r&quot;env\s*\|\s*grep\s+.*(TOKEN|SECRET|KEY|PASSWORD)&quot;,
+]</code></pre>
+<p><strong>攔截範例</strong>：</p>
+<ul>
+<li><code>echo $TODOIST_TOKEN</code> → 攔截</li>
+<li><code>env | grep SECRET</code> → 攔截</li>
+<li><code>printenv API_KEY</code> → 攔截</li>
+</ul>
+<h3>2.4 機密外洩防護（pre_bash_guard.py）</h3>
+<p><strong>問題</strong>：Agent 可能被誘導透過 curl/wget 將環境變數傳送到外部伺服器。</p>
+<p><strong>新增規則</strong>：</p>
+<pre><code class="language-python">if re.search(r&quot;curl.*(-d|--data).*\$(TOKEN|SECRET|KEY|PASSWORD)&quot;, command):
+    # BLOCK: 禁止透過網路傳送敏感變數</code></pre>
+<hr>
+<h2>三、敏感檔案保護清單更新</h2>
+<p>原清單：<code>.env</code>, <code>credentials.json</code>, <code>token.json</code></p>
+<p>更新後：<code>.env</code>, <code>credentials.json</code>, <code>token.json</code>, <code>secrets.json</code>, <code>.htpasswd</code></p>
+<hr>
+<h2>四、測試驗證</h2>
+<table>
+<tr><th>測試案例</th><th>預期結果</th><th>實際結果</th></tr>
+<tr><td>正常 curl 呼叫</td><td>允許</td><td>✅ 通過</td></tr>
+<tr><td><code>echo $XXX_TOKEN</code></td><td>攔截</td><td>✅ 通過</td></tr>
+<tr><td>`env \</td><td>grep SECRET`</td><td>攔截</td><td>✅ 通過</td></tr>
+<tr><td><code>../../../etc/passwd</code></td><td>攔截</td><td>✅ 通過</td></tr>
+<tr><td>tempfile 建立與清理</td><td>正常</td><td>✅ 通過</td></tr>
+</table>
+<hr>
+<h2>五、CLAUDE.md 更新</h2>
+<p>已更新以下章節：</p>
+<ul>
+<li>Hook 清單表格：新增「敏感環境變數讀取」、「機密外洩」、「路徑遍歷攻擊」防護</li>
+<li>強制規則對照表：新增 3 條規則</li>
+</ul>
+<hr>
+<h2>六、後續建議</h2>
+<ol>
+<li><strong>定期審查攔截日誌</strong>：透過 <code>python hooks/query_logs.py --blocked</code> 檢視攔截事件</li>
+<li><strong>新增更多敏感檔案模式</strong>：依據專案需求擴充 <code>sensitive_patterns</code> 清單</li>
+<li><strong>考慮加密日誌</strong>：結構化日誌若含敏感資訊，可考慮加密儲存</li>
+</ol>
+<hr>
+<p><em>報告生成者：Claude Code Agent</em>
+<em>報告日期：2026-02-15</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

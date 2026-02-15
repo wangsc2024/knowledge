@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="六根淨化遊戲程式碼品質優化報告 (2026-02-16)">
+  <title>六根淨化遊戲程式碼品質優化報告 (2026-02-16) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>六根淨化遊戲程式碼品質優化報告 (2026-02-16)</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">遊戲優化</span><span class="tag">six-roots-zen</span><span class="tag">程式碼品質</span><span class="tag">IIFE</span><span class="tag">DOM效能</span><span class="tag">2026-02-16</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>六根淨化遊戲程式碼品質優化報告</h1>
+<h2>專案資訊</h2>
+<ul>
+<li><strong>遊戲名稱</strong>：六根淨化 - 禪修打字遊戲</li>
+<li><strong>檔案位置</strong>：D:/source/game/six-roots-zen/</li>
+<li><strong>優化日期</strong>：2026-02-16</li>
+<li><strong>優化重點</strong>：程式碼品質、可維護性、效能</li>
+</ul>
+<h2>優化前問題清單</h2>
+<h3>P0 嚴重問題</h3>
+<ol>
+<li><strong>Monolithic HTML</strong>：所有 2145 行（HTML + CSS + JS）集中在單一 index.html 檔案</li>
+<li><strong>全域污染</strong>：所有函式與變數皆為全域作用域</li>
+<li><strong>Inline onclick</strong>：6 處 inline onclick handler，違反關注點分離原則</li>
+</ol>
+<h3>P1 中度問題</h3>
+<ol>
+<li><strong>DOM 粒子無上限</strong>：正確輸入時的 <code>correct-particle</code> DOM 元素無數量控制，高連擊時可能產生數百個 DOM 節點</li>
+<li><strong>重複邏輯</strong>：<code>handleInput</code> 與 <code>compositionend</code> handler 有完全相同的字元處理邏輯</li>
+</ol>
+<h3>P2 輕度問題</h3>
+<ol>
+<li><strong>無 Escape 鍵支援</strong>：遊戲中無法用鍵盤返回開始畫面</li>
+<li><strong>Clipboard API 順序</strong>：先嘗試舊版 <code>document.execCommand(&#x27;copy&#x27;)</code>，應優先使用新版 <code>navigator.clipboard.writeText</code></li>
+</ol>
+<h2>實作的優化</h2>
+<h3>1. JS 分離為獨立檔案（P0）</h3>
+<ul>
+<li>從 index.html 抽出所有 JavaScript 至 <code>game.js</code></li>
+<li>使用 IIFE + <code>&#x27;use strict&#x27;</code> 封裝，零全域變數洩漏</li>
+<li>HTML 縮減至約 880 行（純結構+樣式），JS 為 1160 行</li>
+</ul>
+<h3>2. 移除 inline onclick（P0）</h3>
+<ul>
+<li>移除 6 處 inline onclick：startBtn, endBtn, restartBtn, backBtn, shareBtn, 3 個 mode-btn</li>
+<li>全部改為 <code>addEventListener</code> 綁定，集中在 <code>init()</code> 函式中</li>
+<li>HTML 按鈕加上 id 屬性供 JS 選取</li>
+<li>mode-btn 使用 <code>data-mode</code> 屬性 + querySelectorAll 統一綁定</li>
+</ul>
+<h3>3. 粒子效果物件池（P1）</h3>
+<ul>
+<li>新增 <code>MAX_PARTICLES = 30</code> 上限常數</li>
+<li><code>activeParticles</code> 計數器追蹤當前 DOM 粒子數</li>
+<li><code>spawnCorrectParticles()</code> 檢查上限後才創建</li>
+<li>雙重清除機制：<code>animationend</code> 事件 + <code>setTimeout(900ms)</code> 安全網</li>
+</ul>
+<h3>4. 統一字元處理 processChar()（P1）</h3>
+<ul>
+<li>抽取共用 <code>processChar(char)</code> 函式</li>
+<li><code>handleInput</code> 和 <code>handleCompositionEnd</code> 共用此函式</li>
+<li>消除約 40 行重複程式碼</li>
+</ul>
+<h3>5. Escape 鍵支援（P2）</h3>
+<ul>
+<li>在 keydown handler 中偵測 <code>e.key === &#x27;Escape&#x27;</code></li>
+<li>呼叫 <code>endGame()</code> 回到結果畫面</li>
+</ul>
+<h3>6. Clipboard API 改善（P2）</h3>
+<ul>
+<li>優先使用 <code>navigator.clipboard.writeText()</code>（Promise-based）</li>
+<li>失敗或不支援時才 fallback 到 <code>document.execCommand(&#x27;copy&#x27;)</code></li>
+</ul>
+<h2>技術心得</h2>
+<h3>Monolithic HTML 的拆分策略</h3>
+<p>對於單頁遊戲，將 CSS 保留在 <code>&lt;style&gt;</code> 中（避免額外 HTTP 請求），但 JS 務必分離。好處：</p>
+<ul>
+<li>版本控制差異清晰（CSS 變更與邏輯變更分開）</li>
+<li>IDE 提供正確的 JS 語法高亮與自動完成</li>
+<li>便於未來加入 linting、minification</li>
+</ul>
+<h3>IIFE 封裝要點</h3>
+<pre><code class="language-javascript">;(function () {
+  &#x27;use strict&#x27;;
+  // ... 所有遊戲邏輯
+})();</code></pre>
+<ul>
+<li>前置分號防止與其他腳本連接時出錯</li>
+<li><code>&#x27;use strict&#x27;</code> 捕捉常見錯誤（如未宣告變數）</li>
+</ul>
+<h3>DOM 粒子效能陷阱</h3>
+<p>高連擊時（50+），每次正確輸入產生 6 個 DOM 元素，0.8s 動畫。如果打字速度快（150ms/字），會同時存在 20+ 個動畫 DOM 節點。加上物件池上限後，最多只有 30 個同時存在的粒子 DOM 節點。</p>
+<h3>中文輸入法的 compositionend 處理</h3>
+<p><code>compositionend</code> 事件的 <code>e.data</code> 可能包含多個字元（如注音輸入法的選字）。必須逐字元呼叫 <code>processChar()</code>，不能只處理最後一個字元。</p>
+<h2>品質驗證</h2>
+<ul>
+<li>HTML/JS 分離完成，script src 引用正確</li>
+<li>5 個按鈕 ID 全部對齊（startBtn, endBtn, restartBtn, backBtn, shareBtn）</li>
+<li>3 個 mode-btn 透過 data-mode 屬性統一綁定</li>
+<li>粒子上限機制含安全網清除</li>
+<li>無 console 錯誤風險（所有 DOM 查詢都有 null check）</li>
+<li>響應式設計保留（600px 斷點）</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

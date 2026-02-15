@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code Agent Teams - 多智能體協作完整指南 (2026)">
+  <title>Claude Code Agent Teams - 多智能體協作完整指南 (2026) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude_Code</span>
+        <h1>Claude Code Agent Teams - 多智能體協作完整指南 (2026)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">AI 工具</span><span class="tag">技術更新</span><span class="tag">Agent Teams</span><span class="tag">多智能體協作</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code Agent Teams - 多智能體協作完整指南</h1>
+<h2>功能概述</h2>
+<p>Agent Teams 是 Anthropic 於 2026 年 2 月 5 日隨 Claude Opus 4.6 發布的重要新功能，允許多個 Claude Code 實例作為團隊協同工作。一個會話作為 Team Lead（團隊領導），負責協調工作、分配任務和彙整結果；其他 Teammates（隊友）則獨立運行，各自擁有獨立的上下文窗口，並可直接相互溝通。</p>
+<p>這與傳統的 Subagents 有本質區別：Subagents 是「即發即忘」模式，完成任務後上下文即消失；而 Agent Teams 維持跨輪次的狀態，可以相互交流發現，無需通過主代理作為中介。</p>
+<h2>啟用方式</h2>
+<pre><code class="language-json">// settings.json
+{
+  &quot;env&quot;: {
+    &quot;CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS&quot;: &quot;1&quot;
+  }
+}</code></pre>
+<p>或設定環境變數：</p>
+<pre><code class="language-bash">export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code></pre>
+<h2>核心架構</h2>
+<table>
+<tr><th>組件</th><th>角色</th></tr>
+<tr><td>Team Lead</td><td>主 Claude Code 會話，創建團隊、生成隊友、協調工作</td></tr>
+<tr><td>Teammates</td><td>獨立的 Claude Code 實例，各自處理分配的任務</td></tr>
+<tr><td>Task List</td><td>共享任務列表，隊友可認領和完成任務</td></tr>
+<tr><td>Mailbox</td><td>代理間通訊系統，支援直接訊息傳遞</td></tr>
+</table>
+<h2>最佳使用場景</h2>
+<ol>
+<li><strong>研究與審查</strong>：多個隊友可同時調查問題的不同面向</li>
+<li><strong>新模組或功能開發</strong>：隊友各自負責獨立模組，互不干擾</li>
+<li><strong>競爭假設除錯</strong>：隊友平行測試不同理論，更快找到根因</li>
+<li><strong>跨層協調</strong>：前端、後端、測試變更由不同隊友各自負責</li>
+</ol>
+<h2>顯示模式</h2>
+<ul>
+<li><strong>In-process</strong>：所有隊友在主終端內運行，使用 Shift+Up/Down 選擇隊友</li>
+<li><strong>Split panes</strong>：每個隊友有獨立窗格（需要 tmux 或 iTerm2）</li>
+</ul>
+<h2>使用範例</h2>
+<h3>創建研究團隊</h3>
+<pre><code class="language-plaintext">我正在設計一個 CLI 工具來追蹤 TODO 註釋。
+創建一個 agent team 從不同角度探索：
+- 一個隊友負責 UX
+- 一個負責技術架構
+- 一個扮演魔鬼代言人</code></pre>
+<h3>平行程式碼審查</h3>
+<pre><code class="language-plaintext">創建 agent team 審查 PR #142。生成三個審查者：
+- 專注安全性影響
+- 檢查效能影響
+- 驗證測試覆蓋率</code></pre>
+<h2>Agent Teams vs Subagents 比較</h2>
+<table>
+<tr><th>特性</th><th>Subagents</th><th>Agent Teams</th></tr>
+<tr><td>上下文</td><td>獨立窗口，結果返回調用者</td><td>獨立窗口，完全獨立</td></tr>
+<tr><td>溝通</td><td>只能向主代理報告</td><td>隊友可直接相互通訊</td></tr>
+<tr><td>協調</td><td>主代理管理所有工作</td><td>共享任務列表，自我協調</td></tr>
+<tr><td>適用場景</td><td>聚焦任務，只關心結果</td><td>需要討論和協作的複雜工作</td></tr>
+<tr><td>Token 成本</td><td>較低</td><td>較高（3-4 倍）</td></tr>
+</table>
+<h2>Token 使用與成本</h2>
+<ul>
+<li>Agent Teams 使用的 token 是單一會話的 <strong>3-4 倍</strong></li>
+<li>但可將數小時的序列工作轉為數分鐘的平行執行</li>
+<li>Claude Opus 4.6 定價：$5/百萬輸入 token，$25/百萬輸出 token</li>
+<li>每個隊友支援最高 100 萬 token 的上下文（beta）</li>
+</ul>
+<h2>重要限制</h2>
+<ul>
+<li>不支援會話恢復（/resume 無法恢復隊友）</li>
+<li>任務狀態可能滯後</li>
+<li>關閉可能較慢</li>
+<li>每個會話只能有一個團隊</li>
+<li>不支援巢狀團隊</li>
+<li>領導角色固定，無法轉移</li>
+<li>Split panes 不支援 VS Code 內建終端、Windows Terminal、Ghostty</li>
+</ul>
+<h2>最佳實踐</h2>
+<ol>
+<li><strong>給隊友足夠上下文</strong>：在生成提示中包含任務細節</li>
+<li><strong>適當拆分任務</strong>：每個隊友 5-6 個任務為佳</li>
+<li><strong>避免檔案衝突</strong>：確保隊友各自負責不同檔案</li>
+<li><strong>監控並引導</strong>：定期檢查進度，必要時重新導向</li>
+<li><strong>使用 Delegate Mode</strong>：按 Shift+Tab 讓領導專注協調</li>
+</ol>
+<h2>Hook 事件支援</h2>
+<ul>
+<li><code>TeammateIdle</code>：隊友即將閒置時觸發</li>
+<li><code>TaskCompleted</code>：任務完成時觸發</li>
+</ul>
+<h2>相關功能</h2>
+<ul>
+<li><strong>Fast Mode</strong>：Opus 4.6 可用，2.5 倍速度，6 倍價格，輸入 <code>/fast</code> 啟用</li>
+<li><strong>持久記憶系統</strong>：Claude 自動記錄和回憶工作記憶</li>
+<li><strong>PDF 分頁讀取</strong>：支援 <code>pages: &quot;1-5&quot;</code> 參數</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://code.claude.com/docs/en/agent-teams">Claude Code Agent Teams 官方文檔</a></li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">GitHub CHANGELOG</a></li>
+<li><a href="https://addyosmani.com/blog/claude-code-agent-teams/">Addy Osmani - Claude Code Swarms</a></li>
+<li><a href="https://blog.laozhang.ai/en/posts/claude-4-6-agent-teams">Claude 4.6 Agent Teams 完整指南</a></li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

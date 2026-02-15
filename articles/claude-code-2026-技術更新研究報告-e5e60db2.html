@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code 2026 技術更新研究報告">
+  <title>Claude Code 2026 技術更新研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude_Code</span>
+        <h1>Claude Code 2026 技術更新研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">AI</span><span class="tag">技術研究</span><span class="tag">MCP</span><span class="tag">Agent Teams</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code 2026 技術更新研究報告</h1>
+<h2>主題概述</h2>
+<p>Claude Code 是 Anthropic 推出的命令列 AI 程式設計助手，2026 年迎來重大更新。本報告涵蓋 Claude Code 2.1.x 版本的核心功能、MCP（Model Context Protocol）整合、Agent Teams 多代理協作，以及效能優化等關鍵技術進展。最新版本為 2.1.39（2026 年 2 月），支援 Claude Opus 4.6 模型與 1M token 上下文視窗。</p>
+<hr>
+<h2>核心功能與更新</h2>
+<h3>1. Agent Teams（多代理協作）</h3>
+<p>實驗性功能，允許多個 Agent 並行工作並自主協調任務。</p>
+<p><strong>啟用方式</strong>：</p>
+<pre><code class="language-bash">CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude</code></pre>
+<p><strong>特色</strong>：</p>
+<ul>
+<li>Team Lead 分配任務給 Teammates</li>
+<li>共享任務清單與依賴追蹤</li>
+<li>支援 <code>TeammateIdle</code> 和 <code>TaskCompleted</code> hook 事件</li>
+<li>適合大型程式碼審查等讀取密集型任務</li>
+</ul>
+<h3>2. 記憶系統（Memory）</h3>
+<p>Claude 現在能自動記錄和回憶工作內容。</p>
+<p><strong>特色</strong>：</p>
+<ul>
+<li>持久記憶支援 <code>user</code>、<code>project</code>、<code>local</code> 三種作用域</li>
+<li>會話恢復時記憶使用量減少 68%</li>
+<li>支援 &quot;Summarize from here&quot; 部分對話摘要</li>
+</ul>
+<h3>3. Checkpoint 系統（程式碼回溯）</h3>
+<p>每次變更前自動儲存程式碼狀態。</p>
+<p><strong>操作方式</strong>：</p>
+<ul>
+<li>按 <code>Esc</code> 兩次或執行 <code>/rewind</code> 回到先前版本</li>
+<li>可選擇只還原程式碼、對話，或兩者都還原</li>
+<li>讓開發者能安心進行大膽的重構</li>
+</ul>
+<h3>4. 任務管理系統</h3>
+<p>新的任務追蹤機制，包含依賴關係管理。</p>
+<p><strong>啟用方式</strong>：</p>
+<pre><code class="language-bash">CLAUDE_CODE_ENABLE_TASKS=true claude</code></pre>
+<p><strong>功能</strong>：</p>
+<ul>
+<li><code>TaskUpdate</code> 工具支援建立、更新、刪除任務</li>
+<li>任務可設定依賴關係</li>
+<li>整合 TodoWrite 工具進行進度追蹤</li>
+</ul>
+<h3>5. PDF 頁面範圍讀取</h3>
+<p>Read 工具新增 <code>pages</code> 參數。</p>
+<p><strong>使用範例</strong>：</p>
+<pre><code class="language-plaintext">pages: &quot;1-5&quot;  # 只讀取第 1-5 頁</code></pre>
+<p>大型 PDF（超過 10 頁）在 @ 提及時改為回傳輕量參考，避免佔用過多上下文。</p>
+<hr>
+<h2>MCP（Model Context Protocol）整合</h2>
+<h3>MCP Tool Search（工具搜尋）</h3>
+<p>解決大型工具庫 token 消耗問題的關鍵功能。</p>
+<p><strong>效能提升</strong>：</p>
+<ul>
+<li>Token 使用量減少 85%（從 122,800 降至 191,300 tokens 的可用空間）</li>
+<li>Opus 4 準確率從 49% 提升至 74%</li>
+<li>Opus 4.5 準確率從 79.5% 提升至 88.1%</li>
+</ul>
+<p><strong>配置方式</strong>：</p>
+<pre><code class="language-bash"># 自訂啟用閾值（預設 10%）
+ENABLE_TOOL_SEARCH=auto:5 claude
+
+# 始終啟用
+ENABLE_TOOL_SEARCH=true claude
+
+# 停用
+ENABLE_TOOL_SEARCH=false claude</code></pre>
+<h3>MCP 伺服器類型</h3>
+<ol>
+<li><strong>HTTP 伺服器</strong>（推薦）：雲端服務連接</li>
+</ol>
+<pre><code class="language-bash">claude mcp add --transport http sentry https://mcp.sentry.dev/mcp</code></pre>
+<ol>
+<li><strong>Stdio 伺服器</strong>：本地程式</li>
+</ol>
+<pre><code class="language-bash">claude mcp add --transport stdio db -- npx -y @bytebase/dbhub --dsn &quot;postgresql://...&quot;</code></pre>
+<ol>
+<li><strong>SSE 伺服器</strong>（已棄用）</li>
+</ol>
+<h3>MCP Scope 層級</h3>
+<table>
+<tr><th>Scope</th><th>用途</th><th>儲存位置</th></tr>
+<tr><td>local</td><td>個人專案設定（預設）</td><td>~/.claude.json</td></tr>
+<tr><td>project</td><td>團隊共享</td><td>.mcp.json（版控）</td></tr>
+<tr><td>user</td><td>跨專案個人工具</td><td>~/.claude.json</td></tr>
+</table>
+<h3>MCP Apps 擴展（2026 年 1 月）</h3>
+<p>第三方應用可在 Claude 聊天視窗內呈現 UI 元素（圖表、表單、儀表板）。</p>
+<p><strong>首發合作夥伴</strong>：Amplitude、Asana、Box、Canva、Clay、Figma、Hex、monday.com、Slack、Salesforce（即將）</p>
+<hr>
+<h2>效能優化</h2>
+<h3>CLI 增強</h3>
+<table>
+<tr><th>版本</th><th>功能</th></tr>
+<tr><td>v2.1.41</td><td>新增 <code>claude auth login/status/logout</code> 子命令</td></tr>
+<tr><td>v2.1.36</td><td>Opus 4.6 支援快速模式</td></tr>
+<tr><td>v2.1.18</td><td>自訂鍵盤快捷鍵（<code>/keybindings</code>）</td></tr>
+<tr><td>v2.1.15</td><td>React Compiler 優化 UI 渲染</td></tr>
+</table>
+<h3>平台支援</h3>
+<ul>
+<li><strong>Windows ARM64</strong>：v2.1.41 新增原生支援（win32-arm64）</li>
+<li><strong>WinGet</strong>：<code>winget upgrade Anthropic.ClaudeCode</code></li>
+<li><strong>Homebrew</strong>：<code>brew upgrade claude-code</code></li>
+</ul>
+<h3>安全修復</h3>
+<ul>
+<li>v2.1.38：改進 heredoc 分隔符解析，防止命令注入</li>
+<li>v2.1.34：修復沙盒排除命令繞過漏洞</li>
+<li>v2.1.7：修復萬用字元權限規則繞過漏洞</li>
+</ul>
+<hr>
+<h2>使用範例</h2>
+<h3>連接 GitHub MCP 伺服器</h3>
+<pre><code class="language-bash"># 添加伺服器
+claude mcp add --transport http github https://api.githubcopilot.com/mcp/
+
+# 認證
+&gt; /mcp
+# 選擇 Authenticate for GitHub
+
+# 使用
+&gt; &quot;Review PR #456 and suggest improvements&quot;</code></pre>
+<h3>查詢資料庫</h3>
+<pre><code class="language-bash">claude mcp add --transport stdio db -- npx -y @bytebase/dbhub \
+  --dsn &quot;postgresql://readonly:pass@prod.db.com:5432/analytics&quot;
+
+&gt; &quot;What&#x27;s our total revenue this month?&quot;</code></pre>
+<h3>團隊協作模式</h3>
+<pre><code class="language-bash">CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude
+
+&gt; &quot;Review our entire authentication module, with one agent checking code 
+   quality and another checking security&quot;</code></pre>
+<hr>
+<h2>應用場景與最佳實踐</h2>
+<h3>適用場景</h3>
+<ol>
+<li><strong>大型程式碼審查</strong>：使用 Agent Teams 分工檢查品質與安全</li>
+<li><strong>跨系統整合</strong>：透過 MCP 連接 Sentry、GitHub、JIRA 等服務</li>
+<li><strong>資料庫互動</strong>：自然語言查詢 PostgreSQL、MySQL 等資料庫</li>
+<li><strong>工作流自動化</strong>：整合 Slack 通知、Gmail 草稿、Figma 設計</li>
+</ol>
+<h3>最佳實踐</h3>
+<ol>
+<li><strong>啟用 Tool Search</strong>：當有多個 MCP 伺服器時，減少 token 消耗</li>
+<li><strong>善用 Checkpoint</strong>：進行重構前確認自動快照已啟用</li>
+<li><strong>分層配置 MCP</strong>：個人工具用 user scope，團隊工具用 project scope</li>
+<li><strong>定期更新</strong>：使用 <code>claude update</code> 獲取最新功能與安全修復</li>
+</ol>
+<h3>企業部署</h3>
+<p>使用 <code>managed-mcp.json</code> 或 allowlist/denylist 控制員工可存取的 MCP 伺服器。</p>
+<hr>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">Claude Code GitHub CHANGELOG</a></li>
+<li><a href="https://code.claude.com/docs/en/mcp">Claude Code MCP 官方文件</a></li>
+<li><a href="https://tessl.io/blog/anthropic-brings-mcp-tool-search-to-claude-code/">Anthropic 關於 MCP Tool Search 的公告</a></li>
+<li><a href="https://medium.com/@joe.njenga/claude-code-2-1-is-here-i-tested-all-16-new-changes-dont-miss-this-update-ea9ca008dab7">Claude Code 2.1 更新分析 - Medium</a></li>
+<li><a href="https://releasebot.io/updates/anthropic/claude-code">Releasebot - Claude Code Release Notes</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-13</em>
+<em>研究者：Claude Code Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

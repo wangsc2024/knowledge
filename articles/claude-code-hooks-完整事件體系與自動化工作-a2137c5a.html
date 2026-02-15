@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code Hooks 完整事件體系與自動化工作流進階指南（2026）">
+  <title>Claude Code Hooks 完整事件體系與自動化工作流進階指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code Hooks 完整事件體系與自動化工作流進階指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">Hooks</span><span class="tag">自動化工作流</span><span class="tag">安全防護</span><span class="tag">Agent Teams</span><span class="tag">CI/CD</span><span class="tag">2026</span><span class="tag">技術研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code Hooks 完整事件體系與自動化工作流進階指南（2026）</h1>
+<h2>主題概述</h2>
+<p>Claude Code Hooks 是 Anthropic 在 Claude Code 中提供的<strong>確定性自動化機制</strong>，讓開發者在 Agent 生命週期的關鍵節點自動執行 shell 命令、LLM 提示詞（Prompt-based hooks）或 Agent 代理（Agent-based hooks）。截至 2026 年 2 月（v2.1.42），Hooks 系統已涵蓋 <strong>14 種事件類型</strong>，從 Session 啟動到結束、從工具呼叫前後到 Agent Teams 協作事件，構成完整的可觀測與可控制層。本文深入整理每種事件的用途、輸入結構、決策控制方式，以及三種 hook handler 類型（command、prompt、agent）的進階應用模式。</p>
+<hr>
+<h2>一、Hooks 核心架構</h2>
+<h3>1.1 設計哲學</h3>
+<p>Hooks 提供<strong>確定性控制</strong>（deterministic control），確保特定動作「一定會發生」，而非依賴 LLM 自行決定是否執行。這與 Skills（指令型引導）和 Subagents（隔離執行）形成互補：</p>
+<ul>
+<li><strong>Hooks</strong>：機器強制層，runtime 攔截/增強</li>
+<li><strong>Skills</strong>：知識引導層，提供上下文與指令</li>
+<li><strong>Subagents</strong>：隔離執行層，並行處理獨立任務</li>
+</ul>
+<h3>1.2 三層配置架構</h3>
+<table>
+<tr><th>配置位置</th><th>作用範圍</th><th>可共享</th></tr>
+<tr><td><code>~/.claude/settings.json</code></td><td>所有專案（個人）</td><td>否</td></tr>
+<tr><td><code>.claude/settings.json</code></td><td>單一專案</td><td>是（commit 到 repo）</td></tr>
+<tr><td><code>.claude/settings.local.json</code></td><td>單一專案</td><td>否（gitignored）</td></tr>
+<tr><td>Managed policy settings</td><td>組織範圍</td><td>是（管理員控制）</td></tr>
+<tr><td>Plugin <code>hooks/hooks.json</code></td><td>插件啟用時</td><td>是（隨插件發布）</td></tr>
+<tr><td>Skill/Agent frontmatter</td><td>元件啟用時</td><td>是（嵌入定義）</td></tr>
+</table>
+<p>企業管理員可使用 <code>allowManagedHooksOnly</code> 阻止使用者、專案和插件 hooks，僅允許組織級 hooks。</p>
+<h3>1.3 Matcher 機制</h3>
+<p>Matcher 是<strong>正則表達式</strong>字串，用於過濾 hook 觸發條件：</p>
+<table>
+<tr><th>事件類型</th><th>Matcher 過濾對象</th><th>範例</th></tr>
+<tr><td>PreToolUse/PostToolUse</td><td>工具名稱</td><td><code>Bash</code>、`Edit\</td><td>Write<code>、</code>mcp__.*`</td></tr>
+<tr><td>SessionStart</td><td>啟動方式</td><td><code>startup</code>、<code>resume</code>、<code>clear</code></td></tr>
+<tr><td>SessionEnd</td><td>結束原因</td><td><code>clear</code>、<code>logout</code>、<code>prompt_input_exit</code></td></tr>
+<tr><td>Notification</td><td>通知類型</td><td><code>permission_prompt</code>、<code>idle_prompt</code></td></tr>
+<tr><td>SubagentStart/Stop</td><td>Agent 類型</td><td><code>Bash</code>、<code>Explore</code>、<code>Plan</code></td></tr>
+<tr><td>PreCompact</td><td>觸發方式</td><td><code>manual</code>、<code>auto</code></td></tr>
+<tr><td>UserPromptSubmit/Stop/TeammateIdle/TaskCompleted</td><td>無 Matcher</td><td>每次觸發皆執行</td></tr>
+</table>
+<hr>
+<h2>二、14 種 Hook 事件完整清單</h2>
+<h3>2.1 Session 生命週期事件</h3>
+<p>#### SessionStart</p>
+<ul>
+<li><strong>觸發時機</strong>：Session 開始或恢復時</li>
+<li><strong>用途</strong>：初始化環境變數、載入專案配置、記錄 session 開始</li>
+<li><strong>決策控制</strong>：可透過 <code>environmentVariables</code> 持久化環境變數到整個 session</li>
+<li><strong>Matcher</strong>：<code>startup</code>（新建）、<code>resume</code>（恢復）、<code>clear</code>（清除）、<code>compact</code>（壓縮後）</li>
+</ul>
+<p>#### SessionEnd</p>
+<ul>
+<li><strong>觸發時機</strong>：Session 終止時</li>
+<li><strong>用途</strong>：清理資源、記錄 session 摘要、發送告警</li>
+<li><strong>Matcher</strong>：<code>clear</code>、<code>logout</code>、<code>prompt_input_exit</code>、<code>bypass_permissions_disabled</code></li>
+</ul>
+<h3>2.2 使用者互動事件</h3>
+<p>#### UserPromptSubmit</p>
+<ul>
+<li><strong>觸發時機</strong>：使用者提交 prompt 後、Claude 處理前</li>
+<li><strong>用途</strong>：輸入驗證、內容過濾、自動注入上下文</li>
+<li><strong>決策控制</strong>：可攔截 prompt（deny）或修改 prompt 內容</li>
+<li><strong>無 Matcher</strong>：每次提交皆觸發</li>
+</ul>
+<h3>2.3 工具使用事件（核心）</h3>
+<p>#### PreToolUse</p>
+<ul>
+<li><strong>觸發時機</strong>：工具呼叫執行前</li>
+<li><strong>用途</strong>：安全防護（攔截危險命令）、權限控制</li>
+<li><strong>決策控制</strong>：<code>permissionDecision</code> 可為 <code>allow</code>（允許並跳過權限對話框）、<code>deny</code>（拒絕並告知原因）、<code>ask</code>（顯示權限對話框）</li>
+<li><strong>實戰範例</strong>：攔截 <code>rm -rf</code>、阻止 <code>nul</code> 重導向、禁止 <code>git push --force</code></li>
+</ul>
+<p>#### PermissionRequest</p>
+<ul>
+<li><strong>觸發時機</strong>：權限對話框即將顯示時</li>
+<li><strong>用途</strong>：自動批准/拒絕特定工具、記錄權限請求</li>
+<li><strong>決策控制</strong>：可自動批准或拒絕</li>
+</ul>
+<p>#### PostToolUse</p>
+<ul>
+<li><strong>觸發時機</strong>：工具呼叫成功後</li>
+<li><strong>用途</strong>：自動格式化（Prettier）、測試執行、日誌記錄</li>
+<li><strong>決策控制</strong>：無（僅觀察與副作用）</li>
+</ul>
+<p>#### PostToolUseFailure</p>
+<ul>
+<li><strong>觸發時機</strong>：工具呼叫失敗後</li>
+<li><strong>用途</strong>：錯誤記錄、故障分析、自動重試邏輯</li>
+</ul>
+<h3>2.4 Agent 協作事件</h3>
+<p>#### SubagentStart</p>
+<ul>
+<li><strong>觸發時機</strong>：子 Agent 被生成時</li>
+<li><strong>用途</strong>：記錄 Agent 啟動、資源追蹤</li>
+<li><strong>Matcher</strong>：Agent 類型（<code>Bash</code>、<code>Explore</code>、<code>Plan</code> 或自定義名稱）</li>
+</ul>
+<p>#### SubagentStop</p>
+<ul>
+<li><strong>觸發時機</strong>：子 Agent 完成時</li>
+<li><strong>用途</strong>：收集結果、效能統計</li>
+</ul>
+<p>#### TeammateIdle（v2.1.33 新增）</p>
+<ul>
+<li><strong>觸發時機</strong>：Agent Teams 中的隊友即將進入閒置狀態</li>
+<li><strong>用途</strong>：自動分配新任務、通知 Team Lead、健康監控</li>
+<li><strong>無 Matcher</strong>：每次觸發皆執行</li>
+<li><strong>注意</strong>：此為 Agent Teams 專屬事件，需設定 <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code></li>
+</ul>
+<p>#### TaskCompleted（v2.1.33 新增）</p>
+<ul>
+<li><strong>觸發時機</strong>：任務被標記為完成時</li>
+<li><strong>用途</strong>：品質驗證、自動觸發後續流程、更新進度看板</li>
+<li><strong>無 Matcher</strong>：每次觸發皆執行</li>
+</ul>
+<h3>2.5 系統事件</h3>
+<p>#### Notification</p>
+<ul>
+<li><strong>觸發時機</strong>：Claude Code 發送通知時</li>
+<li><strong>用途</strong>：桌面通知轉發、Slack/ntfy 推播</li>
+<li><strong>Matcher</strong>：<code>permission_prompt</code>、<code>idle_prompt</code>、<code>auth_success</code>、<code>elicitation_dialog</code></li>
+</ul>
+<p>#### Stop</p>
+<ul>
+<li><strong>觸發時機</strong>：Claude 完成回應時</li>
+<li><strong>用途</strong>：Session 摘要、健康檢查、自動告警</li>
+<li><strong>決策控制</strong>：可注入新 prompt 讓 Claude 繼續工作</li>
+</ul>
+<p>#### PreCompact</p>
+<ul>
+<li><strong>觸發時機</strong>：上下文壓縮前</li>
+<li><strong>用途</strong>：保存重要上下文、注入壓縮指引</li>
+<li><strong>Matcher</strong>：<code>manual</code>（使用者觸發 /compact）、<code>auto</code>（自動壓縮）</li>
+</ul>
+<hr>
+<h2>三、三種 Hook Handler 類型</h2>
+<h3>3.1 Command Hooks（命令型 — 最常用）</h3>
+<p>最基本的 hook 類型，執行 shell 命令。輸入透過 stdin 以 JSON 傳入，輸出透過 stdout JSON 返回：</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;command&quot;,
+  &quot;command&quot;: &quot;.claude/hooks/my-hook.sh&quot;
+}</code></pre>
+<p><strong>Exit code 語義</strong>：</p>
+<ul>
+<li><code>exit 0</code>：允許（無輸出則不做任何動作）</li>
+<li><code>exit 2</code>：阻止（針對支援決策控制的事件）</li>
+<li>其他非零 exit code：hook 錯誤（不影響工具執行）</li>
+</ul>
+<h3>3.2 Prompt-based Hooks（LLM 評估型 — v2.1.33+）</h3>
+<p>使用 Claude 模型來<strong>評估條件</strong>，適合需要判斷力而非確定性規則的場景：</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;prompt&quot;,
+  &quot;prompt&quot;: &quot;Evaluate whether this code change follows security best practices&quot;
+}</code></pre>
+<p><strong>特點</strong>：</p>
+<ul>
+<li>使用小型快速模型（如 Haiku）進行評估</li>
+<li>返回結構化 JSON 回應（含 decision 和 reason）</li>
+<li>適合多準則評估（如：Stop hook 判斷任務是否真正完成）</li>
+</ul>
+<h3>3.3 Agent-based Hooks（Agent 代理型 — v2.1.33+）</h3>
+<p>啟動完整的 Agent 實例作為 hook，可執行多步驟工作流：</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;agent&quot;,
+  &quot;agent&quot;: &quot;.claude/agents/review-agent.md&quot;
+}</code></pre>
+<p><strong>特點</strong>：</p>
+<ul>
+<li>Agent 擁有完整的工具存取能力</li>
+<li>適合複雜的後處理流程（如：程式碼審查、安全掃描）</li>
+<li>可與 Skills 和 MCP 工具整合</li>
+</ul>
+<hr>
+<h2>四、進階模式</h2>
+<h3>4.1 非同步 Hooks（背景執行）</h3>
+<p>將 hook 設定為背景執行，不阻塞主流程：</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;command&quot;,
+  &quot;command&quot;: &quot;.claude/hooks/run-tests.sh&quot;,
+  &quot;async&quot;: true
+}</code></pre>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>測試套件在檔案變更後自動執行</li>
+<li>長時間運行的 CI/CD 整合</li>
+<li>大量日誌的非同步寫入</li>
+</ul>
+<h3>4.2 環境變數持久化（SessionStart 專屬）</h3>
+<p>SessionStart hook 可設定環境變數，在整個 session 中生效：</p>
+<pre><code class="language-json">{
+  &quot;hookSpecificOutput&quot;: {
+    &quot;hookEventName&quot;: &quot;SessionStart&quot;,
+    &quot;environmentVariables&quot;: {
+      &quot;PROJECT_ENV&quot;: &quot;production&quot;,
+      &quot;DEPLOY_TARGET&quot;: &quot;staging&quot;
+    }
+  }
+}</code></pre>
+<h3>4.3 MCP 工具匹配</h3>
+<p>Matcher 支援匹配 MCP 工具呼叫，格式為 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>：</p>
+<pre><code class="language-json">{
+  &quot;matcher&quot;: &quot;mcp__.*&quot;,
+  &quot;hooks&quot;: [{ &quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;.claude/hooks/log-mcp.sh&quot; }]
+}</code></pre>
+<h3>4.4 Setup Hook Event（v2.1.10 新增）</h3>
+<p>透過 CLI flags <code>--init</code>、<code>--init-only</code>、<code>--maintenance</code> 觸發的特殊事件，用於：</p>
+<ul>
+<li>倉庫初始化設定</li>
+<li>定期維護操作</li>
+<li>CI/CD pipeline 的前置準備</li>
+</ul>
+<hr>
+<h2>五、安全防護最佳實踐</h2>
+<h3>5.1 Heredoc 解析強化（v2.1.38）</h3>
+<p>v2.1.38 改進了 heredoc delimiter 解析，防止透過 heredoc 進行命令注入攻擊。</p>
+<h3>5.2 Sandbox 整合（v2.1.38）</h3>
+<p>阻止對 <code>.claude/skills</code> 目錄的寫入操作，防止 Agent 自行修改自己的行為定義。</p>
+<h3>5.3 巢狀 Session 防護（v2.1.41）</h3>
+<p>新增防護機制，防止在 Claude Code session 內啟動另一個 Claude Code 實例（遞迴防護）。</p>
+<h3>5.4 安全建議（官方）</h3>
+<ul>
+<li>hooks 腳本放在版本控制中（<code>.claude/hooks/</code>）</li>
+<li>使用 <code>exit 2</code> 明確阻止而非 <code>exit 1</code>（避免誤判為錯誤）</li>
+<li>驗證 stdin JSON 的完整性</li>
+<li>避免在 hooks 中執行需要長時間的操作（改用 async）</li>
+<li>敏感操作使用專案級設定（可 code review）而非使用者級設定</li>
+</ul>
+<hr>
+<h2>六、實際應用架構範例</h2>
+<h3>6.1 完整的安全強化配置</h3>
+<pre><code class="language-json">{
+  &quot;hooks&quot;: {
+    &quot;PreToolUse&quot;: [
+      {
+        &quot;matcher&quot;: &quot;Bash&quot;,
+        &quot;hooks&quot;: [{ &quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;.claude/hooks/pre_bash_guard.py&quot; }]
+      },
+      {
+        &quot;matcher&quot;: &quot;Write|Edit&quot;,
+        &quot;hooks&quot;: [{ &quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;.claude/hooks/pre_write_guard.py&quot; }]
+      }
+    ],
+    &quot;PostToolUse&quot;: [
+      {
+        &quot;matcher&quot;: &quot;&quot;,
+        &quot;hooks&quot;: [{ &quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;.claude/hooks/post_tool_logger.py&quot; }]
+      }
+    ],
+    &quot;Stop&quot;: [
+      {
+        &quot;matcher&quot;: &quot;&quot;,
+        &quot;hooks&quot;: [{ &quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;.claude/hooks/on_stop_alert.py&quot; }]
+      }
+    ]
+  }
+}</code></pre>
+<h3>6.2 CI/CD 整合模式</h3>
+<p>透過 Hooks 將 Claude Code 整合進持續整合流程：</p>
+<ol>
+<li><strong>SessionStart</strong>：設定 CI 環境變數、拉取最新依賴</li>
+<li><strong>PostToolUse(Edit|Write)</strong>：自動格式化 + lint 檢查</li>
+<li><strong>Stop</strong>：運行測試套件、產生覆蓋率報告</li>
+<li><strong>SessionEnd</strong>：發送通知、清理暫存資源</li>
+</ol>
+<h3>6.3 Agent Teams 監控模式（v2.1.33+）</h3>
+<p>利用 TeammateIdle 和 TaskCompleted 事件實現團隊監控：</p>
+<ol>
+<li><strong>SubagentStart</strong>：記錄 Agent 啟動時間與任務分配</li>
+<li><strong>TeammateIdle</strong>：偵測閒置 Agent、自動分配待處理任務</li>
+<li><strong>TaskCompleted</strong>：品質門檻驗證、更新任務看板</li>
+<li><strong>SubagentStop</strong>：收集效能指標（token 用量、耗時）</li>
+</ol>
+<hr>
+<h2>七、版本演進時間軸</h2>
+<table>
+<tr><th>版本</th><th>日期</th><th>Hooks 相關更新</th></tr>
+<tr><td>v2.1.10</td><td>2026-01</td><td>新增 Setup hook event（<code>--init</code>/<code>--maintenance</code>）</td></tr>
+<tr><td>v2.1.19</td><td>2026-01</td><td>Skills/Agents 無額外權限的 hooks 免核准</td></tr>
+<tr><td>v2.1.30</td><td>2026-02</td><td>修復 subagent 無法存取 SDK MCP tools</td></tr>
+<tr><td>v2.1.33</td><td>2026-02</td><td>新增 TeammateIdle、TaskCompleted 事件；memory frontmatter 支援</td></tr>
+<tr><td>v2.1.38</td><td>2026-02</td><td>Heredoc 安全解析；Sandbox 阻止 .claude/skills 寫入</td></tr>
+<tr><td>v2.1.41</td><td>2026-02</td><td>Hook blocking errors 顯示 stderr；巢狀 session 防護</td></tr>
+<tr><td>v2.1.42</td><td>2026-02</td><td>最新穩定版（效能與快取優化）</td></tr>
+</table>
+<hr>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://code.claude.com/docs/en/hooks">Claude Code Hooks 官方參考文件</a></li>
+<li><a href="https://code.claude.com/docs/en/hooks-guide">自動化工作流指南</a></li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">Claude Code CHANGELOG</a></li>
+<li><a href="https://github.com/anthropics/claude-code/releases">Claude Code GitHub Releases</a></li>
+</ul>
+<hr>
+<p><em>研究日期：2026-02-16</em>
+<em>研究者：Claude Code Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

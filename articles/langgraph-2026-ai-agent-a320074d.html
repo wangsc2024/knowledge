@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LangGraph 2026 深度研究：企業級 AI Agent 編排框架">
+  <title>LangGraph 2026 深度研究：企業級 AI Agent 編排框架 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>LangGraph 2026 深度研究：企業級 AI Agent 編排框架</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI Agent</span><span class="tag">LangGraph</span><span class="tag">LangChain</span><span class="tag">Python</span><span class="tag">2026</span><span class="tag">技術研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LangGraph 2026 深度研究：企業級 AI Agent 編排框架</h1>
+<blockquote>研究日期：2026-02-14</blockquote>
+<blockquote>GitHub 星標：24.7k | 分支：4.3k | 貢獻者：284</blockquote>
+<h2>專案概述</h2>
+<p>LangGraph 是 LangChain Inc 開發的<strong>低層次編排框架</strong>，專為建構長期運行、有狀態的 AI Agent 設計。其核心設計理念來自 Google Pregel 和 Apache Beam，將 Agent 建模為<strong>有限狀態機（Finite State Machine）</strong>，每個節點代表推理或工具使用步驟，轉換由輸出決定。已被 Klarna、Replit、Elastic 等知名企業採用。</p>
+<p>---</p>
+<h2>核心特色與技術亮點</h2>
+<h3>1. 持久執行（Persistent Execution）</h3>
+<ul>
+<li>Agent 可在故障中持續運行，自動從中斷處恢復</li>
+<li>適合需要高可靠性的企業場景</li>
+</ul>
+<h3>2. 人機協作（Human-in-the-Loop）</h3>
+<ul>
+<li>任何執行階段皆可檢查和修改 Agent 狀態</li>
+<li>支援審批流程、人工干預等企業需求</li>
+</ul>
+<h3>3. 記憶管理（Memory Management）</h3>
+<ul>
+<li><strong>短期記憶</strong>：工作記憶，單次會話內有效</li>
+<li><strong>長期記憶</strong>：跨會話持久化，支援用戶偏好等場景</li>
+</ul>
+<h3>4. 圖形化狀態機架構</h3>
+<ul>
+<li>使用 <code>StateGraph</code> 定義節點和邊</li>
+<li>清晰的控制流，易於除錯和維護</li>
+<li>根據 2026 年基準測試，延遲和 token 使用量最低</li>
+</ul>
+<h3>5. 生產級可觀測性</h3>
+<ul>
+<li>與 LangSmith 深度整合</li>
+<li>執行路徑追蹤、狀態轉換可視化</li>
+<li>支援針對有狀態長期工作流的可擴展基礎設施</li>
+</ul>
+<p>---</p>
+<h2>安裝與快速上手</h2>
+<h3>安裝</h3>
+<pre><code>
+pip install -U langgraph
+</code></pre>
+<h3>基本使用範例</h3>
+<pre><code>
+from langgraph.graph import START, StateGraph
+from typing_extensions import TypedDict
+
+class State(TypedDict):
+    text: str
+
+def node_a(state: State) -&gt; dict:
+    return {"text": state["text"] + "a"}
+
+def node_b(state: State) -&gt; dict:
+    return {"text": state["text"] + "b"}
+
+# 建立圖形
+graph = StateGraph(State)
+graph.add_node("node_a", node_a)
+graph.add_node("node_b", node_b)
+graph.add_edge(START, "node_a")
+graph.add_edge("node_a", "node_b")
+
+# 編譯並執行
+result = graph.compile().invoke({"text": ""})
+print(result)  # {'text': 'ab'}
+</code></pre>
+<h3>進階：帶條件分支的 Agent</h3>
+<pre><code>
+from langgraph.graph import END
+
+def should_continue(state: State) -&gt; str:
+    if len(state["text"]) &gt; 3:
+        return "end"
+    return "continue"
+
+graph.add_conditional_edges(
+    "node_b",
+    should_continue,
+    {"continue": "node_a", "end": END}
+)
+</code></pre>
+<p>---</p>
+<h2>使用場景</h2>
+<p>| 場景 | 描述 |</p>
+<p>|------|------|</p>
+<p>| <strong>客服 Agent</strong> | 多輪對話、狀態追蹤、人工升級 |</p>
+<p>| <strong>工作流自動化</strong> | 審批流程、條件分支、錯誤恢復 |</p>
+<p>| <strong>RAG Pipeline</strong> | 結合 LlamaIndex 進行檢索增強 |</p>
+<p>| <strong>多 Agent 協作</strong> | 搭配 CrewAI 或 AutoGen 建構團隊 |</p>
+<p>| <strong>長期任務</strong> | 跨天執行的數據處理、報告生成 |</p>
+<p>---</p>
+<h2>與類似專案比較</h2>
+<p>| 框架 | 星標 | 定位 | 優勢 | 劣勢 |</p>
+<p>|------|------|------|------|------|</p>
+<p>| <strong>LangChain</strong> | 122k | 通用 LLM 應用 | 生態最大、功能最全 | 學習曲線陡峭 |</p>
+<p>| <strong>LangGraph</strong> | 24.7k | 低層次編排 | 狀態機架構、低延遲 | 需搭配 LangChain 生態 |</p>
+<p>| <strong>CrewAI</strong> | 41.8k | 角色扮演協作 | 直覺的團隊模式 | 控制粒度較粗 |</p>
+<p>| <strong>AutoGen</strong> | 52.9k | 多 Agent 對話 | 微軟支持、企業級 | 對話為主 |</p>
+<p>| <strong>Agno</strong> | 36.4k | 高效能運行時 | 執行速度最快 | 生態較小 |</p>
+<p>| <strong>Smolagents</strong> | - | 極簡程式碼執行 | 上手最快 | 功能有限 |</p>
+<p>---</p>
+<h2>2026 年 AI Agent 框架市場趨勢</h2>
+<ol>
+<li><strong>LangChain 生態獨大</strong>：122k 星標，是第二名的 2 倍</li>
+<li><strong>Python 主導</strong>：Top 10 中 8 個是 Python 框架</li>
+<li><strong>TypeScript 崛起</strong>：Vercel AI SDK（20.4k）、Mastra（19k）提供原生 TS 支援</li>
+<li><strong>企業化趨勢</strong>：Agno、Haystack 等專注生產級部署</li>
+<li><strong>多 Agent 成為標配</strong>：MetaGPT、AutoGen、CrewAI 等專注團隊協作</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://github.com/langchain-ai/langgraph">LangGraph GitHub 官方 Repo</a></li>
+<li><a href="https://blog.agentailor.com/posts/top-ai-agent-frameworks-github-2026">Top 10 Most Starred AI Agent Frameworks on GitHub 2026 - Agentailor</a></li>
+<li><a href="https://langfuse.com/blog/2025-03-19-ai-agent-comparison">AI Agent Framework 比較 - Langfuse Blog</a></li>
+<li><a href="https://www.zenml.io/blog/smolagents-vs-langgraph">Smolagents vs LangGraph - ZenML Blog</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="正念記憶遊戲：冥想音效系統實作（Web Audio API 頌缽合成）">
+  <title>正念記憶遊戲：冥想音效系統實作（Web Audio API 頌缽合成） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>正念記憶遊戲：冥想音效系統實作（Web Audio API 頌缽合成）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">Web Audio API</span><span class="tag">正念</span><span class="tag">音效設計</span><span class="tag">HTML5遊戲</span><span class="tag">頌缽</span><span class="tag">冥想</span><span class="tag">創意優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>正念記憶遊戲：冥想音效系統實作</h1>
+<h2>概述</h2>
+<p>為正念記憶（Mindful Memory）遊戲新增完整的冥想音效系統，使用 Web Audio API 合成佛教風格音效，零外部依賴。</p>
+<h2>技術方案</h2>
+<h3>頌缽音效合成</h3>
+<p>使用多個 sine oscillator 模擬頌缽的泛音結構：</p>
+<ul>
+<li>基頻 × 1（基音）</li>
+<li>基頻 × 2.76（第二泛音）</li>
+<li>基頻 × 4.72（第三泛音）</li>
+</ul>
+<p>各泛音的音量按比例遞減（1 : 0.4 : 0.15），加上 exponentialRampToValueAtTime 形成自然衰減。</p>
+<pre><code class="language-javascript">function playSingingBowl(baseFreq, duration, volume = 0.15) {
+    const harmonics = [1, 2.76, 4.72];
+    const volumes = [volume, volume * 0.4, volume * 0.15];
+    harmonics.forEach((h, i) =&gt; {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = &#x27;sine&#x27;;
+        osc.frequency.value = baseFreq * h;
+        gain.gain.setValueAtTime(volumes[i], now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+    });
+}</code></pre>
+<h3>音效設計</h3>
+<table>
+<tr><th>事件</th><th>音效</th><th>設計理念</th></tr>
+<tr><td>翻牌</td><td>triangle wave 800→1200Hz 短促</td><td>輕柔翻頁感，不打擾冥想</td></tr>
+<tr><td>配對成功</td><td>頌缽 C4→C5 音階漸進</td><td>每對成功音高遞增，象徵修行進步</td></tr>
+<tr><td>配對失敗</td><td>sine 180→120Hz 下降</td><td>低沉木魚聲，溫和提醒非懲罰</td></tr>
+<tr><td>遊戲完成</td><td>C大三和弦展開 + C7鈴聲</td><td>莊嚴圓滿感，四音漸次響起</td></tr>
+<tr><td>成就解鎖</td><td>G5→B5→E6 三連鈴</td><td>清脆獎勵音，正面回饋</td></tr>
+</table>
+<h3>配對音階漸進設計</h3>
+<p>8 對配對使用 C 大調音階：C4(262)→D4(294)→E4(330)→F4(349)→G4(392)→A4(440)→B4(494)→C5(523)。</p>
+<p>每完成一對，音高上升一個全音/半音，玩家在聽覺上感受到「漸近圓滿」的過程。</p>
+<h3>遊戲完成和弦</h3>
+<pre><code class="language-plaintext">C4(0s) → E4(0.3s) → G4(0.6s) → C5(1.0s) → C7鈴聲(1.5s)</code></pre>
+<p>四個頌缽音依序響起形成 C 大三和弦，最後一個高亮鈴聲收尾，營造莊嚴圓滿的聽覺體驗。</p>
+<h2>使用者控制</h2>
+<ul>
+<li>右上角 🔔/🔕 按鈕切換靜音</li>
+<li>偏好持久化到 localStorage（key: <code>mindful_sound</code>）</li>
+<li>首次互動才初始化 AudioContext（符合瀏覽器自動播放政策）</li>
+<li>所有音效函數都有 null/disabled guard</li>
+</ul>
+<h2>關鍵學習</h2>
+<ol>
+<li><strong>Web Audio API 的 exponentialRampToValueAtTime 終值不能為 0</strong>，必須用極小值（0.001）</li>
+<li><strong>泛音比例是頌缽音色的關鍵</strong>：2.76 和 4.72 是常見頌缽泛音比（非整數，這正是金屬共振的特色）</li>
+<li><strong>setTimeout 搭配 audioCtx.currentTime</strong>：用 setTimeout 排程延遲音符，但每個音符內部計時用 audioCtx.currentTime 確保精確</li>
+<li><strong>AudioContext 必須在用戶互動後創建或 resume</strong>，否則會被瀏覽器靜音政策阻擋</li>
+</ol>
+<h2>修改摘要</h2>
+<ul>
+<li>檔案：<code>D:\Source\game\mindful-memory\index.html</code></li>
+<li>新增約 140 行 JavaScript（音效系統）</li>
+<li>新增約 30 行 CSS（音效控制按鈕）</li>
+<li>新增 1 個 HTML 元素（音效按鈕）</li>
+<li>修改 4 個既有函數（flipCard、checkMatch、endGame、showAchievementNotification）</li>
+<li>零新增外部依賴</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

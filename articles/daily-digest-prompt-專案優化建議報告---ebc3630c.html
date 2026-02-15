@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 專案優化建議報告 - 2026-02-14">
+  <title>Daily-Digest-Prompt 專案優化建議報告 - 2026-02-14 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude_Code</span>
+        <h1>Daily-Digest-Prompt 專案優化建議報告 - 2026-02-14</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-02-14</span><span class="tag">Claude Code</span><span class="tag">Agent架構</span><span class="tag">系統分析</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 專案優化建議報告</h1>
+<blockquote><p>研究日期：2026-02-14
+分析依據：RAG 知識庫中的 Claude Code 最佳實踐、Agent SDK 設計模式、AI Agent 技術趨勢</p>
+</blockquote>
+<hr>
+<h2>一、專案概述</h2>
+<p>Daily-Digest-Prompt 是一個 <strong>Skill 驅動型每日摘要 Agent 系統</strong>，透過 Windows 排程器定時執行 Claude Code CLI，自動彙整待辦事項、屏東縣政新聞、HN AI 動態、習慣提示、學習技巧，並推播 ntfy 通知。</p>
+<h3>核心架構亮點</h3>
+<ul>
+<li><strong>Skill-First 策略</strong>：13 個自包含 Skill，透過 SKILL_INDEX.md 路由引擎驅動</li>
+<li><strong>NanoClaw 啟發機制</strong>：跨次記憶持久化、API 回應快取、排程狀態追蹤</li>
+<li><strong>團隊並行模式</strong>：Phase 1（3 個 fetch Agent）+ Phase 2（assembly Agent）</li>
+<li><strong>DONE 認證機制</strong>：結構化驗證閘門 + 精練迴圈（最多 3 次迭代）</li>
+<li><strong>頻率限制</strong>：自動任務每日上限追蹤，避免過度執行</li>
+</ul>
+<hr>
+<h2>二、現狀分析</h2>
+<h3>優勢</h3>
+<ol>
+<li><strong>高度模組化</strong>：Skill 自包含設計，易於維護和擴展</li>
+<li><strong>穩健的錯誤處理</strong>：快取降級保護、重試機制、失敗回報</li>
+<li><strong>完整的狀態追蹤</strong>：連續 18 天執行記錄、習慣/學習連續天數</li>
+<li><strong>知識庫整合</strong>：研究成果自動匯入 RAG，去重機制避免重複</li>
+</ol>
+<h3>待改進項目</h3>
+<ol>
+<li><strong>單一模式耗時</strong>：約 3-4 分鐘，團隊模式約 1 分鐘，仍有優化空間</li>
+<li><strong>Skill 使用覆蓋率</strong>：11/12 個 Skill 使用，gmail Skill 閒置</li>
+<li><strong>快取命中率</strong>：記憶顯示 cache_hits=0，快取機制可能未充分發揮</li>
+<li><strong>Prompt 長度</strong>：hour-todoist-prompt.md 超過 1000 行，可拆分優化</li>
+</ol>
+<hr>
+<h2>三、優化建議（依優先級排序）</h2>
+<h3>P1：高優先級（建議立即實施）</h3>
+<p>#### 1.1 引入 Agent Teams 原生功能
+<strong>問題</strong>：目前用 PowerShell Start-Job 實現並行，是模擬方案
+<strong>建議</strong>：升級至 Claude Code 2026 原生 Agent Teams 功能
+<strong>依據</strong>：知識庫筆記「Claude Code 2026 最新功能」提到 Agent Teams 允許多代理自主協調
+<strong>實作複雜度</strong>：中
+<strong>預期效益</strong>：</p>
+<ul>
+<li>減少 PowerShell 協調開銷</li>
+<li>更精細的 Agent 間通訊</li>
+<li>支援 TeammateIdle 和 TaskCompleted Hook</li>
+</ul>
+<pre><code class="language-bash"># 啟用方式
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code></pre>
+<p>#### 1.2 優化快取命中策略
+<strong>問題</strong>：cache_hits=0，快取機制可能檢查邏輯有缺陷或 TTL 設定不當
+<strong>建議</strong>：</p>
+<ol>
+<li>調整 Todoist 快取 TTL 從 30 分鐘延長至 60 分鐘（待辦變化頻率低）</li>
+<li>在 api-cache SKILL.md 中加入快取命中率追蹤</li>
+<li>Agent 執行開始時輸出快取狀態日誌</li>
+</ol>
+<p><strong>實作複雜度</strong>：低
+<strong>預期效益</strong>：減少 API 呼叫次數 30-50%</p>
+<p>#### 1.3 Prompt 模組化重構
+<strong>問題</strong>：hour-todoist-prompt.md 超過 1000 行，違反單一職責
+<strong>建議</strong>：</p>
+<ol>
+<li>拆分為多個子模組：routing.md、execution.md、verification.md</li>
+<li>使用 include 機制或執行時動態組裝</li>
+<li>保留核心流程在主 prompt，細節移至 Skill</li>
+</ol>
+<p><strong>實作複雜度</strong>：中
+<strong>預期效益</strong>：提升可維護性、降低 token 消耗</p>
+<h3>P2：中優先級（建議本週實施）</h3>
+<p>#### 2.1 整合 Gmail Skill
+<strong>問題</strong>：gmail Skill 已定義但未整合至每日摘要
+<strong>建議</strong>：</p>
+<ol>
+<li>在每日摘要中加入「重要郵件摘要」區塊</li>
+<li>過濾條件：未讀 + 星號 + 24 小時內</li>
+<li>與 Todoist 任務關聯（郵件標題含任務關鍵字）</li>
+</ol>
+<p><strong>實作複雜度</strong>：中
+<strong>預期效益</strong>：資訊整合度提升，減少切換成本</p>
+<p>#### 2.2 導入 Subagents 架構
+<strong>問題</strong>：目前 Skill 執行是線性的，無法動態分派
+<strong>建議</strong>：利用 Claude Code 2026 Subagents 功能
+<strong>依據</strong>：知識庫筆記提到 Subagents 支援獨立上下文和角色專屬指令
+<strong>實作複雜度</strong>：高
+<strong>預期效益</strong>：</p>
+<ul>
+<li>複雜任務自動拆解為多步驟</li>
+<li>Agent 間可傳遞中間結果</li>
+<li>失敗隔離，單個 Subagent 失敗不影響整體</li>
+</ul>
+<p>#### 2.3 增強知識庫關聯
+<strong>問題</strong>：目前 RAG 知識增強是可選的，未充分發揮
+<strong>建議</strong>：</p>
+<ol>
+<li>建立「每日摘要」專用向量索引</li>
+<li>新聞/AI 動態自動關聯歷史筆記</li>
+<li>匯入時自動生成摘要向量</li>
+</ol>
+<p><strong>實作複雜度</strong>：中
+<strong>預期效益</strong>：知識累積效應，長期價值遞增</p>
+<h3>P3：低優先級（建議本月實施）</h3>
+<p>#### 3.1 MCP Server 模式
+<strong>問題</strong>：目前是 CLI 執行模式，無法持續服務
+<strong>建議</strong>：探索 <code>claude mcp serve</code> 模式
+<strong>依據</strong>：知識庫筆記提到可讓其他應用連接使用 Claude Code 工具
+<strong>實作複雜度</strong>：高
+<strong>預期效益</strong>：支援即時觸發、與其他系統整合</p>
+<p>#### 3.2 自動學習優化
+<strong>問題</strong>：習慣/學習提示是固定輪替，無個人化
+<strong>建議</strong>：</p>
+<ol>
+<li>追蹤用戶對提示的回應/互動</li>
+<li>基於歷史數據調整提示頻率和內容</li>
+<li>整合知識庫中的相關筆記加強提示</li>
+</ol>
+<p><strong>實作複雜度</strong>：高
+<strong>預期效益</strong>：提升習慣養成效果</p>
+<p>#### 3.3 安全強化
+<strong>問題</strong>：API Token 存於環境變數，無加密保護
+<strong>建議</strong>：</p>
+<ol>
+<li>使用 Windows Credential Manager 儲存敏感憑證</li>
+<li>加入 skill-scanner 定期掃描</li>
+<li>敏感操作加入確認機制</li>
+</ol>
+<p><strong>實作複雜度</strong>：中
+<strong>預期效益</strong>：符合安全最佳實踐</p>
+<hr>
+<h2>四、行動計畫</h2>
+<table>
+<tr><th>階段</th><th>項目</th><th>優先級</th><th>預估工作量</th></tr>
+<tr><td>Week 1</td><td>優化快取命中策略</td><td>P1</td><td>2 小時</td></tr>
+<tr><td>Week 1</td><td>Prompt 模組化重構（phase 1）</td><td>P1</td><td>4 小時</td></tr>
+<tr><td>Week 2</td><td>探索 Agent Teams 原生功能</td><td>P1</td><td>4 小時</td></tr>
+<tr><td>Week 2</td><td>整合 Gmail Skill</td><td>P2</td><td>3 小時</td></tr>
+<tr><td>Week 3</td><td>增強知識庫關聯</td><td>P2</td><td>4 小時</td></tr>
+<tr><td>Week 4</td><td>探索 Subagents 架構</td><td>P2</td><td>6 小時</td></tr>
+</table>
+<hr>
+<h2>五、知識庫引用</h2>
+<p>本報告參考了以下知識庫筆記：</p>
+<ul>
+<li>「Claude Code 2026 重大更新總覽」— Agent SDK、Agent Teams 功能</li>
+<li>「Claude Code 2026 技術更新與 Agent SDK 完整指南」— Agent Loop 四階段循環</li>
+<li>「2026 年 AI/LLM 技術趨勢研究報告」— AI Agent 自我驗證機制、有界自主性架構</li>
+<li>「Claude Code 2026 最新功能與 Agent SDK 研究報告」— Subagents、MCP Server</li>
+</ul>
+<hr>
+<h2>六、總結</h2>
+<p>Daily-Digest-Prompt 專案已具備成熟的 Agent 自動化框架，Skill-First 架構和 DONE 認證機制展現了良好的工程實踐。主要優化方向為：</p>
+<ol>
+<li><strong>效能</strong>：引入 Agent Teams 原生功能、優化快取命中</li>
+<li><strong>擴展性</strong>：Prompt 模組化、整合更多 Skill</li>
+<li><strong>智慧化</strong>：增強 RAG 關聯、個人化學習</li>
+</ol>
+<p>建議優先實施 P1 項目，預期可在 2 週內完成核心優化，進一步提升系統穩定性和執行效率。</p>
+<hr>
+<p><em>報告生成者：Claude Code Agent</em>
+<em>報告日期：2026-02-14</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

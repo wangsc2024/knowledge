@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 架構原理與 LoRA/QLoRA 配置最佳實踐（2026）">
+  <title>Unsloth 架構原理與 LoRA/QLoRA 配置最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 架構原理與 LoRA/QLoRA 配置最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">LoRA</span><span class="tag">QLoRA</span><span class="tag">Triton</span><span class="tag">GGUF</span><span class="tag">微調</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth 架構原理與 LoRA/QLoRA 配置最佳實踐</h1>
+<h2>概述</h2>
+<p>Unsloth 是一個開源 LLM 微調加速框架，透過手動推導反向傳播步驟並將 PyTorch 模組重寫為 Triton 核心（GPU 優化語言），實現 2-5 倍的訓練加速與 70-80% 的 VRAM 節省，且完全不犧牲準確度（0% accuracy degradation）。Unsloth 完全相容 Hugging Face 生態系統（transformers、PEFT、TRL），支援 SFTTrainer、DPOTrainer、PPOTrainer 等訓練器。</p>
+<hr>
+<h2>核心技術：為何能 2-5x 加速？</h2>
+<h3>1. Triton Kernel 融合</h3>
+<p>Unsloth 的核心優化是將多個 GPU 操作融合為單一 Triton kernel，減少記憶體讀寫和 kernel launch 開銷：</p>
+<ul>
+<li><strong>QK Rotary Embedding</strong>：融合 Triton kernel，比原生 PyTorch 快 2.3 倍</li>
+<li><strong>Packing 支援</strong>：結合 xformers、SDPA、Flash Attention 3 後端，達 2.5-5 倍加速</li>
+<li><strong>Padding-Free 優化</strong>：消除無效 padding tokens 的計算，進一步節省 30-90% VRAM</li>
+</ul>
+<h3>2. 手動推導反向傳播</h3>
+<p>不依賴 PyTorch autograd 的通用自動微分，而是手動推導每層的梯度計算，減少中間張量存儲。</p>
+<h3>3. 記憶體優化</h3>
+<ul>
+<li><code>use_gradient_checkpointing = &quot;unsloth&quot;</code>：額外節省 30% 記憶體並支援長上下文</li>
+<li>動態 4-bit 量化（Dynamic Quants）：彌補 QLoRA 與 LoRA 之間的精度差距</li>
+</ul>
+<hr>
+<h2>效能基準測試</h2>
+<h3>A100 40GB GPU</h3>
+<table>
+<tr><th>模型</th><th>資料集</th><th>HF 基線</th><th>HF + Flash Attn 2</th><th>Unsloth</th><th>VRAM 節省</th></tr>
+<tr><td>Code Llama 34B</td><td>Slim Orca</td><td>1x</td><td>1.01x</td><td><strong>1.94x</strong></td><td>-22.7%</td></tr>
+<tr><td>Llama-2 7B</td><td>Slim Orca</td><td>1x</td><td>0.96x</td><td><strong>1.87x</strong></td><td>-39.3%</td></tr>
+<tr><td>Mistral 7B</td><td>Slim Orca</td><td>1x</td><td>1.17x</td><td><strong>1.88x</strong></td><td>-65.9%</td></tr>
+<tr><td>Tiny Llama 1.1B</td><td>Alpaca</td><td>1x</td><td>1.55x</td><td><strong>2.74x</strong></td><td>-57.8%</td></tr>
+</table>
+<h3>Free Colab T4</h3>
+<table>
+<tr><th>模型</th><th>資料集</th><th>HF 基線</th><th>HF + PyTorch 2.1.1</th><th>Unsloth</th><th>VRAM 節省</th></tr>
+<tr><td>Llama-2 7B</td><td>OASST</td><td>1x</td><td>1.19x</td><td><strong>1.95x</strong></td><td>-43.3%</td></tr>
+<tr><td>Mistral 7B</td><td>Alpaca</td><td>1x</td><td>1.07x</td><td><strong>1.56x</strong></td><td>-13.7%</td></tr>
+<tr><td>Tiny Llama 1.1B</td><td>Alpaca</td><td>1x</td><td>2.06x</td><td><strong>3.87x</strong></td><td>-73.8%</td></tr>
+</table>
+<hr>
+<h2>支援模型（2026 最新）</h2>
+<table>
+<tr><th>模型家族</th><th>支援版本</th></tr>
+<tr><td>Llama</td><td>Llama 2/3/4, CodeLlama, Yi</td></tr>
+<tr><td>Mistral</td><td>Mistral 7B, Devstral</td></tr>
+<tr><td>Qwen</td><td>Qwen 2/3, Qwen3-Coder</td></tr>
+<tr><td>DeepSeek</td><td>V3, V3.1</td></tr>
+<tr><td>Gemma</td><td>Gemma 1/2/3</td></tr>
+<tr><td>Phi</td><td>Phi-3/4</td></tr>
+<tr><td>OpenAI</td><td>gpt-oss</td></tr>
+<tr><td>其他</td><td>TinyLlama, GLM</td></tr>
+</table>
+<p>硬體支援：NVIDIA GTX 1070 到 H100。</p>
+<hr>
+<h2>LoRA vs QLoRA 選擇指南</h2>
+<table>
+<tr><th>特性</th><th>LoRA（16-bit）</th><th>QLoRA（4-bit）</th></tr>
+<tr><td>速度</td><td>較快</td><td>略慢</td></tr>
+<tr><td>精度</td><td>較高</td><td>略低（Dynamic Quants 已大幅縮小差距）</td></tr>
+<tr><td>VRAM 用量</td><td>4 倍多</td><td>4 倍少</td></tr>
+<tr><td>建議</td><td>有充足 GPU 資源時</td><td><strong>預設推薦</strong>，最具成本效益</td></tr>
+</table>
+<p><strong>Unsloth 建議</strong>：從 QLoRA 開始，搭配 Dynamic 4-bit Quants 可恢復大部分精度損失。</p>
+<hr>
+<h2>完整配置最佳實踐</h2>
+<h3>LoRA 參數</h3>
+<pre><code class="language-python">from unsloth import FastLanguageModel
+
+# 步驟 1：載入模型
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name = &quot;unsloth/Llama-3.2-3B-bnb-4bit&quot;,
+    max_seq_length = 2048,    # 支援 RoPE Scaling 自動擴展
+    load_in_4bit = True,      # QLoRA 模式
+)
+
+# 步驟 2：附加 LoRA Adapter
+model = FastLanguageModel.get_peft_model(
+    model,
+    r = 16,                   # Rank：16 或 32 適合大多數任務
+    target_modules = [        # 同時覆蓋 Attention + MLP 層
+        &quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+        &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;,
+    ],
+    lora_alpha = 16,          # 設為 r 或 2*r
+    lora_dropout = 0,         # 設 0 啟用 Unsloth 內部優化
+    bias = &quot;none&quot;,            # 設 none 加速訓練、減少記憶體
+    use_gradient_checkpointing = &quot;unsloth&quot;,  # 額外節省 30% 記憶體
+    random_state = 3407,
+    use_rslora = False,       # 高 rank 時可啟用 rsLoRA
+)</code></pre>
+<h3>訓練參數</h3>
+<pre><code class="language-python">from trl import SFTTrainer
+from transformers import TrainingArguments
+import torch
+
+trainer = SFTTrainer(
+    model = model,
+    tokenizer = tokenizer,
+    train_dataset = dataset,
+    dataset_text_field = &quot;text&quot;,
+    max_seq_length = 2048,
+    args = TrainingArguments(
+        per_device_train_batch_size = 2,
+        gradient_accumulation_steps = 8,   # 有效 batch = 2*8 = 16
+        num_train_epochs = 1,              # 1-3 epochs，避免過擬合
+        learning_rate = 2e-4,              # SFT 標準起始值
+        warmup_steps = 10,                 # 總步數的 5-10%
+        lr_scheduler_type = &quot;cosine&quot;,      # cosine 或 linear
+        weight_decay = 0.01,               # 0.01-0.1 防過擬合
+        fp16 = not torch.cuda.is_bf16_supported(),
+        bf16 = torch.cuda.is_bf16_supported(),
+        logging_steps = 1,
+        output_dir = &quot;outputs&quot;,
+        optim = &quot;adamw_8bit&quot;,              # 8-bit Adam 節省記憶體
+        seed = 3407,
+    ),
+)
+trainer.train()</code></pre>
+<hr>
+<h2>參數調優速查表</h2>
+<table>
+<tr><th>參數</th><th>推薦值</th><th>說明</th></tr>
+<tr><td><code>r</code> (rank)</td><td>16 或 32</td><td>越大容量越強但越耗記憶體</td></tr>
+<tr><td><code>lora_alpha</code></td><td>等於 r 或 2*r</td><td>控制微調調整強度</td></tr>
+<tr><td><code>lora_dropout</code></td><td>0</td><td>設 0 啟用 Unsloth 優化；過擬合時設 0.1</td></tr>
+<tr><td><code>learning_rate</code></td><td>2e-4 (SFT) / 5e-6 (RL)</td><td>強化學習用更低學習率</td></tr>
+<tr><td><code>epochs</code></td><td>1-3</td><td>&gt;3 報酬遞減且過擬合風險增加</td></tr>
+<tr><td><code>batch_size</code></td><td>2</td><td>搭配 gradient_accumulation 達有效 batch 16</td></tr>
+<tr><td><code>weight_decay</code></td><td>0.01-0.1</td><td>正則化防過擬合</td></tr>
+<tr><td><code>warmup_steps</code></td><td>總步數 5-10%</td><td>穩定初期訓練</td></tr>
+</table>
+<hr>
+<h2>GGUF 量化匯出與部署</h2>
+<h3>匯出 GGUF</h3>
+<pre><code class="language-python"># 訓練完成後匯出 GGUF 格式
+model.save_pretrained_gguf(
+    &quot;model-gguf&quot;,
+    tokenizer,
+    quantization_method = &quot;q4_k_m&quot;,  # 常用量化方法
+)</code></pre>
+<h3>Unsloth Dynamic 2.0 GGUF</h3>
+<ul>
+<li>智慧型逐層量化：每一層動態選擇最佳量化類型</li>
+<li>支援 Q4_NL、Q5.1、Q5.0 等格式（Apple Silicon 優化）</li>
+<li>可在 llama.cpp、Ollama、Open WebUI 等推論引擎運行</li>
+<li>DeepSeek V3.1 的 Dynamic 3-bit GGUF 達 75.6% 準確率，超越許多全精度模型</li>
+</ul>
+<hr>
+<h2>過擬合 vs 欠擬合處理</h2>
+<h3>過擬合跡象與對策</h3>
+<ul>
+<li>降低 learning_rate</li>
+<li>限制 epochs 為 1-3</li>
+<li>增加 weight_decay（0.01-0.1）</li>
+<li>設 lora_dropout = 0.1</li>
+<li>擴充資料集品質與數量</li>
+<li>啟用 Train on Completions Only（僅訓練回應部分）</li>
+</ul>
+<h3>欠擬合跡象與對策</h3>
+<ul>
+<li>提高 learning_rate</li>
+<li>增加訓練 epochs（搭配驗證監控）</li>
+<li>增加 LoRA rank 和 alpha</li>
+<li>使用更高品質、領域相關的資料集</li>
+<li>將 batch_size 降至 1 以獲得更激進的更新</li>
+</ul>
+<hr>
+<h2>進階技巧</h2>
+<h3>1. Train on Completions Only</h3>
+<p>訓練時遮蔽 input prompt，僅對 assistant 回應計算 loss。研究顯示此法能顯著提升準確度，特別適合多輪對話微調。</p>
+<h3>2. Rank-Stabilized LoRA (rsLoRA)</h3>
+<p>啟用 <code>use_rslora = True</code>，使用 <code>α/√rank</code> 縮放（取代 <code>α/rank</code>），在高 rank 配置下改善穩定性。</p>
+<h3>3. Pre-quantized 模型</h3>
+<p>Unsloth 提供預量化 4-bit 模型（如 <code>unsloth/llama-2-7b-bnb-4bit</code>），下載速度快 4 倍，減少約 500MB 記憶體碎片。</p>
+<hr>
+<h2>GPU 記憶體需求參考</h2>
+<table>
+<tr><th>模型大小</th><th>QLoRA</th><th>LoRA</th></tr>
+<tr><td>7B</td><td>RTX 4090 (24GB)</td><td>A100 (40GB)</td></tr>
+<tr><td>13B</td><td>A100 (40GB)</td><td>A100 (80GB)</td></tr>
+<tr><td>34B</td><td>A100 (80GB)</td><td>2x A100</td></tr>
+<tr><td>70B</td><td>A100 (80GB)</td><td>多卡</td></tr>
+</table>
+<hr>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://unsloth.ai/docs">Unsloth 官方文件</a></li>
+<li><a href="https://github.com/unslothai/unsloth">Unsloth GitHub</a></li>
+<li><a href="https://huggingface.co/blog/unsloth-trl">Hugging Face Blog: Unsloth + TRL</a></li>
+<li><a href="https://unsloth.ai/docs/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide">Unsloth LoRA Hyperparameters Guide</a></li>
+<li><a href="https://www.datacamp.com/tutorial/unsloth-guide-optimize-and-speed-up-llm-fine-tuning">DataCamp Unsloth Guide</a></li>
+<li><a href="https://blogs.nvidia.com/blog/rtx-ai-garage-fine-tuning-unsloth-dgx-spark/">NVIDIA Blog: Fine-Tune with Unsloth</a></li>
+</ul>
+<p><em>研究日期：2026-02-15</em>
+<em>研究者：Unsloth Research Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

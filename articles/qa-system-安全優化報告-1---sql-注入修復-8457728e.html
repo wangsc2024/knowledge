@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 安全優化報告 #1 - SQL 注入修復與 Cookie 安全強化">
+  <title>QA System 安全優化報告 #1 - SQL 注入修復與 Cookie 安全強化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-security">資訊安全</span>
+        <h1>QA System 安全優化報告 #1 - SQL 注入修復與 Cookie 安全強化</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">SQL注入</span><span class="tag">Cookie安全</span><span class="tag">硬編碼密碼</span><span class="tag">品質改善</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #1</h1>
+<blockquote><p>日期：2026-02-15 | 品質分數：2/5 | 首次掃描</p>
+</blockquote>
+<h2>優化方向</h2>
+<p>SQL 注入漏洞修復 + 硬編碼密碼消除 + Cookie 安全標記強化</p>
+<h2>已修復問題（3 項）</h2>
+<h3>1. SQL 注入漏洞（嚴重）</h3>
+<ul>
+<li><strong>位置</strong>：<code>app/routers/auth.py</code> 共 4 處</li>
+<li><strong>問題</strong>：使用 f-string 直接拼接使用者 ID 到 SQL 語句</li>
+</ul>
+<p>  - <code>INSERT INTO user_role (user_id, role_id) VALUES ({user.id}, {staff_role.id})</code>
+  - <code>INSERT INTO user_department (user_id, department_id) VALUES ({user.id}, {department.id})</code>（2 處）
+  - <code>SELECT * FROM user_department WHERE user_id = {user.id} AND department_id = {department.id}</code></p>
+<ul>
+<li><strong>修復</strong>：全部改為 SQLAlchemy <code>text()</code> 搭配參數化查詢 <code>:user_id</code>, <code>:role_id</code>, <code>:department_id</code></li>
+</ul>
+<h3>2. 硬編碼管理員密碼（嚴重）</h3>
+<ul>
+<li><strong>位置</strong>：<code>main.py</code> 第 45 行</li>
+<li><strong>問題</strong>：<code>admin.set_password(&#x27;admin123&#x27;)</code> 硬編碼密碼</li>
+<li><strong>修復</strong>：改用環境變數 <code>QA_ADMIN_PASSWORD</code>，未設定時產生 <code>secrets.token_urlsafe(16)</code> 隨機密碼</li>
+</ul>
+<h3>3. Cookie 缺少安全標記（中等）</h3>
+<ul>
+<li><strong>位置</strong>：<code>main.py</code> SSO 登入、<code>auth.py</code> login + sso_login（共 3 處）</li>
+<li><strong>問題</strong>：<code>set_cookie()</code> 缺少 <code>secure</code> 和 <code>samesite</code> 屬性</li>
+<li><strong>修復</strong>：加入 <code>secure=True</code>（僅 HTTPS）和 <code>samesite=&#x27;lax&#x27;</code>（防 CSRF）</li>
+</ul>
+<h2>未修復問題（待後續處理）</h2>
+<h3>安全（紅/黃燈）</h3>
+<ol>
+<li>SECRET_KEY 硬編碼在 config.py</li>
+<li>CORS 設為 <code>allow_origins=[&#x27;*&#x27;]</code></li>
+<li>錯誤訊息洩漏內部資訊（SOAP/DB 錯誤）</li>
+<li>dependencies.py 大量 <code>print()</code> 洩漏敏感資訊</li>
+<li>JWT 過期時間 24 小時過長</li>
+</ol>
+<h3>品質</h3>
+<ol>
+<li>questions.py 超過 1000 行</li>
+<li>JWT 解碼邏輯重複 3 處</li>
+<li>函式重複定義（main.py vs dependencies.py）</li>
+<li>測試覆蓋不足（僅 3 個檔案）</li>
+<li>requirements.txt 未鎖定版本</li>
+<li>缺少 .gitignore</li>
+</ol>
+<h2>修改檔案</h2>
+<ul>
+<li><code>app/routers/auth.py</code></li>
+<li><code>main.py</code></li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

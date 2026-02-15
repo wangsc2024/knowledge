@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="遊戲狀態機設計模式完整指南（2026）">
+  <title>遊戲狀態機設計模式完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>遊戲狀態機設計模式完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">狀態機</span><span class="tag">FSM</span><span class="tag">設計模式</span><span class="tag">JavaScript</span><span class="tag">HTML5</span><span class="tag">XState</span><span class="tag">遊戲架構</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>遊戲狀態機設計模式完整指南</h1>
+<p>本指南整合遊戲開發中狀態機（Finite State Machine, FSM）的設計模式與最佳實踐，適用於 HTML5/JavaScript 遊戲開發。</p>
+<hr>
+<h2>一、為什麼遊戲需要狀態機</h2>
+<h3>傳統方式的問題</h3>
+<p>使用多個布林旗標（如 <code>isJumping</code>、<code>isDucking</code>、<code>isAttacking</code>）管理遊戲狀態會產生三大問題：</p>
+<ol>
+<li><strong>無效狀態組合</strong>：某些旗標組合在邏輯上不應存在（如同時跳躍和蹲下）</li>
+<li><strong>程式碼重複</strong>：每次添加功能都需修改多個分支</li>
+<li><strong>維護困難</strong>：修改一個狀態常會破壞其他部分</li>
+</ol>
+<h3>狀態機的優勢</h3>
+<ul>
+<li><strong>狀態明確</strong>：系統任意時刻只能處於一個已定義的狀態</li>
+<li><strong>轉移可控</strong>：狀態間的轉換由事件觸發，可預測且可追蹤</li>
+<li><strong>易於擴展</strong>：新增狀態不影響現有邏輯</li>
+</ul>
+<hr>
+<h2>二、狀態機基本概念</h2>
+<h3>核心元件</h3>
+<table>
+<tr><th>元件</th><th>說明</th><th>遊戲範例</th></tr>
+<tr><td><strong>States（狀態）</strong></td><td>系統可處於的不同模式</td><td>載入、選單、遊戲中、暫停、結束</td></tr>
+<tr><td><strong>Events（事件）</strong></td><td>觸發狀態轉換的輸入</td><td>按下開始、按 ESC、角色死亡</td></tr>
+<tr><td><strong>Transitions（轉移）</strong></td><td>從一狀態到另一狀態的移動</td><td>選單 → 遊戲中</td></tr>
+<tr><td><strong>Actions（動作）</strong></td><td>轉移過程中執行的任務</td><td>初始化關卡、播放音效</td></tr>
+</table>
+<h3>房間類比</h3>
+<p>把每個狀態想像成一個房間：</p>
+<ul>
+<li>房間之間的出口是<strong>轉移</strong></li>
+<li>玩家的移動命令是<strong>事件</strong></li>
+<li>每個房間一次只能容納一個玩家（<strong>單一當前狀態</strong>）</li>
+</ul>
+<hr>
+<h2>三、實作模式</h2>
+<h3>模式 1：Enum + Switch（簡單）</h3>
+<p>適合小型遊戲或快速原型。</p>
+<pre><code class="language-javascript">// 定義狀態列舉
+const GameState = {
+  LOADING: &#x27;loading&#x27;,
+  MENU: &#x27;menu&#x27;,
+  PLAYING: &#x27;playing&#x27;,
+  PAUSED: &#x27;paused&#x27;,
+  GAME_OVER: &#x27;gameOver&#x27;
+};
+
+let currentState = GameState.LOADING;
+
+function update(dt) {
+  switch (currentState) {
+    case GameState.LOADING:
+      if (assetsLoaded) currentState = GameState.MENU;
+      break;
+    case GameState.MENU:
+      // 等待玩家按開始
+      break;
+    case GameState.PLAYING:
+      updateGameplay(dt);
+      break;
+    case GameState.PAUSED:
+      // 暫停畫面邏輯
+      break;
+    case GameState.GAME_OVER:
+      // 顯示分數
+      break;
+  }
+}</code></pre>
+<p><strong>優點</strong>：簡單、易理解
+<strong>缺點</strong>：狀態相關資料混在主類中</p>
+<h3>模式 2：狀態模式（推薦）</h3>
+<p>每個狀態是獨立的物件，實現共同介面。</p>
+<pre><code class="language-javascript">// 狀態介面
+class State {
+  enter(game) {}      // 進入狀態時
+  exit(game) {}       // 離開狀態時
+  update(game, dt) {} // 每幀更新
+  handleInput(game, input) {} // 處理輸入
+  render(game, ctx) {} // 渲染
+}
+
+// 具體狀態：選單
+class MenuState extends State {
+  enter(game) {
+    game.ui.showMenu();
+    game.audio.playBGM(&#x27;menu&#x27;);
+  }
+  
+  handleInput(game, input) {
+    if (input.start) {
+      game.changeState(new PlayingState());
+    }
+  }
+  
+  render(game, ctx) {
+    game.ui.drawMenu(ctx);
+  }
+}
+
+// 具體狀態：遊戲中
+class PlayingState extends State {
+  enter(game) {
+    game.level.init();
+    game.audio.playBGM(&#x27;gameplay&#x27;);
+  }
+  
+  handleInput(game, input) {
+    if (input.pause) {
+      game.changeState(new PausedState());
+    }
+    game.player.handleInput(input);
+  }
+  
+  update(game, dt) {
+    game.level.update(dt);
+    game.player.update(dt);
+    game.checkCollisions();
+  }
+  
+  render(game, ctx) {
+    game.level.render(ctx);
+    game.player.render(ctx);
+    game.ui.drawHUD(ctx);
+  }
+}
+
+// 狀態機管理器
+class Game {
+  constructor() {
+    this.currentState = null;
+  }
+  
+  changeState(newState) {
+    if (this.currentState) {
+      this.currentState.exit(this);
+    }
+    this.currentState = newState;
+    this.currentState.enter(this);
+  }
+  
+  update(dt) {
+    if (this.currentState) {
+      this.currentState.update(this, dt);
+    }
+  }
+}</code></pre>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>狀態邏輯完全封裝</li>
+<li>易於新增/修改狀態</li>
+<li>狀態相關資料只在該狀態存在</li>
+</ul>
+<h3>模式 3：狀態堆疊（State Stack）</h3>
+<p>適用於需要疊加狀態的場景（如暫停菜單覆蓋在遊戲上）。</p>
+<pre><code class="language-javascript">class StateStack {
+  constructor() {
+    this.states = [];
+  }
+  
+  push(state) {
+    state.onEnter();
+    this.states.push(state);
+  }
+  
+  pop() {
+    const state = this.states.pop();
+    if (state) state.onExit();
+    return state;
+  }
+  
+  top() {
+    return this.states[this.states.length - 1];
+  }
+  
+  update(dt) {
+    // 只更新頂層狀態
+    const current = this.top();
+    if (current) current.update(dt);
+  }
+  
+  render(ctx) {
+    // 從底部開始渲染所有狀態
+    for (const state of this.states) {
+      state.render(ctx);
+    }
+  }
+}
+
+// 使用範例
+const stateStack = new StateStack();
+stateStack.push(new GameplayState());
+
+// 按暫停時
+stateStack.push(new PauseMenuState());
+
+// 繼續遊戲時
+stateStack.pop(); // 回到 GameplayState</code></pre>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>暫停選單（保留遊戲畫面在背景）</li>
+<li>對話框覆蓋</li>
+<li>多層 UI 疊加</li>
+</ul>
+<hr>
+<h2>四、進階：階層式狀態機</h2>
+<p>當多個狀態共享行為時（站立、行走、跑步都能跳躍），使用階層結構。</p>
+<pre><code class="language-javascript">// 超狀態：在地面上
+class OnGroundState extends State {
+  handleInput(game, input) {
+    if (input.jump) {
+      return new JumpingState();
+    }
+    // 未處理的輸入由子類處理
+    return null;
+  }
+}
+
+// 子狀態：站立
+class StandingState extends OnGroundState {
+  handleInput(game, input) {
+    // 先檢查父狀態的共用行為
+    const parentResult = super.handleInput(game, input);
+    if (parentResult) return parentResult;
+    
+    // 站立特有邏輯
+    if (input.moveLeft || input.moveRight) {
+      return new WalkingState();
+    }
+    return null;
+  }
+}</code></pre>
+<hr>
+<h2>五、現代工具：XState</h2>
+<p><a href="https://stately.ai/docs/xstate">XState</a> 是 2025-2026 年最流行的 JavaScript 狀態機函式庫。</p>
+<pre><code class="language-javascript">import { createMachine, createActor } from &#x27;xstate&#x27;;
+
+const gameMachine = createMachine({
+  id: &#x27;game&#x27;,
+  initial: &#x27;loading&#x27;,
+  context: {
+    score: 0,
+    lives: 3
+  },
+  states: {
+    loading: {
+      on: { ASSETS_LOADED: &#x27;menu&#x27; }
+    },
+    menu: {
+      on: { START_GAME: &#x27;playing&#x27; }
+    },
+    playing: {
+      on: {
+        PAUSE: &#x27;paused&#x27;,
+        PLAYER_DIED: [
+          { target: &#x27;gameOver&#x27;, guard: &#x27;noLivesLeft&#x27; },
+          { target: &#x27;playing&#x27;, actions: &#x27;decrementLives&#x27; }
+        ]
+      }
+    },
+    paused: {
+      on: { RESUME: &#x27;playing&#x27;, QUIT: &#x27;menu&#x27; }
+    },
+    gameOver: {
+      on: { RESTART: &#x27;playing&#x27;, MAIN_MENU: &#x27;menu&#x27; }
+    }
+  }
+});
+
+const gameActor = createActor(gameMachine);
+gameActor.subscribe((state) =&gt; {
+  console.log(&#x27;Current state:&#x27;, state.value);
+});
+gameActor.start();
+gameActor.send({ type: &#x27;ASSETS_LOADED&#x27; });</code></pre>
+<p><strong>XState 優勢</strong>：</p>
+<ul>
+<li>視覺化設計工具</li>
+<li>完整的 TypeScript 支援</li>
+<li>與 React/Vue/Svelte 整合</li>
+<li>內建除錯工具</li>
+</ul>
+<hr>
+<h2>六、最佳實踐</h2>
+<h3>設計原則</h3>
+<ol>
+<li><strong>狀態獨立</strong>：每個狀態不應知道其他狀態存在，只負責提供可能的事件</li>
+<li><strong>進入/退出清理</strong>：在 <code>enter()</code> 初始化、在 <code>exit()</code> 清理資源</li>
+<li><strong>避免狀態爆炸</strong>：考慮使用組合物件而非大量繼承</li>
+</ol>
+<h3>常見應用場景</h3>
+<table>
+<tr><th>場景</th><th>狀態範例</th></tr>
+<tr><td><strong>遊戲主流程</strong></td><td>載入、選單、遊戲中、暫停、結束</td></tr>
+<tr><td><strong>角色行為</strong></td><td>閒置、移動、跳躍、攻擊、受傷、死亡</td></tr>
+<tr><td><strong>AI 行為</strong></td><td>巡邏、追擊、攻擊、逃跑、搜索</td></tr>
+<tr><td><strong>UI 元素</strong></td><td>正常、懸停、按下、禁用</td></tr>
+<tr><td><strong>遊戲物件</strong></td><td>活躍、冷卻中、待機、已銷毀</td></tr>
+</table>
+<h3>何時選擇狀態機</h3>
+<p>✅ <strong>適合</strong>：</p>
+<ul>
+<li>有限數量的明確狀態</li>
+<li>清晰定義的轉移邏輯</li>
+<li>需要可預測的行為</li>
+</ul>
+<p>❌ <strong>不適合</strong>：</p>
+<ul>
+<li>複雜 AI 決策（考慮行為樹）</li>
+<li>需要並行執行多種行為</li>
+<li>狀態數量會無限增長</li>
+</ul>
+<hr>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://gameprogrammingpatterns.com/state.html">Game Programming Patterns - State</a></li>
+<li><a href="https://idiallo.com/blog/javascript-game-state-stack-engine">State Stack Engine for Games - idiallo.com</a></li>
+<li><a href="https://howtomakeanrpg.com/r/a/state-machines.html">State Machines for GameDev - howtomakeanrpg.com</a></li>
+<li><a href="https://stately.ai/docs/xstate">XState Documentation - stately.ai</a></li>
+<li><a href="https://github.com/jakesgordon/javascript-state-machine">JavaScript State Machine Library - GitHub</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-15</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+  </script>
+</body>
+</html>

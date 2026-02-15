@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code 2026年2月技術研究：Hooks、MCP 與最新功能">
+  <title>Claude Code 2026年2月技術研究：Hooks、MCP 與最新功能 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude_Code</span>
+        <h1>Claude Code 2026年2月技術研究：Hooks、MCP 與最新功能</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">AI工具</span><span class="tag">技術研究</span><span class="tag">2026</span><span class="tag">Hooks</span><span class="tag">MCP</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code 2026年2月技術研究</h1>
+<h2>技術概述</h2>
+<p>Claude Code 是 Anthropic 推出的 AI 輔助編程工具，2026年初迎來多項重大更新。核心亮點包括：<strong>Hooks 自動化系統</strong>（支援 14 種生命週期事件、3 種執行類型）、<strong>MCP 整合增強</strong>（Tool Search 動態載入、OAuth 2.0 認證）、以及<strong>多代理協作</strong>（Agent Teams 實驗性功能）。這些更新大幅提升了自動化能力、外部工具整合彈性，以及複雜任務的協作效率。</p>
+<hr>
+<h2>核心功能更新</h2>
+<h3>1. Hooks 自動化系統</h3>
+<p>Hooks 是使用者定義的 shell 命令，在 Claude Code 生命週期的特定時間點執行，提供確定性行為控制。</p>
+<p>#### Hook 事件類型（14 種）</p>
+<table>
+<tr><th>事件</th><th>觸發時機</th></tr>
+<tr><td><code>SessionStart</code></td><td>會話開始或恢復</td></tr>
+<tr><td><code>UserPromptSubmit</code></td><td>使用者提交 prompt（處理前）</td></tr>
+<tr><td><code>PreToolUse</code></td><td>工具執行前（可阻止）</td></tr>
+<tr><td><code>PermissionRequest</code></td><td>權限對話框出現時</td></tr>
+<tr><td><code>PostToolUse</code></td><td>工具成功執行後</td></tr>
+<tr><td><code>PostToolUseFailure</code></td><td>工具執行失敗後</td></tr>
+<tr><td><code>Notification</code></td><td>發送通知時</td></tr>
+<tr><td><code>SubagentStart</code></td><td>子代理啟動時</td></tr>
+<tr><td><code>SubagentStop</code></td><td>子代理完成時</td></tr>
+<tr><td><code>Stop</code></td><td>Claude 完成回應時</td></tr>
+<tr><td><code>TeammateIdle</code></td><td>Agent Team 成員即將閒置</td></tr>
+<tr><td><code>TaskCompleted</code></td><td>任務標記完成時</td></tr>
+<tr><td><code>PreCompact</code></td><td>Context 壓縮前</td></tr>
+<tr><td><code>SessionEnd</code></td><td>會話終止時</td></tr>
+</table>
+<p>#### Hook 執行類型（3 種）</p>
+<ol>
+<li><strong>command</strong>：執行 shell 命令（預設）</li>
+<li><strong>prompt</strong>：單輪 LLM 評估（用於需要判斷的決策）</li>
+<li><strong>agent</strong>：多輪驗證（可存取工具）</li>
+</ol>
+<p>#### 退出碼語意</p>
+<ul>
+<li><strong>Exit 0</strong>：允許動作繼續</li>
+<li><strong>Exit 2</strong>：阻止動作（stderr 訊息回饋給 Claude）</li>
+<li><strong>其他</strong>：允許繼續但記錄 stderr</li>
+</ul>
+<p>#### 實用範例</p>
+<pre><code class="language-json">// 自動格式化：PostToolUse + Edit|Write matcher
+{
+  &quot;hooks&quot;: {
+    &quot;PostToolUse&quot;: [{
+      &quot;matcher&quot;: &quot;Edit|Write&quot;,
+      &quot;hooks&quot;: [{
+        &quot;type&quot;: &quot;command&quot;,
+        &quot;command&quot;: &quot;jq -r &#x27;.tool_input.file_path&#x27; | xargs npx prettier --write&quot;
+      }]
+    }]
+  }
+}</code></pre>
+<pre><code class="language-json">// 保護檔案：PreToolUse 阻止修改敏感檔案
+// 腳本檢查路徑，若匹配 .env, package-lock.json, .git/ 則 exit 2</code></pre>
+<hr>
+<h3>2. MCP（Model Context Protocol）整合</h3>
+<p>MCP 是開放標準協議，讓 AI 應用連接外部資料源與工具，被稱為「AI 的 USB-C」。</p>
+<p>#### 傳輸協定支援</p>
+<table>
+<tr><th>類型</th><th>用途</th><th>指令範例</th></tr>
+<tr><td>HTTP</td><td>遠端雲端服務（推薦）</td><td><code>claude mcp add --transport http notion https://mcp.notion.com/mcp</code></td></tr>
+<tr><td>SSE</td><td>遠端（已棄用）</td><td><code>claude mcp add --transport sse asana https://mcp.asana.com/sse</code></td></tr>
+<tr><td>stdio</td><td>本地進程</td><td><code>claude mcp add --transport stdio db -- npx -y @bytebase/dbhub --dsn &quot;...&quot;</code></td></tr>
+</table>
+<p>#### MCP Tool Search（關鍵功能）</p>
+<p>當 MCP 工具定義超過 <strong>context window 的 10%</strong> 時自動啟用：</p>
+<ul>
+<li>工具延遲載入（不預載全部）</li>
+<li>Claude 使用搜尋工具發現相關工具</li>
+<li>僅載入實際需要的工具</li>
+<li>支援模型：Sonnet 4+、Opus 4+（Haiku 不支援）</li>
+</ul>
+<pre><code class="language-bash"># 調整閾值
+ENABLE_TOOL_SEARCH=auto:5 claude  # 5% 閾值
+ENABLE_TOOL_SEARCH=false claude   # 停用</code></pre>
+<p>#### Token 限制</p>
+<ul>
+<li>輸出警告閾值：10,000 tokens</li>
+<li>預設上限：25,000 tokens</li>
+<li>可調整：<code>MAX_MCP_OUTPUT_TOKENS=50000</code></li>
+</ul>
+<p>#### 配置範圍</p>
+<table>
+<tr><th>範圍</th><th>儲存位置</th><th>用途</th></tr>
+<tr><td>local</td><td><code>~/.claude.json</code></td><td>個人專案設定</td></tr>
+<tr><td>project</td><td><code>.mcp.json</code></td><td>團隊共享（可版控）</td></tr>
+<tr><td>user</td><td><code>~/.claude.json</code></td><td>跨專案個人工具</td></tr>
+</table>
+<hr>
+<h3>3. 2026年1-2月版本更新亮點</h3>
+<p>#### 新功能</p>
+<ul>
+<li><strong>CLI 認證子命令</strong>：<code>claude auth login/status/logout</code></li>
+<li><strong>Windows ARM64</strong>：原生支援</li>
+<li><strong>自動會話命名</strong>：<code>/rename</code> 無參數自動生成</li>
+<li><strong>Fast 模式擴展</strong>：Opus 4.6 支援</li>
+<li><strong>新任務管理系統</strong>：依賴追蹤功能</li>
+</ul>
+<p>#### 安全強化</p>
+<ul>
+<li>Bash 權限匹配改進（防止環境變數繞過）</li>
+<li>Heredoc 分隔符解析修復（防止命令走私）</li>
+<li><code>.claude/skills</code> 目錄寫入保護（沙盒模式）</li>
+</ul>
+<p>#### 效能改進</p>
+<ul>
+<li>會話恢復記憶體使用減少 68%</li>
+<li>AWS 認證刷新新增 3 分鐘超時保護</li>
+</ul>
+<hr>
+<h2>使用範例</h2>
+<h3>範例 1：桌面通知 Hook（Windows）</h3>
+<pre><code class="language-json">{
+  &quot;hooks&quot;: {
+    &quot;Notification&quot;: [{
+      &quot;matcher&quot;: &quot;&quot;,
+      &quot;hooks&quot;: [{
+        &quot;type&quot;: &quot;command&quot;,
+        &quot;command&quot;: &quot;powershell.exe -Command \&quot;[System.Windows.Forms.MessageBox]::Show(&#x27;Claude Code 需要你的注意&#x27;, &#x27;Claude Code&#x27;)\&quot;&quot;
+      }]
+    }]
+  }
+}</code></pre>
+<h3>範例 2：Context 壓縮後注入提醒</h3>
+<pre><code class="language-json">{
+  &quot;hooks&quot;: {
+    &quot;SessionStart&quot;: [{
+      &quot;matcher&quot;: &quot;compact&quot;,
+      &quot;hooks&quot;: [{
+        &quot;type&quot;: &quot;command&quot;,
+        &quot;command&quot;: &quot;echo &#x27;提醒：使用 Bun，不要用 npm。提交前執行 bun test。&#x27;&quot;
+      }]
+    }]
+  }
+}</code></pre>
+<h3>範例 3：連接 GitHub MCP</h3>
+<pre><code class="language-bash">claude mcp add --transport http github https://api.githubcopilot.com/mcp/
+# 在 Claude Code 中執行 /mcp 完成認證
+# 然後可以詢問：&quot;Review PR #456 and suggest improvements&quot;</code></pre>
+<hr>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://code.claude.com/docs/en/hooks-guide">Hooks 官方指南</a></li>
+<li><a href="https://code.claude.com/docs/en/mcp">MCP 整合文件</a></li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">GitHub CHANGELOG</a></li>
+<li><a href="https://www.anthropic.com/news/enabling-claude-code-to-work-more-autonomously">Anthropic 官方新聞</a></li>
+<li><a href="https://claude.com/product/claude-code">Claude Code 產品頁</a></li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
