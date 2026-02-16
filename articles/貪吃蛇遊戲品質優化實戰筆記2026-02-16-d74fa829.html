@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,28 +36,35 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#背景">背景</a></li><li><a href="#原始問題分析">原始問題分析</a></li>  <li><a href="#p0-嚴重問題">P0 嚴重問題</a></li>  <li><a href="#p1-重要問題">P1 重要問題</a></li>  <li><a href="#p2-改善項目">P2 改善項目</a></li><li><a href="#解決方案">解決方案</a></li>  <li><a href="#1-requestanimationframe-固定時間步長-最重要改善">1. requestAnimationFrame + 固定時間步長（最重要改善）</a></li>  <li><a href="#2-觸控支援-三種方式">2. 觸控支援（三種方式）</a></li>  <li><a href="#3-響應式-canvas">3. 響應式 Canvas</a></li>  <li><a href="#4-完整狀態機">4. 完整狀態機</a></li><li><a href="#保留的原有功能">保留的原有功能</a></li><li><a href="#學到的教訓">學到的教訓</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>貪吃蛇遊戲品質優化實戰筆記</h1>
-<h2>背景</h2>
+<h2 id="背景">背景</h2>
 <p>對 D:\Source\game\snake 貪吃蛇遊戲進行品質優化，從「能跑就好」提升到符合 HTML5 遊戲品質標準。</p>
-<h2>原始問題分析</h2>
-<h3>P0 嚴重問題</h3>
+<h2 id="原始問題分析">原始問題分析</h2>
+<h3 id="p0-嚴重問題">P0 嚴重問題</h3>
 <ol>
 <li><strong>遊戲循環用 setInterval</strong>：不穩定、頁面不可見時仍運行、跨裝置速度不一致</li>
 <li><strong>無觸控支援</strong>：手機完全無法遊玩</li>
 </ol>
-<h3>P1 重要問題</h3>
+<h3 id="p1-重要問題">P1 重要問題</h3>
 <ol>
 <li><strong>引用不存在的 CSS</strong>：<code>/src/styles/global.css</code> 產生 404 錯誤</li>
 <li><strong>無響應式設計</strong>：固定 400x400 Canvas，手機顯示溢出</li>
 <li><strong>暫停功能不完整</strong>：缺少 Esc 鍵支援</li>
 </ol>
-<h3>P2 改善項目</h3>
+<h3 id="p2-改善項目">P2 改善項目</h3>
 <ol>
 <li><strong>無完整狀態機</strong>：缺少明確的 menu/playing/paused/gameover 狀態</li>
 </ol>
-<h2>解決方案</h2>
-<h3>1. requestAnimationFrame + 固定時間步長（最重要改善）</h3>
+<h2 id="解決方案">解決方案</h2>
+<h3 id="1-requestanimationframe-固定時間步長-最重要改善">1. requestAnimationFrame + 固定時間步長（最重要改善）</h3>
 <pre><code class="language-javascript">function gameLoop(timestamp) {
   if (gameState === State.PLAYING) {
     var delta = timestamp - lastTickTime;
@@ -77,25 +85,25 @@
 <li>delta 上限防止切頁回來時一次跑太多 tick</li>
 <li>繪製與邏輯分離，繪製跑滿 60FPS，邏輯依 currentSpeed 決定</li>
 </ul>
-<h3>2. 觸控支援（三種方式）</h3>
+<h3 id="2-觸控支援-三種方式">2. 觸控支援（三種方式）</h3>
 <ul>
 <li><strong>滑動手勢</strong>：Canvas 上 touchstart/touchend 偵測滑動方向</li>
 <li><strong>虛擬按鈕</strong>：CSS media query <code>(hover: none)</code> 自動顯示</li>
 <li><strong>短按啟動</strong>：觸控裝置短按 Canvas 可啟動遊戲</li>
 </ul>
-<h3>3. 響應式 Canvas</h3>
+<h3 id="3-響應式-canvas">3. 響應式 Canvas</h3>
 <ul>
 <li>CSS 設定 <code>width: 100%; max-width: 400px; aspect-ratio: 1/1</code></li>
 <li>邏輯尺寸保持 400x400 不變，避免座標計算變動</li>
 <li><code>window.resize</code> 事件更新 canvas 的 CSS 尺寸</li>
 </ul>
-<h3>4. 完整狀態機</h3>
+<h3 id="4-完整狀態機">4. 完整狀態機</h3>
 <pre><code class="language-javascript">const State = { MENU: &#x27;menu&#x27;, PLAYING: &#x27;playing&#x27;, PAUSED: &#x27;paused&#x27;, GAMEOVER: &#x27;gameover&#x27; };</code></pre>
 <ul>
 <li>所有輸入處理、遊戲邏輯、繪製都根據狀態分支</li>
 <li>狀態轉換集中管理（startGame, togglePause, onGameOver）</li>
 </ul>
-<h2>保留的原有功能</h2>
+<h2 id="保留的原有功能">保留的原有功能</h2>
 <ul>
 <li>金色食物（+3分，15%機率，50幀TTL）</li>
 <li>速度漸進（每5分加速10ms，最快50ms）</li>
@@ -105,7 +113,7 @@
 <li>WASD + 方向鍵</li>
 <li>蛇身漸層 + 眼睛 + 震動效果</li>
 </ul>
-<h2>學到的教訓</h2>
+<h2 id="學到的教訓">學到的教訓</h2>
 <ol>
 <li><strong>setInterval 是遊戲循環的大忌</strong>：不穩定、不節能、不同步。一律用 rAF + accumulator。</li>
 <li><strong>觸控不是可選的</strong>：手機用戶佔多數，必須從一開始就考慮。</li>
@@ -120,6 +128,8 @@
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -128,6 +138,14 @@
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

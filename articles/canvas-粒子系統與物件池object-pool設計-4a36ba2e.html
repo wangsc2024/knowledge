@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Canvas 粒子系統與物件池（Object Pool）設計模式完整指南">
+  <title>Canvas 粒子系統與物件池（Object Pool）設計模式完整指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Canvas 粒子系統與物件池（Object Pool）設計模式完整指南</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Canvas粒子系統</span><span class="tag">物件池</span><span class="tag">Object Pool</span><span class="tag">HTML5遊戲</span><span class="tag">效能優化</span><span class="tag">設計模式</span><span class="tag">JavaScript</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#一-粒子生命週期管理">一、粒子生命週期管理</a></li>  <li><a href="#1-birth-誕生">1. Birth（誕生）</a></li>  <li><a href="#2-update-更新">2. Update（更新）</a></li>  <li><a href="#3-render-繪製">3. Render（繪製）</a></li>  <li><a href="#4-death-死亡">4. Death（死亡）</a></li>  <li><a href="#生命週期管理的關鍵原則">生命週期管理的關鍵原則</a></li><li><a href="#二-物件池-object-pool-回收機制">二、物件池（Object Pool）回收機制</a></li>  <li><a href="#設計動機">設計動機</a></li>  <li><a href="#核心介面設計">核心介面設計</a></li>  <li><a href="#實作策略比較">實作策略比較</a></li>  <li><a href="#預分配大小的決定">預分配大小的決定</a></li>  <li><a href="#自動回收機制">自動回收機制</a></li><li><a href="#三-發射器-emitter-設計模式">三、發射器（Emitter）設計模式</a></li>  <li><a href="#發射器類型">發射器類型</a></li>  <li><a href="#發射頻率控制">發射頻率控制</a></li><li><a href="#四-效能優化技巧">四、效能優化技巧</a></li>  <li><a href="#1-requestanimationframe-最佳化">1. requestAnimationFrame 最佳化</a></li>  <li><a href="#2-離屏-canvas-offscreencanvas">2. 離屏 Canvas（OffscreenCanvas）</a></li>  <li><a href="#3-批次繪製-vs-逐粒子繪製">3. 批次繪製 vs 逐粒子繪製</a></li>  <li><a href="#4-globalcompositeoperation-視覺效果">4. globalCompositeOperation 視覺效果</a></li>  <li><a href="#5-避免-gc-壓力的策略">5. 避免 GC 壓力的策略</a></li><li><a href="#五-完整物件池-粒子系統實作範例">五、完整物件池 + 粒子系統實作範例</a></li><li><a href="#六-與-daily-digest-prompt-遊戲專案的應用">六、與 daily-digest-prompt 遊戲專案的應用</a></li>  <li><a href="#1-念珠冥想遊戲-mala-meditation">1. 念珠冥想遊戲（Mala Meditation）</a></li>  <li><a href="#2-正念記憶遊戲-mindfulness-memory">2. 正念記憶遊戲（Mindfulness Memory）</a></li>  <li><a href="#3-六根淨化遊戲-six-roots-zen">3. 六根淨化遊戲（Six Roots Zen）</a></li><li><a href="#七-設計模式總結與選擇指南">七、設計模式總結與選擇指南</a></li>  <li><a href="#關鍵決策檢查清單">關鍵決策檢查清單</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Canvas 粒子系統與物件池（Object Pool）設計模式完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>Canvas 粒子系統是 HTML5 遊戲與互動視覺效果的核心技術，透過管理大量短壽命的小型圖形物件（粒子）來模擬火焰、煙霧、漣漪、星塵等自然現象。每個粒子擁有獨立的位置、速度、生命週期、外觀屬性，在每一幀進行更新與繪製。然而，粒子的頻繁建立與銷毀會觸發 JavaScript 的垃圾回收（GC），導致畫面卡頓（GC pause）。物件池（Object Pool）設計模式透過預分配與重用物件，徹底消除運行時的記憶體配置開銷，是高效能粒子系統的基石。本指南從設計模式層面系統性分析粒子系統架構，涵蓋生命週期管理、物件池機制、發射器模式、效能優化策略與完整實作範例。</p>
+<hr>
+<h2 id="一-粒子生命週期管理">一、粒子生命週期管理</h2>
+<p>粒子的生命週期遵循四階段模型：</p>
+<h3 id="1-birth-誕生">1. Birth（誕生）</h3>
+<ul>
+<li>從物件池取得閒置粒子（<code>pool.get()</code>）</li>
+<li>初始化所有屬性：位置、速度、加速度、生命值、顏色、大小</li>
+<li>由發射器（Emitter）決定初始條件（位置分佈、速度方向、隨機偏差）</li>
+</ul>
+<h3 id="2-update-更新">2. Update（更新）</h3>
+<ul>
+<li>每幀更新物理狀態：<code>x += vx</code>, <code>y += vy</code>, <code>vx += ax</code>, <code>vy += ay</code></li>
+<li>遞減生命值：<code>life -= 1</code>（或 <code>life -= deltaTime</code> 用於時間基準）</li>
+<li>計算衍生屬性：alpha 淡出（<code>alpha = life / maxLife</code>）、尺寸衰減（<code>size *= 0.98</code>）</li>
+<li>可選：碰撞檢測、風力影響、吸引子/排斥子力場</li>
+</ul>
+<h3 id="3-render-繪製">3. Render（繪製）</h3>
+<ul>
+<li>依據粒子類型選擇繪製方式（圓形、方形、圖片、自定義路徑）</li>
+<li>套用 alpha 透明度、globalCompositeOperation 混合模式</li>
+<li>批次繪製優化（見效能優化章節）</li>
+</ul>
+<h3 id="4-death-死亡">4. Death（死亡）</h3>
+<ul>
+<li>當 <code>life &lt;= 0</code> 或超出畫布邊界時觸發</li>
+<li>將粒子歸還物件池（<code>pool.release(particle)</code>）</li>
+<li>重置 <code>active = false</code>，等待下次重用</li>
+</ul>
+<h3 id="生命週期管理的關鍵原則">生命週期管理的關鍵原則</h3>
+<ul>
+<li><strong>時間基準 vs 幀基準</strong>：使用 <code>deltaTime</code> 確保不同刷新率下行為一致（60Hz vs 144Hz）</li>
+<li><strong>延遲死亡</strong>：避免在遍歷陣列時直接移除元素，使用 flag 標記後統一回收</li>
+<li><strong>屬性插值</strong>：生命週期內的屬性變化應使用歸一化進度值 <code>t = 1 - (life / maxLife)</code>，支援線性、ease-in、ease-out 等曲線</li>
+</ul>
+<hr>
+<h2 id="二-物件池-object-pool-回收機制">二、物件池（Object Pool）回收機制</h2>
+<h3 id="設計動機">設計動機</h3>
+<p>在典型粒子系統中，每秒可能建立/銷毀數百至數千個粒子。JavaScript 的 GC 採用標記-清除演算法，大量短壽命物件會導致：</p>
+<ul>
+<li><strong>GC Pause</strong>：引擎暫停執行 JavaScript 進行垃圾回收，造成畫面卡頓（stuttering）</li>
+<li><strong>記憶體碎片化</strong>：頻繁配置/釋放小物件造成堆記憶體碎片</li>
+<li><strong>配置開銷</strong>：<code>new Object()</code> 的成本雖小，但每秒執行數千次仍可觀</li>
+</ul>
+<h3 id="核心介面設計">核心介面設計</h3>
+<p>物件池的 API 遵循 Get/Release 模式：</p>
+<pre><code class="language-javascript">class ObjectPool {
+  constructor(factory, initialSize = 100) {
+    this.pool = [];
+    this.activeCount = 0;
+    // 預分配：遊戲載入時一次性配置所有物件
+    for (let i = 0; i &lt; initialSize; i++) {
+      const obj = factory();
+      obj._poolActive = false;
+      this.pool.push(obj);
+    }
+  }
+  
+  // 取得閒置物件
+  get() {
+    for (let i = 0; i &lt; this.pool.length; i++) {
+      if (!this.pool[i]._poolActive) {
+        this.pool[i]._poolActive = true;
+        this.activeCount++;
+        return this.pool[i];
+      }
+    }
+    // 池滿：可選擇擴展或忽略
+    return null;
+  }
+  
+  // 歸還物件
+  release(obj) {
+    obj._poolActive = false;
+    this.activeCount--;
+  }
+  
+  // 遍歷所有活躍物件
+  forEachActive(callback) {
+    for (let i = 0; i &lt; this.pool.length; i++) {
+      if (this.pool[i]._poolActive) {
+        callback(this.pool[i], i);
+      }
+    }
+  }
+}</code></pre>
+<h3 id="實作策略比較">實作策略比較</h3>
+<table>
+<tr><th>策略</th><th>說明</th><th>優點</th><th>缺點</th></tr>
+<tr><td><strong>線性掃描</strong></td><td>遍歷陣列找第一個非活躍物件</td><td>簡單、快取友善</td><td>get() 最壞 O(n)</td></tr>
+<tr><td><strong>Free List（鏈表）</strong></td><td>維護空閒物件鏈表，head 直接取</td><td>get() O(1)</td><td>指標跳躍不利快取</td></tr>
+<tr><td><strong>雙陣列（active/inactive）</strong></td><td>活躍與閒置分開存放</td><td>遍歷效率高</td><td>移動元素有開銷</td></tr>
+<tr><td><strong>Ring Buffer</strong></td><td>環形緩衝區，寫入指標循環</td><td>無需搜尋、O(1)</td><td>必須固定大小</td></tr>
+</table>
+<h3 id="預分配大小的決定">預分配大小的決定</h3>
+<p>預分配數量應根據「峰值粒子數」決定：</p>
+<ul>
+<li>計算公式：<code>poolSize = emissionRate * maxLifetime * safetyFactor</code></li>
+<li>例如：每秒發射 30 個粒子，最長存活 2 秒，安全係數 1.5 → <code>poolSize = 30 * 2 * 1.5 = 90</code></li>
+<li>建議在開發階段加入 <code>console.warn</code> 當池滿時提醒調整大小</li>
+</ul>
+<h3 id="自動回收機制">自動回收機制</h3>
+<pre><code class="language-javascript">function updateParticles(pool, deltaTime) {
+  pool.forEachActive((p) =&gt; {
+    p.life -= deltaTime;
+    if (p.life &lt;= 0) {
+      pool.release(p); // 自動歸還
+      return;
+    }
+    p.x += p.vx * deltaTime;
+    p.y += p.vy * deltaTime;
+    p.vy += p.gravity * deltaTime;
+    p.alpha = p.life / p.maxLife;
+    p.size *= p.shrinkRate;
+  });
+}</code></pre>
+<hr>
+<h2 id="三-發射器-emitter-設計模式">三、發射器（Emitter）設計模式</h2>
+<p>發射器負責決定「何時」、「何處」、「如何」產生粒子，是粒子系統的控制中心。</p>
+<h3 id="發射器類型">發射器類型</h3>
+<p>#### 1. 點發射器（Point Emitter）</p>
+<ul>
+<li>所有粒子從同一點射出，速度方向隨機</li>
+<li>適用：爆炸、火花、點擊特效</li>
+</ul>
+<pre><code class="language-javascript">function emitFromPoint(pool, x, y, count) {
+  for (let i = 0; i &lt; count; i++) {
+    const p = pool.get();
+    if (!p) return;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.5 + Math.random() * 2;
+    initParticle(p, {
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 30 + Math.random() * 30
+    });
+  }
+}</code></pre>
+<p>#### 2. 線發射器（Line Emitter）</p>
+<ul>
+<li>粒子沿一條線段均勻或隨機分佈</li>
+<li>適用：瀑布、雨滴、地面塵埃</li>
+</ul>
+<p>#### 3. 區域發射器（Area Emitter）</p>
+<ul>
+<li>粒子在矩形/圓形區域內隨機位置產生</li>
+<li>適用：降雪、星空背景、霧氣</li>
+</ul>
+<p>#### 4. 路徑發射器（Path Emitter）</p>
+<ul>
+<li>粒子沿預定義路徑（貝茲曲線、圓弧）分佈</li>
+<li>適用：光芒軌跡、能量環、螺旋效果</li>
+</ul>
+<h3 id="發射頻率控制">發射頻率控制</h3>
+<pre><code class="language-javascript">class Emitter {
+  constructor(config) {
+    this.rate = config.rate; // 每秒發射數量
+    this.accumulator = 0;   // 累計時間碎片
+  }
+  
+  update(deltaTime, pool) {
+    this.accumulator += this.rate * deltaTime;
+    while (this.accumulator &gt;= 1) {
+      this.emit(pool);
+      this.accumulator -= 1;
+    }
+  }
+}</code></pre>
+<p>此 accumulator 模式確保在任何幀率下都能精確控制發射速率，避免低幀率時粒子過少或高幀率時粒子過多。</p>
+<hr>
+<h2 id="四-效能優化技巧">四、效能優化技巧</h2>
+<h3 id="1-requestanimationframe-最佳化">1. requestAnimationFrame 最佳化</h3>
+<pre><code class="language-javascript">let lastTime = 0;
+function gameLoop(timestamp) {
+  const deltaTime = (timestamp - lastTime) / 1000; // 轉為秒
+  lastTime = timestamp;
+  
+  // 限制 deltaTime 避免跳幀問題
+  const clampedDt = Math.min(deltaTime, 0.05); // 最多 50ms
+  
+  updateParticles(pool, clampedDt);
+  renderParticles(ctx, pool);
+  
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);</code></pre>
+<p><strong>關鍵實踐</strong>：</p>
+<ul>
+<li>使用 <code>deltaTime</code> 而非固定步長，適應不同刷新率</li>
+<li>限制最大 deltaTime 避免離開頁面回來後的「時間跳躍」</li>
+<li>優先用 <code>requestAnimationFrame</code> 而非 <code>setInterval</code>（自動與 VSync 對齊）</li>
+</ul>
+<h3 id="2-離屏-canvas-offscreencanvas">2. 離屏 Canvas（OffscreenCanvas）</h3>
+<pre><code class="language-javascript">// 方式一：純 JavaScript 離屏緩衝
+const offscreen = document.createElement(&#x27;canvas&#x27;);
+offscreen.width = 64;
+offscreen.height = 64;
+const offCtx = offscreen.getContext(&#x27;2d&#x27;);
+// 預繪製粒子模板（如漸層圓）
+const gradient = offCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+gradient.addColorStop(0, &#x27;rgba(255, 200, 50, 1)&#x27;);
+gradient.addColorStop(1, &#x27;rgba(255, 100, 0, 0)&#x27;);
+offCtx.fillStyle = gradient;
+offCtx.fillRect(0, 0, 64, 64);
+
+// 繪製時用 drawImage 取代每次重建漸層
+ctx.drawImage(offscreen, p.x - 32, p.y - 32, p.size, p.size);
+
+// 方式二：Web Worker + OffscreenCanvas API（現代瀏覽器）
+// 將粒子更新邏輯移至 Worker，主執行緒只負責繪製
+const worker = new Worker(&#x27;particle-worker.js&#x27;);
+const offscreenCanvas = canvas.transferControlToOffscreen();
+worker.postMessage({ canvas: offscreenCanvas }, [offscreenCanvas]);</code></pre>
+<p><strong>OffscreenCanvas 的效益</strong>：</p>
+<ul>
+<li>預繪製粒子模板避免每幀重建漸層（<code>createRadialGradient</code> 成本高）</li>
+<li>Web Worker 模式可將粒子物理計算移出主執行緒，避免阻塞 UI</li>
+<li>瀏覽器支援：Chrome 69+、Firefox 105+、Safari 16.4+</li>
+</ul>
+<h3 id="3-批次繪製-vs-逐粒子繪製">3. 批次繪製 vs 逐粒子繪製</h3>
+<p><strong>逐粒子繪製（簡單但慢）</strong>：</p>
+<pre><code class="language-javascript">// 每個粒子獨立設定狀態並繪製 — 狀態切換開銷大
+pool.forEachActive((p) =&gt; {
+  ctx.globalAlpha = p.alpha;
+  ctx.fillStyle = p.color;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+  ctx.fill();
+});</code></pre>
+<p><strong>批次繪製（高效）</strong>：</p>
+<pre><code class="language-javascript">// 按顏色分組，減少狀態切換
+const groups = groupByColor(activeParticles);
+for (const [color, particles] of groups) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (const p of particles) {
+    ctx.globalAlpha = p.alpha;
+    ctx.moveTo(p.x + p.size, p.y);
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+  }
+  ctx.fill();
+}
+
+// 更進階：使用單一 Path 批次繪製同類型粒子
+ctx.fillStyle = &#x27;rgba(255, 200, 50, 0.8)&#x27;;
+ctx.beginPath();
+pool.forEachActive((p) =&gt; {
+  if (p.type === &#x27;spark&#x27;) {
+    ctx.moveTo(p.x + p.size, p.y);
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+  }
+});
+ctx.fill(); // 一次性 fill</code></pre>
+<p><strong>效能差距</strong>：批次繪製可減少 60-80% 的 Canvas API 呼叫，在 500+ 粒子時差異顯著。</p>
+<h3 id="4-globalcompositeoperation-視覺效果">4. globalCompositeOperation 視覺效果</h3>
+<pre><code class="language-javascript">// 加法混合 — 光芒疊加效果，亮處更亮
+ctx.globalCompositeOperation = &#x27;lighter&#x27;;
+// 適用：火焰、光芒、能量球
+
+// 柔光混合 — 柔和的光暈
+ctx.globalCompositeOperation = &#x27;screen&#x27;;
+// 適用：螢火蟲、月光、禪意光效
+
+// 標準混合（預設）
+ctx.globalCompositeOperation = &#x27;source-over&#x27;;
+// 適用：煙霧、塵埃、不透明粒子</code></pre>
+<p><strong>注意</strong>：切換 compositeOperation 有成本，應將相同混合模式的粒子分組繪製。</p>
+<h3 id="5-避免-gc-壓力的策略">5. 避免 GC 壓力的策略</h3>
+<ol>
+<li><strong>禁止在遊戲迴圈中 `new`</strong>：所有粒子物件在初始化時預建</li>
+<li><strong>重用計算結果</strong>：預計算 sin/cos 表（<code>sinTable[i] = Math.sin(i * Math.PI / 180)</code>）</li>
+<li><strong>避免字串拼接</strong>：不要在每幀用 <code>rgba(${r}, ${g}, ${b}, ${a})</code> 建立顏色字串，改用預定義顏色或 <code>ctx.globalAlpha</code></li>
+<li><strong>TypedArray 替代物件陣列</strong>：大規模粒子系統可用 <code>Float32Array</code> 存儲粒子屬性（SoA 架構）</li>
+<li><strong>減少閉包捕獲</strong>：避免在熱路徑中建立匿名函式</li>
+</ol>
+<p>#### Structure of Arrays（SoA）架構（進階）</p>
+<pre><code class="language-javascript">// 傳統 AoS（Array of Structures）
+const particles = [{ x: 0, y: 0, vx: 1, vy: 1 }, ...];
+
+// SoA（Structure of Arrays）— 更快取友善
+const MAX = 1000;
+const px = new Float32Array(MAX);  // 所有 x 連續存放
+const py = new Float32Array(MAX);  // 所有 y 連續存放
+const pvx = new Float32Array(MAX); // 所有 vx 連續存放
+const pvy = new Float32Array(MAX); // 所有 vy 連續存放
+const plife = new Float32Array(MAX);
+
+// 更新 — CPU 快取行命中率極高
+for (let i = 0; i &lt; MAX; i++) {
+  px[i] += pvx[i] * dt;
+  py[i] += pvy[i] * dt;
+  plife[i] -= dt;
+}</code></pre>
+<p>SoA 架構在 1000+ 粒子時可提升 30-50% 的更新效能，因為連續記憶體存取大幅提高 CPU L1/L2 快取命中率。</p>
+<hr>
+<h2 id="五-完整物件池-粒子系統實作範例">五、完整物件池 + 粒子系統實作範例</h2>
+<p>以下是一個功能完整的粒子系統，包含物件池、發射器、時間基準更新、批次繪製：</p>
+<pre><code class="language-javascript">// ====== 物件池 ======
+class ParticlePool {
+  constructor(size) {
+    this.particles = [];
+    for (let i = 0; i &lt; size; i++) {
+      this.particles.push({
+        x: 0, y: 0, vx: 0, vy: 0,
+        life: 0, maxLife: 0,
+        size: 0, alpha: 1,
+        color: &#x27;#fff&#x27;,
+        gravity: 0, shrink: 1,
+        active: false
+      });
+    }
+  }
+
+  get() {
+    for (const p of this.particles) {
+      if (!p.active) {
+        p.active = true;
+        return p;
+      }
+    }
+    return null; // 池滿
+  }
+
+  release(p) {
+    p.active = false;
+  }
+
+  get activeCount() {
+    return this.particles.filter(p =&gt; p.active).length;
+  }
+}
+
+// ====== 發射器 ======
+class ParticleEmitter {
+  constructor(pool, config = {}) {
+    this.pool = pool;
+    this.rate = config.rate || 10;       // 每秒發射數
+    this.gravity = config.gravity || 0.1;
+    this.minLife = config.minLife || 0.5; // 秒
+    this.maxLife = config.maxLife || 1.5;
+    this.minSpeed = config.minSpeed || 50;
+    this.maxSpeed = config.maxSpeed || 150;
+    this.minSize = config.minSize || 2;
+    this.maxSize = config.maxSize || 6;
+    this.color = config.color || &#x27;#FFD700&#x27;;
+    this.shrink = config.shrink || 0.98;
+    this.accumulator = 0;
+  }
+
+  emit(x, y) {
+    const p = this.pool.get();
+    if (!p) return null;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = this.minSpeed + Math.random() * (this.maxSpeed - this.minSpeed);
+    p.x = x;
+    p.y = y;
+    p.vx = Math.cos(angle) * speed;
+    p.vy = Math.sin(angle) * speed;
+    p.life = this.minLife + Math.random() * (this.maxLife - this.minLife);
+    p.maxLife = p.life;
+    p.size = this.minSize + Math.random() * (this.maxSize - this.minSize);
+    p.alpha = 1;
+    p.color = this.color;
+    p.gravity = this.gravity;
+    p.shrink = this.shrink;
+    return p;
+  }
+
+  // 持續發射（每幀呼叫）
+  update(dt, x, y) {
+    this.accumulator += this.rate * dt;
+    while (this.accumulator &gt;= 1) {
+      this.emit(x, y);
+      this.accumulator -= 1;
+    }
+  }
+
+  // 爆發發射（一次性）
+  burst(x, y, count) {
+    for (let i = 0; i &lt; count; i++) {
+      this.emit(x, y);
+    }
+  }
+}
+
+// ====== 粒子系統主控 ======
+class ParticleSystem {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext(&#x27;2d&#x27;);
+    this.pool = new ParticlePool(200);
+    this.emitters = [];
+    this.lastTime = 0;
+  }
+
+  addEmitter(config) {
+    const emitter = new ParticleEmitter(this.pool, config);
+    this.emitters.push(emitter);
+    return emitter;
+  }
+
+  update(dt) {
+    for (const p of this.pool.particles) {
+      if (!p.active) continue;
+      p.life -= dt;
+      if (p.life &lt;= 0) {
+        this.pool.release(p);
+        continue;
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += p.gravity * 60 * dt; // 重力（像素/秒^2）
+      p.alpha = Math.max(0, p.life / p.maxLife);
+      p.size *= Math.pow(p.shrink, dt * 60);
+    }
+  }
+
+  render() {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = &#x27;lighter&#x27;;
+    // 批次繪製：建立單一路徑
+    ctx.beginPath();
+    for (const p of this.pool.particles) {
+      if (!p.active) continue;
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.moveTo(p.x + p.size, p.y);
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 主遊戲迴圈
+  start() {
+    const loop = (timestamp) =&gt; {
+      const dt = Math.min((timestamp - this.lastTime) / 1000, 0.05);
+      this.lastTime = timestamp;
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.update(dt);
+      this.render();
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+}
+
+// ====== 使用範例 ======
+// const canvas = document.getElementById(&#x27;particles&#x27;);
+// const system = new ParticleSystem(canvas);
+// const fireEmitter = system.addEmitter({
+//   rate: 30, gravity: -50, color: &#x27;#FF6600&#x27;,
+//   minLife: 0.3, maxLife: 1, minSpeed: 20, maxSpeed: 80
+// });
+// system.start();
+// canvas.addEventListener(&#x27;click&#x27;, (e) =&gt; {
+//   fireEmitter.burst(e.offsetX, e.offsetY, 20);
+// });</code></pre>
+<hr>
+<h2 id="六-與-daily-digest-prompt-遊戲專案的應用">六、與 daily-digest-prompt 遊戲專案的應用</h2>
+<h3 id="1-念珠冥想遊戲-mala-meditation">1. 念珠冥想遊戲（Mala Meditation）</h3>
+<p><strong>漣漪效果優化</strong>：</p>
+<ul>
+<li>現有實作使用 60 個物件池搭配 <code>spark</code> 和 <code>ripple</code> 兩種粒子類型</li>
+<li>可進階引入<strong>路徑發射器</strong>，讓光芒軌跡沿念珠圓環弧線發射，營造「能量流動」視覺</li>
+<li>完成慶祝動畫（30 個粒子爆發）可加入 <code>globalCompositeOperation = &#x27;lighter&#x27;</code> 增強光芒疊加</li>
+<li>建議預繪製漸層圓到離屏 Canvas，避免每幀重建 <code>createRadialGradient</code></li>
+</ul>
+<p><strong>光芒軌跡增強</strong>：</p>
+<ul>
+<li>使用持續發射器（rate: 5-10/sec），沿已點亮念珠路徑每幀產生微小粒子</li>
+<li>粒子壽命 0.5-1 秒，搭配 <code>screen</code> 混合模式，營造柔和月光質感</li>
+<li>物件池大小建議：<code>10 * 1 * 1.5 = 15</code>，加上現有 60 → 總計 75 個</li>
+</ul>
+<h3 id="2-正念記憶遊戲-mindfulness-memory">2. 正念記憶遊戲（Mindfulness Memory）</h3>
+<p><strong>頌缽粒子視覺</strong>：</p>
+<ul>
+<li>頌缽敲擊時使用<strong>區域發射器</strong>，從頌缽位置向外擴散環形粒子</li>
+<li>粒子顏色隨頌缽音高變化（低音 = 暖金色、高音 = 冷藍色）</li>
+<li>建議使用 <code>lighter</code> 混合模式 + 大尺寸低透明度粒子模擬聲波視覺化</li>
+<li>SoA 架構在此場景不必要（粒子數 &lt; 100），標準物件池即可</li>
+</ul>
+<h3 id="3-六根淨化遊戲-six-roots-zen">3. 六根淨化遊戲（Six Roots Zen）</h3>
+<p><strong>正確輸入粒子效果</strong>：</p>
+<ul>
+<li>現有使用 DOM 粒子（<code>.correct-particle</code>），建議遷移至 Canvas 物件池</li>
+<li>Canvas 粒子避免 DOM 節點膨脹問題，高連擊時不會產生數百個 DOM 元素</li>
+<li>搭配 Combo 系統，連擊越高粒子越多、顏色越亮、burst count 遞增</li>
+</ul>
+<hr>
+<h2 id="七-設計模式總結與選擇指南">七、設計模式總結與選擇指南</h2>
+<table>
+<tr><th>場景</th><th>粒子數量</th><th>推薦架構</th><th>池大小</th></tr>
+<tr><td>簡單點擊特效</td><td>&lt; 50</td><td>基本物件池 + 線性掃描</td><td>50-80</td></tr>
+<tr><td>持續發射（火焰/噴泉）</td><td>50-200</td><td>物件池 + Accumulator 發射器</td><td>200-300</td></tr>
+<tr><td>大規模效果（星空/雨）</td><td>200-1000</td><td>SoA 架構 + 批次繪製</td><td>1000+</td></tr>
+<tr><td>極致效能（&gt; 1000）</td><td>1000+</td><td>WebGL / GPU 粒子</td><td>N/A</td></tr>
+</table>
+<h3 id="關鍵決策檢查清單">關鍵決策檢查清單</h3>
+<ol>
+<li>粒子數量 &gt; 50？ → 必須使用物件池</li>
+<li>需要持續發射？ → 使用 Accumulator 模式控制頻率</li>
+<li>多種粒子類型？ → 每種類型獨立物件池或 type 欄位區分</li>
+<li>有漸層/光暈？ → 預繪製到離屏 Canvas</li>
+<li>粒子數 &gt; 500？ → 考慮 SoA 架構 + TypedArray</li>
+<li>需要物理互動？ → 加入力場系統（吸引子/排斥子）</li>
+</ol>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li>MDN Web Docs: Canvas API / requestAnimationFrame / OffscreenCanvas</li>
+<li>Game Programming Patterns by Robert Nystrom - Object Pool chapter</li>
+<li>HTML5 Rocks: Improving HTML5 Canvas Performance</li>
+<li>Chrome DevTools: Performance profiling for Canvas applications</li>
+<li>daily-digest-prompt 專案念珠冥想遊戲粒子系統實作（KB: 509defda）</li>
+<li>daily-digest-prompt 專案碰撞偵測筆記物件池段落（KB: 4f13f2c0）</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

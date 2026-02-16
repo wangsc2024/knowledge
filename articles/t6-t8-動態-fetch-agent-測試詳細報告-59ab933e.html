@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,10 +36,17 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#t6-fetch-hackernews-agent">T6: fetch-hackernews Agent</a></li><li><a href="#t7-fetch-todoist-agent">T7: fetch-todoist Agent</a></li><li><a href="#t8-fetch-news-agent">T8: fetch-news Agent</a></li><li><a href="#三者-json-格式驗證">三者 JSON 格式驗證</a></li><li><a href="#測試日期">測試日期</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>T6-T8 動態 Fetch Agent 測試詳細報告</h1>
 <p>三個 Fetch Agent 以背景並行方式執行，模擬 Phase 1 真實場景。</p>
-<h2>T6: fetch-hackernews Agent</h2>
+<h2 id="t6-fetch-hackernews-agent">T6: fetch-hackernews Agent</h2>
 <ul>
 <li><strong>來源</strong>: HN API（hacker-news.firebaseio.com）</li>
 <li><strong>掃描</strong>: 30 篇熱門文章</li>
@@ -51,7 +59,7 @@
   3. 「GLM-5：從氛圍編程到 Agentic 工程」— 225 分、122 留言
   4. 「GLM-OCR：精準 × 快速 × 全面」— 159 分、53 留言
   5. 「AI 代理透過 REST API 玩模擬城市」— 130 分、49 留言</p>
-<h2>T7: fetch-todoist Agent</h2>
+<h2 id="t7-fetch-todoist-agent">T7: fetch-todoist Agent</h2>
 <ul>
 <li><strong>來源</strong>: Todoist API（api.todoist.com）</li>
 <li><strong>Filter</strong>: <code>today</code>（僅當日，不含過期）</li>
@@ -60,7 +68,7 @@
 <li><strong>發現</strong>: Todoist REST API 已從 v2 遷移到 v1，回應格式略有不同（含 user_id、checked 等 v1 欄位）但功能正常</li>
 <li><strong>待辦清單</strong>: 拍照、研究 Claude Code、研究 AI、研究邏輯思維、研究 GitHub、daily-digest 優化、qa_system 優化</li>
 </ul>
-<h2>T8: fetch-news Agent</h2>
+<h2 id="t8-fetch-news-agent">T8: fetch-news Agent</h2>
 <ul>
 <li><strong>來源</strong>: 屏東新聞 MCP（ptnews-mcp.pages.dev）</li>
 <li><strong>重試</strong>: 第 1 次即成功，未觸發重試機制</li>
@@ -72,7 +80,7 @@
   3. 偏遠地區採購不再高風險 — 採購聯繫平臺成果
   4. 落實在地安老 — 枋山鄉日照中心啟用
   5. 太夯了!「奇幻大津」— 光影藝術活動爆紅</p>
-<h2>三者 JSON 格式驗證</h2>
+<h2 id="三者-json-格式驗證">三者 JSON 格式驗證</h2>
 <pre><code class="language-json">// 共同欄位（全部正確）
 {
   &quot;agent&quot;: &quot;fetch-xxx&quot;,
@@ -82,7 +90,7 @@
   &quot;data&quot;: { ... },
   &quot;error&quot;: null
 }</code></pre>
-<h2>測試日期</h2>
+<h2 id="測試日期">測試日期</h2>
 <p>2026-02-12</p>
 
       </div>
@@ -90,6 +98,8 @@
       <a href="../" class="back-link">&larr; 返回首頁</a>
     </article>
   </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
 
   <footer>
     <div class="container">
@@ -99,6 +109,14 @@
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,15 +36,22 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#啟用方式">啟用方式</a></li><li><a href="#與-subagents-的差異">與 Subagents 的差異</a></li><li><a href="#架構組件">架構組件</a></li><li><a href="#顯示模式">顯示模式</a></li><li><a href="#最佳使用場景">最佳使用場景</a></li><li><a href="#進階功能">進階功能</a></li><li><a href="#限制">限制</a></li><li><a href="#實際案例">實際案例</a></li><li><a href="#資料來源">資料來源</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>Claude Code Agent Teams 研究筆記</h1>
-<h2>概述</h2>
+<h2 id="概述">概述</h2>
 <p>Agent Teams 是 Anthropic 於 2026-02-05 發布的實驗性功能，允許多個 Claude Code 實例協同工作。一個 session 擔任 team lead，負責協調、分派任務、彙整結果；其餘 teammates 各自擁有獨立 context window，可直接互相溝通。</p>
-<h2>啟用方式</h2>
+<h2 id="啟用方式">啟用方式</h2>
 <p>在 settings.json 中設定：
 <code>{&quot;env&quot;: {&quot;CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS&quot;: &quot;1&quot;}}</code>
 或設定環境變數 <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code></p>
-<h2>與 Subagents 的差異</h2>
+<h2 id="與-subagents-的差異">與 Subagents 的差異</h2>
 <table>
 <tr><th>比較項目</th><th>Subagents</th><th>Agent Teams</th></tr>
 <tr><td>Context</td><td>獨立 context，結果回傳給呼叫者</td><td>獨立 context，完全獨立運作</td></tr>
@@ -51,33 +59,33 @@
 <tr><td>協調機制</td><td>主 agent 管理所有工作</td><td>共享任務清單，自主協調</td></tr>
 <tr><td>Token 成本</td><td>較低（結果摘要回傳）</td><td>較高（每個 teammate 獨立 instance）</td></tr>
 </table>
-<h2>架構組件</h2>
+<h2 id="架構組件">架構組件</h2>
 <ul>
 <li><strong>Team Lead</strong>：主 session，建立團隊、生成 teammates、協調工作</li>
 <li><strong>Teammates</strong>：獨立 Claude Code instances，各自處理被分派的任務</li>
 <li><strong>Task List</strong>：共享任務清單，teammates 可認領和完成</li>
 <li><strong>Mailbox</strong>：agents 間的通訊系統</li>
 </ul>
-<h2>顯示模式</h2>
+<h2 id="顯示模式">顯示模式</h2>
 <ul>
 <li><strong>In-process</strong>：所有 teammates 在主 terminal 中運行，用 Shift+Up/Down 切換</li>
 <li><strong>Split panes</strong>：每個 teammate 有自己的 pane（需 tmux 或 iTerm2）</li>
 </ul>
-<h2>最佳使用場景</h2>
+<h2 id="最佳使用場景">最佳使用場景</h2>
 <ol>
 <li><strong>研究與審查</strong>：多 teammates 同時調查問題的不同面向</li>
 <li><strong>新模組開發</strong>：每個 teammate 負責獨立的模組</li>
 <li><strong>競爭假設除錯</strong>：多 teammates 平行測試不同理論</li>
 <li><strong>跨層協調</strong>：前端、後端、測試各由不同 teammate 負責</li>
 </ol>
-<h2>進階功能</h2>
+<h2 id="進階功能">進階功能</h2>
 <ul>
 <li><strong>Delegate Mode</strong>：按 Shift+Tab 限制 lead 只做協調，不自己寫程式碼</li>
 <li><strong>Plan Approval</strong>：要求 teammates 先提交計畫給 lead 審批</li>
 <li><strong>Quality Hooks</strong>：TeammateIdle 和 TaskCompleted hooks 可強制品質門檻</li>
 <li><strong>任務依賴</strong>：支援任務間的依賴關係，自動解鎖</li>
 </ul>
-<h2>限制</h2>
+<h2 id="限制">限制</h2>
 <ul>
 <li>不支援 session 恢復（/resume 無法恢復 in-process teammates）</li>
 <li>任務狀態可能延遲</li>
@@ -86,9 +94,9 @@
 <li>Split panes 不支援 VS Code Terminal、Windows Terminal</li>
 <li>Token 消耗顯著高於單 session</li>
 </ul>
-<h2>實際案例</h2>
+<h2 id="實際案例">實際案例</h2>
 <p>Claude Opus 4.6 Agent Team 花費約 $20,000、近 2,000 個 sessions，產出 10 萬行 C compiler，可在 x86、ARM、RISC-V 上編譯 Linux 6.9。</p>
-<h2>資料來源</h2>
+<h2 id="資料來源">資料來源</h2>
 <ul>
 <li>官方文件：https://code.claude.com/docs/en/agent-teams</li>
 <li>TechCrunch 報導：2026-02-05</li>
@@ -101,6 +109,8 @@
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -109,6 +119,14 @@
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

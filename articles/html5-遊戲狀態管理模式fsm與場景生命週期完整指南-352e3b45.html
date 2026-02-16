@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 遊戲狀態管理模式（FSM）與場景生命週期完整指南">
+  <title>HTML5 遊戲狀態管理模式（FSM）與場景生命週期完整指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>HTML5 遊戲狀態管理模式（FSM）與場景生命週期完整指南</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">狀態機</span><span class="tag">FSM</span><span class="tag">場景管理</span><span class="tag">JavaScript</span><span class="tag">設計模式</span><span class="tag">遊戲架構</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#一-為什麼需要狀態機">一、為什麼需要狀態機</a></li>  <li><a href="#問題-布林旗標地獄">問題：布林旗標地獄</a></li>  <li><a href="#解法-有限狀態機">解法：有限狀態機</a></li><li><a href="#二-三種實作模式">二、三種實作模式</a></li>  <li><a href="#模式-1-列舉-switch-最簡單">模式 1：列舉 + Switch（最簡單）</a></li>  <li><a href="#模式-2-狀態物件模式-state-pattern">模式 2：狀態物件模式（State Pattern）</a></li>  <li><a href="#模式-3-堆疊式-fsm-pushdown-automata">模式 3：堆疊式 FSM（Pushdown Automata）</a></li><li><a href="#三-場景生命週期管理">三、場景生命週期管理</a></li>  <li><a href="#標準生命週期方法">標準生命週期方法</a></li>  <li><a href="#場景間資料傳遞">場景間資料傳遞</a></li>  <li><a href="#轉場動畫模式">轉場動畫模式</a></li><li><a href="#四-進階架構">四、進階架構</a></li>  <li><a href="#階層式狀態機-hierarchical-fsm">階層式狀態機（Hierarchical FSM）</a></li>  <li><a href="#並行狀態機-concurrent-fsm">並行狀態機（Concurrent FSM）</a></li><li><a href="#五-常見陷阱與最佳實踐">五、常見陷阱與最佳實踐</a></li>  <li><a href="#陷阱">陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li><li><a href="#六-模式選擇決策樹">六、模式選擇決策樹</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>HTML5 遊戲狀態管理模式（FSM）與場景生命週期完整指南</h1>
+<h2 id="概述">概述</h2>
+<p>在 HTML5/JavaScript 遊戲開發中，狀態管理（State Management）是架構設計的核心。有限狀態機（Finite State Machine, FSM）提供了一種結構化方式來組織遊戲邏輯，避免布林旗標氾濫和 spaghetti code。本文涵蓋三種主流實作模式、場景生命週期管理、進階架構（階層式 FSM 與堆疊式自動機），以及常見陷阱與最佳實踐。</p>
+<hr>
+<h2 id="一-為什麼需要狀態機">一、為什麼需要狀態機</h2>
+<h3 id="問題-布林旗標地獄">問題：布林旗標地獄</h3>
+<pre><code class="language-javascript">// 反模式：多個布林旗標導致無效狀態組合
+let isJumping = false;
+let isDucking = false;
+let isAttacking = false;
+// 問題：isJumping &amp;&amp; isDucking 是否合法？難以追蹤</code></pre>
+<h3 id="解法-有限狀態機">解法：有限狀態機</h3>
+<p>FSM 的核心特性：</p>
+<ul>
+<li><strong>固定的狀態集合</strong>：載入、選單、遊戲中、暫停、結束</li>
+<li><strong>單一當前狀態</strong>：任何時刻只處於一個狀態</li>
+<li><strong>事件驅動轉換</strong>：根據輸入或條件在狀態間切換</li>
+<li><strong>消除無效組合</strong>：用列舉取代布林旗標</li>
+</ul>
+<hr>
+<h2 id="二-三種實作模式">二、三種實作模式</h2>
+<h3 id="模式-1-列舉-switch-最簡單">模式 1：列舉 + Switch（最簡單）</h3>
+<p>適用場景：狀態數量少（&lt; 5 個），無狀態專屬資料。</p>
+<pre><code class="language-javascript">const GameState = Object.freeze({
+  LOADING: &#x27;loading&#x27;,
+  MENU: &#x27;menu&#x27;,
+  PLAYING: &#x27;playing&#x27;,
+  PAUSED: &#x27;paused&#x27;,
+  GAME_OVER: &#x27;gameover&#x27;
+});
+
+let currentState = GameState.LOADING;
+
+function handleInput(input) {
+  switch (currentState) {
+    case GameState.MENU:
+      if (input === &#x27;START&#x27;) currentState = GameState.PLAYING;
+      break;
+    case GameState.PLAYING:
+      if (input === &#x27;ESC&#x27;) currentState = GameState.PAUSED;
+      if (input === &#x27;DIED&#x27;) currentState = GameState.GAME_OVER;
+      break;
+    case GameState.PAUSED:
+      if (input === &#x27;ESC&#x27;) currentState = GameState.PLAYING;
+      if (input === &#x27;QUIT&#x27;) currentState = GameState.MENU;
+      break;
+  }
+}</code></pre>
+<p><strong>優點</strong>：簡單直觀、效能最佳、零依賴
+<strong>缺點</strong>：Switch 臃腫、無進入/離開動作、無法攜帶狀態資料</p>
+<h3 id="模式-2-狀態物件模式-state-pattern">模式 2：狀態物件模式（State Pattern）</h3>
+<p>適用場景：狀態有獨立邏輯和資料（如充能時間、動畫計時器）。</p>
+<pre><code class="language-javascript">class GameStateBase {
+  enter(context) {}   // 進入狀態時呼叫
+  exit(context) {}    // 離開狀態時呼叫
+  update(context, dt) {} // 每幀更新
+  render(context, ctx) {} // 每幀繪製
+  handleInput(context, input) {} // 處理輸入
+}
+
+class PlayingState extends GameStateBase {
+  enter(context) {
+    context.score = 0;
+    context.setBackground(&#x27;level1.png&#x27;);
+  }
+  
+  update(context, dt) {
+    context.player.update(dt);
+    context.enemies.forEach(e =&gt; e.update(dt));
+    this.checkCollisions(context);
+  }
+  
+  handleInput(context, input) {
+    if (input === &#x27;ESC&#x27;) {
+      return new PausedState(); // 返回新狀態觸發轉換
+    }
+    return null; // 保持當前狀態
+  }
+}
+
+class PausedState extends GameStateBase {
+  enter(context) {
+    context.showOverlay(&#x27;PAUSED&#x27;);
+  }
+  
+  exit(context) {
+    context.hideOverlay();
+  }
+  
+  handleInput(context, input) {
+    if (input === &#x27;ESC&#x27;) return new PlayingState();
+    if (input === &#x27;QUIT&#x27;) return new MenuState();
+    return null;
+  }
+}</code></pre>
+<p><strong>優點</strong>：封裝良好、支援進入/離開動作、狀態可攜帶資料
+<strong>缺點</strong>：需要更多類別、轉換邏輯分散在各狀態中</p>
+<h3 id="模式-3-堆疊式-fsm-pushdown-automata">模式 3：堆疊式 FSM（Pushdown Automata）</h3>
+<p>適用場景：需要臨時狀態覆蓋（暫停、對話框、動畫插播）。</p>
+<pre><code class="language-javascript">class StateStack {
+  constructor() {
+    this.states = [];
+  }
+  
+  push(state) {
+    const current = this.top();
+    if (current) current.onPause?.();
+    this.states.push(state);
+    state.onEnter?.();
+  }
+  
+  pop() {
+    const removed = this.states.pop();
+    removed?.onExit?.();
+    const next = this.top();
+    if (next) next.onResume?.();
+    return removed;
+  }
+  
+  top() {
+    return this.states[this.states.length - 1] || null;
+  }
+  
+  update(dt) {
+    this.top()?.update(dt);
+  }
+  
+  render(ctx) {
+    // 可選：渲染堆疊中所有狀態（底部先畫）
+    this.states.forEach(s =&gt; s.render(ctx));
+  }
+}</code></pre>
+<p><strong>堆疊操作語義</strong>：</p>
+<ul>
+<li><code>push(new PauseState())</code> → 暫停遊戲，保留遊戲狀態</li>
+<li><code>pop()</code> → 取消暫停，自動回到之前的遊戲狀態</li>
+<li><code>pop() + push(new GameOverState())</code> → 完全轉換</li>
+</ul>
+<p><strong>優點</strong>：自動記憶歷史狀態、暫停/對話框天然支援
+<strong>缺點</strong>：堆疊溢出風險、render 需特殊處理</p>
+<hr>
+<h2 id="三-場景生命週期管理">三、場景生命週期管理</h2>
+<h3 id="標準生命週期方法">標準生命週期方法</h3>
+<pre><code class="language-plaintext">init(data)     → 接收上一場景傳遞的資料
+  ↓
+preload()      → 載入資源（圖片、音效、地圖）
+  ↓
+create()       → 初始化遊戲物件
+  ↓
+┌─update(dt)   → 每幀更新邏輯（物理、AI、碰撞）
+│  ↓
+└─render(ctx)  → 每幀繪製（Canvas 2D / WebGL）
+  ↓
+destroy()      → 清理資源、移除事件監聽器</code></pre>
+<h3 id="場景間資料傳遞">場景間資料傳遞</h3>
+<pre><code class="language-javascript">// 從 Level1 轉場到 Level2，傳遞玩家狀態
+stateStack.pop(); // 離開 Level1
+stateStack.push(new Level2State({
+  score: player.score,
+  health: player.health,
+  inventory: player.inventory
+}));
+
+// Level2State 在 init 中接收
+class Level2State extends GameStateBase {
+  constructor(data) {
+    super();
+    this.playerData = data;
+  }
+  enter(context) {
+    context.player.restore(this.playerData);
+  }
+}</code></pre>
+<h3 id="轉場動畫模式">轉場動畫模式</h3>
+<pre><code class="language-javascript">class TransitionState extends GameStateBase {
+  constructor(fromState, toState, duration = 500) {
+    super();
+    this.from = fromState;
+    this.to = toState;
+    this.duration = duration;
+    this.elapsed = 0;
+  }
+  
+  update(context, dt) {
+    this.elapsed += dt;
+    this.progress = Math.min(this.elapsed / this.duration, 1);
+    if (this.progress &gt;= 1) {
+      context.setState(this.to);
+    }
+  }
+  
+  render(context, ctx) {
+    // 淡出舊場景
+    ctx.globalAlpha = 1 - this.progress;
+    this.from.render(context, ctx);
+    // 淡入新場景
+    ctx.globalAlpha = this.progress;
+    this.to.render(context, ctx);
+    ctx.globalAlpha = 1;
+  }
+}</code></pre>
+<hr>
+<h2 id="四-進階架構">四、進階架構</h2>
+<h3 id="階層式狀態機-hierarchical-fsm">階層式狀態機（Hierarchical FSM）</h3>
+<p>將共同行為提取到父狀態，子狀態繼承並覆寫：</p>
+<pre><code class="language-javascript">// 所有「在地面上」的狀態共享跳躍和閃避邏輯
+class OnGroundState extends GameStateBase {
+  handleInput(context, input) {
+    if (input === &#x27;JUMP&#x27;) return new JumpingState();
+    if (input === &#x27;DODGE&#x27;) return new DodgingState();
+    return null;
+  }
+}
+
+// 站立和蹲下都繼承「在地面上」的行為
+class StandingState extends OnGroundState {
+  handleInput(context, input) {
+    if (input === &#x27;CROUCH&#x27;) return new CrouchingState();
+    return super.handleInput(context, input); // 冒泡到父狀態
+  }
+}</code></pre>
+<h3 id="並行狀態機-concurrent-fsm">並行狀態機（Concurrent FSM）</h3>
+<p>獨立面向用獨立狀態機管理，避免狀態爆炸：</p>
+<pre><code class="language-javascript">class Character {
+  constructor() {
+    this.movementFSM = new FSM();   // 站立/行走/跳躍
+    this.combatFSM = new FSM();     // 閒置/攻擊/防禦
+    this.equipmentFSM = new FSM();  // 劍/弓/魔法
+  }
+  
+  update(dt) {
+    this.movementFSM.update(dt);
+    this.combatFSM.update(dt);
+    this.equipmentFSM.update(dt);
+  }
+}
+// 3 + 3 + 3 = 9 個狀態，而非 3 × 3 × 3 = 27 個組合狀態</code></pre>
+<hr>
+<h2 id="五-常見陷阱與最佳實踐">五、常見陷阱與最佳實踐</h2>
+<h3 id="陷阱">陷阱</h3>
+<table>
+<tr><th>陷阱</th><th>說明</th><th>解法</th></tr>
+<tr><td>布林旗標氾濫</td><td>多個 <code>is_</code> 變數導致無效組合</td><td>改用列舉或狀態物件</td></tr>
+<tr><td>遺漏清理</td><td>離開狀態時未移除事件監聽器</td><td>在 <code>exit()/destroy()</code> 中統一清理</td></tr>
+<tr><td>轉換時序錯誤</td><td>在 <code>update()</code> 中途轉換導致半更新</td><td>標記延遲轉換，在幀末處理</td></tr>
+<tr><td>堆疊溢出</td><td>不斷 push 未 pop</td><td>設定堆疊上限或監控深度</td></tr>
+<tr><td>狀態資料洩漏</td><td>舊狀態引用未釋放</td><td>pop 後設為 null</td></tr>
+<tr><td>requestAnimationFrame 忘記</td><td>暫停時仍在渲染</td><td>暫停狀態中不呼叫 rAF 或降幀率</td></tr>
+</table>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>先規劃狀態圖再寫程式碼</strong> — 畫出所有狀態和合法轉換</li>
+<li><strong>使用 requestAnimationFrame</strong> — 禁止 setInterval/setTimeout 作為遊戲迴圈</li>
+<li><strong>狀態專屬資料留在狀態內</strong> — 提高內聚性，如充能時間放在攻擊狀態</li>
+<li><strong>進入/離開動作是關鍵</strong> — 消除轉換來源間的重複設定程式碼</li>
+<li><strong>簡單場景用 enum+switch</strong> — 避免過度設計</li>
+<li><strong>複雜場景用堆疊式</strong> — 暫停、對話框、過場動畫的天然解法</li>
+<li><strong>並行 FSM 取代狀態爆炸</strong> — 獨立面向獨立管理</li>
+<li><strong>延遲轉換</strong> — 不要在 update 中途切換，標記後在幀末處理</li>
+<li><strong>監控狀態轉換</strong> — 加入 <code>onTransition</code> 鉤子便於除錯</li>
+<li><strong>考慮 XState 等函式庫</strong> — 成熟的 JavaScript 狀態機庫，支援視覺化除錯</li>
+</ol>
+<hr>
+<h2 id="六-模式選擇決策樹">六、模式選擇決策樹</h2>
+<pre><code class="language-plaintext">狀態數量 &lt; 5 且無狀態資料？
+  ├─ 是 → 列舉 + Switch
+  └─ 否 → 需要暫停/對話框/過場？
+      ├─ 是 → 堆疊式 FSM
+      └─ 否 → 有多個獨立面向（移動×戰鬥×裝備）？
+          ├─ 是 → 並行 FSM
+          └─ 否 → 狀態物件模式</code></pre>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li>Robert Nystrom, <em>Game Programming Patterns</em> — State Chapter (gameprogrammingpatterns.com)</li>
+<li>Fernando Bevilacqua, &quot;Finite-State Machines: Theory and Implementation&quot; — Envato Tuts+</li>
+<li>Ibrahim Diallo, &quot;Creating a State Stack Engine for your game with JavaScript&quot; (idiallo.com)</li>
+<li>XState Documentation (stately.ai)</li>
+</ul>
+<hr>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Game Design Research Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

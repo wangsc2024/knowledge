@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,13 +36,20 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心方法與工具">核心方法與工具</a></li>  <li><a href="#1-llm-驅動的-mutation-testing-meta-ach-系統">1. LLM 驅動的 Mutation Testing（Meta ACH 系統）</a></li>  <li><a href="#2-強化學習驅動的單元測試生成-diffblue-cover">2. 強化學習驅動的單元測試生成（Diffblue Cover）</a></li>  <li><a href="#3-test-driven-generation-tdg-方法論">3. Test-Driven Generation（TDG）方法論</a></li>  <li><a href="#4-其他主要工具">4. 其他主要工具</a></li><li><a href="#實際工作流程-claude-code-多代理-tdd-系統">實際工作流程：Claude Code 多代理 TDD 系統</a></li>  <li><a href="#step-1-建立三個專責-sub-agent">Step 1：建立三個專責 Sub-Agent</a></li>  <li><a href="#step-2-建立編排-skill">Step 2：建立編排 Skill</a></li>  <li><a href="#step-3-hook-強制啟動">Step 3：Hook 強制啟動</a></li>  <li><a href="#step-4-上下文隔離架構">Step 4：上下文隔離架構</a></li><li><a href="#2026-年-ai-測試-10-大趨勢">2026 年 AI 測試 10 大趨勢</a></li><li><a href="#與本專案的應用場景">與本專案的應用場景</a></li>  <li><a href="#daily-digest-prompt-可受益之處">daily-digest-prompt 可受益之處：</a></li>  <li><a href="#具體實作建議">具體實作建議：</a></li><li><a href="#風險與注意事項">風險與注意事項</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>AI 驅動的自動測試生成：工具生態、工作流程與 TDD 整合實踐</h1>
-<h2>技術概述</h2>
+<h2 id="技術概述">技術概述</h2>
 <p>2026 年，AI 自動測試生成已從實驗階段進入工業化部署。生成式 AI 不僅能自動產生單元測試、整合測試，更能與 Mutation Testing 結合，量化測試品質。核心趨勢是 <strong>AI 加速 TDD，而非取代 TDD</strong>——開發者定義測試意圖（test intent），AI 負責生成、維護、優化測試程式碼。Meta 的 ACH 系統證明 LLM 驅動的 Mutation Testing 可在工業規模運行，而 Diffblue Cover 展示了強化學習驅動的單元測試生成比通用 LLM 編碼助手高效 20 倍。與此同時，Test-Driven Generation（TDG）方法論將 AI 嵌入傳統 TDD 的 Red-Green-Refactor 循環，開創了人機協作的新測試範式。</p>
 <hr>
-<h2>核心方法與工具</h2>
-<h3>1. LLM 驅動的 Mutation Testing（Meta ACH 系統）</h3>
+<h2 id="核心方法與工具">核心方法與工具</h2>
+<h3 id="1-llm-驅動的-mutation-testing-meta-ach-系統">1. LLM 驅動的 Mutation Testing（Meta ACH 系統）</h3>
 <p><strong>問題背景</strong>：傳統 Mutation Testing 有五大障礙——變異體過多、不切實際的變異、等價變異體浪費資源、計算成本高、測試過度擴展。</p>
 <p><strong>ACH（Automated Compliance Hardening）三大元件</strong>：</p>
 <table>
@@ -56,7 +64,7 @@
 <li>隱私工程師接受率：<strong>73%</strong></li>
 <li>隱私相關測試佔比：<strong>36%</strong></li>
 </ul>
-<h3>2. 強化學習驅動的單元測試生成（Diffblue Cover）</h3>
+<h3 id="2-強化學習驅動的單元測試生成-diffblue-cover">2. 強化學習驅動的單元測試生成（Diffblue Cover）</h3>
 <p><strong>技術特點</strong>：</p>
 <ul>
 <li>使用強化學習（非純 LLM）生成 Java 單元測試</li>
@@ -66,14 +74,14 @@
 </ul>
 <p><strong>效能宣稱</strong>：比 Claude Code / GitHub Copilot 等 LLM 編碼助手高效 <strong>20 倍</strong></p>
 <p><strong>CI/CD 整合</strong>：Cover Pipeline 直接整合 GitHub Actions，在 PR 階段自動生成與維護測試。</p>
-<h3>3. Test-Driven Generation（TDG）方法論</h3>
+<h3 id="3-test-driven-generation-tdg-方法論">3. Test-Driven Generation（TDG）方法論</h3>
 <p><strong>定義</strong>：TDG 將生成式 AI 嵌入 TDD 的 Red-Green-Refactor 循環。與傳統 TDD 的區別：</p>
 <ul>
 <li>TDD：人寫測試 → 人寫實作</li>
 <li>TDG：人寫測試 → <strong>AI 生成實作</strong>（或反向：AI 生成測試 → 人審查 → AI 實作）</li>
 </ul>
 <p><strong>核心原則</strong>：AI 輔助撰寫 70% 的 happy-path 測試，人類聚焦邊界案例與意圖定義。</p>
-<h3>4. 其他主要工具</h3>
+<h3 id="4-其他主要工具">4. 其他主要工具</h3>
 <table>
 <tr><th>工具</th><th>定位</th><th>特色</th></tr>
 <tr><td>BaseRock AI</td><td>整合/單元測試</td><td>自動生成全面測試</td></tr>
@@ -84,14 +92,14 @@
 <tr><td>mabl</td><td>智能測試平台</td><td>低代碼 AI 測試自動化</td></tr>
 </table>
 <hr>
-<h2>實際工作流程：Claude Code 多代理 TDD 系統</h2>
+<h2 id="實際工作流程-claude-code-多代理-tdd-系統">實際工作流程：Claude Code 多代理 TDD 系統</h2>
 <p>以下是一個在 Claude Code 中強制執行 TDD 的多代理架構（來源：alexop.dev）：</p>
-<h3>Step 1：建立三個專責 Sub-Agent</h3>
+<h3 id="step-1-建立三個專責-sub-agent">Step 1：建立三個專責 Sub-Agent</h3>
 <pre><code class="language-plaintext">.claude/agents/
   tdd-test-writer.md    # 紅燈 Agent：只寫失敗測試
   tdd-implementer.md    # 綠燈 Agent：最小通過實作
   tdd-refactorer.md     # 重構 Agent：評估並改善</code></pre>
-<h3>Step 2：建立編排 Skill</h3>
+<h3 id="step-2-建立編排-skill">Step 2：建立編排 Skill</h3>
 <pre><code class="language-plaintext">.claude/skills/tdd-integration/skill.md</code></pre>
 <p>三個強制階段：</p>
 <ol>
@@ -99,7 +107,7 @@
 <li><strong>GREEN</strong>：呼叫 implementer，阻擋到測試通過</li>
 <li><strong>REFACTOR</strong>：呼叫 refactorer，評估改善</li>
 </ol>
-<h3>Step 3：Hook 強制啟動</h3>
+<h3 id="step-3-hook-強制啟動">Step 3：Hook 強制啟動</h3>
 <pre><code class="language-json">{
   &quot;hooks&quot;: {
     &quot;UserPromptSubmit&quot;: [{
@@ -112,7 +120,7 @@
   }
 }</code></pre>
 <p><strong>效果</strong>：Skill 觸發率從 ~20% 提升到 ~84%。</p>
-<h3>Step 4：上下文隔離架構</h3>
+<h3 id="step-4-上下文隔離架構">Step 4：上下文隔離架構</h3>
 <p>每個 Agent 獨立運行，防止：</p>
 <ul>
 <li>測試撰寫者受實作知識污染</li>
@@ -120,7 +128,7 @@
 <li>重構者被前階段細節分散注意力</li>
 </ul>
 <hr>
-<h2>2026 年 AI 測試 10 大趨勢</h2>
+<h2 id="2026-年-ai-測試-10-大趨勢">2026 年 AI 測試 10 大趨勢</h2>
 <ol>
 <li><strong>從實驗到營運化</strong>：品質成為可量化的 AI 增強系統</li>
 <li><strong>測試意圖定義</strong>：超越原始測試案例建立，定義「要測什麼」</li>
@@ -134,8 +142,8 @@
 <li><strong>GenAI 成為 QA 頂級技能</strong>：63% 品質工程師認為 GenAI 是最重要技能</li>
 </ol>
 <hr>
-<h2>與本專案的應用場景</h2>
-<h3>daily-digest-prompt 可受益之處：</h3>
+<h2 id="與本專案的應用場景">與本專案的應用場景</h2>
+<h3 id="daily-digest-prompt-可受益之處">daily-digest-prompt 可受益之處：</h3>
 <ol>
 <li><strong>Hook 測試自動生成</strong>：目前 <code>tests/hooks/</code> 有 135 個測試，可用 AI 工具自動生成邊界案例補充覆蓋率</li>
 <li><strong>多代理 TDD 架構</strong>：本專案已有 Sub-Agent 架構（<code>templates/sub-agent/</code>），可參考 Claude Code TDD 系統設計專屬測試 Agent</li>
@@ -143,7 +151,7 @@
 <li><strong>Flaky Test 偵測</strong>：排程自動化測試中偵測不穩定測試</li>
 <li><strong>PR 測試自動化</strong>：未來若導入 GitHub Actions，可在 PR 階段自動生成測試</li>
 </ol>
-<h3>具體實作建議：</h3>
+<h3 id="具體實作建議">具體實作建議：</h3>
 <pre><code class="language-yaml"># 可新增到 config/ 的測試策略配置
 test-strategy:
   ai_generation:
@@ -158,7 +166,7 @@ test-strategy:
     - &quot;AI 生成測試須經人工審查&quot;
     - &quot;Mutation Score ≥ 60% 才可合併&quot;</code></pre>
 <hr>
-<h2>風險與注意事項</h2>
+<h2 id="風險與注意事項">風險與注意事項</h2>
 <ol>
 <li><strong>過度依賴 AI 測試</strong>：AI 生成的測試可能有 assertion 不精確、邏輯斷言薄弱的問題</li>
 <li><strong>Test Oracle 問題</strong>：AI 不知道「正確行為」是什麼，需人類定義驗收條件</li>
@@ -168,7 +176,7 @@ test-strategy:
 <li><strong>安全測試侷限</strong>：AI 可能無法發現複雜的安全漏洞，仍需專家審查</li>
 </ol>
 <hr>
-<h2>參考來源</h2>
+<h2 id="參考來源">參考來源</h2>
 <ol>
 <li><a href="https://www.infoq.com/news/2026/01/meta-llm-mutation-testing/">Meta Applies Mutation Testing with LLM to Improve Compliance Coverage - InfoQ</a></li>
 <li><a href="https://engineering.fb.com/2025/09/30/security/llms-are-the-key-to-mutation-testing-and-better-compliance/">LLMs Are the Key to Mutation Testing and Better Compliance - Meta Engineering</a></li>
@@ -189,6 +197,8 @@ test-strategy:
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -197,6 +207,14 @@ test-strategy:
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

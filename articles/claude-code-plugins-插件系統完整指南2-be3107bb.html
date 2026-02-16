@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -16,26 +17,38 @@
         <a href="../#thinking">思維方法</a>
         <a href="../#ai">AI技術</a>
         <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
       </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
     </div>
   </header>
 
   <main class="container">
     <article>
       <div class="article-header">
-        <span class="category-badge category-claude">Claude_Code</span>
+        <span class="category-badge category-claude">Claude Code</span>
         <h1>Claude Code Plugins 插件系統完整指南（2026）</h1>
         <div class="article-meta">
-          <div class="tags"><span class="tag">Claude Code</span><span class="tag">Plugins</span><span class="tag">技術指南</span><span class="tag">MCP</span><span class="tag">Agent</span><span class="tag">2026</span></div>
+          <span class="date">2026-02-14</span>
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">Plugins</span><span class="tag">技術指南</span><span class="tag">MCP</span><span class="tag">Agent</span><span class="tag">2026</span><span class="tag">Anthropic</span></div>
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#主題概述">主題概述</a></li><li><a href="#插件目錄結構">插件目錄結構</a></li><li><a href="#plugin-json-格式">plugin.json 格式</a></li><li><a href="#核心元件詳解">核心元件詳解</a></li>  <li><a href="#1-skills-技能">1. Skills（技能）</a></li>  <li><a href="#2-commands-命令">2. Commands（命令）</a></li>  <li><a href="#3-agents-代理">3. Agents（代理）</a></li>  <li><a href="#4-hooks-鉤子">4. Hooks（鉤子）</a></li>  <li><a href="#5-mcp-model-context-protocol">5. MCP（Model Context Protocol）</a></li>  <li><a href="#6-lsp-language-server-protocol">6. LSP（Language Server Protocol）</a></li><li><a href="#安裝與測試">安裝與測試</a></li>  <li><a href="#開發測試">開發測試</a></li>  <li><a href="#正式安裝">正式安裝</a></li><li><a href="#2026-年熱門插件">2026 年熱門插件</a></li><li><a href="#官方插件範例">官方插件範例</a></li><li><a href="#marketplace-生態系">Marketplace 生態系</a></li><li><a href="#standalone-vs-plugin-比較">Standalone vs Plugin 比較</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>Claude Code Plugins 插件系統完整指南（2026）</h1>
-<h2>主題概述</h2>
+<h2 id="主題概述">主題概述</h2>
 <p>Claude Code Plugins 是 Anthropic 於 2026 年 1 月 30 日正式發布的擴展系統，讓開發者可以自訂 slash commands、specialized agents、hooks 和 MCP servers，並透過 marketplace 分享給團隊或社群。插件系統將 Claude Code 從單一 CLI 工具轉型為可擴展的開發平台，目前已有超過 9,000 個插件，涵蓋程式碼審查、瀏覽器自動化、安全掃描、設計轉碼等領域。</p>
 <hr>
-<h2>插件目錄結構</h2>
+<h2 id="插件目錄結構">插件目錄結構</h2>
 <p>標準的 Claude Code Plugin 目錄結構：</p>
 <pre><code class="language-plaintext">plugin-name/
 ├── .claude-plugin/
@@ -49,7 +62,7 @@
 └── README.md                # 插件文檔</code></pre>
 <p><strong>重要提醒</strong>：<code>commands/</code>、<code>agents/</code>、<code>skills/</code>、<code>hooks/</code> 目錄必須放在插件根目錄，不要放進 <code>.claude-plugin/</code> 內。</p>
 <hr>
-<h2>plugin.json 格式</h2>
+<h2 id="plugin-json-格式">plugin.json 格式</h2>
 <p>插件清單檔（manifest）定義插件身份：</p>
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;my-plugin&quot;,
@@ -70,8 +83,8 @@
 <tr><td><code>author</code></td><td>作者資訊（選填）</td></tr>
 </table>
 <hr>
-<h2>核心元件詳解</h2>
-<h3>1. Skills（技能）</h3>
+<h2 id="核心元件詳解">核心元件詳解</h2>
+<h3 id="1-skills-技能">1. Skills（技能）</h3>
 <p>技能是模型自動調用的可重用工作流。每個 Skill 是一個資料夾，內含 <code>SKILL.md</code> 檔案。</p>
 <p><strong>建立 Skill</strong>：</p>
 <pre><code class="language-plaintext">plugin-name/
@@ -89,7 +102,7 @@ When reviewing code, check for:
 2. Error handling
 3. Security concerns</code></pre>
 <p><strong>自動觸發機制</strong>：Claude Code 會比對使用者請求與已註冊的 skill descriptions，符合條件時自動調用，無需使用者明確指定。</p>
-<h3>2. Commands（命令）</h3>
+<h3 id="2-commands-命令">2. Commands（命令）</h3>
 <p>使用者透過 <code>/command-name</code> 手動觸發的工作流。支援 <code>$ARGUMENTS</code> 佔位符接收使用者輸入。</p>
 <p><strong>範例</strong>：</p>
 <pre><code class="language-markdown">---
@@ -97,9 +110,9 @@ description: Greet the user with a personalized message
 ---
 
 Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
-<h3>3. Agents（代理）</h3>
+<h3 id="3-agents-代理">3. Agents（代理）</h3>
 <p>專門化的 AI agents，具備特定能力，可並行運行多個 agents 處理複雜任務。</p>
-<h3>4. Hooks（鉤子）</h3>
+<h3 id="4-hooks-鉤子">4. Hooks（鉤子）</h3>
 <p>事件處理器，攔截特定交互：</p>
 <table>
 <tr><th>Hook 類型</th><th>觸發時機</th></tr>
@@ -119,9 +132,9 @@ Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
     ]
   }
 }</code></pre>
-<h3>5. MCP（Model Context Protocol）</h3>
+<h3 id="5-mcp-model-context-protocol">5. MCP（Model Context Protocol）</h3>
 <p>連接外部服務和 API，讓 Claude 存取原本無法取得的資料。配置於 <code>.mcp.json</code>。</p>
-<h3>6. LSP（Language Server Protocol）</h3>
+<h3 id="6-lsp-language-server-protocol">6. LSP（Language Server Protocol）</h3>
 <p>提供即時程式碼智慧功能：跳轉定義、查找引用、類型錯誤提示。</p>
 <pre><code class="language-json">{
   &quot;go&quot;: {
@@ -133,17 +146,17 @@ Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
   }
 }</code></pre>
 <hr>
-<h2>安裝與測試</h2>
-<h3>開發測試</h3>
+<h2 id="安裝與測試">安裝與測試</h2>
+<h3 id="開發測試">開發測試</h3>
 <p>使用 <code>--plugin-dir</code> 載入本地插件（不需安裝）：</p>
 <pre><code class="language-bash">claude --plugin-dir ./my-plugin</code></pre>
-<h3>正式安裝</h3>
+<h3 id="正式安裝">正式安裝</h3>
 <p>從 marketplace 安裝：</p>
 <pre><code class="language-bash">claude plugin install &lt;plugin-name&gt;</code></pre>
 <p>或新增 marketplace 來源：</p>
 <pre><code class="language-bash">claude plugin marketplace add owner/repo</code></pre>
 <hr>
-<h2>2026 年熱門插件</h2>
+<h2 id="2026-年熱門插件">2026 年熱門插件</h2>
 <table>
 <tr><th>插件</th><th>功能</th></tr>
 <tr><td><strong>Firecrawl</strong></td><td>將網站轉換為 LLM 就緒的乾淨資料</td></tr>
@@ -156,7 +169,7 @@ Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
 <tr><td><strong>Chrome DevTools MCP</strong></td><td>完整除錯存取權限</td></tr>
 </table>
 <hr>
-<h2>官方插件範例</h2>
+<h2 id="官方插件範例">官方插件範例</h2>
 <table>
 <tr><th>插件</th><th>元件</th></tr>
 <tr><td><strong>agent-sdk-dev</strong></td><td>Command: <code>/new-sdk-app</code>; Agents: <code>agent-sdk-verifier-py/ts</code></td></tr>
@@ -166,7 +179,7 @@ Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
 <tr><td><strong>hookify</strong></td><td>自訂 hooks 創建工具</td></tr>
 </table>
 <hr>
-<h2>Marketplace 生態系</h2>
+<h2 id="marketplace-生態系">Marketplace 生態系</h2>
 <ol>
 <li><strong>Official Anthropic Marketplace</strong>：Anthropic 官方維護的插件目錄（plugins.claude.ai）</li>
 <li><strong>ClaudePluginHub</strong>：社群主導的大型 marketplace</li>
@@ -174,7 +187,7 @@ Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
 <li><strong>自架 Git-based Marketplace</strong>：任何 Git hosting（GitHub、GitLab、Bitbucket）都可作為 marketplace 來源</li>
 </ol>
 <hr>
-<h2>Standalone vs Plugin 比較</h2>
+<h2 id="standalone-vs-plugin-比較">Standalone vs Plugin 比較</h2>
 <table>
 <tr><th>面向</th><th>Standalone (<code>.claude/</code>)</th><th>Plugin</th></tr>
 <tr><td>技能名稱</td><td><code>/hello</code></td><td><code>/plugin-name:hello</code></td></tr>
@@ -183,7 +196,7 @@ Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
 </table>
 <p><strong>建議流程</strong>：先在 <code>.claude/</code> 快速迭代，穩定後再轉換為 plugin 分享。</p>
 <hr>
-<h2>參考來源</h2>
+<h2 id="參考來源">參考來源</h2>
 <ul>
 <li><a href="https://code.claude.com/docs/en/plugins">Create plugins - Claude Code Docs</a></li>
 <li><a href="https://github.com/anthropics/claude-code/blob/main/plugins/README.md">GitHub - anthropics/claude-code/plugins/README.md</a></li>
@@ -194,14 +207,28 @@ Greet the user named &quot;$ARGUMENTS&quot; warmly.</code></pre>
 
       </div>
 
-      <a href="../" class="back-link">← 返回首頁</a>
+      <a href="../" class="back-link">&larr; 返回首頁</a>
     </article>
   </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
 
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
     </div>
   </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
 </body>
 </html>

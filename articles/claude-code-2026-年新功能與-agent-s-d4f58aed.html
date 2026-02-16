@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,38 +36,45 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#一-agent-teams-多智能體協作">一、Agent Teams（多智能體協作）</a></li>  <li><a href="#概念">概念</a></li>  <li><a href="#技術細節">技術細節</a></li>  <li><a href="#優勢">優勢</a></li><li><a href="#二-claude-agent-sdk">二、Claude Agent SDK</a></li>  <li><a href="#定位">定位</a></li>  <li><a href="#安裝">安裝</a></li>  <li><a href="#核心架構">核心架構</a></li>  <li><a href="#內建工具">內建工具</a></li>  <li><a href="#hooks-系統">Hooks 系統</a></li>  <li><a href="#subagents-子代理">Subagents（子代理）</a></li>  <li><a href="#mcp-整合">MCP 整合</a></li>  <li><a href="#sessions-會話管理">Sessions（會話管理）</a></li><li><a href="#三-claude-opus-4-6-模型增強">三、Claude Opus 4.6 模型增強</a></li>  <li><a href="#發布時間">發布時間</a></li>  <li><a href="#主要改進">主要改進</a></li>  <li><a href="#fast-mode">Fast Mode</a></li><li><a href="#四-其他重要更新">四、其他重要更新</a></li>  <li><a href="#安全強化">安全強化</a></li>  <li><a href="#pdf-處理增強">PDF 處理增強</a></li>  <li><a href="#lsp-工具">LSP 工具</a></li>  <li><a href="#跨平台支援">跨平台支援</a></li><li><a href="#五-agent-sdk-vs-其他工具">五、Agent SDK vs 其他工具</a></li><li><a href="#六-最佳實踐">六、最佳實踐</a></li>  <li><a href="#工具設計原則">工具設計原則</a></li>  <li><a href="#程式碼作為輸出">程式碼作為輸出</a></li>  <li><a href="#效能評估指南">效能評估指南</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>Claude Code 2026 年新功能與 Agent SDK 技術總覽</h1>
 <p>本筆記整理 Anthropic Claude Code 於 2026 年 1-2 月發布的重大更新，涵蓋 Agent Teams 多智能體協作、Claude Agent SDK 架構設計，以及 Opus 4.6 模型增強。</p>
 <hr>
-<h2>一、Agent Teams（多智能體協作）</h2>
-<h3>概念</h3>
+<h2 id="一-agent-teams-多智能體協作">一、Agent Teams（多智能體協作）</h2>
+<h3 id="概念">概念</h3>
 <p>「不再是一個智能體按順序處理任務，而是將工作分配給多個智能體——每個智能體負責自己的部分並直接與其他智能體協調。」</p>
-<h3>技術細節</h3>
+<h3 id="技術細節">技術細節</h3>
 <ul>
 <li><strong>啟用方式</strong>：設定環境變數 <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code></li>
 <li><strong>狀態</strong>：研究預覽版（Research Preview）</li>
 <li><strong>新增 Hooks</strong>：<code>TeammateIdle</code>、<code>TaskCompleted</code> 支援多智能體工作流程</li>
 <li><strong>適用場景</strong>：任務可自然分解為獨立子任務、需要組件間協調、並行化能顯著提升效率</li>
 </ul>
-<h3>優勢</h3>
+<h3 id="優勢">優勢</h3>
 <ul>
 <li>並行處理大幅提升複雜任務完成速度</li>
 <li>各 Agent 擁有獨立上下文，避免資訊過載</li>
 </ul>
 <hr>
-<h2>二、Claude Agent SDK</h2>
-<h3>定位</h3>
+<h2 id="二-claude-agent-sdk">二、Claude Agent SDK</h2>
+<h3 id="定位">定位</h3>
 <p>原名 Claude Code SDK，更名為 Claude Agent SDK 以反映更廣泛的應用場景。核心理念：<strong>給 Claude 電腦存取權</strong>，讓它像人類開發者一樣迭代工作。</p>
-<h3>安裝</h3>
+<h3 id="安裝">安裝</h3>
 <pre><code class="language-bash"># Python
 pip install claude-agent-sdk
 
 # TypeScript
 npm install @anthropic-ai/claude-agent-sdk</code></pre>
-<h3>核心架構</h3>
+<h3 id="核心架構">核心架構</h3>
 <p>Agent 運作循環：<strong>收集上下文 → 執行動作 → 驗證工作 → 重複</strong></p>
-<h3>內建工具</h3>
+<h3 id="內建工具">內建工具</h3>
 <table>
 <tr><th>工具</th><th>功能</th></tr>
 <tr><td>Read</td><td>讀取工作目錄中的任何檔案</td></tr>
@@ -79,7 +87,7 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
 <tr><td>WebFetch</td><td>獲取並解析網頁內容</td></tr>
 <tr><td>AskUserQuestion</td><td>向使用者詢問澄清問題</td></tr>
 </table>
-<h3>Hooks 系統</h3>
+<h3 id="hooks-系統">Hooks 系統</h3>
 <p>在 Agent 生命週期關鍵點執行自訂程式碼：</p>
 <ul>
 <li><code>PreToolUse</code> / <code>PostToolUse</code>：工具執行前後</li>
@@ -88,7 +96,7 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
 <li><code>UserPromptSubmit</code>：使用者提交提示時</li>
 </ul>
 <p><strong>應用範例</strong>：記錄所有檔案變更到審計日誌</p>
-<h3>Subagents（子代理）</h3>
+<h3 id="subagents-子代理">Subagents（子代理）</h3>
 <p>生成專門的 Agent 處理聚焦子任務，主 Agent 委派工作，子 Agent 回報結果。</p>
 <pre><code class="language-python">agents={
     &quot;code-reviewer&quot;: AgentDefinition(
@@ -97,22 +105,22 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
         tools=[&quot;Read&quot;, &quot;Glob&quot;, &quot;Grep&quot;],
     )
 }</code></pre>
-<h3>MCP 整合</h3>
+<h3 id="mcp-整合">MCP 整合</h3>
 <p>透過 Model Context Protocol 連接外部系統：資料庫、瀏覽器、API。</p>
 <pre><code class="language-python">mcp_servers={
     &quot;playwright&quot;: {&quot;command&quot;: &quot;npx&quot;, &quot;args&quot;: [&quot;@playwright/mcp@latest&quot;]}
 }</code></pre>
-<h3>Sessions（會話管理）</h3>
+<h3 id="sessions-會話管理">Sessions（會話管理）</h3>
 <p>跨多次交換維持上下文，支援：</p>
 <ul>
 <li>會話恢復（Resume）</li>
 <li>會話分叉（Fork）探索不同方案</li>
 </ul>
 <hr>
-<h2>三、Claude Opus 4.6 模型增強</h2>
-<h3>發布時間</h3>
+<h2 id="三-claude-opus-4-6-模型增強">三、Claude Opus 4.6 模型增強</h2>
+<h3 id="發布時間">發布時間</h3>
 <p>2026 年 2 月</p>
-<h3>主要改進</h3>
+<h3 id="主要改進">主要改進</h3>
 <ol>
 <li><strong>100 萬 Token 上下文窗口</strong>（Beta）：首次為 Opus 級別模型提供</li>
 <li><strong>編程能力提升</strong>：規劃更仔細、大型程式庫中運行更可靠</li>
@@ -120,38 +128,38 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
 <li><strong>更長時間執行 Agent 任務</strong></li>
 <li><strong>自動記憶功能</strong>：工作時自動記錄和回憶記憶</li>
 </ol>
-<h3>Fast Mode</h3>
+<h3 id="fast-mode">Fast Mode</h3>
 <ul>
 <li>提供顯著更快的輸出 Token 生成（最高 2.5 倍）</li>
 <li>需要 Premium 定價</li>
 </ul>
 <hr>
-<h2>四、其他重要更新</h2>
-<h3>安全強化</h3>
+<h2 id="四-其他重要更新">四、其他重要更新</h2>
+<h3 id="安全強化">安全強化</h3>
 <ul>
 <li><strong>沙箱模式</strong>：文件系統隔離 + 網路隔離，確保 Claude 只能存取特定目錄和已批准的伺服器</li>
 <li>禁止寫入 <code>.claude/skills</code> 目錄</li>
 </ul>
-<h3>PDF 處理增強</h3>
+<h3 id="pdf-處理增強">PDF 處理增強</h3>
 <ul>
 <li>Read 工具新增 <code>pages</code> 參數，支援讀取特定頁面範圍（如 <code>1-5</code>）</li>
 <li>大型 PDF（&gt;10 頁）使用輕量級參考而非內聯上下文</li>
 </ul>
-<h3>LSP 工具</h3>
+<h3 id="lsp-工具">LSP 工具</h3>
 <p>新增 Language Server Protocol 工具：</p>
 <ul>
 <li>Go-to-definition（跳轉定義）</li>
 <li>Find references（查找引用）</li>
 <li>Hover documentation（懸停文檔）</li>
 </ul>
-<h3>跨平台支援</h3>
+<h3 id="跨平台支援">跨平台支援</h3>
 <ul>
 <li>Web teleport：從 Web 傳送至 CLI，或從筆電開始任務在手機繼續</li>
 <li>Windows Package Manager (winget) 安裝支援</li>
 <li>改進 IME 輸入法支援（中文、日文、韓文）</li>
 </ul>
 <hr>
-<h2>五、Agent SDK vs 其他工具</h2>
+<h2 id="五-agent-sdk-vs-其他工具">五、Agent SDK vs 其他工具</h2>
 <table>
 <tr><th>使用場景</th><th>最佳選擇</th></tr>
 <tr><td>互動式開發</td><td>CLI</td></tr>
@@ -161,12 +169,12 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
 <tr><td>生產自動化</td><td>SDK</td></tr>
 </table>
 <hr>
-<h2>六、最佳實踐</h2>
-<h3>工具設計原則</h3>
+<h2 id="六-最佳實踐">六、最佳實踐</h2>
+<h3 id="工具設計原則">工具設計原則</h3>
 <p>「工具是 Agent 執行的主要建構區塊，在 Claude 的上下文窗口中很突出，是 Claude 決定如何完成任務時首先考慮的動作。」</p>
-<h3>程式碼作為輸出</h3>
+<h3 id="程式碼作為輸出">程式碼作為輸出</h3>
 <p>「程式碼精確、可組合、無限可重用，是需要可靠執行複雜操作的 Agent 的理想輸出。」</p>
-<h3>效能評估指南</h3>
+<h3 id="效能評估指南">效能評估指南</h3>
 <ol>
 <li>若理解錯誤 → 改善資訊可存取性</li>
 <li>若重複失敗 → 新增正式驗證規則</li>
@@ -174,7 +182,7 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
 <li>若效能不穩定 → 建立代表性測試集</li>
 </ol>
 <hr>
-<h2>參考來源</h2>
+<h2 id="參考來源">參考來源</h2>
 <ul>
 <li><a href="https://platform.claude.com/docs/en/agent-sdk/overview">Anthropic 官方 Agent SDK 文檔</a></li>
 <li><a href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk">Building Agents with Claude Agent SDK</a></li>
@@ -188,6 +196,8 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -196,6 +206,14 @@ npm install @anthropic-ai/claude-agent-sdk</code></pre>
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

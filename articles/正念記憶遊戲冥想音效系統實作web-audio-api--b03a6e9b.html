@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,12 +36,19 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#技術方案">技術方案</a></li>  <li><a href="#頌缽音效合成">頌缽音效合成</a></li>  <li><a href="#音效設計">音效設計</a></li>  <li><a href="#配對音階漸進設計">配對音階漸進設計</a></li>  <li><a href="#遊戲完成和弦">遊戲完成和弦</a></li><li><a href="#使用者控制">使用者控制</a></li><li><a href="#關鍵學習">關鍵學習</a></li><li><a href="#修改摘要">修改摘要</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>正念記憶遊戲：冥想音效系統實作</h1>
-<h2>概述</h2>
+<h2 id="概述">概述</h2>
 <p>為正念記憶（Mindful Memory）遊戲新增完整的冥想音效系統，使用 Web Audio API 合成佛教風格音效，零外部依賴。</p>
-<h2>技術方案</h2>
-<h3>頌缽音效合成</h3>
+<h2 id="技術方案">技術方案</h2>
+<h3 id="頌缽音效合成">頌缽音效合成</h3>
 <p>使用多個 sine oscillator 模擬頌缽的泛音結構：</p>
 <ul>
 <li>基頻 × 1（基音）</li>
@@ -64,7 +72,7 @@
         osc.stop(now + duration);
     });
 }</code></pre>
-<h3>音效設計</h3>
+<h3 id="音效設計">音效設計</h3>
 <table>
 <tr><th>事件</th><th>音效</th><th>設計理念</th></tr>
 <tr><td>翻牌</td><td>triangle wave 800→1200Hz 短促</td><td>輕柔翻頁感，不打擾冥想</td></tr>
@@ -73,27 +81,27 @@
 <tr><td>遊戲完成</td><td>C大三和弦展開 + C7鈴聲</td><td>莊嚴圓滿感，四音漸次響起</td></tr>
 <tr><td>成就解鎖</td><td>G5→B5→E6 三連鈴</td><td>清脆獎勵音，正面回饋</td></tr>
 </table>
-<h3>配對音階漸進設計</h3>
+<h3 id="配對音階漸進設計">配對音階漸進設計</h3>
 <p>8 對配對使用 C 大調音階：C4(262)→D4(294)→E4(330)→F4(349)→G4(392)→A4(440)→B4(494)→C5(523)。</p>
 <p>每完成一對，音高上升一個全音/半音，玩家在聽覺上感受到「漸近圓滿」的過程。</p>
-<h3>遊戲完成和弦</h3>
+<h3 id="遊戲完成和弦">遊戲完成和弦</h3>
 <pre><code class="language-plaintext">C4(0s) → E4(0.3s) → G4(0.6s) → C5(1.0s) → C7鈴聲(1.5s)</code></pre>
 <p>四個頌缽音依序響起形成 C 大三和弦，最後一個高亮鈴聲收尾，營造莊嚴圓滿的聽覺體驗。</p>
-<h2>使用者控制</h2>
+<h2 id="使用者控制">使用者控制</h2>
 <ul>
 <li>右上角 🔔/🔕 按鈕切換靜音</li>
 <li>偏好持久化到 localStorage（key: <code>mindful_sound</code>）</li>
 <li>首次互動才初始化 AudioContext（符合瀏覽器自動播放政策）</li>
 <li>所有音效函數都有 null/disabled guard</li>
 </ul>
-<h2>關鍵學習</h2>
+<h2 id="關鍵學習">關鍵學習</h2>
 <ol>
 <li><strong>Web Audio API 的 exponentialRampToValueAtTime 終值不能為 0</strong>，必須用極小值（0.001）</li>
 <li><strong>泛音比例是頌缽音色的關鍵</strong>：2.76 和 4.72 是常見頌缽泛音比（非整數，這正是金屬共振的特色）</li>
 <li><strong>setTimeout 搭配 audioCtx.currentTime</strong>：用 setTimeout 排程延遲音符，但每個音符內部計時用 audioCtx.currentTime 確保精確</li>
 <li><strong>AudioContext 必須在用戶互動後創建或 resume</strong>，否則會被瀏覽器靜音政策阻擋</li>
 </ol>
-<h2>修改摘要</h2>
+<h2 id="修改摘要">修改摘要</h2>
 <ul>
 <li>檔案：<code>D:\Source\game\mindful-memory\index.html</code></li>
 <li>新增約 140 行 JavaScript（音效系統）</li>
@@ -109,6 +117,8 @@
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -117,6 +127,14 @@
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

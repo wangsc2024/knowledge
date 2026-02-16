@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Cloudflare Pages 到 Workers 遷移完整指南：靜態資產架構升級與最佳實踐（2026）">
+  <title>Cloudflare Pages 到 Workers 遷移完整指南：靜態資產架構升級與最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Cloudflare Pages 到 Workers 遷移完整指南：靜態資產架構升級與最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Cloudflare Pages</span><span class="tag">Cloudflare Workers</span><span class="tag">靜態網站</span><span class="tag">遷移指南</span><span class="tag">Wrangler</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#workers-static-assets-架構">Workers Static Assets 架構</a></li>  <li><a href="#路由行為-關鍵差異">路由行為（關鍵差異）</a></li><li><a href="#遷移步驟-step-by-step">遷移步驟（Step-by-Step）</a></li>  <li><a href="#1-配置文件轉換">1. 配置文件轉換</a></li>  <li><a href="#2-純靜態網站-無-functions">2. 純靜態網站（無 Functions）</a></li>  <li><a href="#3-spa-應用">3. SPA 應用</a></li>  <li><a href="#4-帶有-functions-的專案">4. 帶有 Functions 的專案</a></li><li><a href="#cli-命令對照表">CLI 命令對照表</a></li><li><a href="#功能對照矩陣">功能對照矩陣</a></li>  <li><a href="#workers-獨有功能">Workers 獨有功能</a></li>  <li><a href="#pages-獨有功能-遷移後失去">Pages 獨有功能（遷移後失去）</a></li>  <li><a href="#兩者共有">兩者共有</a></li><li><a href="#最佳實踐與常見陷阱">最佳實踐與常見陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li>  <li><a href="#常見陷阱">常見陷阱</a></li><li><a href="#與本專案-daily-digest-prompt-的關聯">與本專案（daily-digest-prompt）的關聯</a></li>  <li><a href="#現有使用情境">現有使用情境</a></li>  <li><a href="#遷移價值評估">遷移價值評估</a></li>  <li><a href="#實際遷移範例-禪境遊廊">實際遷移範例（禪境遊廊）</a></li><li><a href="#遷移檢查清單">遷移檢查清單</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Cloudflare Pages 到 Workers 遷移完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>Cloudflare 正將開發重心從 Pages 轉移到 Workers 平台。Workers Static Assets 提供更強大的靜態網站託管能力，整合了 Durable Objects、Cron Triggers、Workers Logs 等進階功能。Pages 雖然仍在維護中，但官方文件已建議遷移到 Workers。對於目前使用 Pages 部署靜態網站的專案（如遊戲網站、知識庫網站），了解遷移路徑至關重要。</p>
+<hr>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="workers-static-assets-架構">Workers Static Assets 架構</h3>
+<p>Workers Static Assets 是一個整合式部署單元，將靜態檔案託管、自訂邏輯和全球快取整合在單一操作中：</p>
+<ol>
+<li><strong>部署時</strong>：Wrangler 自動將 <code>assets.directory</code> 指定的檔案上傳到 Cloudflare 基礎設施</li>
+<li><strong>運行時</strong>：請求路由到最近的邊緣節點，靜態資產直接服務不經 Worker 程式碼</li>
+<li><strong>快取層</strong>：實施分層快取（Tiered Caching），首次請求快取於最近節點，後續請求從鄰近快取取得，降低延遲</li>
+</ol>
+<h3 id="路由行為-關鍵差異">路由行為（關鍵差異）</h3>
+<ul>
+<li><strong>預設</strong>：靜態資產優先服務，找不到時才執行 Worker 程式碼</li>
+<li><strong>`not_found_handling = &quot;single-page-application&quot;`</strong>：未匹配的路由回傳 <code>200 OK</code> + <code>index.html</code>（SPA 支援）</li>
+<li><strong>`not_found_handling = &quot;404-page&quot;`</strong>：回傳最近的 <code>404.html</code></li>
+<li><strong>`run_worker_first = true`</strong>：先執行 Worker 程式碼再服務資產（適用於認證、日誌等中間件需求）</li>
+</ul>
+<blockquote><p><strong>重要差異</strong>：Pages 優先執行 Functions，但 Workers 預設優先提供靜態資產。若需要驗證或記錄請求，必須明確設定 <code>run_worker_first</code>。</p>
+</blockquote>
+<hr>
+<h2 id="遷移步驟-step-by-step">遷移步驟（Step-by-Step）</h2>
+<h3 id="1-配置文件轉換">1. 配置文件轉換</h3>
+<p><strong>Pages 配置（舊）：</strong></p>
+<pre><code class="language-toml">name = &quot;my-pages-project&quot;
+pages_build_output_dir = &quot;./dist/&quot;</code></pre>
+<p><strong>Workers 配置（新）：</strong></p>
+<pre><code class="language-toml">name = &quot;my-worker&quot;
+compatibility_date = &quot;2026-02-14&quot;
+
+[assets]
+directory = &quot;./dist/&quot;</code></pre>
+<h3 id="2-純靜態網站-無-functions">2. 純靜態網站（無 Functions）</h3>
+<p>最簡單的情況，只需更新 <code>wrangler.toml</code> 並更換部署命令：</p>
+<pre><code class="language-toml">name = &quot;my-static-site&quot;
+compatibility_date = &quot;2026-02-14&quot;
+
+[assets]
+directory = &quot;./&quot;
+html_handling = &quot;auto-trailing-slash&quot;</code></pre>
+<h3 id="3-spa-應用">3. SPA 應用</h3>
+<pre><code class="language-toml">name = &quot;my-spa&quot;
+compatibility_date = &quot;2026-02-14&quot;
+
+[assets]
+directory = &quot;./dist/&quot;
+not_found_handling = &quot;single-page-application&quot;</code></pre>
+<h3 id="4-帶有-functions-的專案">4. 帶有 Functions 的專案</h3>
+<p><strong>進階模式（_worker.js）：</strong></p>
+<ul>
+<li>將 Worker 腳本移出靜態資產目錄</li>
+<li>在配置中設置 <code>main</code> 指向 Worker 腳本</li>
+<li>建立 <code>.assetsignore</code> 排除不需上傳的檔案</li>
+</ul>
+<p><strong>Functions 資料夾轉換：</strong></p>
+<pre><code class="language-bash">npx wrangler pages functions build --outdir=./dist/worker/</code></pre>
+<hr>
+<h2 id="cli-命令對照表">CLI 命令對照表</h2>
+<table>
+<tr><th>操作</th><th>Pages（舊）</th><th>Workers（新）</th></tr>
+<tr><td>本地開發</td><td><code>wrangler pages dev</code></td><td><code>wrangler dev</code></td></tr>
+<tr><td>部署</td><td><code>wrangler pages deploy</code></td><td><code>wrangler deploy</code></td></tr>
+<tr><td>預設埠號</td><td>8788</td><td>8787</td></tr>
+<tr><td>刪除專案</td><td><code>wrangler pages project delete</code></td><td>—</td></tr>
+</table>
+<hr>
+<h2 id="功能對照矩陣">功能對照矩陣</h2>
+<h3 id="workers-獨有功能">Workers 獨有功能</h3>
+<ul>
+<li>Durable Objects（持久化物件）</li>
+<li>Cron Triggers（定時觸發器）</li>
+<li>Workers Logs / Tail Workers（進階日誌）</li>
+<li>Gradual Deployments（漸進式部署）</li>
+<li>Remote Development（遠端開發）</li>
+</ul>
+<h3 id="pages-獨有功能-遷移後失去">Pages 獨有功能（遷移後失去）</h3>
+<ul>
+<li>Early Hints（資源預載）</li>
+<li>自訂域名外 Cloudflare 區域</li>
+</ul>
+<h3 id="兩者共有">兩者共有</h3>
+<ul>
+<li><code>_headers</code> 和 <code>_redirects</code> 檔案支援</li>
+<li>預覽部署（Preview Deployments）</li>
+<li>GitHub/GitLab 整合</li>
+<li>自動 HTTPS</li>
+</ul>
+<hr>
+<h2 id="最佳實踐與常見陷阱">最佳實踐與常見陷阱</h2>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>使用 `.assetsignore`</strong>：排除不需上傳的檔案（如 node_modules、.git），格式同 <code>.gitignore</code></li>
+<li><strong>設定 `html_handling`</strong>：<code>auto-trailing-slash</code>（預設）、<code>force-trailing-slash</code>、<code>drop-trailing-slash</code> 三種策略</li>
+<li><strong>利用 Asset Binding 實現混合路由</strong>：</li>
+</ol>
+<p>   ``<code>javascript
+   export default {
+     async fetch(request, env) {
+       const url = new URL(request.url);
+       if (url.pathname.startsWith(&#x27;/api/&#x27;)) {
+         return new Response(JSON.stringify({ ok: true }));
+       }
+       return env.ASSETS.fetch(request);
+     }
+   };
+   </code>``</p>
+<ol>
+<li><strong>善用 `run_worker_first` 陣列模式</strong>：選擇性攔截特定路徑</li>
+</ol>
+<p>   ``<code>toml
+   [assets]
+   run_worker_first = [&quot;/api/*&quot;, &quot;!/api/docs/*&quot;]
+   </code>``</p>
+<ol>
+<li><strong>GitHub Actions 自動化部署</strong>：搭配 Hugo/Next.js 等 SSG，實現推送即部署 + 排程部署</li>
+</ol>
+<h3 id="常見陷阱">常見陷阱</h3>
+<ol>
+<li><strong>路由順序差異</strong>：Pages Functions 優先執行，Workers 靜態資產優先。遷移後中間件邏輯可能失效</li>
+<li><strong>`_headers` 僅作用於靜態資產回應</strong>：Worker 程式碼生成的回應不受 <code>_headers</code> 檔案影響</li>
+<li><strong>`_redirects` 優先於 `_headers`</strong>：當請求同時匹配重導向和自訂標頭時，重導向優先</li>
+<li><strong>Wrangler commit message 編碼</strong>：使用中文 commit message 可能觸發 UTF-8 驗證錯誤，建議使用 ASCII</li>
+<li><strong>環境變數差異</strong>：Pages 區分建置時和運行時變數，Workers 需在 <code>wrangler.toml</code> 的 <code>[vars]</code> 區段明確設定</li>
+</ol>
+<hr>
+<h2 id="與本專案-daily-digest-prompt-的關聯">與本專案（daily-digest-prompt）的關聯</h2>
+<h3 id="現有使用情境">現有使用情境</h3>
+<p>本專案相關的三個 Cloudflare Pages 網站可考慮遷移：</p>
+<ul>
+<li><strong>zen-game-portal.pages.dev</strong>（禪境遊廊，5 款遊戲）</li>
+<li><strong>知識庫靜態網站</strong>（215+ 篇文章）</li>
+<li><strong>其他遊戲/工具網站</strong></li>
+</ul>
+<h3 id="遷移價值評估">遷移價值評估</h3>
+<ul>
+<li><strong>純靜態網站</strong>：遷移成本低，主要是配置文件變更</li>
+<li><strong>潛在收益</strong>：Workers Logs 提供更好的存取日誌、Cron Triggers 可實現定時更新</li>
+<li><strong>建議策略</strong>：先從最簡單的純靜態網站開始遷移，驗證後再處理複雜專案</li>
+</ul>
+<h3 id="實際遷移範例-禪境遊廊">實際遷移範例（禪境遊廊）</h3>
+<p><strong>建立 wrangler.toml：</strong></p>
+<pre><code class="language-toml">name = &quot;zen-game-portal&quot;
+compatibility_date = &quot;2026-02-14&quot;
+
+[assets]
+directory = &quot;./&quot;
+html_handling = &quot;auto-trailing-slash&quot;
+not_found_handling = &quot;404-page&quot;</code></pre>
+<p><strong>部署命令：</strong></p>
+<pre><code class="language-bash"># 取代原有的 wrangler pages deploy
+wrangler deploy</code></pre>
+<hr>
+<h2 id="遷移檢查清單">遷移檢查清單</h2>
+<ul>
+<li>[ ] 更新 <code>wrangler.toml</code>（<code>pages_build_output_dir</code> → <code>[assets] directory</code>）</li>
+<li>[ ] 更新 CLI 命令（<code>wrangler pages deploy</code> → <code>wrangler deploy</code>）</li>
+<li>[ ] 配置 <code>not_found_handling</code>（SPA 或 404-page）</li>
+<li>[ ] 配置 <code>html_handling</code>（trailing slash 策略）</li>
+<li>[ ] 確認 <code>_headers</code> 和 <code>_redirects</code> 檔案在靜態資產目錄中</li>
+<li>[ ] 建立 <code>.assetsignore</code> 排除不需要的檔案</li>
+<li>[ ] 更新 CI/CD（GitHub Actions workflow）</li>
+<li>[ ] 設定環境變數（<code>[vars]</code> 區段）</li>
+<li>[ ] 啟用預覽 URL（<code>preview_urls = true</code>）</li>
+<li>[ ] 遷移成功後刪除 Pages 專案（<code>wrangler pages project delete</code>）</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li>Cloudflare 官方遷移指南：https://developers.cloudflare.com/workers/static-assets/migration-guides/migrate-from-pages/</li>
+<li>Workers Static Assets 文件：https://developers.cloudflare.com/workers/static-assets/</li>
+<li>Workers Static Assets 路由配置：https://developers.cloudflare.com/workers/static-assets/binding/</li>
+<li>Headers 配置：https://developers.cloudflare.com/workers/static-assets/headers/</li>
+<li>Redirects 配置：https://developers.cloudflare.com/workers/static-assets/redirects/</li>
+<li>實際遷移案例（Hugo 網站）：https://chriswiegman.com/2026/01/deploying-my-hugo-site-to-cloudflare-workers/</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

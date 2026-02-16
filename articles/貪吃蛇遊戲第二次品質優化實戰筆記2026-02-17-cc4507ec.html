@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="貪吃蛇遊戲第二次品質優化實戰筆記（2026-02-17）">
+  <title>貪吃蛇遊戲第二次品質優化實戰筆記（2026-02-17） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>貪吃蛇遊戲第二次品質優化實戰筆記（2026-02-17）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">效能優化</span><span class="tag">Combo系統</span><span class="tag">物件池</span><span class="tag">swap-and-pop</span><span class="tag">品質優化</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#背景">背景</a></li><li><a href="#本次問題分析">本次問題分析</a></li>  <li><a href="#p0-效能問題">P0 效能問題</a></li>  <li><a href="#p1-體驗問題">P1 體驗問題</a></li>  <li><a href="#p2-改善項目">P2 改善項目</a></li><li><a href="#解決方案">解決方案</a></li>  <li><a href="#1-粒子系統物件池-swap-and-pop-p0-最重要的效能改善">1. 粒子系統物件池 + swap-and-pop（P0，最重要的效能改善）</a></li>  <li><a href="#2-canvas-滑鼠點擊支援-p1">2. Canvas 滑鼠點擊支援（P1）</a></li>  <li><a href="#3-combo-連擊系統-p1-提升黏著度的核心機制">3. Combo 連擊系統（P1，提升黏著度的核心機制）</a></li>  <li><a href="#4-速度里程碑提示-p1">4. 速度里程碑提示（P1）</a></li>  <li><a href="#5-遊戲結束畫面增強-p2">5. 遊戲結束畫面增強（P2）</a></li>  <li><a href="#6-蛇身顏色快取-p2">6. 蛇身顏色快取（P2）</a></li><li><a href="#設計心得">設計心得</a></li>  <li><a href="#讓人更愛玩的關鍵">讓人更愛玩的關鍵</a></li>  <li><a href="#效能原則">效能原則</a></li><li><a href="#品質清單">品質清單</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>貪吃蛇遊戲第二次品質優化實戰筆記</h1>
+<h2 id="背景">背景</h2>
+<p>在 2026-02-16 完成第一輪優化（requestAnimationFrame、觸控支援、響應式設計、狀態機、道具系統）後，對 D:\Source\game\snake 進行第二輪品質優化，聚焦「讓人更愛玩、更持續玩」的目標。</p>
+<h2 id="本次問題分析">本次問題分析</h2>
+<h3 id="p0-效能問題">P0 效能問題</h3>
+<ol>
+<li><strong>粒子系統使用 splice() 逐個移除</strong>：每次移除會觸發 O(n) 的陣列搬移，大量粒子時造成 GC 壓力和卡頓</li>
+</ol>
+<h3 id="p1-體驗問題">P1 體驗問題</h3>
+<ol>
+<li><strong>Canvas 缺少滑鼠 click 事件</strong>：桌面用戶無法直接點擊 Canvas 開始遊戲</li>
+<li><strong>無連擊系統</strong>：長時間遊玩缺乏成就感回饋，玩家容易感到無聊</li>
+<li><strong>無速度里程碑提示</strong>：玩家不知道自己的速度在加快，缺乏進步感知</li>
+</ol>
+<h3 id="p2-改善項目">P2 改善項目</h3>
+<ol>
+<li><strong>遊戲結束畫面單調</strong>：只顯示分數，缺乏統計回顧</li>
+<li><strong>蛇身顏色每幀重算</strong>：可快取避免不必要的計算</li>
+</ol>
+<h2 id="解決方案">解決方案</h2>
+<h3 id="1-粒子系統物件池-swap-and-pop-p0-最重要的效能改善">1. 粒子系統物件池 + swap-and-pop（P0，最重要的效能改善）</h3>
+<p><strong>問題</strong>：原本用 <code>particles.push()</code> + <code>particles.splice(i, 1)</code> 管理粒子。splice 在移除第 i 個元素時需要將後面所有元素往前搬移，是 O(n) 操作。頻繁的 push/splice 也會產生 GC 壓力。</p>
+<p><strong>方案</strong>：</p>
+<ul>
+<li>預分配 40 個粒子物件的固定池 <code>particlePool[]</code></li>
+<li>用 <code>activeParticleCount</code> 追蹤活躍粒子數量</li>
+<li>spawn 時直接重用池中的下一個物件（零分配）</li>
+<li>移除時用 swap-and-pop：把最後一個活躍粒子交換到當前位置，activeCount--</li>
+<li>O(1) 移除、零 GC 壓力</li>
+</ul>
+<pre><code class="language-javascript">// swap-and-pop 移除
+activeParticleCount--;
+var last = particlePool[activeParticleCount];
+particlePool[i] = last;
+particlePool[activeParticleCount] = p;</code></pre>
+<h3 id="2-canvas-滑鼠點擊支援-p1">2. Canvas 滑鼠點擊支援（P1）</h3>
+<p>在 Canvas 上加入 <code>click</code> 事件監聽器，讓桌面用戶可以直接點擊 Canvas 開始遊戲（預設向右移動）。同時在 CSS 加入 <code>cursor: pointer</code> 提示。</p>
+<h3 id="3-combo-連擊系統-p1-提升黏著度的核心機制">3. Combo 連擊系統（P1，提升黏著度的核心機制）</h3>
+<p><strong>設計</strong>：</p>
+<ul>
+<li>每次吃到食物（普通/金色/道具）重置 Combo 窗口（12 tick）</li>
+<li>在窗口內再吃到食物，comboCount++</li>
+<li>combo &gt;= 3 時觸發額外加分（bonus = min(combo-2, 5)）</li>
+<li>Canvas 中央偏上顯示浮動漸隱的 Combo 文字（如「5x COMBO! +3」）</li>
+<li>專屬 Combo 音效，音高隨 combo 數遞增</li>
+<li>分數列顯示即時 Combo 數（金色）</li>
+<li>選單畫面提示 Combo 機制</li>
+</ul>
+<p><strong>核心公式</strong>：窗口 12 tick 在基礎速度 120ms 下約 1.44 秒，減速後更長。每 8 分加速一級，越快的玩家越容易觸發 Combo，形成正向回饋迴圈。</p>
+<h3 id="4-速度里程碑提示-p1">4. 速度里程碑提示（P1）</h3>
+<p>每升 2 個速度等級（每 16 分），在 Canvas 底部偏下顯示浮動漸隱的里程碑文字（如「↑ LV.4 +33%」），讓玩家感知自己的進步。</p>
+<h3 id="5-遊戲結束畫面增強-p2">5. 遊戲結束畫面增強（P2）</h3>
+<p>結束時顯示三項統計：</p>
+<ul>
+<li>存活時間（分秒格式）</li>
+<li>吃掉食物總數</li>
+<li>最長 Combo 記錄</li>
+</ul>
+<p>統計回顧讓玩家有「下次要打破自己記錄」的動力。</p>
+<h3 id="6-蛇身顏色快取-p2">6. 蛇身顏色快取（P2）</h3>
+<p>預計算蛇身漸層顏色陣列 <code>snakeColorCache[]</code>，僅在蛇身長度變化時重算。每幀繪製時直接讀取快取，避免逐段計算 RGB 值。</p>
+<h2 id="設計心得">設計心得</h2>
+<h3 id="讓人更愛玩的關鍵">讓人更愛玩的關鍵</h3>
+<ol>
+<li><strong>即時回饋</strong>：Combo 音效的音高遞增讓玩家「聽到」自己的連擊</li>
+<li><strong>進步可視化</strong>：速度里程碑讓玩家知道「我變快了」</li>
+<li><strong>統計回顧</strong>：結束畫面的三項數據給玩家明確的改進目標</li>
+<li><strong>正向迴圈</strong>：速度越快 → Combo 窗口越寬容 → 獎勵越多 → 動力越強</li>
+</ol>
+<h3 id="效能原則">效能原則</h3>
+<ul>
+<li>物件池 + swap-and-pop 是遊戲粒子系統的標準做法</li>
+<li>顏色快取這類「只在狀態變化時重算」的策略適用於所有漸層效果</li>
+<li>預分配比動態分配好；O(1) 操作比 O(n) 好</li>
+</ul>
+<h2 id="品質清單">品質清單</h2>
+<ul>
+<li>[x] 遊戲可啟動且無 console 錯誤</li>
+<li>[x] 主要遊戲機制運作正常（移動、碰撞、得分、Combo）</li>
+<li>[x] 觸控與鍵盤操控皆可用（含滑鼠點擊開始）</li>
+<li>[x] 無明顯效能問題（粒子系統已優化）</li>
+<li>[x] 遊戲有完整狀態流程（載入→遊戲→結束，含統計）</li>
+<li>[x] JavaScript 語法檢查通過（node -c）</li>
+<li>[x] 無 splice、無 setInterval（遊戲循環用 rAF）</li>
+</ul>
+<hr>
+<p><em>優化日期: 2026-02-17</em>
+<em>優化工具: Claude Code Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

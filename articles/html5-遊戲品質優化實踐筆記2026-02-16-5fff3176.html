@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 遊戲品質優化實踐筆記（2026-02-16）">
+  <title>HTML5 遊戲品質優化實踐筆記（2026-02-16） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>HTML5 遊戲品質優化實踐筆記（2026-02-16）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">品質優化</span><span class="tag">音效設計</span><span class="tag">UX</span><span class="tag">Canvas</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化對象">優化對象</a></li><li><a href="#品質改善項目">品質改善項目</a></li>  <li><a href="#1-音效回饋系統-web-audio-api">1. 音效回饋系統（Web Audio API）</a></li>  <li><a href="#2-暫停功能設計">2. 暫停功能設計</a></li>  <li><a href="#3-計時器精度">3. 計時器精度</a></li>  <li><a href="#4-粒子效果最佳實踐">4. 粒子效果最佳實踐</a></li>  <li><a href="#5-難度曲線設計">5. 難度曲線設計</a></li><li><a href="#通用品質標準速查">通用品質標準速查</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>HTML5 遊戲品質優化實踐筆記</h1>
+<h2 id="優化對象">優化對象</h2>
+<ul>
+<li>六根淨化（禪修打字遊戲）</li>
+<li>貪吃蛇（經典街機遊戲）</li>
+</ul>
+<h2 id="品質改善項目">品質改善項目</h2>
+<h3 id="1-音效回饋系統-web-audio-api">1. 音效回饋系統（Web Audio API）</h3>
+<ul>
+<li>打字正確時播放漸進升調音效（頻率隨連擊數遞增，523Hz→1200Hz）</li>
+<li>打字錯誤時播放低頻鋸齒波（200Hz）</li>
+<li>淨化完成時三連音效（523→659→784Hz）</li>
+<li>輪次完成時四連音效（加上 1047Hz 高音）</li>
+<li>音效音量控制在 0.1-0.18，不會太突兀</li>
+<li>使用 <code>exponentialRampToValueAtTime</code> 做平滑淡出</li>
+</ul>
+<h3 id="2-暫停功能設計">2. 暫停功能設計</h3>
+<ul>
+<li>Esc 鍵應觸發暫停而非直接結束（防誤觸）</li>
+<li>暫停覆蓋層需提供「繼續」和「結束」兩個選項</li>
+<li>暫停時禁用輸入框（<code>input.disabled = true</code>），恢復時重新聚焦</li>
+<li>閃電模式暫停時需補償暫停時間（<code>lightningStartTime += pausedDuration</code>）</li>
+</ul>
+<h3 id="3-計時器精度">3. 計時器精度</h3>
+<ul>
+<li>閃電模式計時從 <code>setInterval(100ms)</code> 改為 <code>requestAnimationFrame + performance.now()</code></li>
+<li>setInterval 在背景標籤頁會被瀏覽器節流，rAF 自動暫停</li>
+<li>固定時間步長模式：記錄開始時間，每幀計算剩餘時間</li>
+</ul>
+<h3 id="4-粒子效果最佳實踐">4. 粒子效果最佳實踐</h3>
+<ul>
+<li>Canvas 遊戲：在遊戲循環中以陣列管理粒子，每幀 update+draw</li>
+<li>DOM 遊戲：使用物件池 + MAX_PARTICLES 上限控制</li>
+<li>粒子屬性：position(x,y), velocity(vx,vy), life(1.0→0), decay, size, color</li>
+<li>清除策略：life &lt;= 0 時 splice 移除</li>
+</ul>
+<h3 id="5-難度曲線設計">5. 難度曲線設計</h3>
+<ul>
+<li>原始：每 5 分加速 10ms（太快，容易勸退）</li>
+<li>優化：每 8 分加速 5ms（漸進式，讓玩家有成長感）</li>
+<li>最低速度門檻：60ms（確保遊戲可控）</li>
+<li>關鍵原則：第一分鐘的體驗決定留存率</li>
+</ul>
+<h2 id="通用品質標準速查">通用品質標準速查</h2>
+<ul>
+<li>遊戲循環：requestAnimationFrame，禁止 setInterval</li>
+<li>觸控：同時支援鍵盤、滑鼠、觸控</li>
+<li>暫停：Esc 鍵必須可暫停</li>
+<li>效能：60 FPS 目標，粒子有上限</li>
+<li>音效：Web Audio API，音量 0.1-0.2</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

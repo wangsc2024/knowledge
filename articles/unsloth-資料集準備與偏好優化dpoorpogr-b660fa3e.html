@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 資料集準備與偏好優化（DPO/ORPO/GRPO）完整指南（2026）">
+  <title>Unsloth 資料集準備與偏好優化（DPO/ORPO/GRPO）完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 資料集準備與偏好優化（DPO/ORPO/GRPO）完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">DPO</span><span class="tag">ORPO</span><span class="tag">GRPO</span><span class="tag">資料集準備</span><span class="tag">偏好優化</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#一-資料集格式與準備">一、資料集格式與準備</a></li>  <li><a href="#1-1-三種主要格式">1.1 三種主要格式</a></li>  <li><a href="#1-2-alpaca-格式範例">1.2 Alpaca 格式範例</a></li>  <li><a href="#1-3-sharegpt-格式範例">1.3 ShareGPT 格式範例</a></li>  <li><a href="#1-4-unsloth-資料集工具函數">1.4 Unsloth 資料集工具函數</a></li>  <li><a href="#1-5-偏好資料集格式-dpo-orpo-kto-用">1.5 偏好資料集格式（DPO/ORPO/KTO 用）</a></li><li><a href="#二-偏好優化方法比較">二、偏好優化方法比較</a></li>  <li><a href="#2-1-四大方法對照表">2.1 四大方法對照表</a></li>  <li><a href="#2-2-選擇指引">2.2 選擇指引</a></li><li><a href="#三-dpo-訓練實作">三、DPO 訓練實作</a></li>  <li><a href="#3-1-模型載入">3.1 模型載入</a></li>  <li><a href="#3-2-dpo-訓練配置">3.2 DPO 訓練配置</a></li><li><a href="#四-orpo-訓練實作">四、ORPO 訓練實作</a></li>  <li><a href="#4-1-完整程式碼">4.1 完整程式碼</a></li>  <li><a href="#4-2-orpo-監控指標">4.2 ORPO 監控指標</a></li><li><a href="#五-grpo-推理訓練實作-deepseek-r1-風格">五、GRPO 推理訓練實作（DeepSeek-R1 風格）</a></li>  <li><a href="#5-1-grpo-核心原理">5.1 GRPO 核心原理</a></li>  <li><a href="#5-2-硬體需求">5.2 硬體需求</a></li>  <li><a href="#5-3-完整-grpo-訓練流程">5.3 完整 GRPO 訓練流程</a></li>  <li><a href="#5-4-資料集準備-gsm8k-數學範例">5.4 資料集準備（GSM8K 數學範例）</a></li>  <li><a href="#5-5-reward-function-設計">5.5 Reward Function 設計</a></li>  <li><a href="#5-6-grpo-訓練配置">5.6 GRPO 訓練配置</a></li>  <li><a href="#5-7-推論測試">5.7 推論測試</a></li><li><a href="#六-關鍵超參數對照表">六、關鍵超參數對照表</a></li><li><a href="#七-常見問題與解法">七、常見問題與解法</a></li>  <li><a href="#q1-grpo-訓練-reward-不上升">Q1: GRPO 訓練 reward 不上升？</a></li>  <li><a href="#q2-dpo-過擬合怎麼辦">Q2: DPO 過擬合怎麼辦？</a></li>  <li><a href="#q3-orpo-vs-先-sft-再-dpo">Q3: ORPO vs 先 SFT 再 DPO？</a></li>  <li><a href="#q4-資料集太小怎麼辦">Q4: 資料集太小怎麼辦？</a></li>  <li><a href="#q5-記憶體不足-oom">Q5: 記憶體不足（OOM）？</a></li><li><a href="#八-與現有知識庫內容的關聯">八、與現有知識庫內容的關聯</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Unsloth 資料集準備與偏好優化（DPO/ORPO/GRPO）完整指南</h1>
+<h2 id="概述">概述</h2>
+<p>Unsloth 的微調工作流涵蓋三大訓練範式：監督式微調（SFT）、偏好優化（DPO/ORPO/KTO）、與強化學習（GRPO）。本篇聚焦於資料集格式準備、偏好優化方法選擇、以及 GRPO 推理訓練的完整實作指南。這是 Unsloth 微調三部曲的第三篇，前兩篇分別涵蓋了架構原理/LoRA 配置與 GGUF 量化部署。Unsloth 完全相容 Hugging Face TRL 生態系（SFTTrainer、DPOTrainer、ORPOTrainer、GRPOTrainer），訓練後的模型可直接推送到 Hub 或匯出 GGUF。</p>
+<hr>
+<h2 id="一-資料集格式與準備">一、資料集格式與準備</h2>
+<h3 id="1-1-三種主要格式">1.1 三種主要格式</h3>
+<table>
+<tr><th>格式</th><th>適用場景</th><th>結構特點</th></tr>
+<tr><td><strong>Alpaca</strong></td><td>單輪指令跟隨</td><td><code>instruction</code> + <code>input</code>（可選）+ <code>output</code></td></tr>
+<tr><td><strong>ShareGPT</strong></td><td>多輪對話</td><td><code>conversations</code> 陣列，每輪含 <code>from</code>/<code>value</code></td></tr>
+<tr><td><strong>ChatML/OpenAI</strong></td><td>通用對話</td><td><code>messages</code> 陣列，每則含 <code>role</code>/<code>content</code></td></tr>
+</table>
+<h3 id="1-2-alpaca-格式範例">1.2 Alpaca 格式範例</h3>
+<pre><code class="language-json">{
+  &quot;instruction&quot;: &quot;將以下句子翻譯成英文&quot;,
+  &quot;input&quot;: &quot;今天天氣很好&quot;,
+  &quot;output&quot;: &quot;The weather is nice today.&quot;
+}</code></pre>
+<h3 id="1-3-sharegpt-格式範例">1.3 ShareGPT 格式範例</h3>
+<pre><code class="language-json">{
+  &quot;conversations&quot;: [
+    {&quot;from&quot;: &quot;human&quot;, &quot;value&quot;: &quot;什麼是機器學習？&quot;},
+    {&quot;from&quot;: &quot;gpt&quot;, &quot;value&quot;: &quot;機器學習是人工智慧的一個分支...&quot;}
+  ]
+}</code></pre>
+<h3 id="1-4-unsloth-資料集工具函數">1.4 Unsloth 資料集工具函數</h3>
+<p><strong>`to_sharegpt`</strong>：一步完成資料集格式轉換，自動合併指定欄位。</p>
+<pre><code class="language-python">from unsloth.chat_templates import to_sharegpt, standardize_sharegpt
+
+# 將自定義格式轉為 ShareGPT
+dataset = to_sharegpt(
+    dataset,
+    merged_prompt=&quot;{instruction}\n{input}&quot;,  # 用 {} 包裹欄位名
+    output_column_name=&quot;output&quot;,
+    conversation_extension=None,  # 多輪可指定
+)</code></pre>
+<p><strong>`standardize_sharegpt`</strong>：將 <code>from</code>/<code>value</code> 鍵轉換為 <code>role</code>/<code>content</code> 鍵（ChatML 格式）。</p>
+<pre><code class="language-python"># 從 ShareGPT 格式（from/value）轉為 ChatML（role/content）
+dataset = standardize_sharegpt(dataset)</code></pre>
+<h3 id="1-5-偏好資料集格式-dpo-orpo-kto-用">1.5 偏好資料集格式（DPO/ORPO/KTO 用）</h3>
+<pre><code class="language-json">{
+  &quot;prompt&quot;: &quot;什麼是量子計算？&quot;,
+  &quot;chosen&quot;: &quot;量子計算利用量子位元的疊加和糾纏特性...&quot;,
+  &quot;rejected&quot;: &quot;就是很快的電腦啦&quot;
+}</code></pre>
+<p>推薦資料集：<code>trl-lib/ultrafeedback_binarized</code>、<code>argilla/dpo-mix-7k</code></p>
+<hr>
+<h2 id="二-偏好優化方法比較">二、偏好優化方法比較</h2>
+<h3 id="2-1-四大方法對照表">2.1 四大方法對照表</h3>
+<table>
+<tr><th>方法</th><th>核心思想</th><th>是否需要 Reward Model</th><th>適用場景</th><th>記憶體需求</th></tr>
+<tr><td><strong>DPO</strong></td><td>直接從偏好對中學習策略</td><td>否</td><td>通用偏好對齊</td><td>中</td></tr>
+<tr><td><strong>ORPO</strong></td><td>結合 SFT + 偏好優化於一步</td><td>否</td><td>一步到位的對齊</td><td>低</td></tr>
+<tr><td><strong>KTO</strong></td><td>僅需好/壞標籤，不需配對</td><td>否</td><td>非配對偏好資料</td><td>低</td></tr>
+<tr><td><strong>GRPO</strong></td><td>群組相對策略優化（多回應採樣）</td><td>自定義 reward function</td><td>推理/數學任務</td><td>高（需 vLLM）</td></tr>
+</table>
+<h3 id="2-2-選擇指引">2.2 選擇指引</h3>
+<ul>
+<li><strong>有高品質偏好對</strong> → DPO（穩定、成熟）</li>
+<li><strong>想省一步 SFT</strong> → ORPO（SFT + 偏好合一）</li>
+<li><strong>偏好資料不成對</strong> → KTO（只需 thumbs up/down）</li>
+<li><strong>要訓練推理能力</strong> → GRPO（可驗證的正確答案）</li>
+</ul>
+<hr>
+<h2 id="三-dpo-訓練實作">三、DPO 訓練實作</h2>
+<h3 id="3-1-模型載入">3.1 模型載入</h3>
+<pre><code class="language-python">from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=&quot;unsloth/zephyr-sft-bnb-4bit&quot;,  # 已 SFT 的基礎
+    max_seq_length=2048,
+    load_in_4bit=True,
+)
+
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=64,
+    target_modules=[&quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+                    &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;],
+    lora_alpha=64,
+    use_gradient_checkpointing=&quot;unsloth&quot;,
+)</code></pre>
+<h3 id="3-2-dpo-訓練配置">3.2 DPO 訓練配置</h3>
+<pre><code class="language-python">from trl import DPOTrainer, DPOConfig
+
+dpo_args = DPOConfig(
+    learning_rate=5e-6,
+    beta=0.1,                    # KL 散度懲罰強度
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=4,
+    max_length=2048,
+    max_prompt_length=1024,
+    num_train_epochs=1,
+    optim=&quot;adamw_8bit&quot;,
+    warmup_ratio=0.1,
+    lr_scheduler_type=&quot;cosine&quot;,
+    output_dir=&quot;./dpo_output&quot;,
+)
+
+trainer = DPOTrainer(
+    model=model,
+    args=dpo_args,
+    train_dataset=dataset,
+    tokenizer=tokenizer,
+)
+trainer.train()</code></pre>
+<hr>
+<h2 id="四-orpo-訓練實作">四、ORPO 訓練實作</h2>
+<p>ORPO 的優勢在於<strong>結合 SFT 和偏好優化於一步</strong>，不需要先做 SFT 再做 DPO。</p>
+<h3 id="4-1-完整程式碼">4.1 完整程式碼</h3>
+<pre><code class="language-python">from trl import ORPOTrainer, ORPOConfig
+from unsloth import FastLanguageModel, is_bfloat16_supported
+from unsloth.chat_templates import get_chat_template
+from datasets import load_dataset
+
+# 載入模型
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=&quot;unsloth/Meta-Llama-3-8B-bnb-4bit&quot;,
+    max_seq_length=2048,
+    load_in_4bit=True,
+)
+
+model = FastLanguageModel.get_peft_model(
+    model, r=16, lora_alpha=16, lora_dropout=0,
+    target_modules=[&quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+                    &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;],
+    use_rslora=True,
+    use_gradient_checkpointing=&quot;unsloth&quot;,
+)
+
+tokenizer = get_chat_template(tokenizer, chat_template=&quot;chatml&quot;)
+
+# 載入偏好資料集
+dataset = load_dataset(&quot;trl-lib/ultrafeedback_binarized&quot;, split=&quot;train&quot;)
+
+# ORPO 訓練
+orpo_args = ORPOConfig(
+    learning_rate=8e-6,          # ORPO 建議 8e-6
+    beta=0.1,                    # odds ratio 權重
+    lr_scheduler_type=&quot;cosine_with_restarts&quot;,
+    max_length=2048,
+    max_prompt_length=1024,
+    per_device_train_batch_size=4,
+    gradient_accumulation_steps=2,
+    optim=&quot;adamw_8bit&quot;,
+    num_train_epochs=3,
+    warmup_steps=10,
+    logging_steps=1,
+    eval_steps=0.2,
+    evaluation_strategy=&quot;steps&quot;,
+    fp16=not is_bfloat16_supported(),
+    bf16=is_bfloat16_supported(),
+    output_dir=&quot;./orpo_output&quot;,
+)
+
+trainer = ORPOTrainer(
+    model=model,
+    args=orpo_args,
+    train_dataset=dataset,
+    tokenizer=tokenizer,
+)
+trainer.train()</code></pre>
+<h3 id="4-2-orpo-監控指標">4.2 ORPO 監控指標</h3>
+<table>
+<tr><th>指標</th><th>說明</th></tr>
+<tr><td><code>chosen_logps</code></td><td>chosen 回應的 log 機率</td></tr>
+<tr><td><code>rejected_logps</code></td><td>rejected 回應的 log 機率</td></tr>
+<tr><td><code>accuracy</code></td><td>chosen &gt; rejected 的比例</td></tr>
+<tr><td><code>margin</code></td><td>chosen 與 rejected 的差距</td></tr>
+<tr><td><code>log_odds_ratio</code></td><td>odds ratio 的對數值</td></tr>
+<tr><td><code>nll_loss</code></td><td>SFT 部分的損失</td></tr>
+</table>
+<hr>
+<h2 id="五-grpo-推理訓練實作-deepseek-r1-風格">五、GRPO 推理訓練實作（DeepSeek-R1 風格）</h2>
+<p>GRPO（Group Relative Policy Optimization）是 DeepSeek 開發的強化學習方法，用於訓練推理模型。</p>
+<h3 id="5-1-grpo-核心原理">5.1 GRPO 核心原理</h3>
+<ol>
+<li>對每個 prompt 生成一組（group）回應</li>
+<li>用 reward function 對每個回應評分</li>
+<li>計算群組平均分數</li>
+<li>高於平均的回應被強化，低於平均的被弱化</li>
+<li>KL 散度防止模型偏離太遠</li>
+</ol>
+<p><strong>與 PPO 的關鍵差異</strong>：移除 Value Model 和 Reward Model，改用自定義 reward function + 群組統計。</p>
+<h3 id="5-2-硬體需求">5.2 硬體需求</h3>
+<table>
+<tr><th>模型大小</th><th>最低 VRAM</th><th>建議 VRAM</th></tr>
+<tr><td>≤1.5B</td><td>5 GB</td><td>7 GB</td></tr>
+<tr><td>3B-8B</td><td>7 GB</td><td>15 GB</td></tr>
+<tr><td>8B-15B</td><td>15 GB</td><td>24 GB</td></tr>
+</table>
+<h3 id="5-3-完整-grpo-訓練流程">5.3 完整 GRPO 訓練流程</h3>
+<pre><code class="language-python">from unsloth import FastLanguageModel
+from trl import GRPOConfig, GRPOTrainer
+from vllm import SamplingParams
+import re
+
+# Step 1: 載入模型
+max_seq_length = 2048
+lora_rank = 32
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=&quot;unsloth/Qwen3-1.7B-Base&quot;,
+    max_seq_length=max_seq_length,
+    load_in_4bit=True,
+    fast_inference=True,        # 啟用 vLLM 快速推論
+    max_lora_rank=lora_rank,
+    gpu_memory_utilization=0.6,
+)
+
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=lora_rank,
+    target_modules=[&quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+                    &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;],
+    lora_alpha=lora_rank,
+    use_gradient_checkpointing=&quot;unsloth&quot;,
+    random_state=3407,
+)</code></pre>
+<h3 id="5-4-資料集準備-gsm8k-數學範例">5.4 資料集準備（GSM8K 數學範例）</h3>
+<pre><code class="language-python">from datasets import load_dataset
+
+SYSTEM_PROMPT = &quot;&quot;&quot;
+Respond in the following format:
+&lt;reasoning&gt;...&lt;/reasoning&gt;
+&lt;answer&gt;...&lt;/answer&gt;
+&quot;&quot;&quot;
+
+def extract_xml_answer(text):
+    answer = text.split(&quot;&lt;answer&gt;&quot;)[-1]
+    answer = answer.split(&quot;&lt;/answer&gt;&quot;)[0]
+    return answer.strip()
+
+def extract_hash_answer(text):
+    if &quot;####&quot; not in text:
+        return None
+    return text.split(&quot;####&quot;)[1].strip()
+
+# 準備 GSM8K 資料集
+dataset = load_dataset(&quot;openai/gsm8k&quot;, &quot;main&quot;, split=&quot;train&quot;)
+dataset = dataset.map(lambda x: {
+    &quot;prompt&quot;: [
+        {&quot;role&quot;: &quot;system&quot;, &quot;content&quot;: SYSTEM_PROMPT},
+        {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: x[&quot;question&quot;]},
+    ],
+    &quot;answer&quot;: extract_hash_answer(x[&quot;answer&quot;]),
+})</code></pre>
+<h3 id="5-5-reward-function-設計">5.5 Reward Function 設計</h3>
+<pre><code class="language-python"># 正確性獎勵（最重要）
+def correctness_reward_func(prompts, completions, answer, **kwargs):
+    responses = [c[0][&quot;content&quot;] for c in completions]
+    extracted = [extract_xml_answer(r) for r in responses]
+    return [2.0 if r == a else 0.0
+            for r, a in zip(extracted, answer)]
+
+# 格式獎勵（鼓勵 XML 標籤）
+def strict_format_reward_func(completions, **kwargs):
+    pattern = r&quot;^&lt;reasoning&gt;\n.*?\n&lt;/reasoning&gt;\n&lt;answer&gt;\n.*?\n&lt;/answer&gt;\n$&quot;
+    responses = [c[0][&quot;content&quot;] for c in completions]
+    return [0.5 if re.match(pattern, r, re.DOTALL) else 0.0
+            for r in responses]
+
+# 整數獎勵
+def int_reward_func(completions, **kwargs):
+    responses = [c[0][&quot;content&quot;] for c in completions]
+    extracted = [extract_xml_answer(r) for r in responses]
+    return [0.5 if r.isdigit() else 0.0 for r in extracted]
+
+# XML 標籤計數獎勵（精細控制）
+def xmlcount_reward_func(completions, **kwargs):
+    contents = [c[0][&quot;content&quot;] for c in completions]
+    scores = []
+    for text in contents:
+        count = 0.0
+        if text.count(&quot;&lt;reasoning&gt;\n&quot;) == 1: count += 0.125
+        if text.count(&quot;\n&lt;/reasoning&gt;\n&quot;) == 1: count += 0.125
+        if text.count(&quot;\n&lt;answer&gt;\n&quot;) == 1: count += 0.125
+        if text.count(&quot;\n&lt;/answer&gt;&quot;) == 1:
+            count += 0.125
+            # 懲罰 &lt;/answer&gt; 後的多餘內容
+            count -= len(text.split(&quot;\n&lt;/answer&gt;&quot;)[-1]) * 0.001
+        scores.append(count)
+    return scores</code></pre>
+<h3 id="5-6-grpo-訓練配置">5.6 GRPO 訓練配置</h3>
+<pre><code class="language-python">vllm_sampling_params = SamplingParams(
+    min_p=0.1, top_p=0.95, temperature=0.8,
+    max_tokens=1024,
+    stop=[tokenizer.eos_token],
+    include_stop_str_in_output=True,
+)
+
+training_args = GRPOConfig(
+    learning_rate=5e-6,          # GRPO 用較低學習率
+    adam_beta1=0.9,
+    adam_beta2=0.99,
+    weight_decay=0.1,
+    warmup_ratio=0.1,
+    lr_scheduler_type=&quot;cosine&quot;,
+    optim=&quot;paged_adamw_8bit&quot;,
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=1,  # 增至 4 可更穩定
+    num_generations=6,           # 每個 prompt 生成 6 個回應
+    max_prompt_length=256,
+    max_completion_length=768,
+    max_steps=250,               # 至少 150-200 步才會見效
+    max_grad_norm=0.1,
+    logging_steps=1,
+    report_to=&quot;none&quot;,
+    output_dir=&quot;outputs&quot;,
+)
+
+trainer = GRPOTrainer(
+    model=model,
+    processing_class=tokenizer,
+    reward_funcs=[
+        xmlcount_reward_func,
+        strict_format_reward_func,
+        int_reward_func,
+        correctness_reward_func,
+    ],
+    args=training_args,
+    train_dataset=dataset,
+)
+trainer.train()</code></pre>
+<h3 id="5-7-推論測試">5.7 推論測試</h3>
+<pre><code class="language-python"># 儲存 LoRA adapter
+model.save_lora(&quot;grpo_saved_lora&quot;)
+
+# 測試推論
+messages = [
+    {&quot;role&quot;: &quot;system&quot;, &quot;content&quot;: SYSTEM_PROMPT},
+    {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Calculate 15 * 27 + 83.&quot;},
+]
+text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+output = model.fast_generate(
+    text,
+    sampling_params=vllm_sampling_params,
+    lora_request=model.load_lora(&quot;grpo_saved_lora&quot;),
+)[0].outputs[0].text
+print(output)</code></pre>
+<hr>
+<h2 id="六-關鍵超參數對照表">六、關鍵超參數對照表</h2>
+<table>
+<tr><th>參數</th><th>SFT</th><th>DPO</th><th>ORPO</th><th>GRPO</th></tr>
+<tr><td><code>learning_rate</code></td><td>2e-4</td><td>5e-6</td><td>8e-6</td><td>5e-6</td></tr>
+<tr><td><code>beta</code></td><td>—</td><td>0.1</td><td>0.1</td><td>—</td></tr>
+<tr><td><code>num_generations</code></td><td>—</td><td>—</td><td>—</td><td>4-8</td></tr>
+<tr><td><code>lora_rank</code></td><td>16-64</td><td>64</td><td>16</td><td>32</td></tr>
+<tr><td><code>batch_size</code></td><td>2-4</td><td>2</td><td>4</td><td>1</td></tr>
+<tr><td><code>grad_accum</code></td><td>4-8</td><td>4</td><td>2</td><td>1-4</td></tr>
+<tr><td><code>epochs/steps</code></td><td>1-3 epochs</td><td>1 epoch</td><td>3 epochs</td><td>250-2000 steps</td></tr>
+<tr><td><code>optimizer</code></td><td>adamw_8bit</td><td>adamw_8bit</td><td>adamw_8bit</td><td>paged_adamw_8bit</td></tr>
+</table>
+<hr>
+<h2 id="七-常見問題與解法">七、常見問題與解法</h2>
+<h3 id="q1-grpo-訓練-reward-不上升">Q1: GRPO 訓練 reward 不上升？</h3>
+<ul>
+<li>至少等 150-200 步，GRPO 初期表現波動正常</li>
+<li>確認 reward function 邏輯正確（先印出幾個範例檢查）</li>
+<li>嘗試增大 <code>num_generations</code>（如 8 或 16）</li>
+</ul>
+<h3 id="q2-dpo-過擬合怎麼辦">Q2: DPO 過擬合怎麼辦？</h3>
+<ul>
+<li>增大 <code>beta</code>（更強的 KL 懲罰）</li>
+<li>減少 epoch 數（1 epoch 通常足夠）</li>
+<li>使用 rsLoRA（<code>use_rslora=True</code>）</li>
+</ul>
+<h3 id="q3-orpo-vs-先-sft-再-dpo">Q3: ORPO vs 先 SFT 再 DPO？</h3>
+<ul>
+<li>ORPO 更省時（一步到位），但 SFT+DPO 通常品質略好</li>
+<li>資料量 &lt; 10K 時 ORPO 更穩定</li>
+</ul>
+<h3 id="q4-資料集太小怎麼辦">Q4: 資料集太小怎麼辦？</h3>
+<ul>
+<li>DPO/ORPO 資料最少建議 1K 筆偏好對</li>
+<li>GRPO 可用 500+ 道數學題即見效</li>
+<li>可用 GPT-4/Claude 生成合成偏好資料</li>
+</ul>
+<h3 id="q5-記憶體不足-oom">Q5: 記憶體不足（OOM）？</h3>
+<ul>
+<li>減少 <code>num_generations</code>（GRPO）</li>
+<li>啟用 <code>load_in_4bit=True</code></li>
+<li>降低 <code>lora_rank</code>（如 16 → 8）</li>
+<li>啟用 <code>use_gradient_checkpointing=&quot;unsloth&quot;</code></li>
+<li>減少 <code>max_seq_length</code></li>
+</ul>
+<hr>
+<h2 id="八-與現有知識庫內容的關聯">八、與現有知識庫內容的關聯</h2>
+<p>本篇是 Unsloth 微調三部曲的最終章：</p>
+<ol>
+<li><strong>架構原理與 LoRA/QLoRA 配置</strong> → 模型載入與基礎訓練</li>
+<li><strong>GGUF 量化匯出與推論部署</strong> → 訓練後的部署方案</li>
+<li><strong>本篇：資料集準備與偏好優化</strong> → 完整訓練方法論</li>
+</ol>
+<p>建議搭配閱讀：vLLM 推論服務、Hugging Face TRL 文件、DeepSeek-R1 技術報告。</p>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li><a href="https://docs.unsloth.ai/basics/datasets-guide">Unsloth Datasets Guide</a></li>
+<li><a href="https://docs.unsloth.ai/basics/reinforcement-learning-guide/reinforcement-learning-dpo-orpo-and-kto">Unsloth RL Guide - DPO, ORPO &amp; KTO</a></li>
+<li><a href="https://unsloth.ai/blog/r1-reasoning">Train your own R1 reasoning model locally (GRPO)</a></li>
+<li><a href="https://huggingface.co/blog/shivance/post-training-llm-for-reasoning-with-grpo">HF Blog: Post training a LLM for reasoning with GRPO using Unsloth</a></li>
+<li><a href="https://huggingface.co/learn/llm-course/en/chapter12/6">HF LLM Course: Practical Exercise GRPO with Unsloth</a></li>
+<li><a href="https://huggingface.co/blog/unsloth-trl">HF Blog: Make LLM Fine-tuning 2x faster with Unsloth and TRL</a></li>
+<li><a href="https://www.stephendiehl.com/posts/orpo/">Fine-tuning with ORPO and Unsloth - Stephen Diehl</a></li>
+<li><a href="https://github.com/unslothai/unsloth">Unsloth GitHub</a></li>
+</ul>
+<p><em>研究日期：2026-02-16</em>
+<em>研究者：Unsloth Research Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

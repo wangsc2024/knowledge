@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,12 +36,19 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#一-技術概述">一、技術概述</a></li><li><a href="#二-schema-設計核心原則">二、Schema 設計核心原則</a></li>  <li><a href="#2-1-必備欄位">2.1 必備欄位</a></li>  <li><a href="#2-2-命名慣例-關鍵">2.2 命名慣例（關鍵）</a></li>  <li><a href="#2-3-本專案的-schema-實踐">2.3 本專案的 Schema 實踐</a></li><li><a href="#三-實作模式與-python-範例">三、實作模式與 Python 範例</a></li>  <li><a href="#3-1-structlog-python-結構化日誌最佳選擇">3.1 structlog — Python 結構化日誌最佳選擇</a></li>  <li><a href="#3-2-輕量自建方案-本專案採用">3.2 輕量自建方案（本專案採用）</a></li>  <li><a href="#3-3-異常堆疊結構化">3.3 異常堆疊結構化</a></li><li><a href="#四-日誌分析管線">四、日誌分析管線</a></li>  <li><a href="#4-1-命令列分析-jq">4.1 命令列分析（jq）</a></li>  <li><a href="#4-2-python-分析腳本模式">4.2 Python 分析腳本模式</a></li>  <li><a href="#4-3-elk-stack-整合">4.3 ELK Stack 整合</a></li><li><a href="#五-效能與容量規劃">五、效能與容量規劃</a></li>  <li><a href="#5-1-效能數據">5.1 效能數據</a></li>  <li><a href="#5-2-日誌輪替策略">5.2 日誌輪替策略</a></li>  <li><a href="#5-3-高負載處理">5.3 高負載處理</a></li><li><a href="#六-安全最佳實踐">六、安全最佳實踐</a></li>  <li><a href="#6-1-禁止記錄的敏感資料">6.1 禁止記錄的敏感資料</a></li>  <li><a href="#6-2-防護策略">6.2 防護策略</a></li><li><a href="#七-常見陷阱-anti-patterns">七、常見陷阱（Anti-Patterns）</a></li><li><a href="#八-與本專案的關聯">八、與本專案的關聯</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>JSONL 結構化日誌系統設計與最佳實踐</h1>
 <blockquote><p>研究日期：2026-02-15
 研究動機：daily-digest-prompt 專案的 Hooks 日誌系統（post_tool_logger.py、query_logs.py）大量使用 JSONL 格式，需建立完整技術知識</p>
 </blockquote>
-<h2>一、技術概述</h2>
+<h2 id="一-技術概述">一、技術概述</h2>
 <p>JSONL（JSON Lines）是一種將每個 JSON 物件獨立一行的結構化日誌格式，結合了 JSON 的機器可解析性與行式日誌的串流友善特性。相較於傳統純文字日誌（如 <code>2026-01-15 10:30:45 ERROR Database connection failed</code>），JSONL 格式提供結構化的鍵值對（如 <code>{&quot;timestamp&quot;:&quot;2026-01-15T10:30:45Z&quot;,&quot;level&quot;:&quot;error&quot;,&quot;msg&quot;:&quot;Database connection failed&quot;,&quot;db&quot;:&quot;users&quot;}</code>），使得查詢、過濾、聚合成為可能。</p>
 <p><strong>核心優勢：</strong></p>
 <ul>
@@ -49,8 +57,8 @@
 <li>串流友善：可即時 tail -f + 逐行處理</li>
 <li>生態系統完善：ELK Stack、Datadog、CloudWatch 原生支援</li>
 </ul>
-<h2>二、Schema 設計核心原則</h2>
-<h3>2.1 必備欄位</h3>
+<h2 id="二-schema-設計核心原則">二、Schema 設計核心原則</h2>
+<h3 id="2-1-必備欄位">2.1 必備欄位</h3>
 <table>
 <tr><th>欄位</th><th>格式</th><th>說明</th></tr>
 <tr><td><code>ts</code> / <code>timestamp</code></td><td>ISO 8601（含時區）</td><td>事件發生時間</td></tr>
@@ -59,14 +67,14 @@
 <tr><td><code>service</code> / <code>sid</code></td><td>字串</td><td>來源服務或 Session 識別</td></tr>
 <tr><td><code>correlation_id</code></td><td>UUID 或自定義格式</td><td>跨服務追蹤用</td></tr>
 </table>
-<h3>2.2 命名慣例（關鍵）</h3>
+<h3 id="2-2-命名慣例-關鍵">2.2 命名慣例（關鍵）</h3>
 <ul>
 <li><strong>統一命名風格</strong>：全組織一致使用 <code>snake_case</code>（如 <code>user_id</code>），禁止混用 <code>userId</code></li>
 <li><strong>數值欄位附帶單位</strong>：用 <code>duration_ms</code> 而非 <code>duration</code>，消除歧義</li>
 <li><strong>扁平化結構</strong>：避免深層嵌套，用點號連接（如 <code>http.method</code>、<code>http.status</code>）</li>
 <li><strong>Schema 文件化</strong>：維護共享的欄位定義文件</li>
 </ul>
-<h3>2.3 本專案的 Schema 實踐</h3>
+<h3 id="2-3-本專案的-schema-實踐">2.3 本專案的 Schema 實踐</h3>
 <p>daily-digest-prompt 的 <code>post_tool_logger.py</code> 已實踐良好 Schema：</p>
 <pre><code class="language-json">{
   &quot;ts&quot;: &quot;2026-02-14T08:01:30+08:00&quot;,
@@ -85,8 +93,8 @@
 <li><code>tags</code> 陣列實現多維度分類（自動標籤）</li>
 <li><code>has_error</code> 布林值便於快速過濾</li>
 </ul>
-<h2>三、實作模式與 Python 範例</h2>
-<h3>3.1 structlog — Python 結構化日誌最佳選擇</h3>
+<h2 id="三-實作模式與-python-範例">三、實作模式與 Python 範例</h2>
+<h3 id="3-1-structlog-python-結構化日誌最佳選擇">3.1 structlog — Python 結構化日誌最佳選擇</h3>
 <pre><code class="language-python">import structlog
 
 structlog.configure(
@@ -107,7 +115,7 @@ logger.info(&quot;server_started&quot;, port=8000, workers=4)
 log = logger.bind(session_id=&quot;abc123&quot;, user_id=&quot;u456&quot;)
 log.info(&quot;task_completed&quot;, task=&quot;todoist_sync&quot;, duration_ms=1250)
 log.error(&quot;api_failed&quot;, endpoint=&quot;/api/v1/tasks&quot;, status=500)</code></pre>
-<h3>3.2 輕量自建方案（本專案採用）</h3>
+<h3 id="3-2-輕量自建方案-本專案採用">3.2 輕量自建方案（本專案採用）</h3>
 <p>本專案 <code>post_tool_logger.py</code> 採用純 Python 標準庫方案，適合 Hook 場景：</p>
 <pre><code class="language-python">import json
 import sys
@@ -127,7 +135,7 @@ def log_jsonl(filepath, entry):
 <li>append 模式（<code>&quot;a&quot;</code>）確保原子性追加</li>
 <li>時區明確（+08:00）避免 UTC 混淆</li>
 </ul>
-<h3>3.3 異常堆疊結構化</h3>
+<h3 id="3-3-異常堆疊結構化">3.3 異常堆疊結構化</h3>
 <p>將 stack trace 從純文字轉為結構化 JSON：</p>
 <pre><code class="language-json">{
   &quot;exception&quot;: {
@@ -138,8 +146,8 @@ def log_jsonl(filepath, entry):
     ]
   }
 }</code></pre>
-<h2>四、日誌分析管線</h2>
-<h3>4.1 命令列分析（jq）</h3>
+<h2 id="四-日誌分析管線">四、日誌分析管線</h2>
+<h3 id="4-1-命令列分析-jq">4.1 命令列分析（jq）</h3>
 <pre><code class="language-bash"># 過濾錯誤事件
 cat logs/structured/*.jsonl | jq &#x27;select(.has_error == true)&#x27;
 
@@ -151,7 +159,7 @@ cat logs/structured/*.jsonl | jq &#x27;[.output_len] | add / length&#x27;
 
 # 時間區間過濾
 cat logs/structured/*.jsonl | jq &#x27;select(.ts &gt;= &quot;2026-02-15T08:00&quot;  and .ts &lt;= &quot;2026-02-15T12:00&quot;)&#x27;</code></pre>
-<h3>4.2 Python 分析腳本模式</h3>
+<h3 id="4-2-python-分析腳本模式">4.2 Python 分析腳本模式</h3>
 <p>本專案 <code>query_logs.py</code> 的分析模式可作為參考：</p>
 <pre><code class="language-python">import json
 from pathlib import Path
@@ -179,7 +187,7 @@ def analyze_jsonl(log_dir, days=7):
         &quot;error_rate&quot;: error_count / max(total, 1),
         &quot;top_tags&quot;: tag_counter.most_common(10)
     }</code></pre>
-<h3>4.3 ELK Stack 整合</h3>
+<h3 id="4-3-elk-stack-整合">4.3 ELK Stack 整合</h3>
 <p>JSONL 可直接批量匯入 Elasticsearch：</p>
 <pre><code class="language-bash">curl -X POST &quot;localhost:9200/_bulk&quot; \
   -H &quot;Content-Type: application/x-ndjson&quot; \
@@ -194,8 +202,8 @@ def analyze_jsonl(log_dir, days=7):
 filter {
   date { match =&gt; [&quot;timestamp&quot;, &quot;ISO8601&quot;] }
 }</code></pre>
-<h2>五、效能與容量規劃</h2>
-<h3>5.1 效能數據</h3>
+<h2 id="五-效能與容量規劃">五、效能與容量規劃</h2>
+<h3 id="5-1-效能數據">5.1 效能數據</h3>
 <table>
 <tr><th>指標</th><th>數值</th></tr>
 <tr><td>同步寫入延遲</td><td>0.1-0.5ms/entry</td></tr>
@@ -204,7 +212,7 @@ filter {
 <tr><td>GZIP 壓縮效率</td><td>減少 60-80% 儲存</td></tr>
 <tr><td>中型應用日產量</td><td>1-5 GB（100 萬請求/日）</td></tr>
 </table>
-<h3>5.2 日誌輪替策略</h3>
+<h3 id="5-2-日誌輪替策略">5.2 日誌輪替策略</h3>
 <table>
 <tr><th>階段</th><th>保留時間</th><th>用途</th></tr>
 <tr><td>Hot</td><td>1-7 天</td><td>主動索引與查詢</td></tr>
@@ -213,29 +221,29 @@ filter {
 <tr><td>Delete</td><td>90+ 天</td><td>依合規要求刪除</td></tr>
 </table>
 <p>本專案採用 7 天保留策略，與 dedup-policy.yaml 的 retention_days 一致。</p>
-<h3>5.3 高負載處理</h3>
+<h3 id="5-3-高負載處理">5.3 高負載處理</h3>
 <ul>
 <li><strong>非同步日誌</strong>：避免阻塞主執行緒</li>
 <li><strong>記憶體緩衝</strong>：離線時暫存 1000-10000 筆</li>
 <li><strong>取樣策略</strong>：高頻端點可隨機取樣 1-10%</li>
 <li><strong>錯誤 100% 記錄</strong>：error/fatal 級別永不取樣</li>
 </ul>
-<h2>六、安全最佳實踐</h2>
-<h3>6.1 禁止記錄的敏感資料</h3>
+<h2 id="六-安全最佳實踐">六、安全最佳實踐</h2>
+<h3 id="6-1-禁止記錄的敏感資料">6.1 禁止記錄的敏感資料</h3>
 <ul>
 <li>密碼、API Key、Token（即使部分遮蔽）</li>
 <li>信用卡號碼</li>
 <li>個人識別資訊（PII）：身分證、電話、Email</li>
 <li>環境變數中的機密值</li>
 </ul>
-<h3>6.2 防護策略</h3>
+<h3 id="6-2-防護策略">6.2 防護策略</h3>
 <p>本專案 <code>pre_bash_guard.py</code> 已實踐：</p>
 <ul>
 <li>攔截 <code>echo $TOKEN</code>、<code>printenv SECRET</code> 等敏感操作</li>
 <li>攔截 <code>curl</code> 傳送含機密變數的請求</li>
 <li>攔截記錄到結構化日誌（<code>blocked</code> 標籤）</li>
 </ul>
-<h2>七、常見陷阱（Anti-Patterns）</h2>
+<h2 id="七-常見陷阱-anti-patterns">七、常見陷阱（Anti-Patterns）</h2>
 <table>
 <tr><th>陷阱</th><th>問題</th><th>正確做法</th></tr>
 <tr><td>時間戳格式不一致</td><td>跨服務無法關聯</td><td>統一 ISO 8601 + 時區</td></tr>
@@ -245,7 +253,7 @@ filter {
 <tr><td>深層嵌套 JSON</td><td>查詢困難</td><td>扁平化 + 點號連接</td></tr>
 <tr><td>混用 camelCase/snake_case</td><td>查詢不一致</td><td>組織統一命名規範</td></tr>
 </table>
-<h2>八、與本專案的關聯</h2>
+<h2 id="八-與本專案的關聯">八、與本專案的關聯</h2>
 <p>daily-digest-prompt 的 JSONL 日誌系統已具備業界最佳實踐的多數特徵：</p>
 <ol>
 <li><strong>自動標籤分類</strong>（tags 陣列）— 對應業界的「contextual enrichment」</li>
@@ -260,7 +268,7 @@ filter {
 <li>加入 <code>output_hash</code> 欄位用於日誌完整性驗證</li>
 <li>實作 GZIP 壓縮歸檔（目前 7 天純文字保留）</li>
 </ul>
-<h2>參考來源</h2>
+<h2 id="參考來源">參考來源</h2>
 <ol>
 <li><a href="https://jsonl.help/use-cases/log-processing/">JSONL for Log Processing - JSONL.help</a></li>
 <li><a href="https://betterstack.com/community/guides/logging/json-logging/">A Beginner&#x27;s Guide to JSON Logging - Better Stack</a></li>
@@ -276,6 +284,8 @@ filter {
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -284,6 +294,14 @@ filter {
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

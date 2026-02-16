@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="遊戲優化心得：禪意水墨 (zen-ink-flow) - 2026-02-17">
+  <title>遊戲優化心得：禪意水墨 (zen-ink-flow) - 2026-02-17 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-buddhism">佛學</span>
+        <h1>遊戲優化心得：禪意水墨 (zen-ink-flow) - 2026-02-17</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">遊戲優化</span><span class="tag">品質改善</span><span class="tag">zen-ink-flow</span><span class="tag">Canvas效能</span><span class="tag">物件池</span><span class="tag">道具系統</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化日期">優化日期</a></li><li><a href="#遊戲概述">遊戲概述</a></li><li><a href="#發現的品質問題">發現的品質問題</a></li>  <li><a href="#p0-效能問題">P0 效能問題</a></li>  <li><a href="#p1-效能-ux-問題">P1 效能/UX 問題</a></li>  <li><a href="#p2-留存-ux-問題">P2 留存/UX 問題</a></li><li><a href="#實施的優化">實施的優化</a></li>  <li><a href="#1-p0-效能-紙紋理預渲染-offscreencanvas">1. P0 效能：紙紋理預渲染 (OffscreenCanvas)</a></li>  <li><a href="#2-p0-效能-hud-dom-元素引用快取">2. P0 效能：HUD DOM 元素引用快取</a></li>  <li><a href="#3-p1-效能-粒子-軌跡標記回收">3. P1 效能：粒子/軌跡標記回收</a></li>  <li><a href="#4-p1-留存-特殊禪字道具系統">4. P1 留存：特殊禪字道具系統</a></li>  <li><a href="#5-p1-ux-墨量低警告-近失回饋">5. P1 UX：墨量低警告 + 近失回饋</a></li>  <li><a href="#6-p2-留存-combo-視覺升級-里程碑系統">6. P2 留存：Combo 視覺升級 + 里程碑系統</a></li>  <li><a href="#7-p2-ux-浮動字義展示">7. P2 UX：浮動字義展示</a></li>  <li><a href="#8-p2-美感-背景漸進色調變化">8. P2 美感：背景漸進色調變化</a></li>  <li><a href="#9-額外-螢幕震動系統">9. 額外：螢幕震動系統</a></li><li><a href="#新增成就-3-個">新增成就 (3 個)</a></li><li><a href="#技術決策">技術決策</a></li><li><a href="#量化改善">量化改善</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>禪意水墨 (zen-ink-flow) 品質優化報告</h1>
+<h2 id="優化日期">優化日期</h2>
+<p>2026-02-17</p>
+<h2 id="遊戲概述">遊戲概述</h2>
+<p>水墨風格的動作收集遊戲，玩家引導墨滴穿越山水禪境，收集散落的禪字，避開枯枝亂石。</p>
+<h2 id="發現的品質問題">發現的品質問題</h2>
+<h3 id="p0-效能問題">P0 效能問題</h3>
+<ol>
+<li><strong>紙紋理每幀隨機繪製</strong>：原始碼每幀隨機生成 30 個矩形繪製紙紋理，浪費 GPU 時間</li>
+<li><strong>DOM 查詢未快取</strong>：updateHUD() 每幀呼叫 3 次 getElementById，造成不必要的 DOM 查詢開銷</li>
+</ol>
+<h3 id="p1-效能-ux-問題">P1 效能/UX 問題</h3>
+<ol>
+<li><strong>粒子/軌跡用 splice 回收</strong>：從陣列中間 splice 造成頻繁 GC</li>
+<li><strong>缺乏墨量低警告回饋</strong>：墨量低時只有顏色變化，無視覺/音效緊迫感</li>
+<li><strong>難度曲線太單調</strong>：僅靠加速，缺乏新元素維持新鮮感</li>
+<li><strong>沒有近失回饋</strong>：差一點碰到障礙物時無回饋</li>
+</ol>
+<h3 id="p2-留存-ux-問題">P2 留存/UX 問題</h3>
+<ol>
+<li>Combo 缺乏視覺獎勵升級</li>
+<li>缺少進度里程碑</li>
+<li>收集禪字缺乏字義展示</li>
+<li>背景無層次變化</li>
+</ol>
+<h2 id="實施的優化">實施的優化</h2>
+<h3 id="1-p0-效能-紙紋理預渲染-offscreencanvas">1. P0 效能：紙紋理預渲染 (OffscreenCanvas)</h3>
+<ul>
+<li>使用獨立 Canvas 一次性繪製紙紋理（含纖維線條）</li>
+<li>每幀只需 <code>drawImage()</code> 一次，消除隨機運算</li>
+<li>resize 時重建紋理</li>
+</ul>
+<h3 id="2-p0-效能-hud-dom-元素引用快取">2. P0 效能：HUD DOM 元素引用快取</h3>
+<ul>
+<li>初始化時用 <code>cacheHudElements()</code> 快取所有 22 個 DOM 元素引用</li>
+<li>updateHUD() 改用快取引用，零 DOM 查詢</li>
+</ul>
+<h3 id="3-p1-效能-粒子-軌跡標記回收">3. P1 效能：粒子/軌跡標記回收</h3>
+<ul>
+<li>粒子改用 <code>alive</code> 標記，死亡粒子不移除陣列，下次重複利用</li>
+<li>軌跡同理，從已死亡軌跡點中回收</li>
+<li>減少 <code>splice()</code> 呼叫和 GC 壓力</li>
+</ul>
+<h3 id="4-p1-留存-特殊禪字道具系統">4. P1 留存：特殊禪字道具系統</h3>
+<ul>
+<li>三種道具：護盾(盾)、磁吸(引)、墨泉(泉)</li>
+<li>分數 &gt;30 後 10% 機率出現</li>
+<li>道具禪字有脈衝光暈特效區分普通禪字</li>
+<li>底部顯示道具效果倒數</li>
+</ul>
+<h3 id="5-p1-ux-墨量低警告-近失回饋">5. P1 UX：墨量低警告 + 近失回饋</h3>
+<ul>
+<li>墨量 &lt;=30% 時：邊緣紅暈脈衝 + 墨量條脈衝變色 + 間歇音效</li>
+<li>近失偵測：障礙物 1.6 倍碰撞半徑內觸發「險！+2」+ 方向性粒子 + 音效</li>
+<li>新成就「險中求安」累計 5 次近失</li>
+</ul>
+<h3 id="6-p2-留存-combo-視覺升級-里程碑系統">6. P2 留存：Combo 視覺升級 + 里程碑系統</h3>
+<ul>
+<li>Combo 三等級：行雲(3+)、流水(6+)、山河(10+)</li>
+<li>等級越高字越大、顏色越亮、粒子越多</li>
+<li>山河級(10+) 觸發螢幕微震</li>
+<li>5 個里程碑（50/100/200/350/500分）含禪語通知</li>
+</ul>
+<h3 id="7-p2-ux-浮動字義展示">7. P2 UX：浮動字義展示</h3>
+<ul>
+<li>收集禪字時顯示浮動「字 - 字義」</li>
+<li>同時顯示得分浮動文字</li>
+<li>道具收集顯示效果說明</li>
+</ul>
+<h3 id="8-p2-美感-背景漸進色調變化">8. P2 美感：背景漸進色調變化</h3>
+<ul>
+<li>隨分數增加，背景從純宣紙色漸變為暖古色</li>
+<li>營造「旅程推進」的視覺暗示</li>
+</ul>
+<h3 id="9-額外-螢幕震動系統">9. 額外：螢幕震動系統</h3>
+<ul>
+<li>碰撞障礙物時輕微震動</li>
+<li>Combo 高等級時微震</li>
+<li>使用 Canvas translate 實現，不影響 DOM</li>
+</ul>
+<h2 id="新增成就-3-個">新增成就 (3 個)</h2>
+<ul>
+<li>「險中求安」：累計 5 次近失</li>
+<li>「法寶具足」：單局收集 3 個道具</li>
+<li>「三境通達」：單局達到第 3 個里程碑</li>
+</ul>
+<h2 id="技術決策">技術決策</h2>
+<ul>
+<li>紙紋理用 <code>document.createElement(&#x27;canvas&#x27;)</code> 而非 OffscreenCanvas，確保舊瀏覽器相容</li>
+<li>粒子池不用獨立陣列，而是在原陣列上做標記回收（減少記憶體碎片）</li>
+<li>浮動文字仍用 splice 回收（數量少，上限約 10 個，GC 影響可忽略）</li>
+<li>道具光暈用十六進位色碼 + 透明度後綴（如 <code>#4a90d940</code>），比 rgba 字串拼接更簡潔</li>
+</ul>
+<h2 id="量化改善">量化改善</h2>
+<ul>
+<li>每幀節省：~30 次隨機數生成 + 3 次 DOM 查詢 + 多次 splice</li>
+<li>新增遊戲深度：3 種道具 + 5 個里程碑 + 3 個成就 + 近失系統</li>
+<li>程式碼行數：1070 → 約 1060（重構後略減，因移除冗餘）</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

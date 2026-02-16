@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="念珠冥想遊戲：Canvas 粒子系統與漣漪效果實作心得">
+  <title>念珠冥想遊戲：Canvas 粒子系統與漣漪效果實作心得 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>念珠冥想遊戲：Canvas 粒子系統與漣漪效果實作心得</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">遊戲</span><span class="tag">創意優化</span><span class="tag">粒子系統</span><span class="tag">Canvas</span><span class="tag">視覺效果</span><span class="tag">物件池</span><span class="tag">念珠冥想</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#技術方案">技術方案</a></li>  <li><a href="#1-物件池-object-pool-粒子管理">1. 物件池（Object Pool）粒子管理</a></li>  <li><a href="#2-點擊粒子飄散效果">2. 點擊粒子飄散效果</a></li>  <li><a href="#3-漣漪擴散效果">3. 漣漪擴散效果</a></li>  <li><a href="#4-完成慶祝動畫">4. 完成慶祝動畫</a></li>  <li><a href="#5-光芒軌跡">5. 光芒軌跡</a></li><li><a href="#效能考量">效能考量</a></li><li><a href="#整合架構">整合架構</a></li><li><a href="#觸發點">觸發點</a></li><li><a href="#心得">心得</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>念珠冥想遊戲：Canvas 粒子系統與漣漪效果實作</h1>
+<h2 id="概述">概述</h2>
+<p>為念珠冥想（Mala Meditation）遊戲加入粒子系統視覺效果，包含點擊粒子飄散、漣漪擴散、完成慶祝動畫和光芒軌跡，提升冥想體驗的靈性感受。</p>
+<h2 id="技術方案">技術方案</h2>
+<h3 id="1-物件池-object-pool-粒子管理">1. 物件池（Object Pool）粒子管理</h3>
+<p>使用預分配的物件池（60 個粒子）避免頻繁 GC：</p>
+<ul>
+<li><code>PARTICLE_POOL_SIZE = 60</code>：足夠同時顯示所有粒子效果</li>
+<li>每個粒子物件預建：<code>{ x, y, vx, vy, life, maxLife, size, alpha, active, type }</code></li>
+<li><code>spawnParticle()</code> 搜尋第一個非活躍粒子並重用</li>
+<li>兩種粒子類型：<code>spark</code>（金色飄散粒子）和 <code>ripple</code>（漣漪擴散圈）</li>
+</ul>
+<h3 id="2-點擊粒子飄散效果">2. 點擊粒子飄散效果</h3>
+<p>每次點擊念珠時，從該念珠位置噴出 5-8 個金色粒子：</p>
+<ul>
+<li>隨機方向（<code>Math.random() * Math.PI * 2</code>）</li>
+<li>速度範圍 0.3-1.1，帶有微弱上浮偏移（vy - 0.3）</li>
+<li>生命週期 40-60 幀，逐漸縮小（size *= 0.98）和淡出</li>
+<li>微弱重力效果（vy += 0.01）模擬香灰飄散質感</li>
+<li>每個粒子帶有光暈（2.5 倍大小的半透明圓）</li>
+</ul>
+<h3 id="3-漣漪擴散效果">3. 漣漪擴散效果</h3>
+<p>點擊時同步產生一個漣漪：</p>
+<ul>
+<li>從初始大小 3px 擴散到 28px</li>
+<li>擴散進度 = 1 - (life / maxLife)</li>
+<li>半透明描邊圓（alpha * 0.4），線寬隨壽命遞減</li>
+<li>生命週期 30 幀，自然淡出</li>
+</ul>
+<h3 id="4-完成慶祝動畫">4. 完成慶祝動畫</h3>
+<p>完成一圈（108 或 27 顆）時觸發：</p>
+<ul>
+<li>從畫面中心噴發 30 個 spark 粒子</li>
+<li>更高速度（0.5-2.0）和更長壽命（60-100 幀）</li>
+<li>3 層漣漪（間隔 10 幀延遲），視覺層次豐富</li>
+</ul>
+<h3 id="5-光芒軌跡">5. 光芒軌跡</h3>
+<p>已點亮的念珠之間繪製微光連線：</p>
+<ul>
+<li>全局透明度 0.12，不搶眼但營造光路感</li>
+<li>使用 <code>ctx.save/restore</code> 隔離狀態</li>
+<li>從第一顆依序連到最後一顆點亮的念珠</li>
+</ul>
+<h2 id="效能考量">效能考量</h2>
+<ul>
+<li>物件池避免每幀 new 物件，減少 GC 壓力</li>
+<li>粒子數量上限 60 個，同時活躍通常 &lt; 15 個</li>
+<li>spark 粒子的光暈用簡單圓繪製而非 gradient，減少 GPU 負擔</li>
+<li>光芒軌跡使用單一 path 繪製，一次性 stroke</li>
+</ul>
+<h2 id="整合架構">整合架構</h2>
+<pre><code class="language-plaintext">gameLoop(timestamp)
+├── update(timestamp)
+│   ├── 脈動動畫更新
+│   ├── 呼吸引導計時
+│   └── updateParticles()  ← 新增
+└── render()
+    ├── 清除畫布
+    ├── 中心光暈
+    ├── 軌道環
+    ├── renderLightTrail()  ← 新增（底層）
+    ├── drawBeads()
+    └── renderParticles()   ← 新增（頂層）</code></pre>
+<h2 id="觸發點">觸發點</h2>
+<ul>
+<li><code>incrementCount()</code> → <code>emitClickParticles(bead.x, bead.y)</code></li>
+<li>完成一圈 → <code>emitCelebrationParticles()</code> + <code>showCompletion()</code></li>
+</ul>
+<h2 id="心得">心得</h2>
+<ol>
+<li>物件池是 Canvas 粒子系統的標配，60 個預分配物件足夠應付冥想遊戲的低頻互動</li>
+<li>漣漪效果用 stroke arc + alpha 遞減即可，不需要複雜的 shader</li>
+<li>微弱重力（0.01）搭配上浮偏移（-0.3）產生自然的「香灰飄散」感</li>
+<li>光芒軌跡的透明度 0.12 是關鍵 — 太高搶眼，太低看不見</li>
+<li>慶祝粒子的多層漣漪（延遲發射）比單層更有層次感</li>
+</ol>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

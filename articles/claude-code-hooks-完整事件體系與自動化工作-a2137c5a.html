@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,20 +36,27 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#主題概述">主題概述</a></li><li><a href="#一-hooks-核心架構">一、Hooks 核心架構</a></li>  <li><a href="#1-1-設計哲學">1.1 設計哲學</a></li>  <li><a href="#1-2-三層配置架構">1.2 三層配置架構</a></li>  <li><a href="#1-3-matcher-機制">1.3 Matcher 機制</a></li><li><a href="#二-14-種-hook-事件完整清單">二、14 種 Hook 事件完整清單</a></li>  <li><a href="#2-1-session-生命週期事件">2.1 Session 生命週期事件</a></li>  <li><a href="#2-2-使用者互動事件">2.2 使用者互動事件</a></li>  <li><a href="#2-3-工具使用事件-核心">2.3 工具使用事件（核心）</a></li>  <li><a href="#2-4-agent-協作事件">2.4 Agent 協作事件</a></li>  <li><a href="#2-5-系統事件">2.5 系統事件</a></li><li><a href="#三-三種-hook-handler-類型">三、三種 Hook Handler 類型</a></li>  <li><a href="#3-1-command-hooks-命令型-最常用">3.1 Command Hooks（命令型 — 最常用）</a></li>  <li><a href="#3-2-prompt-based-hooks-llm-評估型-v2-1-33">3.2 Prompt-based Hooks（LLM 評估型 — v2.1.33+）</a></li>  <li><a href="#3-3-agent-based-hooks-agent-代理型-v2-1-33">3.3 Agent-based Hooks（Agent 代理型 — v2.1.33+）</a></li><li><a href="#四-進階模式">四、進階模式</a></li>  <li><a href="#4-1-非同步-hooks-背景執行">4.1 非同步 Hooks（背景執行）</a></li>  <li><a href="#4-2-環境變數持久化-sessionstart-專屬">4.2 環境變數持久化（SessionStart 專屬）</a></li>  <li><a href="#4-3-mcp-工具匹配">4.3 MCP 工具匹配</a></li>  <li><a href="#4-4-setup-hook-event-v2-1-10-新增">4.4 Setup Hook Event（v2.1.10 新增）</a></li><li><a href="#五-安全防護最佳實踐">五、安全防護最佳實踐</a></li>  <li><a href="#5-1-heredoc-解析強化-v2-1-38">5.1 Heredoc 解析強化（v2.1.38）</a></li>  <li><a href="#5-2-sandbox-整合-v2-1-38">5.2 Sandbox 整合（v2.1.38）</a></li>  <li><a href="#5-3-巢狀-session-防護-v2-1-41">5.3 巢狀 Session 防護（v2.1.41）</a></li>  <li><a href="#5-4-安全建議-官方">5.4 安全建議（官方）</a></li><li><a href="#六-實際應用架構範例">六、實際應用架構範例</a></li>  <li><a href="#6-1-完整的安全強化配置">6.1 完整的安全強化配置</a></li>  <li><a href="#6-2-ci-cd-整合模式">6.2 CI/CD 整合模式</a></li>  <li><a href="#6-3-agent-teams-監控模式-v2-1-33">6.3 Agent Teams 監控模式（v2.1.33+）</a></li><li><a href="#七-版本演進時間軸">七、版本演進時間軸</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>Claude Code Hooks 完整事件體系與自動化工作流進階指南（2026）</h1>
-<h2>主題概述</h2>
+<h2 id="主題概述">主題概述</h2>
 <p>Claude Code Hooks 是 Anthropic 在 Claude Code 中提供的<strong>確定性自動化機制</strong>，讓開發者在 Agent 生命週期的關鍵節點自動執行 shell 命令、LLM 提示詞（Prompt-based hooks）或 Agent 代理（Agent-based hooks）。截至 2026 年 2 月（v2.1.42），Hooks 系統已涵蓋 <strong>14 種事件類型</strong>，從 Session 啟動到結束、從工具呼叫前後到 Agent Teams 協作事件，構成完整的可觀測與可控制層。本文深入整理每種事件的用途、輸入結構、決策控制方式，以及三種 hook handler 類型（command、prompt、agent）的進階應用模式。</p>
 <hr>
-<h2>一、Hooks 核心架構</h2>
-<h3>1.1 設計哲學</h3>
+<h2 id="一-hooks-核心架構">一、Hooks 核心架構</h2>
+<h3 id="1-1-設計哲學">1.1 設計哲學</h3>
 <p>Hooks 提供<strong>確定性控制</strong>（deterministic control），確保特定動作「一定會發生」，而非依賴 LLM 自行決定是否執行。這與 Skills（指令型引導）和 Subagents（隔離執行）形成互補：</p>
 <ul>
 <li><strong>Hooks</strong>：機器強制層，runtime 攔截/增強</li>
 <li><strong>Skills</strong>：知識引導層，提供上下文與指令</li>
 <li><strong>Subagents</strong>：隔離執行層，並行處理獨立任務</li>
 </ul>
-<h3>1.2 三層配置架構</h3>
+<h3 id="1-2-三層配置架構">1.2 三層配置架構</h3>
 <table>
 <tr><th>配置位置</th><th>作用範圍</th><th>可共享</th></tr>
 <tr><td><code>~/.claude/settings.json</code></td><td>所有專案（個人）</td><td>否</td></tr>
@@ -59,7 +67,7 @@
 <tr><td>Skill/Agent frontmatter</td><td>元件啟用時</td><td>是（嵌入定義）</td></tr>
 </table>
 <p>企業管理員可使用 <code>allowManagedHooksOnly</code> 阻止使用者、專案和插件 hooks，僅允許組織級 hooks。</p>
-<h3>1.3 Matcher 機制</h3>
+<h3 id="1-3-matcher-機制">1.3 Matcher 機制</h3>
 <p>Matcher 是<strong>正則表達式</strong>字串，用於過濾 hook 觸發條件：</p>
 <table>
 <tr><th>事件類型</th><th>Matcher 過濾對象</th><th>範例</th></tr>
@@ -72,8 +80,8 @@
 <tr><td>UserPromptSubmit/Stop/TeammateIdle/TaskCompleted</td><td>無 Matcher</td><td>每次觸發皆執行</td></tr>
 </table>
 <hr>
-<h2>二、14 種 Hook 事件完整清單</h2>
-<h3>2.1 Session 生命週期事件</h3>
+<h2 id="二-14-種-hook-事件完整清單">二、14 種 Hook 事件完整清單</h2>
+<h3 id="2-1-session-生命週期事件">2.1 Session 生命週期事件</h3>
 <p>#### SessionStart</p>
 <ul>
 <li><strong>觸發時機</strong>：Session 開始或恢復時</li>
@@ -87,7 +95,7 @@
 <li><strong>用途</strong>：清理資源、記錄 session 摘要、發送告警</li>
 <li><strong>Matcher</strong>：<code>clear</code>、<code>logout</code>、<code>prompt_input_exit</code>、<code>bypass_permissions_disabled</code></li>
 </ul>
-<h3>2.2 使用者互動事件</h3>
+<h3 id="2-2-使用者互動事件">2.2 使用者互動事件</h3>
 <p>#### UserPromptSubmit</p>
 <ul>
 <li><strong>觸發時機</strong>：使用者提交 prompt 後、Claude 處理前</li>
@@ -95,7 +103,7 @@
 <li><strong>決策控制</strong>：可攔截 prompt（deny）或修改 prompt 內容</li>
 <li><strong>無 Matcher</strong>：每次提交皆觸發</li>
 </ul>
-<h3>2.3 工具使用事件（核心）</h3>
+<h3 id="2-3-工具使用事件-核心">2.3 工具使用事件（核心）</h3>
 <p>#### PreToolUse</p>
 <ul>
 <li><strong>觸發時機</strong>：工具呼叫執行前</li>
@@ -120,7 +128,7 @@
 <li><strong>觸發時機</strong>：工具呼叫失敗後</li>
 <li><strong>用途</strong>：錯誤記錄、故障分析、自動重試邏輯</li>
 </ul>
-<h3>2.4 Agent 協作事件</h3>
+<h3 id="2-4-agent-協作事件">2.4 Agent 協作事件</h3>
 <p>#### SubagentStart</p>
 <ul>
 <li><strong>觸發時機</strong>：子 Agent 被生成時</li>
@@ -145,7 +153,7 @@
 <li><strong>用途</strong>：品質驗證、自動觸發後續流程、更新進度看板</li>
 <li><strong>無 Matcher</strong>：每次觸發皆執行</li>
 </ul>
-<h3>2.5 系統事件</h3>
+<h3 id="2-5-系統事件">2.5 系統事件</h3>
 <p>#### Notification</p>
 <ul>
 <li><strong>觸發時機</strong>：Claude Code 發送通知時</li>
@@ -165,8 +173,8 @@
 <li><strong>Matcher</strong>：<code>manual</code>（使用者觸發 /compact）、<code>auto</code>（自動壓縮）</li>
 </ul>
 <hr>
-<h2>三、三種 Hook Handler 類型</h2>
-<h3>3.1 Command Hooks（命令型 — 最常用）</h3>
+<h2 id="三-三種-hook-handler-類型">三、三種 Hook Handler 類型</h2>
+<h3 id="3-1-command-hooks-命令型-最常用">3.1 Command Hooks（命令型 — 最常用）</h3>
 <p>最基本的 hook 類型，執行 shell 命令。輸入透過 stdin 以 JSON 傳入，輸出透過 stdout JSON 返回：</p>
 <pre><code class="language-json">{
   &quot;type&quot;: &quot;command&quot;,
@@ -178,7 +186,7 @@
 <li><code>exit 2</code>：阻止（針對支援決策控制的事件）</li>
 <li>其他非零 exit code：hook 錯誤（不影響工具執行）</li>
 </ul>
-<h3>3.2 Prompt-based Hooks（LLM 評估型 — v2.1.33+）</h3>
+<h3 id="3-2-prompt-based-hooks-llm-評估型-v2-1-33">3.2 Prompt-based Hooks（LLM 評估型 — v2.1.33+）</h3>
 <p>使用 Claude 模型來<strong>評估條件</strong>，適合需要判斷力而非確定性規則的場景：</p>
 <pre><code class="language-json">{
   &quot;type&quot;: &quot;prompt&quot;,
@@ -190,7 +198,7 @@
 <li>返回結構化 JSON 回應（含 decision 和 reason）</li>
 <li>適合多準則評估（如：Stop hook 判斷任務是否真正完成）</li>
 </ul>
-<h3>3.3 Agent-based Hooks（Agent 代理型 — v2.1.33+）</h3>
+<h3 id="3-3-agent-based-hooks-agent-代理型-v2-1-33">3.3 Agent-based Hooks（Agent 代理型 — v2.1.33+）</h3>
 <p>啟動完整的 Agent 實例作為 hook，可執行多步驟工作流：</p>
 <pre><code class="language-json">{
   &quot;type&quot;: &quot;agent&quot;,
@@ -203,8 +211,8 @@
 <li>可與 Skills 和 MCP 工具整合</li>
 </ul>
 <hr>
-<h2>四、進階模式</h2>
-<h3>4.1 非同步 Hooks（背景執行）</h3>
+<h2 id="四-進階模式">四、進階模式</h2>
+<h3 id="4-1-非同步-hooks-背景執行">4.1 非同步 Hooks（背景執行）</h3>
 <p>將 hook 設定為背景執行，不阻塞主流程：</p>
 <pre><code class="language-json">{
   &quot;type&quot;: &quot;command&quot;,
@@ -217,7 +225,7 @@
 <li>長時間運行的 CI/CD 整合</li>
 <li>大量日誌的非同步寫入</li>
 </ul>
-<h3>4.2 環境變數持久化（SessionStart 專屬）</h3>
+<h3 id="4-2-環境變數持久化-sessionstart-專屬">4.2 環境變數持久化（SessionStart 專屬）</h3>
 <p>SessionStart hook 可設定環境變數，在整個 session 中生效：</p>
 <pre><code class="language-json">{
   &quot;hookSpecificOutput&quot;: {
@@ -228,13 +236,13 @@
     }
   }
 }</code></pre>
-<h3>4.3 MCP 工具匹配</h3>
+<h3 id="4-3-mcp-工具匹配">4.3 MCP 工具匹配</h3>
 <p>Matcher 支援匹配 MCP 工具呼叫，格式為 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>：</p>
 <pre><code class="language-json">{
   &quot;matcher&quot;: &quot;mcp__.*&quot;,
   &quot;hooks&quot;: [{ &quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;.claude/hooks/log-mcp.sh&quot; }]
 }</code></pre>
-<h3>4.4 Setup Hook Event（v2.1.10 新增）</h3>
+<h3 id="4-4-setup-hook-event-v2-1-10-新增">4.4 Setup Hook Event（v2.1.10 新增）</h3>
 <p>透過 CLI flags <code>--init</code>、<code>--init-only</code>、<code>--maintenance</code> 觸發的特殊事件，用於：</p>
 <ul>
 <li>倉庫初始化設定</li>
@@ -242,14 +250,14 @@
 <li>CI/CD pipeline 的前置準備</li>
 </ul>
 <hr>
-<h2>五、安全防護最佳實踐</h2>
-<h3>5.1 Heredoc 解析強化（v2.1.38）</h3>
+<h2 id="五-安全防護最佳實踐">五、安全防護最佳實踐</h2>
+<h3 id="5-1-heredoc-解析強化-v2-1-38">5.1 Heredoc 解析強化（v2.1.38）</h3>
 <p>v2.1.38 改進了 heredoc delimiter 解析，防止透過 heredoc 進行命令注入攻擊。</p>
-<h3>5.2 Sandbox 整合（v2.1.38）</h3>
+<h3 id="5-2-sandbox-整合-v2-1-38">5.2 Sandbox 整合（v2.1.38）</h3>
 <p>阻止對 <code>.claude/skills</code> 目錄的寫入操作，防止 Agent 自行修改自己的行為定義。</p>
-<h3>5.3 巢狀 Session 防護（v2.1.41）</h3>
+<h3 id="5-3-巢狀-session-防護-v2-1-41">5.3 巢狀 Session 防護（v2.1.41）</h3>
 <p>新增防護機制，防止在 Claude Code session 內啟動另一個 Claude Code 實例（遞迴防護）。</p>
-<h3>5.4 安全建議（官方）</h3>
+<h3 id="5-4-安全建議-官方">5.4 安全建議（官方）</h3>
 <ul>
 <li>hooks 腳本放在版本控制中（<code>.claude/hooks/</code>）</li>
 <li>使用 <code>exit 2</code> 明確阻止而非 <code>exit 1</code>（避免誤判為錯誤）</li>
@@ -258,8 +266,8 @@
 <li>敏感操作使用專案級設定（可 code review）而非使用者級設定</li>
 </ul>
 <hr>
-<h2>六、實際應用架構範例</h2>
-<h3>6.1 完整的安全強化配置</h3>
+<h2 id="六-實際應用架構範例">六、實際應用架構範例</h2>
+<h3 id="6-1-完整的安全強化配置">6.1 完整的安全強化配置</h3>
 <pre><code class="language-json">{
   &quot;hooks&quot;: {
     &quot;PreToolUse&quot;: [
@@ -286,7 +294,7 @@
     ]
   }
 }</code></pre>
-<h3>6.2 CI/CD 整合模式</h3>
+<h3 id="6-2-ci-cd-整合模式">6.2 CI/CD 整合模式</h3>
 <p>透過 Hooks 將 Claude Code 整合進持續整合流程：</p>
 <ol>
 <li><strong>SessionStart</strong>：設定 CI 環境變數、拉取最新依賴</li>
@@ -294,7 +302,7 @@
 <li><strong>Stop</strong>：運行測試套件、產生覆蓋率報告</li>
 <li><strong>SessionEnd</strong>：發送通知、清理暫存資源</li>
 </ol>
-<h3>6.3 Agent Teams 監控模式（v2.1.33+）</h3>
+<h3 id="6-3-agent-teams-監控模式-v2-1-33">6.3 Agent Teams 監控模式（v2.1.33+）</h3>
 <p>利用 TeammateIdle 和 TaskCompleted 事件實現團隊監控：</p>
 <ol>
 <li><strong>SubagentStart</strong>：記錄 Agent 啟動時間與任務分配</li>
@@ -303,7 +311,7 @@
 <li><strong>SubagentStop</strong>：收集效能指標（token 用量、耗時）</li>
 </ol>
 <hr>
-<h2>七、版本演進時間軸</h2>
+<h2 id="七-版本演進時間軸">七、版本演進時間軸</h2>
 <table>
 <tr><th>版本</th><th>日期</th><th>Hooks 相關更新</th></tr>
 <tr><td>v2.1.10</td><td>2026-01</td><td>新增 Setup hook event（<code>--init</code>/<code>--maintenance</code>）</td></tr>
@@ -315,7 +323,7 @@
 <tr><td>v2.1.42</td><td>2026-02</td><td>最新穩定版（效能與快取優化）</td></tr>
 </table>
 <hr>
-<h2>參考來源</h2>
+<h2 id="參考來源">參考來源</h2>
 <ul>
 <li><a href="https://code.claude.com/docs/en/hooks">Claude Code Hooks 官方參考文件</a></li>
 <li><a href="https://code.claude.com/docs/en/hooks-guide">自動化工作流指南</a></li>
@@ -332,6 +340,8 @@
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -340,6 +350,14 @@
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

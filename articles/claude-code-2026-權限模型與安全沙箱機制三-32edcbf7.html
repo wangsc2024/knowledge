@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code 2026 權限模型與安全沙箱機制：三層縱深防禦架構完整指南">
+  <title>Claude Code 2026 權限模型與安全沙箱機制：三層縱深防禦架構完整指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code 2026 權限模型與安全沙箱機制：三層縱深防禦架構完整指南</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">權限模型</span><span class="tag">Permissions</span><span class="tag">安全沙箱</span><span class="tag">Sandboxing</span><span class="tag">Hooks</span><span class="tag">企業安全</span><span class="tag">Prompt Injection</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#主題概述">主題概述</a></li><li><a href="#一-權限系統-permissions-layer">一、權限系統（Permissions Layer）</a></li>  <li><a href="#1-1-分層權限模型">1.1 分層權限模型</a></li>  <li><a href="#1-2-六種權限模式">1.2 六種權限模式</a></li>  <li><a href="#1-3-權限規則語法">1.3 權限規則語法</a></li>  <li><a href="#1-4-mcp-與子-agent-權限">1.4 MCP 與子 Agent 權限</a></li><li><a href="#二-hooks-攔截層">二、Hooks 攔截層</a></li>  <li><a href="#2-1-事件體系">2.1 事件體系</a></li>  <li><a href="#2-2-與-permissions-的關係">2.2 與 Permissions 的關係</a></li>  <li><a href="#2-3-安全優勢">2.3 安全優勢</a></li><li><a href="#三-沙箱層-os-level-sandboxing">三、沙箱層（OS-Level Sandboxing）</a></li>  <li><a href="#3-1-架構設計">3.1 架構設計</a></li>  <li><a href="#3-2-檔案系統隔離">3.2 檔案系統隔離</a></li>  <li><a href="#3-3-網路隔離">3.3 網路隔離</a></li>  <li><a href="#3-4-os-原語">3.4 OS 原語</a></li>  <li><a href="#3-5-沙箱模式">3.5 沙箱模式</a></li>  <li><a href="#3-6-逃逸機制">3.6 逃逸機制</a></li>  <li><a href="#3-7-開源沙箱運行時">3.7 開源沙箱運行時</a></li><li><a href="#四-三層協同防禦機制">四、三層協同防禦機制</a></li>  <li><a href="#4-1-防禦-prompt-injection">4.1 防禦 Prompt Injection</a></li>  <li><a href="#4-2-縱深防禦示意">4.2 縱深防禦示意</a></li><li><a href="#五-企業部署策略">五、企業部署策略</a></li>  <li><a href="#5-1-managed-settings-集中管控">5.1 Managed Settings（集中管控）</a></li>  <li><a href="#5-2-設定優先順序">5.2 設定優先順序</a></li>  <li><a href="#5-3-安全限制與注意事項">5.3 安全限制與注意事項</a></li><li><a href="#六-最佳實踐">六、最佳實踐</a></li><li><a href="#七-與-daily-digest-prompt-專案的對應">七、與 Daily-Digest-Prompt 專案的對應</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Claude Code 2026 權限模型與安全沙箱機制：三層縱深防禦架構完整指南</h1>
+<h2 id="主題概述">主題概述</h2>
+<p>Claude Code 在 2026 年建立了成熟的三層縱深防禦安全架構：<strong>Permissions（工具層權限控制）→ Hooks（自定義攔截層）→ Sandboxing（OS 層強制隔離）</strong>。這三層各自獨立運作，互為補充，構成業界領先的 AI Agent 安全模型。本文深入分析各層機制的技術實現、配置方法、企業部署策略，以及它們如何協同防禦 prompt injection 等攻擊。</p>
+<hr>
+<h2 id="一-權限系統-permissions-layer">一、權限系統（Permissions Layer）</h2>
+<h3 id="1-1-分層權限模型">1.1 分層權限模型</h3>
+<p>Claude Code 採用三級工具權限：</p>
+<table>
+<tr><th>工具類型</th><th>範例</th><th>是否需要批准</th><th>「不再詢問」行為</th></tr>
+<tr><td>唯讀工具</td><td>File reads, Grep</td><td>否</td><td>N/A</td></tr>
+<tr><td>Bash 命令</td><td>Shell 執行</td><td>是</td><td>永久（每個專案目錄+命令）</td></tr>
+<tr><td>檔案修改</td><td>Edit/Write</td><td>是</td><td>僅限當前 Session</td></tr>
+</table>
+<h3 id="1-2-六種權限模式">1.2 六種權限模式</h3>
+<table>
+<tr><th>模式</th><th>說明</th><th>適用場景</th></tr>
+<tr><td><code>default</code></td><td>標準模式，首次使用每個工具都提示</td><td>一般開發</td></tr>
+<tr><td><code>acceptEdits</code></td><td>自動接受檔案編輯權限</td><td>信任環境快速迭代</td></tr>
+<tr><td><code>plan</code></td><td>計畫模式，只能分析不能修改</td><td>架構設計、程式碼審查</td></tr>
+<tr><td><code>delegate</code></td><td>協調專用模式，限制為團隊管理工具</td><td>Agent Teams 團隊領導</td></tr>
+<tr><td><code>dontAsk</code></td><td>自動拒絕未預先批准的工具</td><td>嚴格安全環境</td></tr>
+<tr><td><code>bypassPermissions</code></td><td>跳過所有權限提示</td><td>隔離容器/VM 環境</td></tr>
+</table>
+<p><strong>delegate 模式（2026 新增）</strong>：專為 Agent Teams 設計，團隊領導只能使用團隊管理工具（如 SendMessage、TaskCreate），所有實作工作委派給隊員，實現「調度者不執行」的安全分離。</p>
+<h3 id="1-3-權限規則語法">1.3 權限規則語法</h3>
+<p>規則格式：<code>Tool</code> 或 <code>Tool(specifier)</code>，支援細粒度控制：</p>
+<pre><code class="language-json">{
+  &quot;permissions&quot;: {
+    &quot;allow&quot;: [
+      &quot;Bash(npm run *)&quot;,
+      &quot;Bash(git commit *)&quot;,
+      &quot;WebFetch(domain:example.com)&quot;,
+      &quot;Read(src/**)&quot;,
+      &quot;Task(Explore)&quot;
+    ],
+    &quot;deny&quot;: [
+      &quot;Bash(git push *)&quot;,
+      &quot;Read(./.env)&quot;,
+      &quot;Edit(//Users/alice/secrets/**)&quot;
+    ]
+  }
+}</code></pre>
+<p><strong>關鍵規則</strong>：</p>
+<ul>
+<li>評估順序：<strong>deny → ask → allow</strong>（deny 永遠優先）</li>
+<li>萬用字元 <code>*</code> 支援命令任意位置匹配</li>
+<li><code>Bash(ls *)</code> 要求單詞邊界（匹配 <code>ls -la</code> 但不匹配 <code>lsof</code>）</li>
+<li><code>Bash(ls*)</code> 無邊界約束（兩者都匹配）</li>
+<li>Claude Code 感知 shell 運算子：<code>Bash(safe-cmd *)</code> 不會授權 <code>safe-cmd &amp;&amp; dangerous-cmd</code></li>
+</ul>
+<p><strong>Read/Edit 路徑模式</strong>（遵循 gitignore 規範）：</p>
+<table>
+<tr><th>模式</th><th>含義</th><th>範例</th></tr>
+<tr><td><code>//path</code></td><td>檔案系統絕對路徑</td><td><code>Read(//Users/alice/secrets/**)</code></td></tr>
+<tr><td><code>~/path</code></td><td>家目錄相對路徑</td><td><code>Read(~/Documents/*.pdf)</code></td></tr>
+<tr><td><code>/path</code></td><td>設定檔相對路徑</td><td><code>Edit(/src/**/*.ts)</code></td></tr>
+<tr><td><code>path</code></td><td>工作目錄相對路徑</td><td><code>Read(*.env)</code></td></tr>
+</table>
+<h3 id="1-4-mcp-與子-agent-權限">1.4 MCP 與子 Agent 權限</h3>
+<ul>
+<li><strong>MCP 工具</strong>：<code>mcp__puppeteer__puppeteer_navigate</code> 精確匹配特定 MCP 工具</li>
+<li><strong>子 Agent</strong>：<code>Task(Explore)</code> 控制哪些子 Agent 可被啟用，可在 deny 中禁用特定 Agent</li>
+</ul>
+<hr>
+<h2 id="二-hooks-攔截層">二、Hooks 攔截層</h2>
+<p>Hooks 是 Claude Code v2.0+ 推薦的自動化權限控制方式（取代 <code>--dangerously-skip-permissions</code>），支援 14 種事件類型：</p>
+<h3 id="2-1-事件體系">2.1 事件體系</h3>
+<table>
+<tr><th>階段</th><th>事件</th><th>用途</th></tr>
+<tr><td>PreToolUse</td><td>Bash, Write, Edit, Read, WebFetch, ...</td><td>工具呼叫前攔截/修改/批准</td></tr>
+<tr><td>PostToolUse</td><td>*（所有工具）</td><td>工具執行後記錄/審計</td></tr>
+<tr><td>Stop</td><td>—</td><td>Session 結束時觸發</td></tr>
+<tr><td>TeammateIdle</td><td>—</td><td>Agent Teams 隊員閒置時觸發</td></tr>
+<tr><td>TaskCompleted</td><td>—</td><td>任務完成時觸發</td></tr>
+</table>
+<h3 id="2-2-與-permissions-的關係">2.2 與 Permissions 的關係</h3>
+<p>PreToolUse hooks 在權限系統之前執行。Hook 的輸出可以直接決定工具呼叫是否被批准或拒絕，繞過內建權限流程。這使得 Hooks 成為實現「條件式自動批准」的最佳機制 — 例如只批准特定 URL 的 curl 命令。</p>
+<h3 id="2-3-安全優勢">2.3 安全優勢</h3>
+<ul>
+<li><strong>細粒度</strong>：per-tool 條件判斷，比靜態權限規則更靈活</li>
+<li><strong>可審計</strong>：每次攔截都可記錄到結構化日誌</li>
+<li><strong>可程式化</strong>：用 Python/Node.js 實現複雜邏輯（正則匹配、黑名單、白名單）</li>
+<li><strong>防注入</strong>：可在 Hook 中檢查工具參數是否含有 injection 模式</li>
+</ul>
+<hr>
+<h2 id="三-沙箱層-os-level-sandboxing">三、沙箱層（OS-Level Sandboxing）</h2>
+<h3 id="3-1-架構設計">3.1 架構設計</h3>
+<p>沙箱使用作業系統層級原語強制隔離，提供<strong>檔案系統隔離</strong>和<strong>網路隔離</strong>兩個邊界：</p>
+<p><strong>核心原則</strong>：有效沙箱必須同時具備兩種隔離。缺少網路隔離，被入侵的 Agent 可以外洩 SSH 金鑰等敏感檔案；缺少檔案系統隔離，Agent 可以後門化系統資源來取得網路存取。</p>
+<h3 id="3-2-檔案系統隔離">3.2 檔案系統隔離</h3>
+<ul>
+<li><strong>預設寫入</strong>：僅允許讀寫當前工作目錄及其子目錄</li>
+<li><strong>預設讀取</strong>：可讀取整台電腦（除了被拒絕的目錄）</li>
+<li><strong>阻擋存取</strong>：無法修改工作目錄外的檔案</li>
+<li><strong>可配置</strong>：透過設定定義自訂允許和拒絕路徑</li>
+</ul>
+<h3 id="3-3-網路隔離">3.3 網路隔離</h3>
+<p>網路存取透過一個在沙箱外運行的代理伺服器控制：</p>
+<ul>
+<li><strong>域名限制</strong>：僅允許存取已批准的域名</li>
+<li><strong>使用者確認</strong>：新域名請求觸發權限提示</li>
+<li><strong>自訂代理</strong>：進階用戶可實作自訂規則（HTTPS 解密、流量檢查、日誌記錄）</li>
+<li><strong>完整覆蓋</strong>：限制適用於命令產生的所有子程序</li>
+</ul>
+<pre><code class="language-json">{
+  &quot;sandbox&quot;: {
+    &quot;network&quot;: {
+      &quot;httpProxyPort&quot;: 8080,
+      &quot;socksProxyPort&quot;: 8081
+    }
+  }
+}</code></pre>
+<h3 id="3-4-os-原語">3.4 OS 原語</h3>
+<table>
+<tr><th>平台</th><th>技術</th><th>支援狀態</th></tr>
+<tr><td>macOS</td><td>Seatbelt</td><td>開箱即用</td></tr>
+<tr><td>Linux</td><td>bubblewrap + socat</td><td>需安裝套件</td></tr>
+<tr><td>WSL2</td><td>bubblewrap（同 Linux）</td><td>需安裝套件</td></tr>
+<tr><td>WSL1</td><td>—</td><td>不支援（缺少 kernel 功能）</td></tr>
+<tr><td>Windows 原生</td><td>—</td><td>計畫中</td></tr>
+</table>
+<h3 id="3-5-沙箱模式">3.5 沙箱模式</h3>
+<p><strong>Auto-allow 模式</strong>：沙箱內的 Bash 命令自動批准，無法沙箱化的命令回退到標準權限流程。在內部測試中<strong>減少 84% 的權限提示</strong>。</p>
+<p><strong>Regular permissions 模式</strong>：所有 Bash 命令都經過標準權限流程，即使已沙箱化。</p>
+<h3 id="3-6-逃逸機制">3.6 逃逸機制</h3>
+<p>當命令因沙箱限制失敗時，Claude 可以使用 <code>dangerouslyDisableSandbox</code> 參數重試。使用此參數的命令需經過正常權限流程。可透過 <code>&quot;allowUnsandboxedCommands&quot;: false</code> 禁用此逃逸口。</p>
+<h3 id="3-7-開源沙箱運行時">3.7 開源沙箱運行時</h3>
+<p>沙箱運行時已作為開源 npm 套件發布：<code>@anthropic-ai/sandbox-runtime</code>，可用於任何 AI Agent 專案，甚至可用於沙箱化 MCP 伺服器：</p>
+<pre><code class="language-bash">npx @anthropic-ai/sandbox-runtime &lt;command-to-sandbox&gt;</code></pre>
+<hr>
+<h2 id="四-三層協同防禦機制">四、三層協同防禦機制</h2>
+<h3 id="4-1-防禦-prompt-injection">4.1 防禦 Prompt Injection</h3>
+<p>即使攻擊者成功操控 Claude Code 的行為：</p>
+<ol>
+<li><strong>權限層</strong>：deny 規則阻止 Claude 嘗試存取受限資源</li>
+<li><strong>Hooks 層</strong>：PreToolUse hook 在執行前攔截可疑命令</li>
+<li><strong>沙箱層</strong>：OS 層級強制阻擋越界存取</li>
+</ol>
+<p><strong>保護範圍</strong>：</p>
+<ul>
+<li>無法修改 <code>~/.bashrc</code> 等關鍵配置</li>
+<li>無法外洩資料到攻擊者控制的伺服器</li>
+<li>無法下載惡意腳本</li>
+<li>無法讀取被拒絕的敏感檔案</li>
+</ul>
+<h3 id="4-2-縱深防禦示意">4.2 縱深防禦示意</h3>
+<pre><code class="language-plaintext">使用者請求 → [Hooks PreToolUse 攔截] → [Permission 規則評估] → [Sandbox OS 強制] → 執行
+                    ↓ block                    ↓ deny                   ↓ block
+                  日誌記錄                    拒絕操作                  立即通知</code></pre>
+<hr>
+<h2 id="五-企業部署策略">五、企業部署策略</h2>
+<h3 id="5-1-managed-settings-集中管控">5.1 Managed Settings（集中管控）</h3>
+<table>
+<tr><th>設定</th><th>說明</th></tr>
+<tr><td><code>disableBypassPermissionsMode</code></td><td>設為 <code>&quot;disable&quot;</code> 禁止 bypassPermissions 模式</td></tr>
+<tr><td><code>allowManagedPermissionRulesOnly</code></td><td>僅允許管理設定中的權限規則</td></tr>
+<tr><td><code>allowManagedHooksOnly</code></td><td>僅允許管理設定和 SDK 的 Hooks</td></tr>
+<tr><td><code>strictKnownMarketplaces</code></td><td>控制可使用的 Plugin 市場</td></tr>
+</table>
+<p><strong>部署路徑</strong>：</p>
+<ul>
+<li>macOS：<code>/Library/Application Support/ClaudeCode/managed-settings.json</code></li>
+<li>Linux/WSL：<code>/etc/claude-code/managed-settings.json</code></li>
+<li>Windows：<code>C:\Program Files\ClaudeCode\managed-settings.json</code></li>
+</ul>
+<h3 id="5-2-設定優先順序">5.2 設定優先順序</h3>
+<p>managed settings（最高）→ CLI 參數 → local project → shared project → user settings（最低）</p>
+<h3 id="5-3-安全限制與注意事項">5.3 安全限制與注意事項</h3>
+<ul>
+<li><strong>廣域域名風險</strong>：允許 <code>github.com</code> 等廣域域名可能導致資料外洩</li>
+<li><strong>Domain Fronting</strong>：某些情況下可能繞過網路過濾</li>
+<li><strong>Unix Socket</strong>：<code>allowUnixSockets</code> 可能授予系統服務存取（如 Docker socket → 主機系統存取）</li>
+<li><strong>弱化嵌套沙箱</strong>：<code>enableWeakerNestedSandbox</code> 顯著降低安全性，僅在 Docker 環境中使用</li>
+<li><strong>檔案系統提權</strong>：過寬的寫入權限可能導致提權攻擊</li>
+</ul>
+<hr>
+<h2 id="六-最佳實踐">六、最佳實踐</h2>
+<ol>
+<li><strong>從嚴開始</strong>：以最小權限開始，按需擴展</li>
+<li><strong>雙層結合</strong>：權限 + 沙箱 = 縱深防禦（缺一不可）</li>
+<li><strong>監控日誌</strong>：審查沙箱違規嘗試，了解 Claude Code 的實際需求</li>
+<li><strong>環境分離</strong>：開發與生產使用不同沙箱規則</li>
+<li><strong>用 Hooks 取代 dangerously-skip-permissions</strong>：14 種事件類型提供更細粒度控制</li>
+<li><strong>URL 限制策略</strong>：不要用 Bash 規則限制 URL（太脆弱），改用 WebFetch 域名規則 + PreToolUse hook 驗證</li>
+</ol>
+<hr>
+<h2 id="七-與-daily-digest-prompt-專案的對應">七、與 Daily-Digest-Prompt 專案的對應</h2>
+<p>本專案已實作的安全機制與官方架構的對應：</p>
+<table>
+<tr><th>官方層級</th><th>本專案實作</th></tr>
+<tr><td>Permissions deny</td><td><code>.claude/settings.json</code> 中的 allowedTools 限制</td></tr>
+<tr><td>PreToolUse hooks</td><td><code>pre_bash_guard.py</code>、<code>pre_write_guard.py</code>、<code>pre_read_guard.py</code></td></tr>
+<tr><td>PostToolUse hooks</td><td><code>post_tool_logger.py</code> 結構化日誌</td></tr>
+<tr><td>Stop hooks</td><td><code>on_stop_alert.py</code> 自動告警</td></tr>
+<tr><td>規則外部化</td><td><code>config/hook-rules.yaml</code> 集中管理</td></tr>
+<tr><td>沙箱層</td><td>尚未啟用（Windows 原生尚不支援，WSL2 可用）</td></tr>
+</table>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://www.anthropic.com/engineering/claude-code-sandboxing">Anthropic Engineering - Making Claude Code more secure and autonomous</a></li>
+<li><a href="https://code.claude.com/docs/en/permissions">Claude Code Docs - Configure permissions</a></li>
+<li><a href="https://code.claude.com/docs/en/sandboxing">Claude Code Docs - Sandboxing</a></li>
+<li><a href="https://code.claude.com/docs/en/security">Claude Code Docs - Security</a></li>
+<li><a href="https://github.com/anthropic-experimental/sandbox-runtime">GitHub - @anthropic-ai/sandbox-runtime</a></li>
+<li><a href="https://www.backslash.security/blog/claude-code-security-best-practices">Backslash - Claude Code Security Best Practices</a></li>
+<li><a href="https://smartscope.blog/en/generative-ai/claude/claude-code-auto-permission-guide/">SmartScope - Claude Code Auto-Permission Guide 2026</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Claude Code Agent（todoist_research）</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

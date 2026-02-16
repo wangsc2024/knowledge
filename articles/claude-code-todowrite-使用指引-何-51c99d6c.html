@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -16,19 +17,26 @@
         <a href="../#thinking">思維方法</a>
         <a href="../#ai">AI技術</a>
         <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
       </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
     </div>
   </header>
 
   <main class="container">
     <article>
       <div class="article-header">
-        <span class="category-badge category-claude">Claude_Code</span>
+        <span class="category-badge category-claude">Claude Code</span>
         <h1>Claude Code TodoWrite 使用指引 — 何時該用、何時該禁止</h1>
         <div class="article-meta">
+          <span class="date">2026-02-14</span>
           <div class="tags"><span class="tag">claude-code</span><span class="tag">todowrite</span><span class="tag">agent-optimization</span><span class="tag">prompt-engineering</span></div>
         </div>
       </div>
+
+      
 
       <div class="article-content">
         <p>&lt;h2&gt;TodoWrite 工具概述&lt;/h2&gt;&lt;p&gt;TodoWrite 是 Claude Code 的進度追蹤工具，讓 Agent 建立、更新 todo 清單來組織多步驟任務。&lt;/p&gt;&lt;h2&gt;何時該用 TodoWrite（效益正面）&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;互動式長時間任務&lt;/strong&gt;：20+ 步驟的開發任務，人類可即時看到進度&lt;/li&gt;&lt;li&gt;&lt;strong&gt;多檔案重構&lt;/strong&gt;：需要追蹤哪些檔案已修改、哪些待處理&lt;/li&gt;&lt;li&gt;&lt;strong&gt;VSCode 互動模式&lt;/strong&gt;：開發者直接與 Claude 對話，TodoWrite 提供可視化進度&lt;/li&gt;&lt;li&gt;&lt;strong&gt;複雜除錯&lt;/strong&gt;：需要系統性排查多個可能原因&lt;/li&gt;&lt;/ul&gt;&lt;h2&gt;何時該禁止 TodoWrite（效益負面或零）&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;-p pipe 模式（所有排程 Agent）&lt;/strong&gt;：沒有人在看輸出，TodoWrite 的進度條無人觀看&lt;/li&gt;&lt;li&gt;&lt;strong&gt;時間受限的 Agent（&amp;lt;5 分鐘）&lt;/strong&gt;：每次 TodoWrite 觸發一個完整 LLM 回合（8-10 秒），浪費寶貴預算&lt;/li&gt;&lt;li&gt;&lt;strong&gt;步驟已明確寫在 prompt 中&lt;/strong&gt;：Agent 不需要用 todo 重新自我提醒已知步驟&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Phase 1 fetch agents&lt;/strong&gt;：單一明確任務（查詢 API → 寫入結果），無需追蹤&lt;/li&gt;&lt;/ul&gt;&lt;h2&gt;實測數據（2026-02-15 todoist-team）&lt;/h2&gt;&lt;p&gt;在 180 秒預算的 todoist-query Agent 中：&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Agent 自動建立 4 次 TodoWrite，內容為自我組織的工作步驟&lt;/li&gt;&lt;li&gt;4 次 TodoWrite 觸發 4 個不必要的 LLM 回合，共浪費約 92 秒（佔預算 51%）&lt;/li&gt;&lt;li&gt;直接導致 Phase 1 超時失敗（連續 11 次 100% 失敗率）&lt;/li&gt;&lt;li&gt;修復方式：在 prompt 中加入「禁止使用 TodoWrite」效率規則&lt;/li&gt;&lt;/ul&gt;&lt;h2&gt;Prompt 中禁止 TodoWrite 的範例&lt;/h2&gt;&lt;pre&gt;&lt;code&gt;## 效率規則（必遵守）</p>
@@ -39,14 +47,28 @@
 
       </div>
 
-      <a href="../" class="back-link">← 返回首頁</a>
+      <a href="../" class="back-link">&larr; 返回首頁</a>
     </article>
   </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
 
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
     </div>
   </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
 </body>
 </html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Cloudflare Workers AI + D1 + Vectorize 邊緣計算原生 RAG 架構完整指南（2026）">
+  <title>Cloudflare Workers AI + D1 + Vectorize 邊緣計算原生 RAG 架構完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Cloudflare Workers AI + D1 + Vectorize 邊緣計算原生 RAG 架構完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">Cloudflare</span><span class="tag">Workers AI</span><span class="tag">D1</span><span class="tag">Vectorize</span><span class="tag">RAG</span><span class="tag">邊緣計算</span><span class="tag">AutoRAG</span><span class="tag">向量資料庫</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#核心元件架構">核心元件架構</a></li>  <li><a href="#1-workers-ai-邊緣推論引擎">1. Workers AI — 邊緣推論引擎</a></li>  <li><a href="#2-vectorize-分散式向量資料庫">2. Vectorize — 分散式向量資料庫</a></li>  <li><a href="#3-d1-邊緣-sqlite-資料庫">3. D1 — 邊緣 SQLite 資料庫</a></li><li><a href="#完整-rag-管線流程">完整 RAG 管線流程</a></li>  <li><a href="#資料攝取-indexing-pipeline">資料攝取（Indexing Pipeline）</a></li>  <li><a href="#查詢管線-query-pipeline">查詢管線（Query Pipeline）</a></li>  <li><a href="#hono-路由範例">Hono 路由範例</a></li><li><a href="#autorag-全託管-rag-管線-2025-open-beta">AutoRAG：全託管 RAG 管線（2025 Open Beta）</a></li>  <li><a href="#核心價值">核心價值</a></li>  <li><a href="#自動化管線">自動化管線</a></li>  <li><a href="#限制">限制</a></li><li><a href="#手動-vs-autorag-決策矩陣">手動 vs AutoRAG 決策矩陣</a></li><li><a href="#進階模式與最佳實踐">進階模式與最佳實踐</a></li>  <li><a href="#1-文件拆分策略">1. 文件拆分策略</a></li>  <li><a href="#2-刪除管理">2. 刪除管理</a></li>  <li><a href="#3-ai-gateway-監控">3. AI Gateway 監控</a></li>  <li><a href="#4-workflows-持久化">4. Workflows 持久化</a></li><li><a href="#與本專案-daily-digest-prompt-的關聯">與本專案（daily-digest-prompt）的關聯</a></li>  <li><a href="#待辦事項對應">待辦事項對應</a></li>  <li><a href="#遷移路徑建議">遷移路徑建議</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Cloudflare Workers AI + D1 + Vectorize 邊緣計算原生 RAG 架構</h1>
+<h2 id="概述">概述</h2>
+<p>本文深度剖析如何利用 Cloudflare 的邊緣計算平台建構完整的 Retrieval-Augmented Generation（RAG）應用。Cloudflare 提供了業界獨特的「全棧邊緣原生 RAG」方案：從向量嵌入、向量搜尋、結構化資料儲存到 LLM 推論，所有環節都在 330+ 個邊緣節點上執行，無需任何中心化雲端服務。</p>
+<p>本研究涵蓋兩種實現路徑：</p>
+<ol>
+<li><strong>手動組裝</strong>（Workers AI + D1 + Vectorize）— 完全控制權</li>
+<li><strong>AutoRAG</strong>（2025 年推出的全託管管線）— 一行程式碼即完成</li>
+</ol>
+<hr>
+<h2 id="核心元件架構">核心元件架構</h2>
+<h3 id="1-workers-ai-邊緣推論引擎">1. Workers AI — 邊緣推論引擎</h3>
+<p><strong>定位</strong>：在 Cloudflare 180+ 邊緣位置部署 GPU 叢集，提供 50+ 開源模型的 Serverless 推論。</p>
+<p><strong>關鍵特性</strong>：</p>
+<ul>
+<li>冷啟動延遲 &lt; 10ms（傳統雲端需數秒）</li>
+<li>7B 參數 LLM 推論時間 ~40ms</li>
+<li>真正的按推論計費（Pay-per-inference），無閒置成本</li>
+<li>OpenAI 相容 API</li>
+<li>支援量化模型（int8）降低成本而不犧牲品質</li>
+</ul>
+<p><strong>RAG 中的角色</strong>：</p>
+<ul>
+<li><strong>嵌入生成</strong>：使用 <code>@cf/baai/bge-base-en-v1.5</code>（768 維度）將文字轉為向量</li>
+<li><strong>文字生成</strong>：使用 <code>@cf/meta/llama-3-8b-instruct</code> 或其他 LLM 生成最終回答</li>
+</ul>
+<p><strong>程式碼示例</strong>：</p>
+<pre><code class="language-javascript">// 嵌入生成
+const embeddings = await env.AI.run(&#x27;@cf/baai/bge-base-en-v1.5&#x27;, {
+  text: &#x27;要嵌入的文字&#x27;
+});
+
+// LLM 推論
+const answer = await env.AI.run(&#x27;@cf/meta/llama-3-8b-instruct&#x27;, {
+  messages: [
+    { role: &#x27;system&#x27;, content: contextPrompt },
+    { role: &#x27;user&#x27;, content: userQuestion }
+  ]
+});</code></pre>
+<h3 id="2-vectorize-分散式向量資料庫">2. Vectorize — 分散式向量資料庫</h3>
+<p><strong>定位</strong>：Cloudflare 自建的全球分散式向量資料庫，專為邊緣 RAG 設計。</p>
+<p><strong>底層架構</strong>（技術深度）：</p>
+<ul>
+<li><strong>語言</strong>：核心以 Rust 撰寫（Vectorize DB Service）</li>
+<li><strong>儲存引擎</strong>：使用 Durable Objects 中的 SQLite WAL（Write-Ahead Logging）</li>
+<li><strong>物件儲存</strong>：R2 搭配 Cloudflare Cache 層做多級快取</li>
+<li><strong>索引演算法</strong>：Inverted File Index（IVF）— 將向量依接近度聚類到中心點（centroid），查詢時只搜尋最相關的聚類，大幅裁剪搜尋空間</li>
+<li><strong>壓縮方法</strong>：Product Quantization（PQ）— 將 6KB 的原始向量壓縮到可管理的大小，同時保留語義精度（類似圖片降採樣但保持可辨識性）</li>
+<li><strong>協調機制</strong>：使用 Cloudflare Queues 實現 WAL 與執行器之間的生產者-消費者模式</li>
+<li><strong>計算加速</strong>：SIMD CPU 指令加速向量距離計算</li>
+</ul>
+<p><strong>規格與限制</strong>：</p>
+<ul>
+<li>最大維度：1536</li>
+<li>最大向量數：500 萬（從 Beta 期 20 萬大幅提升 25 倍）</li>
+<li>支援餘弦相似度、歐幾里得距離等度量</li>
+<li>一致性模型：最終一致性（寫入後查詢有短暫延遲）</li>
+<li>Metadata 過濾：使用 Chunked Sorted List Indexes 實現二分搜尋效率</li>
+</ul>
+<p><strong>程式碼示例</strong>：</p>
+<pre><code class="language-javascript">// 建立索引（CLI）
+// npx wrangler vectorize create vector-index --dimensions=768 --metric=cosine
+
+// 向量插入
+await env.VECTOR_INDEX.upsert([{
+  id: record.id.toString(),
+  values: embedding,
+  metadata: { source: &#x27;user-note&#x27;, category: &#x27;tech&#x27; }
+}]);
+
+// 向量查詢
+const results = await env.VECTOR_INDEX.query(queryVector, {
+  topK: 3,
+  filter: { category: &#x27;tech&#x27; }
+});</code></pre>
+<h3 id="3-d1-邊緣-sqlite-資料庫">3. D1 — 邊緣 SQLite 資料庫</h3>
+<p><strong>定位</strong>：Cloudflare 原生的 Serverless SQL 資料庫，基於 SQLite。</p>
+<p><strong>RAG 中的角色</strong>：儲存原始文件（筆記、PDF 文字、知識條目），作為向量匹配後的內容回查來源。</p>
+<pre><code class="language-javascript">// 建立資料表
+// CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL)
+
+// 插入筆記並取得 ID
+const { results } = await env.DB.prepare(
+  &#x27;INSERT INTO notes (text) VALUES (?) RETURNING *&#x27;
+).bind(text).run();
+
+// 依 ID 回查原文
+const note = await env.DB.prepare(
+  &#x27;SELECT text FROM notes WHERE id = ?&#x27;
+).bind(matchedId).first();</code></pre>
+<hr>
+<h2 id="完整-rag-管線流程">完整 RAG 管線流程</h2>
+<h3 id="資料攝取-indexing-pipeline">資料攝取（Indexing Pipeline）</h3>
+<pre><code class="language-plaintext">使用者上傳文件
+  → 文件儲存至 D1（結構化文字）或 R2（PDF/圖片）
+  → 文字拆分為 Chunks（使用 RecursiveCharacterTextSplitter）
+  → 每個 Chunk 通過 Workers AI 嵌入模型轉為 768 維向量
+  → 向量 + 中繼資料寫入 Vectorize 索引</code></pre>
+<h3 id="查詢管線-query-pipeline">查詢管線（Query Pipeline）</h3>
+<pre><code class="language-plaintext">使用者提問
+  → 問題通過相同嵌入模型轉為查詢向量
+  → Vectorize 執行餘弦相似度搜尋（topK=3）
+  → 取回匹配的向量 ID + 分數
+  → 依 ID 從 D1 回查原始文字
+  → 組裝上下文：系統提示 + 相關文件 + 使用者問題
+  → Workers AI LLM 生成有脈絡的回答</code></pre>
+<h3 id="hono-路由範例">Hono 路由範例</h3>
+<pre><code class="language-javascript">import { Hono } from &#x27;hono&#x27;;
+const app = new Hono();
+
+// 新增筆記（嵌入 + 儲存）
+app.post(&#x27;/notes&#x27;, async (c) =&gt; {
+  const { text } = await c.req.json();
+  const { results } = await c.env.DB.prepare(
+    &#x27;INSERT INTO notes (text) VALUES (?) RETURNING *&#x27;
+  ).bind(text).run();
+  const record = results[0];
+  const { data } = await c.env.AI.run(&#x27;@cf/baai/bge-base-en-v1.5&#x27;, { text });
+  await c.env.VECTOR_INDEX.upsert([{
+    id: record.id.toString(),
+    values: data[0]
+  }]);
+  return c.json({ id: record.id });
+});
+
+// RAG 查詢
+app.get(&#x27;/&#x27;, async (c) =&gt; {
+  const question = c.req.query(&#x27;text&#x27;);
+  const { data } = await c.env.AI.run(&#x27;@cf/baai/bge-base-en-v1.5&#x27;, { text: question });
+  const vectors = await c.env.VECTOR_INDEX.query(data[0], { topK: 3 });
+  const ids = vectors.matches.map(m =&gt; m.id);
+  // 從 D1 回查原文...
+  const answer = await c.env.AI.run(&#x27;@cf/meta/llama-3-8b-instruct&#x27;, {
+    messages: [{ role: &#x27;system&#x27;, content: contextWithNotes }, { role: &#x27;user&#x27;, content: question }]
+  });
+  return c.json({ answer });
+});</code></pre>
+<hr>
+<h2 id="autorag-全託管-rag-管線-2025-open-beta">AutoRAG：全託管 RAG 管線（2025 Open Beta）</h2>
+<h3 id="核心價值">核心價值</h3>
+<p>AutoRAG 是 Cloudflare 在 2025 年推出的全託管 RAG 解決方案，將上述手動流程濃縮為<strong>一行程式碼</strong>：</p>
+<pre><code class="language-javascript">const answer = await env.AI.autorag(&#x27;my-rag&#x27;).aiSearch({
+  query: &#x27;什麼是 AutoRAG？&#x27;
+});
+
+// 純搜尋（不經 LLM）
+const results = await env.AI.autorag(&#x27;my-rag&#x27;).search({
+  query: &#x27;向量資料庫&#x27;
+});</code></pre>
+<h3 id="自動化管線">自動化管線</h3>
+<table>
+<tr><th>步驟</th><th>手動 RAG</th><th>AutoRAG</th></tr>
+<tr><td>資料攝取</td><td>自己寫 Worker</td><td>自動從 R2 抓取</td></tr>
+<tr><td>格式轉換</td><td>自己處理 PDF/圖片</td><td>Workers AI 自動轉 Markdown</td></tr>
+<tr><td>文件拆分</td><td>自己實作 Chunking</td><td>自動拆分</td></tr>
+<tr><td>嵌入生成</td><td>呼叫嵌入 API</td><td>自動嵌入</td></tr>
+<tr><td>向量儲存</td><td>手動 upsert</td><td>自動寫入 Vectorize</td></tr>
+<tr><td>查詢改寫</td><td>無</td><td>LLM 自動改寫查詢</td></tr>
+<tr><td>語義搜尋</td><td>手動查詢 Vectorize</td><td>自動搜尋</td></tr>
+<tr><td>回答生成</td><td>手動組裝 prompt</td><td>自動生成有脈絡的回答</td></tr>
+<tr><td>持續索引</td><td>手動觸發</td><td>持續循環自動處理新/更新文件</td></tr>
+</table>
+<h3 id="限制">限制</h3>
+<ul>
+<li>資料來源：目前僅支援 R2（路線圖含 D1、URL 解析）</li>
+<li>帳戶上限：最多 10 個 AutoRAG 實例</li>
+<li>檔案上限：每個實例最多 10 萬個檔案</li>
+<li>自訂性較低：無法控制 Chunking 策略、Reranking 等細節</li>
+</ul>
+<hr>
+<h2 id="手動-vs-autorag-決策矩陣">手動 vs AutoRAG 決策矩陣</h2>
+<table>
+<tr><th>面向</th><th>手動組裝</th><th>AutoRAG</th></tr>
+<tr><td><strong>控制度</strong></td><td>完全控制 Chunking、嵌入、Reranking</td><td>託管，有限自訂</td></tr>
+<tr><td><strong>開發速度</strong></td><td>需數小時至數天</td><td>分鐘級部署</td></tr>
+<tr><td><strong>資料來源</strong></td><td>任意（D1、R2、外部 API）</td><td>僅 R2（目前）</td></tr>
+<tr><td><strong>成本透明度</strong></td><td>各元件獨立計費</td><td>各元件獨立計費（Beta 免費）</td></tr>
+<tr><td><strong>適用場景</strong></td><td>進階 RAG、自訂管線、混合搜尋</td><td>快速 MVP、文件問答、客服機器人</td></tr>
+<tr><td><strong>維護負擔</strong></td><td>需自行監控各元件</td><td>Cloudflare 統一管理</td></tr>
+</table>
+<hr>
+<h2 id="進階模式與最佳實踐">進階模式與最佳實踐</h2>
+<h3 id="1-文件拆分策略">1. 文件拆分策略</h3>
+<p>大型文件應使用 LangChain 的 <code>RecursiveCharacterTextSplitter</code> 進行語義拆分：</p>
+<pre><code class="language-javascript">import { RecursiveCharacterTextSplitter } from &#x27;@langchain/textsplitters&#x27;;
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200
+});
+const chunks = await splitter.splitText(documentText);</code></pre>
+<h3 id="2-刪除管理">2. 刪除管理</h3>
+<p>刪除文件時必須同時刪除對應的向量，否則會產生幽靈匹配：</p>
+<pre><code class="language-javascript">await env.DB.prepare(&#x27;DELETE FROM notes WHERE id = ?&#x27;).bind(id).run();
+await env.VECTOR_INDEX.deleteByIds([id.toString()]);</code></pre>
+<h3 id="3-ai-gateway-監控">3. AI Gateway 監控</h3>
+<p>整合 AI Gateway 可以：</p>
+<ul>
+<li>追蹤每個推論請求的延遲和成本</li>
+<li>設定速率限制防止濫用</li>
+<li>啟用回應快取減少重複推論</li>
+<li>記錄所有請求供審計</li>
+</ul>
+<h3 id="4-workflows-持久化">4. Workflows 持久化</h3>
+<p>使用 Cloudflare Workflows 處理多步驟的攝取流程，確保在單一步驟失敗時可以從中斷點恢復，而非重新開始整個管線。</p>
+<hr>
+<h2 id="與本專案-daily-digest-prompt-的關聯">與本專案（daily-digest-prompt）的關聯</h2>
+<h3 id="待辦事項對應">待辦事項對應</h3>
+<ol>
+<li><strong>知識庫→CF 網站部署</strong>：可用 AutoRAG 將現有 localhost:3000 知識庫（215+ 篇）的內容匯入 R2，部署為邊緣 RAG 應用。一行程式碼即可提供語義搜尋 + AI 問答。</li>
+</ol>
+<ol>
+<li><strong>CF 遊戲設計部署</strong>：遊戲靜態資產用 Workers Static Assets，遊戲知識（設計文件、玩家回饋）用 Vectorize + D1 建構 RAG 驅動的遊戲助手。</li>
+</ol>
+<ol>
+<li><strong>深度思維 RAG 洞見報告</strong>：本研究本身就是 RAG 技術的最新洞見，可作為評估現有 RAG 系統（localhost:3000）與 Cloudflare 邊緣 RAG 的差異分析基礎。</li>
+</ol>
+<h3 id="遷移路徑建議">遷移路徑建議</h3>
+<pre><code class="language-plaintext">階段 1：將知識庫 Markdown 內容匯出為 .md 檔案，上傳至 R2
+階段 2：建立 AutoRAG 實例，自動索引所有文件
+階段 3：前端用 Workers 託管，查詢透過 AutoRAG API
+階段 4：進階需求時切換回手動管線（自訂 Chunking + Reranking）</code></pre>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li>Cloudflare Workers AI RAG Tutorial: https://developers.cloudflare.com/workers-ai/guides/tutorials/build-a-retrieval-augmented-generation-ai/</li>
+<li>Introducing AutoRAG: https://blog.cloudflare.com/introducing-autorag-on-cloudflare/</li>
+<li>Building Vectorize: https://blog.cloudflare.com/building-vectorize-a-distributed-vector-database-on-cloudflare-developer-platform/</li>
+<li>Vectorize Documentation: https://developers.cloudflare.com/vectorize/</li>
+<li>Workers AI at the Edge: https://www.gocodeo.com/post/running-ai-at-the-edge-how-cloudflare-workers-support-serverless-intelligence</li>
+<li>Chat with PDF on Cloudflare: https://rohitpatil.com/blog/ai-rag-with-vectorize.html</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Claude Code Agent</em>
+<em>研究類型：todoist_research — 深度思維 RAG + CF 部署</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

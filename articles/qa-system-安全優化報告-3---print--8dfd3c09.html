@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 安全優化報告 #3 - print() 洩漏修復與 JWT/依賴版本鎖定">
+  <title>QA System 安全優化報告 #3 - print() 洩漏修復與 JWT/依賴版本鎖定 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-security">資訊安全</span>
+        <h1>QA System 安全優化報告 #3 - print() 洩漏修復與 JWT/依賴版本鎖定</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">print洩漏</span><span class="tag">JWT安全</span><span class="tag">依賴管理</span><span class="tag">品質改善</span><span class="tag">OWASP</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化方向">優化方向</a></li><li><a href="#已修復問題-5-項">已修復問題（5 項）</a></li>  <li><a href="#1-dependencies-py-13-處-print-洩漏-中等">1. dependencies.py 13 處 print() 洩漏（中等）</a></li>  <li><a href="#2-export-py-5-處-print-洩漏-中等">2. export.py 5 處 print() 洩漏（中等）</a></li>  <li><a href="#3-main-py-print-artifact-洩漏-sso-token-中等">3. main.py print(artifact) 洩漏 SSO Token（中等）</a></li>  <li><a href="#4-jwt-fallback-過期時間-24-小時過長-中等">4. JWT fallback 過期時間 24 小時過長（中等）</a></li>  <li><a href="#5-requirements-txt-未鎖定版本號-中等">5. requirements.txt 未鎖定版本號（中等）</a></li><li><a href="#累計修復進度">累計修復進度</a></li><li><a href="#待處理事項">待處理事項</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #3</h1>
+<blockquote><p>日期：2026-02-16 | 品質分數：3.5/5 | 第三次掃描</p>
+</blockquote>
+<h2 id="優化方向">優化方向</h2>
+<p>print() 敏感資訊洩漏修復 + JWT fallback 過期時間對齊 + 依賴版本鎖定（承接第二次掃描的 remaining_issues）</p>
+<h2 id="已修復問題-5-項">已修復問題（5 項）</h2>
+<h3 id="1-dependencies-py-13-處-print-洩漏-中等">1. dependencies.py 13 處 print() 洩漏（中等）</h3>
+<ul>
+<li><strong>位置</strong>：<code>app/dependencies.py</code> 第 200-285 行</li>
+<li><strong>問題</strong>：check_page_permission 和 can_access_department 使用 print() 輸出使用者名稱、權限、部門 ID 等 PII 到 stdout</li>
+<li><strong>修復</strong>：全部改用 <code>logging.getLogger(__name__)</code>，按嚴重程度分級（debug/info/warning），移除所有 PII（使用者名稱、部門 ID）</li>
+<li><strong>OWASP</strong>：A09 安全日誌記錄與監控失敗</li>
+</ul>
+<h3 id="2-export-py-5-處-print-洩漏-中等">2. export.py 5 處 print() 洩漏（中等）</h3>
+<ul>
+<li><strong>位置</strong>：<code>app/routers/export.py</code> 第 67-231 行</li>
+<li><strong>問題</strong>：匯出功能中洩漏部門 ID、名稱、狀態值到 stdout</li>
+<li><strong>修復</strong>：新增 logger，全部改用 logger.debug/info/warning</li>
+</ul>
+<h3 id="3-main-py-print-artifact-洩漏-sso-token-中等">3. main.py print(artifact) 洩漏 SSO Token（中等）</h3>
+<ul>
+<li><strong>位置</strong>：<code>main.py</code> 第 184 行</li>
+<li><strong>問題</strong>：直接 print SSO artifact token 到 stdout，最嚴重的 print 洩漏</li>
+<li><strong>修復</strong>：直接移除該行</li>
+</ul>
+<h3 id="4-jwt-fallback-過期時間-24-小時過長-中等">4. JWT fallback 過期時間 24 小時過長（中等）</h3>
+<ul>
+<li><strong>位置</strong>：<code>app/dependencies.py</code> 第 304 行</li>
+<li><strong>問題</strong>：create_access_token 的 fallback 過期時間為 24 小時（timedelta(minutes=60*24)），與 config.py 的 30 分鐘不一致</li>
+<li><strong>修復</strong>：改為 <code>timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)</code>，與 config.py 對齊</li>
+<li><strong>OWASP</strong>：A07 身份驗證失敗</li>
+</ul>
+<h3 id="5-requirements-txt-未鎖定版本號-中等">5. requirements.txt 未鎖定版本號（中等）</h3>
+<ul>
+<li><strong>問題</strong>：8 個依賴無版本限制，存在供應鏈攻擊風險；zeep（SOAP 客戶端）和 python-multipart 遺漏</li>
+<li><strong>修復</strong>：所有依賴加 <code>&gt;=current,&lt;next_major</code> 範圍鎖定；補充 zeep 和 python-multipart</li>
+</ul>
+<h2 id="累計修復進度">累計修復進度</h2>
+<table>
+<tr><th>次數</th><th>修復項目</th><th>品質分</th></tr>
+<tr><td>#1</td><td>SQL 注入、硬編碼密碼、Cookie 安全</td><td>2/5</td></tr>
+<tr><td>#2</td><td>SECRET_KEY、CORS、錯誤洩漏</td><td>3/5</td></tr>
+<tr><td>#3</td><td>print洩漏、JWT過期、依賴鎖定</td><td>3.5/5</td></tr>
+</table>
+<h2 id="待處理事項">待處理事項</h2>
+<ol>
+<li>questions.py 超過 1000 行，應拆分</li>
+<li>重複函式整合（main.py vs dependencies.py）</li>
+<li>補全測試覆蓋</li>
+<li>SSO 重定向 URL 改用環境變數</li>
+</ol>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

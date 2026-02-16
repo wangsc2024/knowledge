@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -16,27 +17,39 @@
         <a href="../#thinking">思維方法</a>
         <a href="../#ai">AI技術</a>
         <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
       </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
     </div>
   </header>
 
   <main class="container">
     <article>
       <div class="article-header">
-        <span class="category-badge category-claude">Claude_Code</span>
+        <span class="category-badge category-claude">Claude Code</span>
         <h1>Claude Code 2026 技術更新與 Agent SDK 完整指南</h1>
         <div class="article-meta">
+          <span class="date">2026-02-12</span>
           <div class="tags"><span class="tag">Claude Code</span><span class="tag">AI工具</span><span class="tag">技術更新</span><span class="tag">Agent SDK</span><span class="tag">Python</span><span class="tag">TypeScript</span></div>
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#主題概述">主題概述</a></li><li><a href="#最新功能列表">最新功能列表</a></li>  <li><a href="#1-claude-agent-sdk-原-claude-code-sdk">1. Claude Agent SDK（原 Claude Code SDK）</a></li>  <li><a href="#2-subagents-子代理">2. Subagents（子代理）</a></li>  <li><a href="#3-hooks-生命週期鉤子">3. Hooks（生命週期鉤子）</a></li>  <li><a href="#4-checkpoint-系統">4. Checkpoint 系統</a></li>  <li><a href="#5-background-tasks-背景任務">5. Background Tasks（背景任務）</a></li>  <li><a href="#6-multi-agent-collaboration-agent-teams">6. Multi-Agent Collaboration（Agent Teams）</a></li>  <li><a href="#7-新模型支援">7. 新模型支援</a></li>  <li><a href="#8-mcp-整合">8. MCP 整合</a></li>  <li><a href="#9-介面更新">9. 介面更新</a></li>  <li><a href="#10-安裝方式變更">10. 安裝方式變更</a></li><li><a href="#使用範例">使用範例</a></li>  <li><a href="#python-sdk-基本用法">Python SDK 基本用法</a></li>  <li><a href="#typescript-sdk-基本用法">TypeScript SDK 基本用法</a></li>  <li><a href="#定義自訂-subagent">定義自訂 Subagent</a></li>  <li><a href="#hooks-範例-審計日誌">Hooks 範例（審計日誌）</a></li>  <li><a href="#session-恢復">Session 恢復</a></li><li><a href="#權限模式">權限模式</a></li><li><a href="#驗證策略">驗證策略</a></li><li><a href="#第三方平台支援">第三方平台支援</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>Claude Code 2026 技術更新與 Agent SDK 完整指南</h1>
-<h2>主題概述</h2>
+<h2 id="主題概述">主題概述</h2>
 <p>Claude Code 在 2026 年迎來重大更新，最顯著的變化是 <strong>Claude Code SDK 正式更名為 Claude Agent SDK</strong>，反映其已超越純粹的程式碼工具，成為通用型 AI 代理開發框架。新版本引入了多代理協作（Agent Teams）、Checkpoint 回滾系統、Background Tasks、以及完整的 Hooks 生命週期管理。Claude Opus 4.6 模型現已可用，支援 1M token 上下文視窗（beta）。</p>
 <hr>
-<h2>最新功能列表</h2>
-<h3>1. Claude Agent SDK（原 Claude Code SDK）</h3>
+<h2 id="最新功能列表">最新功能列表</h2>
+<h3 id="1-claude-agent-sdk-原-claude-code-sdk">1. Claude Agent SDK（原 Claude Code SDK）</h3>
 <table>
 <tr><th>功能</th><th>說明</th></tr>
 <tr><td><strong>重新命名</strong></td><td>Claude Code SDK → Claude Agent SDK，反映更廣泛的應用場景</td></tr>
@@ -51,13 +64,13 @@
 <li><strong>Verify Work</strong> - 評估輸出品質</li>
 <li><strong>Iterate</strong> - 根據反饋精進結果</li>
 </ol>
-<h3>2. Subagents（子代理）</h3>
+<h3 id="2-subagents-子代理">2. Subagents（子代理）</h3>
 <ul>
 <li>委派專門任務給子代理，如後端 API 與前端同步開發</li>
 <li>支援平行處理和隔離上下文管理</li>
 <li>透過 <code>parent_tool_use_id</code> 追蹤子代理訊息歸屬</li>
 </ul>
-<h3>3. Hooks（生命週期鉤子）</h3>
+<h3 id="3-hooks-生命週期鉤子">3. Hooks（生命週期鉤子）</h3>
 <table>
 <tr><th>Hook 名稱</th><th>觸發時機</th></tr>
 <tr><td><code>PreToolUse</code></td><td>工具執行前</td></tr>
@@ -67,18 +80,18 @@
 <tr><td><code>SessionEnd</code></td><td>會話結束</td></tr>
 <tr><td><code>UserPromptSubmit</code></td><td>用戶提交提示時</td></tr>
 </table>
-<h3>4. Checkpoint 系統</h3>
+<h3 id="4-checkpoint-系統">4. Checkpoint 系統</h3>
 <ul>
 <li>自動在每次變更前保存程式碼狀態</li>
 <li>按兩次 <code>Esc</code> 或使用 <code>/rewind</code> 命令可即時回滾</li>
 <li>僅適用於 Claude 的編輯，不包含用戶編輯或 bash 命令</li>
 </ul>
-<h3>5. Background Tasks（背景任務）</h3>
+<h3 id="5-background-tasks-背景任務">5. Background Tasks（背景任務）</h3>
 <ul>
 <li>長時間運行的進程（如 dev server）可在背景持續執行</li>
 <li>不會阻塞 Claude Code 處理其他工作</li>
 </ul>
-<h3>6. Multi-Agent Collaboration（Agent Teams）</h3>
+<h3 id="6-multi-agent-collaboration-agent-teams">6. Multi-Agent Collaboration（Agent Teams）</h3>
 <ul>
 <li>實驗性功能，需設定環境變數啟用：</li>
 </ul>
@@ -88,30 +101,30 @@
 <ul>
 <li>包含 Team Lead、Teammates、共享任務清單</li>
 </ul>
-<h3>7. 新模型支援</h3>
+<h3 id="7-新模型支援">7. 新模型支援</h3>
 <ul>
 <li><strong>Claude Opus 4.6</strong>：1M token 上下文（beta）、Terminal-Bench 2.0 最高分</li>
 <li><strong>Claude Sonnet 4.5</strong>：現為預設模型</li>
 </ul>
-<h3>8. MCP 整合</h3>
+<h3 id="8-mcp-整合">8. MCP 整合</h3>
 <ul>
 <li>支援 Model Context Protocol 連接外部系統</li>
 <li>預設支援 Playwright、GitHub、Slack 等</li>
 <li>新增 <code>--client-id</code> 和 <code>--client-secret</code> 參數</li>
 </ul>
-<h3>9. 介面更新</h3>
+<h3 id="9-介面更新">9. 介面更新</h3>
 <ul>
 <li>可搜尋的提示歷史（<code>Ctrl+r</code>）</li>
 <li>VS Code 擴充支援 inline diff、@-mentions</li>
 <li>檔案路徑支援 OSC 8 超連結</li>
 </ul>
-<h3>10. 安裝方式變更</h3>
+<h3 id="10-安裝方式變更">10. 安裝方式變更</h3>
 <pre><code class="language-bash"># npm 安裝已棄用，改用：
 brew install claude-code        # macOS
 winget install Anthropic.ClaudeCode  # Windows</code></pre>
 <hr>
-<h2>使用範例</h2>
-<h3>Python SDK 基本用法</h3>
+<h2 id="使用範例">使用範例</h2>
+<h3 id="python-sdk-基本用法">Python SDK 基本用法</h3>
 <pre><code class="language-python">import asyncio
 from claude_agent_sdk import query, ClaudeAgentOptions
 
@@ -123,7 +136,7 @@ async def main():
         print(message)
 
 asyncio.run(main())</code></pre>
-<h3>TypeScript SDK 基本用法</h3>
+<h3 id="typescript-sdk-基本用法">TypeScript SDK 基本用法</h3>
 <pre><code class="language-typescript">import { query } from &quot;@anthropic-ai/claude-agent-sdk&quot;;
 
 for await (const message of query({
@@ -132,7 +145,7 @@ for await (const message of query({
 })) {
   console.log(message);
 }</code></pre>
-<h3>定義自訂 Subagent</h3>
+<h3 id="定義自訂-subagent">定義自訂 Subagent</h3>
 <pre><code class="language-python">from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition
 
 async for message in query(
@@ -149,7 +162,7 @@ async for message in query(
     ),
 ):
     print(message)</code></pre>
-<h3>Hooks 範例（審計日誌）</h3>
+<h3 id="hooks-範例-審計日誌">Hooks 範例（審計日誌）</h3>
 <pre><code class="language-python">from claude_agent_sdk import query, ClaudeAgentOptions, HookMatcher
 from datetime import datetime
 
@@ -171,7 +184,7 @@ async for message in query(
     ),
 ):
     print(message)</code></pre>
-<h3>Session 恢復</h3>
+<h3 id="session-恢復">Session 恢復</h3>
 <pre><code class="language-python"># 第一次查詢：捕獲 session_id
 session_id = None
 async for message in query(
@@ -188,7 +201,7 @@ async for message in query(
 ):
     print(message)</code></pre>
 <hr>
-<h2>權限模式</h2>
+<h2 id="權限模式">權限模式</h2>
 <table>
 <tr><th>模式</th><th>說明</th></tr>
 <tr><td><code>bypassPermissions</code></td><td>完全繞過權限檢查（適用於唯讀代理）</td></tr>
@@ -196,14 +209,14 @@ async for message in query(
 <tr><td>預設</td><td>需要用戶批准敏感操作</td></tr>
 </table>
 <hr>
-<h2>驗證策略</h2>
+<h2 id="驗證策略">驗證策略</h2>
 <ol>
 <li><strong>Rules-based</strong> - 程式碼 lint 和定義的驗證規則</li>
 <li><strong>Visual feedback</strong> - 截圖和渲染輸出用於 UI 驗證</li>
 <li><strong>LLM judgment</strong> - 次要模型評估主觀品質</li>
 </ol>
 <hr>
-<h2>第三方平台支援</h2>
+<h2 id="第三方平台支援">第三方平台支援</h2>
 <ul>
 <li><strong>Amazon Bedrock</strong>：<code>CLAUDE_CODE_USE_BEDROCK=1</code></li>
 <li><strong>Google Vertex AI</strong>：<code>CLAUDE_CODE_USE_VERTEX=1</code></li>
@@ -211,7 +224,7 @@ async for message in query(
 <li><strong>Apple Xcode 26.3</strong>：原生整合 Claude Agent SDK</li>
 </ul>
 <hr>
-<h2>參考來源</h2>
+<h2 id="參考來源">參考來源</h2>
 <ul>
 <li><a href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk">Building agents with the Claude Agent SDK</a></li>
 <li><a href="https://platform.claude.com/docs/en/agent-sdk/overview">Agent SDK overview - Claude API Docs</a></li>
@@ -224,14 +237,28 @@ async for message in query(
 
       </div>
 
-      <a href="../" class="back-link">← 返回首頁</a>
+      <a href="../" class="back-link">&larr; 返回首頁</a>
     </article>
   </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
 
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
     </div>
   </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
 </body>
 </html>

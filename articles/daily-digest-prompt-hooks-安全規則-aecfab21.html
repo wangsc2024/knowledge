@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt Hooks 安全規則修正與測試強化 - 2026-02-16">
+  <title>Daily-Digest-Prompt Hooks 安全規則修正與測試強化 - 2026-02-16 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Daily-Digest-Prompt Hooks 安全規則修正與測試強化 - 2026-02-16</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-15</span>
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">Hooks</span><span class="tag">安全規則</span><span class="tag">測試</span><span class="tag">daily-digest-prompt</span><span class="tag">正規表達式</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#日期">日期</a></li><li><a href="#優化摘要">優化摘要</a></li><li><a href="#發現的問題">發現的問題</a></li>  <li><a href="#1-destructive-delete-正規表達式誤判-bug-已修正">1. destructive-delete 正規表達式誤判（BUG - 已修正）</a></li>  <li><a href="#2-post_tool_logger-py-錯誤偵測誤報風險-增強">2. post_tool_logger.py 錯誤偵測誤報風險（增強）</a></li>  <li><a href="#3-缺少-post_tool_logger-py-測試-已補充">3. 缺少 post_tool_logger.py 測試（已補充）</a></li>  <li><a href="#4-缺少-on_stop_alert-py-測試-已補充">4. 缺少 on_stop_alert.py 測試（已補充）</a></li><li><a href="#修改檔案清單">修改檔案清單</a></li><li><a href="#測試結果">測試結果</a></li><li><a href="#技術要點">技術要點</a></li>  <li><a href="#正規表達式安全設計原則">正規表達式安全設計原則</a></li>  <li><a href="#錯誤偵測誤報防範">錯誤偵測誤報防範</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt Hooks 安全規則修正與測試強化</h1>
+<h2 id="日期">日期</h2>
+<p>2026-02-16</p>
+<h2 id="優化摘要">優化摘要</h2>
+<p>針對 daily-digest-prompt 專案的 Hooks 機器強制層進行深度分析與優化，發現並修正安全規則 bug，同時大幅提升測試覆蓋率。</p>
+<h2 id="發現的問題">發現的問題</h2>
+<h3 id="1-destructive-delete-正規表達式誤判-bug-已修正">1. destructive-delete 正規表達式誤判（BUG - 已修正）</h3>
+<p><strong>問題</strong>：<code>rm\s+-[rR]f\s+\.（\s|$|/）</code> 會錯誤攔截 <code>rm -rf ./temp</code> 等合法操作。</p>
+<p><strong>根因</strong>：正規表達式中 <code>\.</code> 後面的 <code>(\s|$|/)</code> 允許 <code>/</code> 匹配。<code>rm -rf ./temp</code> 中 <code>.</code> 後接 <code>/</code> 導致誤攔截。</p>
+<p><strong>修正</strong>：將 pattern 改為 <code>rm\s+-[rR]f\s+\.(\s|$)</code> -- 只在 <code>.</code> 後接空白或行尾時攔截（真正的 <code>rm -rf .</code>）。</p>
+<p><strong>影響範圍</strong>：</p>
+<ul>
+<li><code>hooks/pre_bash_guard.py</code> FALLBACK_BASH_RULES</li>
+<li><code>config/hook-rules.yaml</code> bash_rules</li>
+<li>兩處必須同步修正</li>
+</ul>
+<h3 id="2-post_tool_logger-py-錯誤偵測誤報風險-增強">2. post_tool_logger.py 錯誤偵測誤報風險（增強）</h3>
+<p><strong>問題</strong>：BENIGN_PATTERNS 清單不夠完整，可能對包含 <code>0 failed</code>、<code>errors: []</code>、<code>exit code 0</code> 等成功訊息產生誤報。</p>
+<p><strong>修正</strong>：新增 7 個 benign pattern：</p>
+<ul>
+<li><code>0 failed</code> -- 匯入成功回應</li>
+<li><code>error_tools</code> -- 分析欄位名</li>
+<li><code>error_detect</code> -- 變數名</li>
+<li><code>failed_count</code> -- JSON 欄位名</li>
+<li><code>exit code 0</code> -- 成功退出</li>
+<li><code>errors: []</code> -- 空錯誤陣列</li>
+<li><code>errors: 0</code> -- 零錯誤</li>
+</ul>
+<h3 id="3-缺少-post_tool_logger-py-測試-已補充">3. 缺少 post_tool_logger.py 測試（已補充）</h3>
+<p>核心日誌模組有 5 個分類函式但完全沒有測試。新增 45 個測試案例覆蓋：</p>
+<ul>
+<li>API 來源偵測（8 個）</li>
+<li>Bash 指令分類（11 個）</li>
+<li>Write 工具分類（10 個）</li>
+<li>Read 工具分類（8 個）</li>
+<li>Edit 工具分類（4 個）</li>
+<li>錯誤偵測邏輯（5 個）</li>
+</ul>
+<h3 id="4-缺少-on_stop_alert-py-測試-已補充">4. 缺少 on_stop_alert.py 測試（已補充）</h3>
+<p>Session 結束告警模組有複雜邏輯但無測試。新增 18 個測試案例覆蓋：</p>
+<ul>
+<li>日誌分析（6 個）</li>
+<li>告警訊息建置（6 個）</li>
+<li>Session 隔離讀取（2 個）</li>
+<li>Session 摘要寫入（1 個）</li>
+<li>日誌輪替（2 個）</li>
+<li>健康狀態判定（1 個）</li>
+</ul>
+<h2 id="修改檔案清單">修改檔案清單</h2>
+<table>
+<tr><th>檔案</th><th>變更類型</th><th>說明</th></tr>
+<tr><td><code>hooks/pre_bash_guard.py</code></td><td>修正</td><td>destructive-delete regex: `\.(\s</td><td>$</td><td>/)<code> 改為 </code>\.(\s</td><td>$)`</td></tr>
+<tr><td><code>config/hook-rules.yaml</code></td><td>修正</td><td>同步 destructive-delete regex</td></tr>
+<tr><td><code>hooks/post_tool_logger.py</code></td><td>增強</td><td>新增 7 個 BENIGN_PATTERNS</td></tr>
+<tr><td><code>tests/hooks/test_post_tool_logger.py</code></td><td>新增</td><td>45 個測試案例</td></tr>
+<tr><td><code>tests/hooks/test_on_stop_alert.py</code></td><td>新增</td><td>18 個測試案例</td></tr>
+</table>
+<h2 id="測試結果">測試結果</h2>
+<ul>
+<li>修正前：162 tests, 1 failed (<code>rm -rf ./temp</code> 誤攔截)</li>
+<li>修正後：225 tests, 0 failed</li>
+<li>新增測試：63 個</li>
+<li>語法檢查：全部 6 個 hooks Python 檔案通過</li>
+</ul>
+<h2 id="技術要點">技術要點</h2>
+<h3 id="正規表達式安全設計原則">正規表達式安全設計原則</h3>
+<ol>
+<li>攔截規則應「寧可漏放、不可誤殺」-- 合法操作被攔截比危險操作漏放更影響日常運作</li>
+<li>YAML 規則與 FALLBACK 規則必須同步維護，否則降級時行為不一致</li>
+<li>使用 parametrize 測試覆蓋 should_block 和 should_allow 邊界案例</li>
+</ol>
+<h3 id="錯誤偵測誤報防範">錯誤偵測誤報防範</h3>
+<ol>
+<li>BENIGN_PATTERNS 應持續擴充，每次發現誤報都加入新 pattern</li>
+<li>只對 ERROR_DETECT_TOOLS（Bash/Write/Edit）偵測錯誤，Read 工具讀取原始碼不做偵測</li>
+<li>先匹配 keyword 再排除 benign，兩層過濾降低誤報率</li>
+</ol>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

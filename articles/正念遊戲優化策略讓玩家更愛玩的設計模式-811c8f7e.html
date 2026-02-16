@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -19,7 +20,7 @@
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -35,17 +36,24 @@
         </div>
       </div>
 
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#分析對象">分析對象</a></li><li><a href="#已實作的留存機制-最佳實踐">已實作的留存機制（最佳實踐）</a></li>  <li><a href="#連續天數追蹤-streak">連續天數追蹤 (Streak)</a></li>  <li><a href="#成就系統">成就系統</a></li>  <li><a href="#localstorage-持久化">LocalStorage 持久化</a></li><li><a href="#建議優化-提升留存率">建議優化（提升留存率）</a></li>  <li><a href="#1-難度分級">1. 難度分級</a></li>  <li><a href="#2-每日挑戰">2. 每日挑戰</a></li>  <li><a href="#3-連續天數視覺化">3. 連續天數視覺化</a></li>  <li><a href="#4-音效回饋">4. 音效回饋</a></li><li><a href="#效能優化-參考-html5-遊戲開發指南">效能優化（參考 HTML5 遊戲開發指南）</a></li>  <li><a href="#整數座標">整數座標</a></li>  <li><a href="#批次繪製">批次繪製</a></li><li><a href="#結論">結論</a></li>
+        </ol>
+      </details>
+
       <div class="article-content">
         <h1>正念遊戲優化策略</h1>
-<h2>分析對象</h2>
+<h2 id="分析對象">分析對象</h2>
 <p>2026-02-15 分析 d:/source/game 中兩款正念遊戲：</p>
 <ol>
 <li><strong>念珠冥想 (mala-meditation)</strong> - 108 顆念珠點擊冥想</li>
 <li><strong>正念記憶 (mindful-memory)</strong> - 八正道配對記憶遊戲</li>
 </ol>
 <hr>
-<h2>已實作的留存機制（最佳實踐）</h2>
-<h3>連續天數追蹤 (Streak)</h3>
+<h2 id="已實作的留存機制-最佳實踐">已實作的留存機制（最佳實踐）</h2>
+<h3 id="連續天數追蹤-streak">連續天數追蹤 (Streak)</h3>
 <pre><code class="language-javascript">function updateStreakOnComplete() {
     const today = getDateString();
     const lastPlay = progress.lastPlayDate;
@@ -59,7 +67,7 @@
     progress.lastPlayDate = today;
 }</code></pre>
 <p><strong>原理</strong>：根據《原子習慣》，連續性是習慣形成的關鍵。視覺化的連續天數讓玩家「不想中斷」。</p>
-<h3>成就系統</h3>
+<h3 id="成就系統">成就系統</h3>
 <p>分為三類成就：</p>
 <ul>
 <li><strong>單次成就</strong>：首次完成、單次 N 圈</li>
@@ -71,21 +79,21 @@
     { id: &#x27;streak_7&#x27;, name: &#x27;七日禪修&#x27;, desc: &#x27;連續7天&#x27;, requirement: 7, type: &#x27;streak&#x27; },
     { id: &#x27;total_108&#x27;, name: &#x27;百八圓滿&#x27;, desc: &#x27;累計108圈&#x27;, requirement: 108, type: &#x27;total&#x27; }
 ];</code></pre>
-<h3>LocalStorage 持久化</h3>
+<h3 id="localstorage-持久化">LocalStorage 持久化</h3>
 <pre><code class="language-javascript">const STORAGE_KEY = &#x27;game_progress&#x27;;
 function saveProgress() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
 }</code></pre>
 <hr>
-<h2>建議優化（提升留存率）</h2>
-<h3>1. 難度分級</h3>
+<h2 id="建議優化-提升留存率">建議優化（提升留存率）</h2>
+<h3 id="1-難度分級">1. 難度分級</h3>
 <p>目前 mindful-memory 只有 4x4 固定難度。建議增加：</p>
 <ul>
 <li><strong>簡單</strong>：3x4（6 對）- 新手友好</li>
 <li><strong>標準</strong>：4x4（8 對）- 現有難度</li>
 <li><strong>挑戰</strong>：4x5（10 對）- 進階玩家</li>
 </ul>
-<h3>2. 每日挑戰</h3>
+<h3 id="2-每日挑戰">2. 每日挑戰</h3>
 <pre><code class="language-javascript">function getDailyChallenge() {
     const seed = new Date().toDateString();
     const challenges = [
@@ -96,7 +104,7 @@ function saveProgress() {
     return challenges[hashString(seed) % challenges.length];
 }</code></pre>
 <p><strong>效果</strong>：提供每日回訪理由，強化習慣迴路。</p>
-<h3>3. 連續天數視覺化</h3>
+<h3 id="3-連續天數視覺化">3. 連續天數視覺化</h3>
 <p>用火焰 🔥 數量表示連續強度：</p>
 <pre><code class="language-css">.streak-fire::before {
     content: &#x27;🔥&#x27;;
@@ -108,7 +116,7 @@ function saveProgress() {
 <li>8-14 天：3 個 🔥🔥🔥</li>
 <li>15+ 天：4 個 🔥🔥🔥🔥 + 特效</li>
 </ul>
-<h3>4. 音效回饋</h3>
+<h3 id="4-音效回饋">4. 音效回饋</h3>
 <p>使用 Web Audio API 產生簡單音效：</p>
 <pre><code class="language-javascript">const audioCtx = new AudioContext();
 function playTone(freq, duration) {
@@ -119,11 +127,11 @@ function playTone(freq, duration) {
     osc.stop(audioCtx.currentTime + duration);
 }</code></pre>
 <hr>
-<h2>效能優化（參考 HTML5 遊戲開發指南）</h2>
-<h3>整數座標</h3>
+<h2 id="效能優化-參考-html5-遊戲開發指南">效能優化（參考 HTML5 遊戲開發指南）</h2>
+<h3 id="整數座標">整數座標</h3>
 <pre><code class="language-javascript">const x = (CENTER_X + Math.cos(angle) * radius + 0.5) | 0;</code></pre>
 <p>避免子像素渲染造成模糊。</p>
-<h3>批次繪製</h3>
+<h3 id="批次繪製">批次繪製</h3>
 <pre><code class="language-javascript">// 相同顏色的物件一次 fill()
 ctx.fillStyle = COLORS.beadInactive;
 ctx.beginPath();
@@ -133,7 +141,7 @@ for (let i = 0; i &lt; beads.length; i++) {
 }
 ctx.fill(); // 一次繪製所有</code></pre>
 <hr>
-<h2>結論</h2>
+<h2 id="結論">結論</h2>
 <p>正念遊戲的核心是<strong>持續練習</strong>，因此留存機制比一般遊戲更重要。結合《原子習慣》的四大法則：</p>
 <ol>
 <li><strong>讓它顯而易見</strong>：連續天數、最佳紀錄顯示在首頁</li>
@@ -151,6 +159,8 @@ ctx.fill(); // 一次繪製所有</code></pre>
     </article>
   </main>
 
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
   <footer>
     <div class="container">
       <p>Powered by RAG Knowledge Base</p>
@@ -159,6 +169,14 @@ ctx.fill(); // 一次繪製所有</code></pre>
   <script>
     function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
   </script>
 </body>
 </html>

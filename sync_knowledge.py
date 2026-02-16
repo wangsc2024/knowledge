@@ -144,14 +144,59 @@ def tiptap_to_html(content_json):
 
     return render_node(doc)
 
+def extract_headings(html_content):
+    """從 HTML 中提取 h2/h3 標題用於生成 TOC"""
+    headings = []
+    pattern = re.compile(r'<h([23])>(.*?)</h[23]>', re.DOTALL)
+    for match in pattern.finditer(html_content):
+        level = int(match.group(1))
+        text = re.sub(r'<[^>]+>', '', match.group(2)).strip()
+        if text:
+            slug = re.sub(r'[^\w\u4e00-\u9fff]+', '-', text).strip('-').lower()[:40]
+            headings.append({'level': level, 'text': text, 'slug': slug})
+    return headings
+
+def inject_heading_ids(html_content, headings):
+    """在 HTML 標題中注入 id 屬性"""
+    result = html_content
+    for h in headings:
+        old = f'<h{h["level"]}>{re.escape(h["text"])}'
+        # Simple replacement: add id to first occurrence
+        pattern = f'<h{h["level"]}>'
+        target_text = h['text']
+        result = result.replace(
+            f'<h{h["level"]}>{target_text}</h{h["level"]}>',
+            f'<h{h["level"]} id="{h["slug"]}">{target_text}</h{h["level"]}>',
+            1
+        )
+    return result
+
+def generate_toc_html(headings):
+    """生成目錄 HTML"""
+    if len(headings) < 3:
+        return ''
+    items = []
+    for h in headings:
+        indent = '  ' if h['level'] == 3 else ''
+        items.append(f'{indent}<li><a href="#{h["slug"]}">{escape(h["text"])}</a></li>')
+    return f'''<details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          {"".join(items)}
+        </ol>
+      </details>'''
+
 def generate_article_html(note, category_name, category_slug):
-    """生成文章頁面 HTML"""
+    """生成文章頁面 HTML（含閱讀進度條、TOC、回到頂部）"""
     title = note.get('title', 'Untitled')
     tags = note.get('tags', []) or []
     content = note.get('content')
     updated = note.get('updatedAt', '')[:10]
 
     article_html = tiptap_to_html(content)
+    headings = extract_headings(article_html)
+    article_html = inject_heading_ids(article_html, headings)
+    toc_html = generate_toc_html(headings)
     tags_html = ''.join(f'<span class="tag">{escape(t)}</span>' for t in tags[:8])
 
     return f'''<!DOCTYPE html>
@@ -164,6 +209,7 @@ def generate_article_html(note, category_name, category_slug):
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+  <div class="reading-progress" id="readingProgress"></div>
   <header>
     <div class="container">
       <a href="../" class="logo">知識庫</a>
@@ -175,7 +221,7 @@ def generate_article_html(note, category_name, category_slug):
         <a href="../#game">遊戲</a>
       </nav>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">◐</span>
+        <span class="theme-icon">&#9680;</span>
       </button>
     </div>
   </header>
@@ -191,6 +237,8 @@ def generate_article_html(note, category_name, category_slug):
         </div>
       </div>
 
+      {toc_html}
+
       <div class="article-content">
         {article_html}
       </div>
@@ -198,6 +246,8 @@ def generate_article_html(note, category_name, category_slug):
       <a href="../" class="back-link">&larr; 返回首頁</a>
     </article>
   </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})" aria-label="回到頂部">&uarr;</button>
 
   <footer>
     <div class="container">
@@ -207,15 +257,24 @@ def generate_article_html(note, category_name, category_slug):
   <script>
     function toggleTheme(){{const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){{
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    }});
   </script>
 </body>
 </html>
 '''
 
-def generate_index_html(articles_by_category, sync_time, total_count):
-    """生成首頁 HTML"""
+def generate_index_html(articles_by_category, sync_time, total_count, new_article_ids=None):
+    """生成首頁 HTML（含最近更新、搜尋計數、分類折疊、回到頂部、鍵盤快捷鍵）"""
     sections = []
     nav_items = []
+    new_article_ids = new_article_ids or set()
 
     category_order = [
         ('佛學', 'buddhism'),
@@ -227,6 +286,41 @@ def generate_index_html(articles_by_category, sync_time, total_count):
         ('開源生態', 'opensource'),
         ('其他', 'other')
     ]
+
+    # 收集最近更新的文章（取最新 8 篇）
+    all_articles = []
+    cat_slug_map = {}
+    for cat_name, cat_slug in category_order:
+        cat_slug_map[cat_name] = cat_slug
+        for art in articles_by_category.get(cat_name, []):
+            art['_cat_name'] = cat_name
+            art['_cat_slug'] = cat_slug
+            all_articles.append(art)
+    all_articles.sort(key=lambda x: x.get('updated', ''), reverse=True)
+    recent_articles = all_articles[:8]
+
+    # 生成最近更新卡片
+    recent_cards = []
+    for art in recent_articles:
+        display_cat = art['_cat_name'].replace('_', ' ')
+        new_badge = '<span class="new-badge">NEW</span>' if art.get('id') in new_article_ids else ''
+        recent_cards.append(f'''
+        <div class="recent-card">
+          <h4><a href="articles/{art['slug']}.html">{escape(art['title'])}</a>{new_badge}</h4>
+          <div class="card-meta">
+            <span class="category-badge category-{art['_cat_slug']}">{display_cat}</span>
+            <span>{art.get('updated', '')}</span>
+          </div>
+        </div>''')
+
+    recent_section = f'''
+    <section class="recent-section" id="recent">
+      <h2>最近更新</h2>
+      <div class="recent-grid">
+{"".join(recent_cards)}
+      </div>
+    </section>
+'''
 
     for cat_name, cat_slug in category_order:
         articles = articles_by_category.get(cat_name, [])
@@ -242,10 +336,11 @@ def generate_index_html(articles_by_category, sync_time, total_count):
         for art in articles:
             tags_html = ''.join(f'<span class="tag">{escape(t)}</span>' for t in (art.get('tags') or [])[:4])
             date_str = art.get('updated', '')
+            new_badge = '<span class="new-badge">NEW</span>' if art.get('id') in new_article_ids else ''
             cards.append(f'''
         <article class="article-card" data-title="{escape(art['title'].lower())}" data-tags="{escape(','.join(art.get('tags') or []).lower())}">
           <span class="category-badge category-{cat_slug}">{display_name}</span>
-          <h3><a href="articles/{art['slug']}.html">{escape(art['title'])}</a></h3>
+          <h3><a href="articles/{art['slug']}.html">{escape(art['title'])}</a>{new_badge}</h3>
           <div class="card-footer">
             <span class="date">{date_str}</span>
             <div class="tags">{tags_html}</div>
@@ -254,8 +349,8 @@ def generate_index_html(articles_by_category, sync_time, total_count):
 ''')
 
         sections.append(f'''
-    <section class="category-section" id="{cat_slug}">
-      <h2>{display_name} <span class="count">({count})</span></h2>
+    <section class="category-section expanded" id="{cat_slug}">
+      <h2 onclick="this.parentElement.classList.toggle('expanded')">{display_name} <span class="count">({count})</span></h2>
       <div class="article-list">
 {"".join(cards)}
       </div>
@@ -297,13 +392,18 @@ def generate_index_html(articles_by_category, sync_time, total_count):
       </div>
       <div class="search-box">
         <input type="text" id="searchInput" placeholder="搜尋文章標題或標籤..." oninput="filterArticles(this.value)">
+        <span class="kbd-hint">/</span>
       </div>
+      <div class="search-count" id="searchCount"></div>
     </div>
   </section>
 
   <main class="container">
+{recent_section}
 {"".join(sections)}
   </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})" aria-label="回到頂部">&uarr;</button>
 
   <footer>
     <div class="container">
@@ -323,17 +423,38 @@ def generate_index_html(articles_by_category, sync_time, total_count):
       const query=q.toLowerCase().trim();
       const cards=document.querySelectorAll('.article-card');
       const sections=document.querySelectorAll('.category-section');
+      const recentSec=document.querySelector('.recent-section');
+      let visible=0;
       cards.forEach(c=>{{
         const t=c.getAttribute('data-title')||'';
         const tags=c.getAttribute('data-tags')||'';
-        c.style.display=(t.includes(query)||tags.includes(query))?'':'none';
+        const show=!query||t.includes(query)||tags.includes(query);
+        c.style.display=show?'':'none';
+        if(show)visible++;
       }});
       sections.forEach(s=>{{
-        const visible=s.querySelectorAll('.article-card[style=""],.article-card:not([style])');
-        const hidden=s.querySelectorAll('.article-card[style*="none"]');
-        s.style.display=(visible.length>0||hidden.length<s.querySelectorAll('.article-card').length)?'':'none';
+        const vis=s.querySelectorAll('.article-card:not([style*="none"])');
+        s.style.display=vis.length>0?'':'none';
+        if(vis.length>0&&!s.classList.contains('expanded'))s.classList.add('expanded');
       }});
+      if(recentSec)recentSec.style.display=query?'none':'';
+      const counter=document.getElementById('searchCount');
+      counter.textContent=query?visible+' 篇符合':'';
     }}
+
+    // Back to top
+    window.addEventListener('scroll',function(){{
+      const btn=document.getElementById('backToTop');
+      btn.classList.toggle('visible',window.scrollY>400);
+    }});
+
+    // Keyboard shortcut: / to focus search
+    document.addEventListener('keydown',function(e){{
+      if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){{
+        e.preventDefault();
+        document.getElementById('searchInput').focus();
+      }}
+    }});
   </script>
 </body>
 </html>
@@ -372,6 +493,7 @@ def main():
 
     articles_by_category = {}
     synced_notes = []
+    new_article_ids = set()
     new_count = 0
     updated_count = 0
     skipped_count = 0
@@ -400,6 +522,7 @@ def main():
                 updated_count += 1
             else:
                 new_count += 1
+                new_article_ids.add(note_id)
         else:
             skipped_count += 1
 
@@ -425,7 +548,7 @@ def main():
     # 生成首頁
     sync_time = datetime.now().strftime('%Y-%m-%d %H:%M')
     total_count = len(synced_notes)
-    index_html = generate_index_html(articles_by_category, sync_time, total_count)
+    index_html = generate_index_html(articles_by_category, sync_time, total_count, new_article_ids)
 
     with open(f'{OUTPUT_DIR}/index.html', 'w', encoding='utf-8') as f:
         f.write(index_html)
@@ -446,8 +569,9 @@ def main():
         json.dump(new_sync_log, f, ensure_ascii=False, indent=2)
 
     # 清理暫存檔
-    for f_name in ['temp_notes.json', 'temp_all_notes.json', 'temp_notes_p2.json',
-                    'temp_notes_p3.json', 'temp_notes_p4.json', 'temp_notes_p5.json']:
+    for f_name in ['temp_notes.json', 'temp_all_notes.json', 'temp_notes_p1.json',
+                    'temp_notes_p2.json', 'temp_notes_p3.json', 'temp_notes_p4.json',
+                    'temp_notes_p5.json']:
         temp_file = f'{OUTPUT_DIR}/{f_name}'
         if os.path.exists(temp_file):
             os.remove(temp_file)
