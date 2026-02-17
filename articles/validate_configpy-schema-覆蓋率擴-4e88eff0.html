@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="validate_config.py Schema 覆蓋率擴展：7/13 → 13/13 YAML 配置驗證">
+  <title>validate_config.py Schema 覆蓋率擴展：7/13 → 13/13 YAML 配置驗證 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>validate_config.py Schema 覆蓋率擴展：7/13 → 13/13 YAML 配置驗證</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">daily-digest-prompt</span><span class="tag">配置驗證</span><span class="tag">validate_config</span><span class="tag">測試</span><span class="tag">品質保證</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化摘要">優化摘要</a></li><li><a href="#問題描述">問題描述</a></li><li><a href="#風險分析">風險分析</a></li><li><a href="#解決方案">解決方案</a></li>  <li><a href="#新增-6-個-schema-定義">新增 6 個 Schema 定義</a></li>  <li><a href="#測試擴展">測試擴展</a></li><li><a href="#驗證結果">驗證結果</a></li><li><a href="#影響檔案">影響檔案</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>validate_config.py Schema 覆蓋率擴展</h1>
+<h2 id="優化摘要">優化摘要</h2>
+<p>將 <code>hooks/validate_config.py</code> 的 YAML 配置檔 schema 驗證覆蓋率從 7/13 擴展到 13/13，確保所有配置檔的結構完整性都受到自動化驗證保護。</p>
+<h2 id="問題描述">問題描述</h2>
+<p>專案 <code>config/</code> 目錄下共有 13 個 YAML 配置檔，但 <code>validate_config.py</code> 的 SCHEMAS 字典僅定義了 7 個檔案的驗證規則。以下 6 個配置檔缺少 schema 驗證：</p>
+<ol>
+<li><strong>pipeline.yaml</strong> - 每日摘要管線定義（步驟順序、Skill 依賴）</li>
+<li><strong>topic-rotation.yaml</strong> - 主題輪替策略（習慣/學習主題去重）</li>
+<li><strong>health-scoring.yaml</strong> - 健康評分 6 維度權重</li>
+<li><strong>audit-scoring.yaml</strong> - 系統審查 7 維度 38 子項評分規則</li>
+<li><strong>benchmark.yaml</strong> - 系統效能基準線</li>
+<li><strong>timeouts.yaml</strong> - 各 Agent 超時配置</li>
+</ol>
+<h2 id="風險分析">風險分析</h2>
+<p>配置檔缺少 schema 驗證意味著：</p>
+<ul>
+<li>手動編輯可能不小心刪除必要欄位而不被察覺</li>
+<li><code>check-health.ps1</code> 呼叫 validate_config 時無法偵測這些檔案的結構問題</li>
+<li>系統審查（system-audit）的 audit-scoring.yaml 若結構損壞，會導致審查流程靜默失敗</li>
+</ul>
+<h2 id="解決方案">解決方案</h2>
+<h3 id="新增-6-個-schema-定義">新增 6 個 Schema 定義</h3>
+<pre><code class="language-python"># pipeline.yaml - 管線步驟必須有 id 和 name
+&quot;pipeline.yaml&quot;: {
+    &quot;required_keys&quot;: [&quot;version&quot;, &quot;init&quot;, &quot;steps&quot;, &quot;finalize&quot;],
+    &quot;list_fields&quot;: {&quot;steps&quot;: [&quot;id&quot;, &quot;name&quot;]},
+}
+
+# topic-rotation.yaml - 必須包含兩組主題清單
+&quot;topic-rotation.yaml&quot;: {
+    &quot;required_keys&quot;: [&quot;version&quot;, &quot;strategy&quot;, &quot;habits_topics&quot;, &quot;learning_topics&quot;],
+}
+
+# health-scoring.yaml - 必須有分數區間和維度定義
+&quot;health-scoring.yaml&quot;: {
+    &quot;required_keys&quot;: [&quot;version&quot;, &quot;ranges&quot;, &quot;dimensions&quot;],
+}
+
+# audit-scoring.yaml - 必須有權重、等級、維度三大區塊
+&quot;audit-scoring.yaml&quot;: {
+    &quot;required_keys&quot;: [&quot;version&quot;, &quot;weight_profiles&quot;, &quot;grade_thresholds&quot;, &quot;dimensions&quot;],
+}
+
+# benchmark.yaml - metrics 列表中每項需有 name/target/weight
+&quot;benchmark.yaml&quot;: {
+    &quot;required_keys&quot;: [&quot;version&quot;, &quot;metrics&quot;],
+    &quot;list_fields&quot;: {&quot;metrics&quot;: [&quot;name&quot;, &quot;target&quot;, &quot;weight&quot;]},
+}
+
+# timeouts.yaml - 僅驗證 version 存在
+&quot;timeouts.yaml&quot;: {
+    &quot;required_keys&quot;: [&quot;version&quot;],
+}</code></pre>
+<h3 id="測試擴展">測試擴展</h3>
+<p>測試從 21 個增加到 36 個（+15），新增類別：</p>
+<ul>
+<li><strong>TestSchemaCoverage</strong>: 7 個新測試確認每個新 schema 已註冊</li>
+<li><strong>TestPipelineSchema</strong>: 2 個測試（缺少 steps、steps 缺少 id）</li>
+<li><strong>TestBenchmarkSchema</strong>: 2 個測試（metrics 缺少 weight、缺少 name）</li>
+<li><strong>TestTopicRotationSchema</strong>: 1 個測試（缺少 habits_topics）</li>
+<li><strong>TestAuditScoringSchema</strong>: 2 個測試（缺少 dimensions、缺少 weight_profiles）</li>
+<li><strong>TestHealthScoringSchema</strong>: 1 個測試（缺少 ranges）</li>
+</ul>
+<h2 id="驗證結果">驗證結果</h2>
+<ul>
+<li><code>python hooks/validate_config.py</code> 輸出：全部 13 個配置檔驗證通過</li>
+<li><code>python -m pytest tests/ -v</code> 輸出：321 passed（原 306，新增 15）</li>
+<li>全套件零失敗</li>
+</ul>
+<h2 id="影響檔案">影響檔案</h2>
+<table>
+<tr><th>檔案</th><th>變更</th></tr>
+<tr><td><code>hooks/validate_config.py</code></td><td>SCHEMAS 從 7 → 13 個 schema 定義</td></tr>
+<tr><td><code>tests/hooks/test_validate_config.py</code></td><td>測試從 21 → 36 個（+15），含 6 個 schema 特定驗證</td></tr>
+</table>
+<hr>
+<p><em>優化日期：2026-02-17</em>
+<em>優化者：Claude Code Agent</em>
+<em>任務 ID：6fxqhGvW6Qpv9MHX</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="六根淨化遊戲 v2.0 深度品質優化（2026-02-18）">
+  <title>六根淨化遊戲 v2.0 深度品質優化（2026-02-18） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>六根淨化遊戲 v2.0 深度品質優化（2026-02-18）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">品質優化</span><span class="tag">觸控支援</span><span class="tag">狀態機</span><span class="tag">響應式設計</span><span class="tag">six-roots-zen</span><span class="tag">2026-02-18</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化對象">優化對象</a></li><li><a href="#優化前問題分析">優化前問題分析</a></li>  <li><a href="#嚴重問題-p0">嚴重問題（P0）</a></li>  <li><a href="#重要問題-p1">重要問題（P1）</a></li><li><a href="#實作的優化-7-大項">實作的優化（7 大項）</a></li>  <li><a href="#1-手機觸控支援-p0-修復">1. 手機觸控支援（P0 修復）</a></li>  <li><a href="#2-明確狀態機-p0-修復">2. 明確狀態機（P0 修復）</a></li>  <li><a href="#3-手機版頂部統計列">3. 手機版頂部統計列</a></li>  <li><a href="#4-響應式佈局優化">4. 響應式佈局優化</a></li>  <li><a href="#5-es5-to-es6-現代化">5. ES5 to ES6+ 現代化</a></li>  <li><a href="#6-輸入框自動聚焦機制">6. 輸入框自動聚焦機制</a></li>  <li><a href="#7-閃電模式手機適配">7. 閃電模式手機適配</a></li><li><a href="#關鍵設計決策">關鍵設計決策</a></li>  <li><a href="#打字遊戲手機化的挑戰">打字遊戲手機化的挑戰</a></li>  <li><a href="#狀態機-vs-dom-show-hide">狀態機 vs DOM show/hide</a></li><li><a href="#品質指標對比">品質指標對比</a></li><li><a href="#保留不動的部分">保留不動的部分</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>六根淨化遊戲 v2.0 深度品質優化</h1>
+<h2 id="優化對象">優化對象</h2>
+<ul>
+<li>六根淨化（禪修打字遊戲）— D:/Source/game/six-roots-zen/</li>
+<li>優化日期：2026-02-18</li>
+</ul>
+<h2 id="優化前問題分析">優化前問題分析</h2>
+<h3 id="嚴重問題-p0">嚴重問題（P0）</h3>
+<ol>
+<li><strong>完全無手機觸控支援</strong>：打字遊戲在手機上無法使用，沒有虛擬鍵盤引導</li>
+<li><strong>無明確狀態機</strong>：使用 DOM 的 show/hide 管理畫面，沒有正式的狀態枚舉</li>
+</ol>
+<h3 id="重要問題-p1">重要問題（P1）</h3>
+<ol>
+<li><strong>響應式佈局不足</strong>：桌面固定定位元素（Combo/WPM/Timer）在手機上重疊</li>
+<li><strong>ES5 var 全局</strong>：整份 1287 行程式碼使用 var，存在作用域風險</li>
+<li><strong>輸入框未自動聚焦</strong>：手機用戶需手動點擊輸入框</li>
+</ol>
+<h2 id="實作的優化-7-大項">實作的優化（7 大項）</h2>
+<h3 id="1-手機觸控支援-p0-修復">1. 手機觸控支援（P0 修復）</h3>
+<ul>
+<li>新增 <code>mobile-input-hint</code> 元素：觸控裝置自動顯示「點此開啟鍵盤」提示</li>
+<li>CSS media query <code>(hover: none) and (pointer: coarse)</code> 偵測觸控裝置</li>
+<li>輸入框加入 <code>inputmode=&quot;text&quot;</code> + <code>autocorrect=&quot;off&quot;</code> + <code>autocapitalize=&quot;off&quot;</code> + <code>spellcheck=&quot;false&quot;</code></li>
+<li>遊戲開始時自動 focus 輸入框（含延遲以確保 DOM 更新）</li>
+<li>blur 事件自動重新聚焦（防止遊戲中意外失焦）</li>
+<li>body 加入 <code>touch-action: manipulation</code> 避免雙擊縮放</li>
+</ul>
+<h3 id="2-明確狀態機-p0-修復">2. 明確狀態機（P0 修復）</h3>
+<pre><code class="language-javascript">const GAME_STATE = {
+  START: &#x27;start&#x27;,
+  PLAYING: &#x27;playing&#x27;,
+  PAUSED: &#x27;paused&#x27;,
+  RESULT: &#x27;result&#x27;
+};</code></pre>
+<ul>
+<li>所有畫面切換統一通過 <code>transitionTo(newState)</code> 函數</li>
+<li>輸入處理加入狀態檢查：<code>if (currentGameState !== GAME_STATE.PLAYING) return;</code></li>
+<li>暫停/恢復正確更新狀態機</li>
+</ul>
+<h3 id="3-手機版頂部統計列">3. 手機版頂部統計列</h3>
+<ul>
+<li>新增 <code>mobile-game-header</code> 元素，在 600px 以下替代桌面固定定位</li>
+<li>包含：連擊數、字/分、閃電模式計時器</li>
+<li>Combo/WPM/Timer 更新同時寫入桌面版和手機版元素</li>
+</ul>
+<h3 id="4-響應式佈局優化">4. 響應式佈局優化</h3>
+<ul>
+<li>全面調整 <code>@media (max-width: 600px)</code> 規則</li>
+<li>手機版：六根輪盤圖示 60px-&gt;44px、禪語文字 2rem-&gt;1.5rem</li>
+<li>手機版隱藏桌面固定定位元素</li>
+<li>按鈕加入 <code>-webkit-tap-highlight-color: transparent</code></li>
+</ul>
+<h3 id="5-es5-to-es6-現代化">5. ES5 to ES6+ 現代化</h3>
+<ul>
+<li>所有 <code>var</code> 升級為 <code>const</code>（不可變）或 <code>let</code>（需重賦值）</li>
+<li>箭頭函數取代匿名 function</li>
+<li>閉包模式從 IIFE + var 改為 let 塊作用域</li>
+</ul>
+<h3 id="6-輸入框自動聚焦機制">6. 輸入框自動聚焦機制</h3>
+<ul>
+<li>遊戲開始時 <code>setTimeout(() =&gt; input.focus(), 100)</code></li>
+<li>觸控裝置額外調用 <code>input.click()</code> 觸發虛擬鍵盤</li>
+<li>blur 事件中遊戲進行時自動重聚焦（300ms 延遲避免抖動）</li>
+</ul>
+<h3 id="7-閃電模式手機適配">7. 閃電模式手機適配</h3>
+<ul>
+<li>閃電計時器在手機版通過 mobile-game-header 顯示</li>
+<li>計時器顏色變化（&lt;=3秒紅色）同時反映在桌面和手機版</li>
+</ul>
+<h2 id="關鍵設計決策">關鍵設計決策</h2>
+<h3 id="打字遊戲手機化的挑戰">打字遊戲手機化的挑戰</h3>
+<p>打字遊戲天生是鍵盤導向的，手機化的核心問題是：</p>
+<ol>
+<li>手機虛擬鍵盤會占據 50% 螢幕空間 → 縮減上方 UI</li>
+<li>用戶不知道要點哪裡觸發鍵盤 → 明確的觸控提示</li>
+<li>IME（輸入法）的 compositionend 事件需要特別處理 → 已有</li>
+<li>焦點容易意外丟失 → blur 自動重聚焦</li>
+</ol>
+<h3 id="狀態機-vs-dom-show-hide">狀態機 vs DOM show/hide</h3>
+<ul>
+<li>DOM show/hide 問題：無法在程式碼中明確知道「現在是什麼狀態」</li>
+<li>狀態機好處：輸入處理可以根據狀態分支，避免在非遊戲狀態處理輸入</li>
+<li><code>transitionTo()</code> 集中管理所有畫面切換，防止不一致</li>
+</ul>
+<h2 id="品質指標對比">品質指標對比</h2>
+<table>
+<tr><th>指標</th><th>優化前</th><th>優化後</th></tr>
+<tr><td>手機可玩性</td><td>不可用</td><td>可用（觸控提示 + 自動聚焦）</td></tr>
+<tr><td>狀態管理</td><td>DOM show/hide</td><td>明確狀態機</td></tr>
+<tr><td>JS 現代化</td><td>ES5 var</td><td>ES6+ const/let</td></tr>
+<tr><td>響應式</td><td>基礎</td><td>完整（手機統計列 + 元素縮放）</td></tr>
+<tr><td>程式碼行數</td><td>1287 行</td><td>1441 行（+12%，含新功能）</td></tr>
+<tr><td>觸控裝置偵測</td><td>無</td><td>CSS + JS 雙重偵測</td></tr>
+</table>
+<h2 id="保留不動的部分">保留不動的部分</h2>
+<ul>
+<li>音效系統（Web Audio API）：已完善</li>
+<li>成就系統：已完善</li>
+<li>連續天數追蹤：已完善</li>
+<li>粒子效果物件池：已完善</li>
+<li>修行等級系統：已完善</li>
+<li>每日挑戰：已完善</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

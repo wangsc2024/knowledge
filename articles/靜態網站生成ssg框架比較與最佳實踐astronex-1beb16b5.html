@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="靜態網站生成（SSG）框架比較與最佳實踐：Astro、Next.js、Hugo 選型指南（2026）">
+  <title>靜態網站生成（SSG）框架比較與最佳實踐：Astro、Next.js、Hugo 選型指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>靜態網站生成（SSG）框架比較與最佳實踐：Astro、Next.js、Hugo 選型指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">SSG</span><span class="tag">靜態網站生成</span><span class="tag">Astro</span><span class="tag">Hugo</span><span class="tag">Next.js</span><span class="tag">Islands Architecture</span><span class="tag">ISR</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#ssg-vs-ssr-vs-csr-vs-isr">SSG vs SSR vs CSR vs ISR</a></li>  <li><a href="#islands-architecture-島嶼架構">Islands Architecture（島嶼架構）</a></li>  <li><a href="#server-islands-astro-5-0-新特性">Server Islands（Astro 5.0 新特性）</a></li>  <li><a href="#content-layer-api-astro-5-0">Content Layer API（Astro 5.0）</a></li><li><a href="#主流框架深度比較">主流框架深度比較</a></li>  <li><a href="#1-astro-推薦-內容型網站首選">1. Astro（推薦：內容型網站首選）</a></li>  <li><a href="#2-hugo-推薦-純靜態極速建置">2. Hugo（推薦：純靜態極速建置）</a></li>  <li><a href="#3-next-js-推薦-需要動態互動的全端場景">3. Next.js（推薦：需要動態互動的全端場景）</a></li>  <li><a href="#4-其他值得關注的框架">4. 其他值得關注的框架</a></li><li><a href="#效能基準比較">效能基準比較</a></li>  <li><a href="#建置速度-1000-頁-markdown-站點">建置速度（1000 頁 Markdown 站點）</a></li>  <li><a href="#頁面載入效能-lighthouse-100-分基準">頁面載入效能（Lighthouse 100 分基準）</a></li><li><a href="#最佳實踐與常見陷阱">最佳實踐與常見陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li>  <li><a href="#常見陷阱">常見陷阱</a></li><li><a href="#與本專案-daily-digest-prompt-的關聯">與本專案（daily-digest-prompt）的關聯</a></li>  <li><a href="#現有使用場景">現有使用場景</a></li>  <li><a href="#架構建議">架構建議</a></li>  <li><a href="#潛在優化方向">潛在優化方向</a></li><li><a href="#2026-年選型決策樹">2026 年選型決策樹</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>靜態網站生成（SSG）框架比較與最佳實踐</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>靜態網站生成（Static Site Generation, SSG）是在建置時預先渲染所有 HTML 頁面的技術，產出的純靜態檔案可透過 CDN 全球分發，實現極低延遲與高安全性。2026 年的 SSG 生態系已從純靜態演進為「靜態優先、動態按需」的混合架構，核心趨勢包括 Islands Architecture（島嶼架構）、Incremental Static Regeneration（ISR 增量靜態再生）、Server Islands（伺服器島嶼）、以及 Edge Rendering（邊緣渲染）。主流框架涵蓋 Astro（JS）、Hugo（Go）、Next.js（React）、Eleventy（JS）、Nuxt（Vue）、Zola（Rust）等，各有不同定位與效能特性。</p>
+<hr>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="ssg-vs-ssr-vs-csr-vs-isr">SSG vs SSR vs CSR vs ISR</h3>
+<table>
+<tr><th>渲染策略</th><th>時機</th><th>優點</th><th>缺點</th><th>適用場景</th></tr>
+<tr><td><strong>SSG</strong></td><td>建置時</td><td>極快載入、高安全性、CDN 友好</td><td>內容更新需重新建置</td><td>部落格、文件、行銷頁</td></tr>
+<tr><td><strong>SSR</strong></td><td>請求時</td><td>即時動態內容</td><td>伺服器負擔大、TTFB 較慢</td><td>電商、個人化頁面</td></tr>
+<tr><td><strong>CSR</strong></td><td>瀏覽器</td><td>豐富互動</td><td>SEO 弱、首次載入慢</td><td>SPA、後台管理</td></tr>
+<tr><td><strong>ISR</strong></td><td>建置時 + 按需再生</td><td>兼具靜態速度與動態更新</td><td>設定複雜度較高</td><td>新聞、產品目錄</td></tr>
+</table>
+<h3 id="islands-architecture-島嶼架構">Islands Architecture（島嶼架構）</h3>
+<p>由 Astro 率先實作的架構模式。頁面預設為純靜態 HTML，僅將需要互動的區域（「島嶼」）獨立水合（hydrate），其餘部分零 JavaScript。優勢：</p>
+<ul>
+<li>頁面初始載入極輕量（零 JS 基線）</li>
+<li>每個島嶼獨立管理，不互相阻塞</li>
+<li>支援 <code>client:load</code>、<code>client:idle</code>、<code>client:visible</code> 等精細載入策略</li>
+<li>可混合使用 React、Vue、Svelte 等不同框架</li>
+</ul>
+<h3 id="server-islands-astro-5-0-新特性">Server Islands（Astro 5.0 新特性）</h3>
+<p>在 Islands Architecture 基礎上更進一步：允許特定元件在伺服器端渲染，其餘頁面保持靜態。結合了 SSG 的快取優勢與 SSR 的動態能力，適合「90% 靜態 + 10% 動態」的場景。</p>
+<h3 id="content-layer-api-astro-5-0">Content Layer API（Astro 5.0）</h3>
+<p>統一的內容資料層，支援 Markdown、MDX、JSON、CMS API 等多種來源。內建快取策略、增量建置、內容驗證，適合大規模內容站點。</p>
+<hr>
+<h2 id="主流框架深度比較">主流框架深度比較</h2>
+<h3 id="1-astro-推薦-內容型網站首選">1. Astro（推薦：內容型網站首選）</h3>
+<ul>
+<li><strong>語言/生態</strong>：JavaScript/TypeScript，支援 React、Vue、Svelte、Solid 等</li>
+<li><strong>建置速度</strong>：Vite 驅動，支援增量建置，大型站點表現優秀</li>
+<li><strong>JS 策略</strong>：預設零 JS，僅島嶼元件載入所需 JavaScript</li>
+<li><strong>核心特色</strong>：Islands Architecture、Server Islands、Content Layer API</li>
+<li><strong>適用場景</strong>：部落格、文件站、行銷頁、知識庫網站、作品集</li>
+<li><strong>Stars</strong>：50K+（GitHub）</li>
+</ul>
+<h3 id="2-hugo-推薦-純靜態極速建置">2. Hugo（推薦：純靜態極速建置）</h3>
+<ul>
+<li><strong>語言/生態</strong>：Go 語言，單一執行檔，無 npm 依賴</li>
+<li><strong>建置速度</strong>：業界最快之一，毫秒級建置數千頁面</li>
+<li><strong>JS 策略</strong>：不處理 JavaScript，純靜態 HTML 輸出</li>
+<li><strong>核心特色</strong>：Go 模板引擎、內建 Sass/PostCSS、圖片處理、多語系</li>
+<li><strong>適用場景</strong>：大型文件站（1000+ 頁）、企業網站、技術部落格</li>
+<li><strong>Stars</strong>：78K+（GitHub）</li>
+</ul>
+<h3 id="3-next-js-推薦-需要動態互動的全端場景">3. Next.js（推薦：需要動態互動的全端場景）</h3>
+<ul>
+<li><strong>語言/生態</strong>：React，最大的前端生態系</li>
+<li><strong>建置速度</strong>：中等，大型站點需 ISR 或 On-Demand Revalidation</li>
+<li><strong>JS 策略</strong>：React hydration，相比 Astro 載入更多 JS</li>
+<li><strong>核心特色</strong>：ISR、React Server Components、App Router、Edge Runtime</li>
+<li><strong>適用場景</strong>：電商、SaaS 產品頁、需要認證/個人化的內容站</li>
+<li><strong>Stars</strong>：130K+（GitHub）</li>
+</ul>
+<h3 id="4-其他值得關注的框架">4. 其他值得關注的框架</h3>
+<table>
+<tr><th>框架</th><th>語言</th><th>特色</th><th>適用場景</th></tr>
+<tr><td><strong>Eleventy (11ty)</strong></td><td>JS</td><td>零框架綁定、極簡</td><td>個人部落格、小型站點</td></tr>
+<tr><td><strong>Zola</strong></td><td>Rust</td><td>號稱比 Hugo 快 4 倍、單執行檔</td><td>極致效能需求</td></tr>
+<tr><td><strong>SvelteKit</strong></td><td>Svelte</td><td>混合渲染、Vite 驅動</td><td>靜態轉互動的漸進式專案</td></tr>
+<tr><td><strong>Nuxt</strong></td><td>Vue</td><td>逐頁選擇渲染模式</td><td>Vue 生態系專案</td></tr>
+<tr><td><strong>Qwik</strong></td><td>JS</td><td>Resumability 零水合成本</td><td>效能關鍵的互動式站點</td></tr>
+<tr><td><strong>Docusaurus</strong></td><td>React</td><td>版本控制、內建搜尋</td><td>技術文件</td></tr>
+</table>
+<hr>
+<h2 id="效能基準比較">效能基準比較</h2>
+<h3 id="建置速度-1000-頁-markdown-站點">建置速度（1000 頁 Markdown 站點）</h3>
+<table>
+<tr><th>框架</th><th>建置時間</th><th>記憶體用量</th></tr>
+<tr><td>Hugo</td><td>~0.5 秒</td><td>~50MB</td></tr>
+<tr><td>Zola</td><td>~0.3 秒</td><td>~30MB</td></tr>
+<tr><td>Eleventy</td><td>~3 秒</td><td>~100MB</td></tr>
+<tr><td>Astro</td><td>~5 秒</td><td>~200MB</td></tr>
+<tr><td>Next.js (SSG)</td><td>~15 秒</td><td>~500MB</td></tr>
+<tr><td>Gatsby</td><td>~30 秒</td><td>~800MB</td></tr>
+</table>
+<h3 id="頁面載入效能-lighthouse-100-分基準">頁面載入效能（Lighthouse 100 分基準）</h3>
+<table>
+<tr><th>框架</th><th>預設 JS 量</th><th>FCP</th><th>LCP</th></tr>
+<tr><td>Hugo</td><td>0 KB</td><td>極快</td><td>極快</td></tr>
+<tr><td>Astro</td><td>0 KB（無島嶼時）</td><td>極快</td><td>極快</td></tr>
+<tr><td>Eleventy</td><td>0 KB</td><td>極快</td><td>極快</td></tr>
+<tr><td>Next.js</td><td>~70-100 KB</td><td>快</td><td>快</td></tr>
+</table>
+<hr>
+<h2 id="最佳實踐與常見陷阱">最佳實踐與常見陷阱</h2>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>內容型站點（200+ 頁）選 Astro 或 Hugo</strong></li>
+</ol>
+<p>   - Astro：需要部分互動（搜尋、篩選、暗黑模式切換）
+   - Hugo：純靜態、追求極致建置速度</p>
+<ol>
+<li><strong>善用 ISR 處理頻繁更新的內容</strong></li>
+</ol>
+<p>   - Next.js 的 <code>revalidate</code> 參數控制再生頻率
+   - 避免每次內容更新都觸發完整重建</p>
+<ol>
+<li><strong>Headless CMS 整合策略</strong></li>
+</ol>
+<p>   - 建置時從 CMS 拉取資料（SSG 模式）
+   - Webhook 觸發增量重建（CI/CD 整合）
+   - 常用組合：Astro + Sanity、Hugo + Contentful、Next.js + Hygraph</p>
+<ol>
+<li><strong>圖片最佳化</strong></li>
+</ol>
+<p>   - Astro: <code>&lt;Image&gt;</code> 元件自動最佳化
+   - Next.js: <code>next/image</code> 元件
+   - Hugo: 內建圖片處理管線</p>
+<ol>
+<li><strong>部署至邊緣</strong></li>
+</ol>
+<p>   - Cloudflare Pages/Workers、Vercel Edge、Netlify Edge
+   - 搭配 CDN 快取策略最大化效能</p>
+<h3 id="常見陷阱">常見陷阱</h3>
+<ol>
+<li><strong>過度使用 Next.js 做純靜態站點</strong>：如果不需要 React 互動，選 Astro 或 Hugo 更輕量</li>
+<li><strong>Hugo 模板語法學習曲線</strong>：Go 模板語法不直覺，複雜佈局需要時間適應</li>
+<li><strong>Astro 島嶼過多</strong>：每個島嶼獨立載入 JS，過多島嶼反而增加請求數</li>
+<li><strong>忽略增量建置</strong>：大型站點不用增量建置，CI/CD 時間會線性成長</li>
+<li><strong>SSG 選擇錯誤場景</strong>：需要即時個人化或使用者生成內容的頁面不適合 SSG</li>
+<li><strong>Gatsby 的生態衰退</strong>：儘管 Gatsby 仍可用，但社群活躍度明顯下降，新專案應考慮 Astro</li>
+</ol>
+<hr>
+<h2 id="與本專案-daily-digest-prompt-的關聯">與本專案（daily-digest-prompt）的關聯</h2>
+<h3 id="現有使用場景">現有使用場景</h3>
+<p>本專案相關的靜態網站包括：</p>
+<ol>
+<li><strong>KB 知識庫靜態網站</strong>（266+ 篇文章）：從 RAG 知識庫匯出，部署到 Cloudflare Pages</li>
+<li><strong>禪境遊廊遊戲網站</strong>（zen-game-portal）：HTML5 遊戲集合站</li>
+<li><strong>楞嚴經知識網站</strong>：佛學研究 RAG 轉靜態網站</li>
+</ol>
+<h3 id="架構建議">架構建議</h3>
+<ul>
+<li><strong>KB 知識庫網站</strong>：目前手動生成 HTML → 建議評估 Astro 的 Content Layer API，可直接從 JSON/API 拉取筆記資料，自動生成帶搜尋功能的靜態站點</li>
+<li><strong>遊戲網站</strong>：純 HTML5 Canvas 遊戲 → Hugo 或 Astro 皆適合，Hugo 建置更快</li>
+<li><strong>未來擴展</strong>：若需要加入互動式搜尋、標籤過濾等功能，Astro 的 Islands Architecture 可僅在搜尋元件載入 JS，其餘頁面零 JS</li>
+</ul>
+<h3 id="潛在優化方向">潛在優化方向</h3>
+<ol>
+<li><strong>Astro + Content Layer API</strong>：統一知識庫資料源，自動增量更新</li>
+<li><strong>Cloudflare Workers + Hugo</strong>：毫秒級建置 + 邊緣快取</li>
+<li><strong>ISR 模式</strong>：頻繁更新的頁面（如每日新增筆記）使用 ISR 避免全站重建</li>
+</ol>
+<hr>
+<h2 id="2026-年選型決策樹">2026 年選型決策樹</h2>
+<pre><code class="language-plaintext">需要 SSG 框架？
+├─ 純靜態、無互動需求？
+│  ├─ 1000+ 頁面 → Hugo（最快建置）
+│  ├─ 技術文件 → Docusaurus 或 MkDocs
+│  └─ 個人部落格 → Eleventy（最簡單）
+├─ 部分互動需求？
+│  ├─ 內容為主 → Astro（Islands Architecture）
+│  └─ 漸進式 SPA → SvelteKit
+├─ 全端應用 + 靜態頁面？
+│  ├─ React 生態 → Next.js（ISR + App Router）
+│  └─ Vue 生態 → Nuxt
+└─ 極致效能？
+   ├─ 零水合 → Qwik（Resumability）
+   └─ 極速建置 → Zola（Rust）</code></pre>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li>Hygraph - Top 12 SSGs in 2026: https://hygraph.com/blog/top-12-ssgs</li>
+<li>Red Sky Digital - Hugo vs Next.js vs Astro 比較: https://redskydigital.com/us/comparing-hugo-nextjs-and-astro-a-guide-for-developers/</li>
+<li>ColorWhistle - SSR vs SSG Trends 2026: https://colorwhistle.com/ssr-ssg-trends-nextjs/</li>
+<li>Astro 官方文件 - Islands Architecture: https://docs.astro.build/en/concepts/islands/</li>
+<li>Astro 官方文件 - Server Islands: https://docs.astro.build/en/guides/server-islands/</li>
+<li>Octahedroid - Astro vs Next.js vs Remix 2026: https://octahedroid.com/blog/astro-vs-nextjs-vs-remix-react-router-static-site-generators-comparison-2026</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Claude Code Agent</em>
+<em>研究動機：今日完成的 KB 知識網站同步（266 筆）密集使用靜態網站生成技術，知識庫尚無系統性 SSG 框架選型研究</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

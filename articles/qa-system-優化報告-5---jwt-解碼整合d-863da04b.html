@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #5 - JWT 解碼整合、datetime.utcnow 遷移、錯誤訊息洩漏修復">
+  <title>QA System 優化報告 #5 - JWT 解碼整合、datetime.utcnow 遷移、錯誤訊息洩漏修復 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-security">資訊安全</span>
+        <h1>QA System 優化報告 #5 - JWT 解碼整合、datetime.utcnow 遷移、錯誤訊息洩漏修復</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">品質改善</span><span class="tag">JWT整合</span><span class="tag">datetime遷移</span><span class="tag">OWASP</span><span class="tag">DRY原則</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化方向">優化方向</a></li><li><a href="#已修復問題-9-項">已修復問題（9 項）</a></li>  <li><a href="#1-jwt-解碼邏輯整合-_decode_jwt_token-品質改善">1. JWT 解碼邏輯整合 - _decode_jwt_token()（品質改善）</a></li>  <li><a href="#2-datetime-utcnow-棄用遷移-安全合規">2. datetime.utcnow() 棄用遷移（安全合規）</a></li>  <li><a href="#3-6-questions-py-錯誤訊息洩漏修復-owasp-a05">3-6. questions.py 錯誤訊息洩漏修復（OWASP A05）</a></li><li><a href="#安全評估">安全評估</a></li><li><a href="#品質趨勢">品質趨勢</a></li><li><a href="#待處理">待處理</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #5</h1>
+<blockquote><p>日期：2026-02-17 | 品質分數：4.5/5 | 第五次掃描</p>
+</blockquote>
+<h2 id="優化方向">優化方向</h2>
+<p>JWT 解碼邏輯整合（DRY 原則）+ datetime.utcnow() 棄用修復 + questions.py 錯誤訊息洩漏修復（承接第四次掃描的 remaining_issues）</p>
+<h2 id="已修復問題-9-項">已修復問題（9 項）</h2>
+<h3 id="1-jwt-解碼邏輯整合-_decode_jwt_token-品質改善">1. JWT 解碼邏輯整合 - _decode_jwt_token()（品質改善）</h3>
+<ul>
+<li><strong>問題</strong>：dependencies.py 有 4 處幾乎相同的 jwt.decode 呼叫（第46/98/124/207行）</li>
+<li><strong>修復</strong>：抽取 <code>_decode_jwt_token(token)</code> 共用函式，所有 4 處改為呼叫此函式</li>
+<li><strong>額外</strong>：抽取 <code>_get_user_by_username(db, username)</code> 共用函式（含 joinedload）</li>
+<li><strong>效益</strong>：jwt.decode 的金鑰/演算法設定只在一處定義，降低不一致風險</li>
+</ul>
+<h3 id="2-datetime-utcnow-棄用遷移-安全合規">2. datetime.utcnow() 棄用遷移（安全合規）</h3>
+<ul>
+<li><strong>問題</strong>：Python 3.12+ 已棄用 <code>datetime.utcnow()</code>，未來版本將移除</li>
+<li><strong>修復</strong>：5 檔案 7 處全部改用 <code>datetime.now(timezone.utc)</code></li>
+</ul>
+<p>  - <code>app/dependencies.py</code>：create_access_token（2 處）
+  - <code>app/models/question.py</code>：created_date default（改為 lambda）
+  - <code>app/models/report.py</code>：reply_date default（改為 lambda）
+  - <code>app/routers/questions.py</code>：create_question（1 處）
+  - <code>app/routers/reports.py</code>：create_report（1 處）</p>
+<ul>
+<li><strong>技術細節</strong>：model default 從 <code>datetime.utcnow</code>（class-level 求值）改為 <code>lambda: datetime.now(timezone.utc)</code>（每次建立物件時求值）</li>
+</ul>
+<h3 id="3-6-questions-py-錯誤訊息洩漏修復-owasp-a05">3-6. questions.py 錯誤訊息洩漏修復（OWASP A05）</h3>
+<ul>
+<li><strong>問題</strong>：4 處 <code>str(e)</code> 直接返回前端（API 回應或 HTML 模板），可能洩漏 SQL 結構、檔案路徑等內部資訊</li>
+<li><strong>修復</strong>：全部改為通用錯誤訊息，<code>str(e)</code> 僅記錄到 logger</li>
+</ul>
+<p>  - create_question：「創建問題時發生系統錯誤，請稍後再試」
+  - list_questions：「載入問題時發生系統錯誤，請重新整理頁面」
+  - close_question：「結案時發生系統錯誤，請稍後再試」
+  - edit_question：「更新問題時發生系統錯誤，請稍後再試」</p>
+<h2 id="安全評估">安全評估</h2>
+<table>
+<tr><th>風險等級</th><th>項目</th><th>狀態</th></tr>
+<tr><td>無紅色</td><td>—</td><td>—</td></tr>
+<tr><td>黃色</td><td>questions.py str(e) 洩漏 x4</td><td>已修</td></tr>
+<tr><td>黃色</td><td>datetime.utcnow() 棄用 x7</td><td>已修</td></tr>
+<tr><td>綠色</td><td>CORS/Cookie/SECRET_KEY</td><td>正常</td></tr>
+<tr><td>綠色</td><td>SQL 參數化</td><td>正常</td></tr>
+</table>
+<h2 id="品質趨勢">品質趨勢</h2>
+<table>
+<tr><th>次數</th><th>日期</th><th>分數</th><th>重點</th></tr>
+<tr><td>#1</td><td>02-15</td><td>2.0</td><td>SQL 注入 + 硬編碼密碼 + Cookie</td></tr>
+<tr><td>#2</td><td>02-16</td><td>3.0</td><td>SECRET_KEY + CORS + 錯誤洩漏</td></tr>
+<tr><td>#3</td><td>02-16</td><td>3.5</td><td>print→logger + JWT 過期 + 依賴鎖定</td></tr>
+<tr><td>#4</td><td>02-17</td><td>4.0</td><td>重複函式整合 + SSO 遮蔽 + 環境變數化</td></tr>
+<tr><td>#5</td><td>02-17</td><td>4.5</td><td>JWT DRY + utcnow 遷移 + 錯誤洩漏</td></tr>
+</table>
+<h2 id="待處理">待處理</h2>
+<ul>
+<li>questions.py 應拆分（&gt;1000 行）</li>
+<li>補全測試（users/roles/departments/export/reports）</li>
+<li>修復既有測試失敗（test_create_question_api）</li>
+<li>roles.py / departments.py 的 str(e) 洩漏</li>
+<li>auth.py SSO 日誌帳號遮蔽（低優先）</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="禪音節奏（Zen Rhythm）遊戲設計與實作記錄">
+  <title>禪音節奏（Zen Rhythm）遊戲設計與實作記錄 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-buddhism">佛學</span>
+        <h1>禪音節奏（Zen Rhythm）遊戲設計與實作記錄</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">節奏遊戲</span><span class="tag">Web Audio</span><span class="tag">禪修</span><span class="tag">Cloudflare Pages</span><span class="tag">遊戲開發</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#遊戲概念">遊戲概念</a></li><li><a href="#核心玩法">核心玩法</a></li><li><a href="#創意賣點">創意賣點</a></li>  <li><a href="#1-場景轉化系統">1. 場景轉化系統</a></li>  <li><a href="#2-禪字蒐集系統">2. 禪字蒐集系統</a></li>  <li><a href="#3-web-audio-api-程式化音效">3. Web Audio API 程式化音效</a></li><li><a href="#技術架構">技術架構</a></li><li><a href="#效能優化">效能優化</a></li><li><a href="#設計決策">設計決策</a></li><li><a href="#部署">部署</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>禪音節奏（Zen Rhythm）遊戲設計與實作記錄</h1>
+<h2 id="遊戲概念">遊戲概念</h2>
+<p>將禪修意境與節奏遊戲結合的 HTML5 Canvas 遊戲。玩家在水墨風格的畫面中，隨著逐漸加速的節拍擊中從天而降的「禪字」。</p>
+<h2 id="核心玩法">核心玩法</h2>
+<ul>
+<li><strong>4 車道節奏遊戲</strong>：禪字從螢幕上方落下，玩家在目標線位置精準擊中</li>
+<li><strong>判定等級</strong>：PERFECT（±3%）、GOOD（±6%）、OK（±10%）、MISS</li>
+<li><strong>漸進難度</strong>：BPM 從 80 逐漸加速到 200（+0.3/秒），高 BPM 時加入多重音符</li>
+<li><strong>HP 系統</strong>：MISS 扣 8 HP，PERFECT 回 3 HP，HP 歸零結束</li>
+</ul>
+<h2 id="創意賣點">創意賣點</h2>
+<h3 id="1-場景轉化系統">1. 場景轉化系統</h3>
+<p>連擊數(Combo)驅動場景變化：</p>
+<ul>
+<li>0 連：枯山水（灰紫色系）</li>
+<li>10 連：春芽（綠色系）</li>
+<li>25 連：盛花（粉紅色系）</li>
+<li>50 連：極樂淨土（金色系）</li>
+</ul>
+<p>每個場景有獨特的背景漸層和粒子顏色。</p>
+<h3 id="2-禪字蒐集系統">2. 禪字蒐集系統</h3>
+<p>16 個禪字（空、定、慧、淨、悟、禪、念、覺、捨、忍、施、戒、觀、行、願、心），每個附帶佛學含義。PERFECT 擊中時顯示含義。跨遊戲持久化蒐集進度。</p>
+<h3 id="3-web-audio-api-程式化音效">3. Web Audio API 程式化音效</h3>
+<ul>
+<li>頌缽開場音（多泛音慢衰減）</li>
+<li>五聲音階擊中音（PERFECT 加和聲）</li>
+<li>節拍指示音</li>
+<li>無需外部音檔，純程式生成</li>
+</ul>
+<h2 id="技術架構">技術架構</h2>
+<ul>
+<li><strong>渲染</strong>：HTML5 Canvas + requestAnimationFrame</li>
+<li><strong>粒子系統</strong>：物件池（300 容量，200 活躍上限），三種類型（circle/ring/char）</li>
+<li><strong>音頻</strong>：Web Audio API（OscillatorNode + GainNode + BiquadFilterNode）</li>
+<li><strong>輸入</strong>：鍵盤(DFJK) + 滑鼠 + 觸控，含觸控暫停按鈕</li>
+<li><strong>狀態機</strong>：LOADING → MENU → PLAYING → PAUSED → GAMEOVER</li>
+<li><strong>持久化</strong>：localStorage（最高分 + 禪字蒐集）</li>
+</ul>
+<h2 id="效能優化">效能優化</h2>
+<ul>
+<li>swap-and-pop 音符陣列清理（避免 splice 的 O(n) 開銷）</li>
+<li>物件池管理粒子（零 GC 壓力）</li>
+<li>dt 補償確保不同刷新率一致體驗</li>
+<li>車道碰撞檢測避免同車道堆積</li>
+</ul>
+<h2 id="設計決策">設計決策</h2>
+<ol>
+<li><strong>為何選節奏類型</strong>：現有 6 款遊戲缺乏節奏/音樂互動類</li>
+<li><strong>為何用 Web Audio</strong>：避免外部音檔載入，Cloudflare Pages 零配置部署</li>
+<li><strong>4 車道設計</strong>：對應鍵盤主手位(DFJK)，行動端也易觸及</li>
+<li><strong>HP 而非限時</strong>：讓玩家技術好時能持續無限，增加重玩動力</li>
+</ol>
+<h2 id="部署">部署</h2>
+<p>純靜態（index.html + game.js），可直接部署至 Cloudflare Pages。</p>
+<hr>
+<p><em>建立日期：2026-02-17</em>
+<em>專案目錄：D:\Source\game\zen-rhythm</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

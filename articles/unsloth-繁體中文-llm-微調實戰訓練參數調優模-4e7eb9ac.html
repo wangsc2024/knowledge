@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 繁體中文 LLM 微調實戰：訓練參數調優、模型選型與繁中資料集完整指南（2026）">
+  <title>Unsloth 繁體中文 LLM 微調實戰：訓練參數調優、模型選型與繁中資料集完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 繁體中文 LLM 微調實戰：訓練參數調優、模型選型與繁中資料集完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">繁體中文</span><span class="tag">Traditional Chinese</span><span class="tag">訓練參數</span><span class="tag">hyperparameters</span><span class="tag">Qwen3</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#一-訓練超參數調優完整指南">一、訓練超參數調優完整指南</a></li>  <li><a href="#1-1-核心超參數速查表">1.1 核心超參數速查表</a></li>  <li><a href="#1-2-有效批次大小-effective-batch-size">1.2 有效批次大小（Effective Batch Size）</a></li>  <li><a href="#1-3-梯度累積修正-關鍵發現">1.3 梯度累積修正（關鍵發現）</a></li>  <li><a href="#1-4-lora-target-modules-最佳配置">1.4 LoRA Target Modules 最佳配置</a></li>  <li><a href="#1-5-過擬合與欠擬合診斷">1.5 過擬合與欠擬合診斷</a></li><li><a href="#二-繁體中文微調基礎模型選型">二、繁體中文微調基礎模型選型</a></li>  <li><a href="#2-1-推薦模型比較">2.1 推薦模型比較</a></li>  <li><a href="#2-2-選型建議">2.2 選型建議</a></li>  <li><a href="#2-3-qwen3-微調完整範例-unsloth">2.3 Qwen3 微調完整範例（Unsloth）</a></li><li><a href="#三-繁體中文資料集準備策略">三、繁體中文資料集準備策略</a></li>  <li><a href="#3-1-推薦資料集來源">3.1 推薦資料集來源</a></li>  <li><a href="#3-2-繁中資料集格式建議">3.2 繁中資料集格式建議</a></li>  <li><a href="#3-3-資料集品質準則">3.3 資料集品質準則</a></li>  <li><a href="#3-4-資料集構建工具鏈">3.4 資料集構建工具鏈</a></li><li><a href="#四-效能對比與硬體需求">四、效能對比與硬體需求</a></li>  <li><a href="#4-1-qwen3-8b-繁中微調硬體需求">4.1 Qwen3-8B 繁中微調硬體需求</a></li>  <li><a href="#4-2-訓練時間估算-1000-筆繁中指令資料">4.2 訓練時間估算（1000 筆繁中指令資料）</a></li><li><a href="#五-常見問題與解法">五、常見問題與解法</a></li>  <li><a href="#q1-繁中輸出有時夾雜簡體字">Q1: 繁中輸出有時夾雜簡體字？</a></li>  <li><a href="#q2-記憶體不足-oom">Q2: 記憶體不足（OOM）？</a></li>  <li><a href="#q3-訓練-loss-不穩定">Q3: 訓練 loss 不穩定？</a></li>  <li><a href="#q4-如何評估繁中微調品質">Q4: 如何評估繁中微調品質？</a></li>  <li><a href="#q5-如何結合-unsloth-pro-studio">Q5: 如何結合 Unsloth Pro/Studio？</a></li><li><a href="#六-與現有知識庫內容的關聯">六、與現有知識庫內容的關聯</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Unsloth 繁體中文 LLM 微調實戰：訓練參數調優、模型選型與繁中資料集完整指南</h1>
+<h2 id="概述">概述</h2>
+<p>本篇聚焦 Unsloth 在繁體中文 LLM 微調的實戰應用，涵蓋三大核心面向：(1) 訓練超參數調優的完整最佳實踐，(2) 適合繁中微調的基礎模型選型分析（Qwen3、Llama 3、Breeze 2、Taiwan-LLM），(3) 繁體中文專用資料集準備策略。這是 Unsloth 微調系列的第五篇，與前四篇（架構原理/LoRA 配置、GGUF 量化部署、資料集/偏好優化、框架比較）形成完整的微調知識體系。</p>
+<hr>
+<h2 id="一-訓練超參數調優完整指南">一、訓練超參數調優完整指南</h2>
+<h3 id="1-1-核心超參數速查表">1.1 核心超參數速查表</h3>
+<table>
+<tr><th>超參數</th><th>推薦值</th><th>說明</th></tr>
+<tr><td>learning_rate</td><td><code>2e-4</code>（SFT）/ <code>5e-6</code>（RL）</td><td>SFT 用較高學習率，RL（DPO/GRPO）用較低值</td></tr>
+<tr><td>num_train_epochs</td><td>1-3</td><td>超過 3 epochs 收益遞減，過擬合風險增加</td></tr>
+<tr><td>per_device_train_batch_size</td><td>2</td><td>小 batch 避免 OOM，靠 gradient accumulation 補足</td></tr>
+<tr><td>gradient_accumulation_steps</td><td>4-8</td><td>有效 batch = batch_size × accumulation_steps，目標 8-16</td></tr>
+<tr><td>lora_rank (r)</td><td>16 或 32</td><td>8 適合快速實驗，128 適合複雜任務</td></tr>
+<tr><td>lora_alpha</td><td>等於 rank 或 rank×2</td><td>alpha/rank 至少 = 1，較大值更激進</td></tr>
+<tr><td>lora_dropout</td><td>0</td><td>短訓練中 dropout 效果不穩定，建議關閉</td></tr>
+<tr><td>weight_decay</td><td>0.01-0.1</td><td>正則化防過擬合</td></tr>
+<tr><td>warmup_steps</td><td>總步數的 5-10%</td><td>初期穩定訓練</td></tr>
+<tr><td>lr_scheduler_type</td><td><code>linear</code> 或 <code>cosine</code></td><td>cosine 通常略優</td></tr>
+<tr><td>max_seq_length</td><td>2048-4096</td><td>依任務需求，繁中對話建議 2048 起步</td></tr>
+<tr><td>gradient_checkpointing</td><td><code>&quot;unsloth&quot;</code></td><td>額外節省 30% VRAM</td></tr>
+<tr><td>bias</td><td><code>&quot;none&quot;</code></td><td>加速訓練、減少記憶體</td></tr>
+</table>
+<h3 id="1-2-有效批次大小-effective-batch-size">1.2 有效批次大小（Effective Batch Size）</h3>
+<pre><code class="language-plaintext">有效批次大小 = per_device_train_batch_size × gradient_accumulation_steps × num_gpus</code></pre>
+<p><strong>黃金法則</strong>：始終用較小的 batch_size 搭配較高的 gradient_accumulation_steps，而非直接加大 batch_size。推薦有效批次大小為 <strong>16</strong>。</p>
+<h3 id="1-3-梯度累積修正-關鍵發現">1.3 梯度累積修正（關鍵發現）</h3>
+<p>Unsloth 團隊發現標準梯度累積存在嚴重 Bug：Cross-Entropy Loss 在每個 mini-batch 獨立正規化後相加，導致損失比全批次高 G 倍（G = 累積步數）。</p>
+<p><strong>錯誤計算</strong>：</p>
+<pre><code class="language-plaintext">L_naive = Σ[L₁/m₁ + L₂/m₂ + ... + L_G/m_G]</code></pre>
+<p><strong>正確計算</strong>：</p>
+<pre><code class="language-plaintext">L_correct = (L₁ + L₂ + ... + L_G) / (m₁ + m₂ + ... + m_G)</code></pre>
+<p><strong>修復方式</strong>：使用 <code>unsloth_train()</code> 取代標準 <code>trainer.train()</code>：</p>
+<pre><code class="language-python">from unsloth import unsloth_train
+trainer_stats = unsloth_train(trainer)  # 修正後的梯度累積</code></pre>
+<p>此修復將 LoRA 權重的 L2 範數誤差降低超過一個數量級。</p>
+<h3 id="1-4-lora-target-modules-最佳配置">1.4 LoRA Target Modules 最佳配置</h3>
+<pre><code class="language-python">target_modules = [
+    &quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+    &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;
+]</code></pre>
+<p>應用於所有主要線性層可獲得最佳效能。</p>
+<h3 id="1-5-過擬合與欠擬合診斷">1.5 過擬合與欠擬合診斷</h3>
+<p><strong>過擬合快速修復</strong>：將每個 LoRA 矩陣的 alpha 值乘以 0.5。</p>
+<p><strong>系統性過擬合處理</strong>：</p>
+<ul>
+<li>降低 learning_rate</li>
+<li>限制 epochs 至 1-3</li>
+<li>增加 weight_decay（0.01→0.1）</li>
+<li>增大有效批次大小</li>
+<li>新增多樣性訓練資料</li>
+<li>啟用 early stopping</li>
+</ul>
+<p><strong>欠擬合處理</strong>：</p>
+<ul>
+<li>提高 learning_rate（短訓練）</li>
+<li>增加 epochs</li>
+<li>提升 lora_rank 和 alpha</li>
+<li>使用更高品質的領域資料</li>
+<li>減小 batch_size 至 1</li>
+</ul>
+<hr>
+<h2 id="二-繁體中文微調基礎模型選型">二、繁體中文微調基礎模型選型</h2>
+<h3 id="2-1-推薦模型比較">2.1 推薦模型比較</h3>
+<table>
+<tr><th>模型</th><th>參數量</th><th>繁中能力</th><th>Unsloth 支援</th><th>VRAM 需求（QLoRA）</th><th>適用場景</th></tr>
+<tr><td><strong>Qwen3-8B</strong></td><td>8B</td><td>★★★★★</td><td>完整支援</td><td>~10GB</td><td>首選：原生多語言、繁中表現優異</td></tr>
+<tr><td><strong>Qwen3-4B</strong></td><td>4B</td><td>★★★★☆</td><td>完整支援</td><td>~6GB</td><td>消費級 GPU、快速實驗</td></tr>
+<tr><td><strong>Qwen3-14B</strong></td><td>14B</td><td>★★★★★</td><td>完整支援</td><td>~16GB</td><td>T4/A10 級 GPU</td></tr>
+<tr><td><strong>Qwen3-30B-A3B</strong></td><td>30B(3B active)</td><td>★★★★★</td><td>完整支援</td><td>~8GB</td><td>MOE 架構，高效推論</td></tr>
+<tr><td><strong>Breeze 2-8B</strong></td><td>8B</td><td>★★★★★</td><td>Llama 架構相容</td><td>~10GB</td><td>台灣特化，法律/醫療/製造</td></tr>
+<tr><td><strong>Breeze 2-3B</strong></td><td>3B</td><td>★★★★☆</td><td>Llama 架構相容</td><td>~5GB</td><td>行動裝置部署</td></tr>
+<tr><td><strong>Taiwan-LLM-8B</strong></td><td>8B</td><td>★★★★★</td><td>Llama 架構相容</td><td>~10GB</td><td>台灣知識專精</td></tr>
+<tr><td><strong>Llama 3.1-8B</strong></td><td>8B</td><td>★★★☆☆</td><td>完整支援</td><td>~10GB</td><td>英文為主，繁中需額外訓練</td></tr>
+</table>
+<h3 id="2-2-選型建議">2.2 選型建議</h3>
+<p><strong>通用繁中微調首選：Qwen3 系列</strong></p>
+<ul>
+<li>原生支援 100+ 語言，繁體中文表現優異</li>
+<li>Unsloth 官方完整支援，有現成 Colab notebook</li>
+<li>推薦 8B（平衡效能與成本）或 30B-A3B（MOE 高效推論）</li>
+</ul>
+<p><strong>台灣特定領域：Breeze 2 或 Taiwan-LLM</strong></p>
+<ul>
+<li>900GB 繁中語料預訓練，台灣在地化知識</li>
+<li>TMMLU+ 等台灣專屬 benchmark 表現優異</li>
+<li>法律、醫療、製造等專業領域已有基礎</li>
+</ul>
+<h3 id="2-3-qwen3-微調完整範例-unsloth">2.3 Qwen3 微調完整範例（Unsloth）</h3>
+<pre><code class="language-python">from unsloth import FastModel
+import torch
+
+# 步驟 1：載入模型
+model, tokenizer = FastModel.from_pretrained(
+    model_name=&quot;unsloth/Qwen3-8B&quot;,
+    max_seq_length=2048,
+    load_in_4bit=True,
+    full_finetuning=False,
+)
+
+# 步驟 2：配置 LoRA
+model = FastModel.get_peft_model(
+    model,
+    r=32,                    # LoRA rank
+    lora_alpha=32,           # alpha = rank
+    lora_dropout=0,          # 短訓練建議關閉
+    target_modules=[&quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+                    &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;],
+    use_rslora=False,
+    use_gradient_checkpointing=&quot;unsloth&quot;,  # 節省 30% VRAM
+)
+
+# 步驟 3：準備繁中資料集
+from datasets import load_dataset
+dataset = load_dataset(&quot;json&quot;, data_files=&quot;tw_instruct.jsonl&quot;, split=&quot;train&quot;)
+
+# 步驟 4：配置訓練器
+from trl import SFTTrainer
+from transformers import TrainingArguments
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=dataset,
+    args=TrainingArguments(
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=8,    # 有效 batch = 16
+        num_train_epochs=2,
+        learning_rate=2e-4,
+        lr_scheduler_type=&quot;cosine&quot;,
+        warmup_ratio=0.05,
+        weight_decay=0.01,
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        output_dir=&quot;outputs&quot;,
+        logging_steps=10,
+        seed=42,
+    ),
+)
+
+# 步驟 5：僅訓練回應部分（提升準確度）
+from unsloth.chat_templates import train_on_responses_only
+trainer = train_on_responses_only(
+    trainer,
+    instruction_part=&quot;&lt;|im_start|&gt;user\n&quot;,
+    response_part=&quot;&lt;|im_start|&gt;assistant\n&quot;,
+)
+
+# 步驟 6：使用修正後的梯度累積訓練
+from unsloth import unsloth_train
+trainer_stats = unsloth_train(trainer)
+
+# 步驟 7：儲存與匯出
+model.save_pretrained(&quot;qwen3-8b-tw-lora&quot;)
+model.save_pretrained_gguf(&quot;qwen3-8b-tw-gguf&quot;, tokenizer, quantization_method=&quot;q4_k_m&quot;)</code></pre>
+<hr>
+<h2 id="三-繁體中文資料集準備策略">三、繁體中文資料集準備策略</h2>
+<h3 id="3-1-推薦資料集來源">3.1 推薦資料集來源</h3>
+<table>
+<tr><th>資料集</th><th>規模</th><th>特色</th><th>來源</th></tr>
+<tr><td><strong>COIG-CQIA</strong></td><td>數十萬筆</td><td>高品質中文指令資料（Q&amp;A 社群、Wiki、考試題目）</td><td>Hugging Face</td></tr>
+<tr><td><strong>Taiwan-LLM 訓練資料</strong></td><td>大規模</td><td>台灣在地化語料（法律、醫療、製造、電子）</td><td>MiuLab GitHub</td></tr>
+<tr><td><strong>Breeze 2 語料</strong></td><td>898.1 GB</td><td>網路爬蟲、學術、程式碼、新聞、法律</td><td>MediaTek Research</td></tr>
+<tr><td><strong>DoIT（Dynamics of Instruction Tuning）</strong></td><td>40K+</td><td>10 類能力分類（STEM、創意寫作、邏輯推理等）</td><td>Hugging Face</td></tr>
+<tr><td><strong>Ji-Xiang Traditional Chinese</strong></td><td>多個集合</td><td>專門針對繁體中文的指令資料集合</td><td>Hugging Face</td></tr>
+</table>
+<h3 id="3-2-繁中資料集格式建議">3.2 繁中資料集格式建議</h3>
+<p><strong>ShareGPT 格式（推薦，Unsloth 原生支援）</strong>：</p>
+<pre><code class="language-json">{
+  &quot;conversations&quot;: [
+    {&quot;role&quot;: &quot;system&quot;, &quot;content&quot;: &quot;你是一個專業的繁體中文助手。&quot;},
+    {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;請解釋台灣的健保制度。&quot;},
+    {&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: &quot;台灣全民健康保險（NHI）是...&quot;}
+  ]
+}</code></pre>
+<p><strong>Alpaca 格式</strong>：</p>
+<pre><code class="language-json">{
+  &quot;instruction&quot;: &quot;翻譯以下英文為繁體中文&quot;,
+  &quot;input&quot;: &quot;The weather is nice today.&quot;,
+  &quot;output&quot;: &quot;今天天氣很好。&quot;
+}</code></pre>
+<h3 id="3-3-資料集品質準則">3.3 資料集品質準則</h3>
+<ol>
+<li><strong>繁簡一致性</strong>：確保所有語料皆為繁體中文，避免簡繁混用。可用 <code>opencc</code> 工具自動轉換。</li>
+<li><strong>台灣用語</strong>：偏好台灣慣用詞（「軟體」而非「軟件」、「資料庫」而非「數據庫」）。</li>
+<li><strong>推理能力保留</strong>：Qwen3 官方建議資料集中保持 75% 推理資料 + 25% 非推理資料。</li>
+<li><strong>領域平衡</strong>：避免單一領域過重，建議涵蓋日常對話、專業知識、翻譯、摘要等多元任務。</li>
+<li><strong>品質篩選</strong>：移除過短（&lt;20 字）、重複、亂碼的樣本。</li>
+</ol>
+<h3 id="3-4-資料集構建工具鏈">3.4 資料集構建工具鏈</h3>
+<pre><code class="language-python">import opencc
+from datasets import load_dataset
+
+# 簡體轉繁體
+converter = opencc.OpenCC(&#x27;s2twp&#x27;)  # 簡體 → 台灣繁體（含詞彙轉換）
+
+def convert_to_traditional(example):
+    for conv in example[&#x27;conversations&#x27;]:
+        conv[&#x27;content&#x27;] = converter.convert(conv[&#x27;content&#x27;])
+    return example
+
+# 載入並轉換資料集
+dataset = load_dataset(&quot;m-a-p/COIG-CQIA&quot;, split=&quot;train&quot;)
+dataset = dataset.map(convert_to_traditional)
+
+# 篩選品質
+dataset = dataset.filter(
+    lambda x: all(len(c[&#x27;content&#x27;]) &gt;= 20 for c in x[&#x27;conversations&#x27;])
+)</code></pre>
+<hr>
+<h2 id="四-效能對比與硬體需求">四、效能對比與硬體需求</h2>
+<h3 id="4-1-qwen3-8b-繁中微調硬體需求">4.1 Qwen3-8B 繁中微調硬體需求</h3>
+<table>
+<tr><th>配置</th><th>VRAM</th><th>訓練速度</th><th>適用</th></tr>
+<tr><td>QLoRA 4-bit + Unsloth</td><td>~10 GB</td><td>~2x 基準</td><td>RTX 3090/4090、T4</td></tr>
+<tr><td>QLoRA 8-bit + Unsloth</td><td>~16 GB</td><td>~1.5x 基準</td><td>A10G、L4</td></tr>
+<tr><td>LoRA 16-bit + Unsloth</td><td>~20 GB</td><td>~2x 基準</td><td>A100 40GB</td></tr>
+<tr><td>Full Fine-tune + Unsloth</td><td>~40 GB</td><td>1x 基準</td><td>A100 80GB</td></tr>
+</table>
+<h3 id="4-2-訓練時間估算-1000-筆繁中指令資料">4.2 訓練時間估算（1000 筆繁中指令資料）</h3>
+<table>
+<tr><th>模型</th><th>GPU</th><th>2 Epochs 估時</th></tr>
+<tr><td>Qwen3-4B QLoRA</td><td>RTX 4090</td><td>~15 分鐘</td></tr>
+<tr><td>Qwen3-8B QLoRA</td><td>RTX 4090</td><td>~30 分鐘</td></tr>
+<tr><td>Qwen3-8B QLoRA</td><td>T4 (Colab)</td><td>~60 分鐘</td></tr>
+<tr><td>Qwen3-14B QLoRA</td><td>A10G</td><td>~45 分鐘</td></tr>
+</table>
+<hr>
+<h2 id="五-常見問題與解法">五、常見問題與解法</h2>
+<h3 id="q1-繁中輸出有時夾雜簡體字">Q1: 繁中輸出有時夾雜簡體字？</h3>
+<ul>
+<li>增加繁體中文比例至訓練資料的 90%+</li>
+<li>在 system prompt 明確指定「請使用繁體中文回答」</li>
+<li>使用 <code>opencc</code> 的 <code>s2twp</code>（含台灣詞彙轉換）而非 <code>s2t</code>（僅字形轉換）</li>
+</ul>
+<h3 id="q2-記憶體不足-oom">Q2: 記憶體不足（OOM）？</h3>
+<ul>
+<li>啟用 <code>load_in_4bit=True</code></li>
+<li>降低 <code>lora_rank</code>（32 → 16 → 8）</li>
+<li>使用 <code>use_gradient_checkpointing=&quot;unsloth&quot;</code> 額外省 30%</li>
+<li>減少 <code>max_seq_length</code>（4096 → 2048）</li>
+<li>降低 <code>per_device_train_batch_size</code> 至 1</li>
+</ul>
+<h3 id="q3-訓練-loss-不穩定">Q3: 訓練 loss 不穩定？</h3>
+<ul>
+<li>確認使用 <code>unsloth_train()</code> 修正梯度累積</li>
+<li>降低 learning_rate（2e-4 → 1e-4）</li>
+<li>增加 warmup_steps 至 10%</li>
+<li>使用 cosine scheduler 取代 linear</li>
+</ul>
+<h3 id="q4-如何評估繁中微調品質">Q4: 如何評估繁中微調品質？</h3>
+<ul>
+<li>TMMLU+：67 科台灣知識評測</li>
+<li>MT-Bench-tw：繁中對話品質評測</li>
+<li>TMMBench：台灣觀光、日常生活、大學入學題目</li>
+<li>人工評估：流暢度、繁簡一致性、事實準確性</li>
+</ul>
+<h3 id="q5-如何結合-unsloth-pro-studio">Q5: 如何結合 Unsloth Pro/Studio？</h3>
+<ul>
+<li>Unsloth Pro 提供更高效的量化核心和分散式訓練支援</li>
+<li>Unsloth Studio 提供 GUI 介面，無需程式碼即可微調</li>
+<li>兩者均保持與開源版本相同的 API 相容性</li>
+</ul>
+<hr>
+<h2 id="六-與現有知識庫內容的關聯">六、與現有知識庫內容的關聯</h2>
+<p>本篇是 Unsloth 微調系列的第五篇：</p>
+<ol>
+<li><strong>架構原理與 LoRA/QLoRA 配置</strong> → 基礎理論</li>
+<li><strong>GGUF 量化匯出與推論部署</strong> → 部署方案</li>
+<li><strong>資料集準備與偏好優化（DPO/ORPO/GRPO）</strong> → 訓練方法論</li>
+<li><strong>微調框架選型指南</strong> → 工具比較</li>
+<li><strong>本篇：繁中微調實戰</strong> → 實戰應用（訓練參數 + 模型選型 + 繁中資料集）</li>
+</ol>
+<p>建議搭配閱讀：Breeze 2 論文、Taiwan-LLM 專案、COIG-CQIA 資料集文件。</p>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li><a href="https://unsloth.ai/docs/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide">Unsloth LoRA Hyperparameters Guide</a></li>
+<li><a href="https://unsloth.ai/blog/gradient">Unsloth Blog: Gradient Accumulation Bug Fix</a></li>
+<li><a href="https://unsloth.ai/docs/models/qwen3-how-to-run-and-fine-tune">Unsloth Qwen3 Fine-tuning Guide</a></li>
+<li><a href="https://arxiv.org/html/2501.13921v1">Breeze 2: Traditional Chinese LLMs (arXiv 2501.13921)</a></li>
+<li><a href="https://github.com/MiuLab/Taiwan-LLM">Taiwan-LLM (MiuLab GitHub)</a></li>
+<li><a href="https://huggingface.co/datasets/m-a-p/COIG-CQIA">COIG-CQIA Chinese Instruction Dataset</a></li>
+<li><a href="https://huggingface.co/collections/Ji-Xiang/traditional-chinese-dataset-6526b75f6a54e95bebe7ae2a">Ji-Xiang Traditional Chinese Dataset Collection</a></li>
+<li><a href="https://medium.com/legal-design-and-innovation/fine-tuning-llms-for-legal-knowledge-assessment-a-taiwan-case-study-7cee320fd3d1">Fine-Tuning LLMs for Legal Knowledge: Taiwan Case Study</a></li>
+<li><a href="https://huggingface.co/blog/mlabonne/sft-llama3">HF Blog: Fine-tune Llama 3.1 with Unsloth</a></li>
+<li><a href="https://unsloth.ai/docs/get-started/fine-tuning-llms-guide">Unsloth Fine-tuning LLMs Guide</a></li>
+</ul>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Unsloth Research Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

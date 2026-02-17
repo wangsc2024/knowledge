@@ -337,10 +337,12 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
             tags_html = ''.join(f'<span class="tag">{escape(t)}</span>' for t in (art.get('tags') or [])[:4])
             date_str = art.get('updated', '')
             new_badge = '<span class="new-badge">NEW</span>' if art.get('id') in new_article_ids else ''
+            excerpt_html = f'<p class="card-excerpt">{escape(art.get("excerpt", ""))}</p>' if art.get('excerpt') else ''
             cards.append(f'''
-        <article class="article-card" data-title="{escape(art['title'].lower())}" data-tags="{escape(','.join(art.get('tags') or []).lower())}">
+        <article class="article-card" data-title="{escape(art['title'].lower())}" data-tags="{escape(','.join(art.get('tags') or []).lower())}" data-category="{cat_slug}">
           <span class="category-badge category-{cat_slug}">{display_name}</span>
           <h3><a href="articles/{art['slug']}.html">{escape(art['title'])}</a>{new_badge}</h3>
+          {excerpt_html}
           <div class="card-footer">
             <span class="date">{date_str}</span>
             <div class="tags">{tags_html}</div>
@@ -359,6 +361,17 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
 
     nav_html = '\n        '.join(nav_items)
 
+    # 生成分類篩選按鈕
+    filter_buttons = ['<button class="filter-btn active" data-filter="all" onclick="filterByCategory(\'all\')">全部</button>']
+    for cat_name, cat_slug in category_order:
+        if cat_name in articles_by_category and articles_by_category[cat_name]:
+            display_name = cat_name.replace('_', ' ')
+            count = len(articles_by_category[cat_name])
+            filter_buttons.append(
+                f'<button class="filter-btn" data-filter="{cat_slug}" onclick="filterByCategory(\'{cat_slug}\')">{display_name} ({count})</button>'
+            )
+    filter_bar = '\n        '.join(filter_buttons)
+
     return f'''<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -372,6 +385,9 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
   <header>
     <div class="container">
       <a href="/" class="logo">知識庫</a>
+      <button class="menu-toggle" onclick="document.querySelector('nav').classList.toggle('open')" aria-label="選單">
+        <span></span><span></span><span></span>
+      </button>
       <nav>
         {nav_html}
       </nav>
@@ -398,6 +414,10 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
     </div>
   </section>
 
+  <div class="filter-bar container">
+    {filter_bar}
+  </div>
+
   <main class="container">
 {recent_section}
 {"".join(sections)}
@@ -419,6 +439,31 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
     }}
     if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
 
+    let activeFilter='all';
+    function filterByCategory(cat){{
+      activeFilter=cat;
+      document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.filter===cat));
+      const sections=document.querySelectorAll('.category-section');
+      const recentSec=document.querySelector('.recent-section');
+      if(cat==='all'){{
+        sections.forEach(s=>{{s.style.display='';if(!s.classList.contains('expanded'))s.classList.add('expanded')}});
+        if(recentSec)recentSec.style.display='';
+        document.getElementById('searchCount').textContent='';
+        return;
+      }}
+      if(recentSec)recentSec.style.display='none';
+      let total=0;
+      sections.forEach(s=>{{
+        const match=s.id===cat;
+        s.style.display=match?'':'none';
+        if(match){{
+          s.classList.add('expanded');
+          total=s.querySelectorAll('.article-card').length;
+        }}
+      }});
+      document.getElementById('searchCount').textContent=total+' 篇';
+    }}
+
     function filterArticles(q){{
       const query=q.toLowerCase().trim();
       const cards=document.querySelectorAll('.article-card');
@@ -428,7 +473,9 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
       cards.forEach(c=>{{
         const t=c.getAttribute('data-title')||'';
         const tags=c.getAttribute('data-tags')||'';
-        const show=!query||t.includes(query)||tags.includes(query);
+        const catMatch=activeFilter==='all'||c.getAttribute('data-category')===activeFilter;
+        const textMatch=!query||t.includes(query)||tags.includes(query);
+        const show=catMatch&&textMatch;
         c.style.display=show?'':'none';
         if(show)visible++;
       }});
@@ -437,9 +484,9 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
         s.style.display=vis.length>0?'':'none';
         if(vis.length>0&&!s.classList.contains('expanded'))s.classList.add('expanded');
       }});
-      if(recentSec)recentSec.style.display=query?'none':'';
+      if(recentSec)recentSec.style.display=(query||activeFilter!=='all')?'none':'';
       const counter=document.getElementById('searchCount');
-      counter.textContent=query?visible+' 篇符合':'';
+      counter.textContent=(query||activeFilter!=='all')?visible+' 篇符合':'';
     }}
 
     // Back to top
@@ -448,13 +495,23 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
       btn.classList.toggle('visible',window.scrollY>400);
     }});
 
-    // Keyboard shortcut: / to focus search
+    // Keyboard shortcut: / to focus search, Esc to clear
     document.addEventListener('keydown',function(e){{
       if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){{
         e.preventDefault();
         document.getElementById('searchInput').focus();
       }}
+      if(e.key==='Escape'){{
+        const inp=document.getElementById('searchInput');
+        if(inp.value){{inp.value='';filterArticles('');inp.blur();}}
+      }}
     }});
+
+    // Fade-in animation on scroll
+    const obs=new IntersectionObserver(entries=>{{
+      entries.forEach(e=>{{if(e.isIntersecting){{e.target.classList.add('fade-in');obs.unobserve(e.target);}}}});
+    }},{{threshold:0.05}});
+    document.querySelectorAll('.article-card,.recent-card').forEach(c=>obs.observe(c));
   </script>
 </body>
 </html>
@@ -529,12 +586,19 @@ def main():
         if cat_name not in articles_by_category:
             articles_by_category[cat_name] = []
 
+        # 生成摘要（取 contentText 前 100 字）
+        excerpt = ''
+        if content_text:
+            excerpt = re.sub(r'[#*\->\[\]`]', '', content_text)
+            excerpt = re.sub(r'\s+', ' ', excerpt).strip()[:100]
+
         articles_by_category[cat_name].append({
             'id': note_id,
             'title': title,
             'slug': slug,
             'tags': tags,
-            'updated': note.get('updatedAt', '')[:10]
+            'updated': note.get('updatedAt', '')[:10],
+            'excerpt': excerpt
         })
 
         synced_notes.append({

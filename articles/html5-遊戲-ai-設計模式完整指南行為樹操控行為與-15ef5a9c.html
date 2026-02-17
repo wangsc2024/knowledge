@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 遊戲 AI 設計模式完整指南：行為樹、操控行為與尋路演算法">
+  <title>HTML5 遊戲 AI 設計模式完整指南：行為樹、操控行為與尋路演算法 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>HTML5 遊戲 AI 設計模式完整指南：行為樹、操控行為與尋路演算法</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">遊戲AI</span><span class="tag">行為樹</span><span class="tag">Behavior Tree</span><span class="tag">操控行為</span><span class="tag">Steering Behaviors</span><span class="tag">A*尋路</span><span class="tag">Pathfinding</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#一-行為樹-behavior-tree">一、行為樹（Behavior Tree）</a></li>  <li><a href="#1-1-核心概念">1.1 核心概念</a></li>  <li><a href="#1-2-節點類型">1.2 節點類型</a></li>  <li><a href="#1-3-節點狀態">1.3 節點狀態</a></li>  <li><a href="#1-4-javascript-實作範例">1.4 JavaScript 實作範例</a></li>  <li><a href="#1-5-javascript-行為樹函式庫">1.5 JavaScript 行為樹函式庫</a></li><li><a href="#二-操控行為-steering-behaviors">二、操控行為（Steering Behaviors）</a></li>  <li><a href="#2-1-核心概念">2.1 核心概念</a></li>  <li><a href="#2-2-基礎行為">2.2 基礎行為</a></li>  <li><a href="#2-3-環境導航行為">2.3 環境導航行為</a></li>  <li><a href="#2-4-群集行為-flocking-boids">2.4 群集行為（Flocking / Boids）</a></li>  <li><a href="#2-5-行為組合策略">2.5 行為組合策略</a></li><li><a href="#三-尋路演算法-pathfinding">三、尋路演算法（Pathfinding）</a></li>  <li><a href="#3-1-a-演算法">3.1 A* 演算法</a></li>  <li><a href="#3-2-a-javascript-實作">3.2 A* JavaScript 實作</a></li>  <li><a href="#3-3-效能優化">3.3 效能優化</a></li>  <li><a href="#3-4-javascript-尋路函式庫">3.4 JavaScript 尋路函式庫</a></li><li><a href="#四-三大模式整合策略">四、三大模式整合策略</a></li>  <li><a href="#4-1-分層架構">4.1 分層架構</a></li>  <li><a href="#4-2-實際整合範例">4.2 實際整合範例</a></li>  <li><a href="#4-3-何時使用哪種模式">4.3 何時使用哪種模式</a></li><li><a href="#五-效能考量-html5-canvas-遊戲">五、效能考量（HTML5 Canvas 遊戲）</a></li>  <li><a href="#5-1-空間分割優化">5.1 空間分割優化</a></li>  <li><a href="#5-2-更新頻率">5.2 更新頻率</a></li>  <li><a href="#5-3-agent-數量指引">5.3 Agent 數量指引</a></li><li><a href="#六-與本專案-d-source-game-的關聯">六、與本專案（D:\Source\game）的關聯</a></li>  <li><a href="#直接適用">直接適用</a></li>  <li><a href="#實作建議">實作建議</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>HTML5 遊戲 AI 設計模式完整指南：行為樹、操控行為與尋路演算法</h1>
+<h2 id="概述">概述</h2>
+<p>遊戲 AI 是 HTML5 遊戲開發中提升遊戲深度與玩家體驗的關鍵技術。本文涵蓋三大核心 AI 設計模式：行為樹（Behavior Tree）、操控行為（Steering Behaviors）、尋路演算法（Pathfinding），以及它們在 JavaScript/Canvas 遊戲中的實作方式與整合策略。</p>
+<hr>
+<h2 id="一-行為樹-behavior-tree">一、行為樹（Behavior Tree）</h2>
+<h3 id="1-1-核心概念">1.1 核心概念</h3>
+<p>行為樹是一種<strong>階層式決策結構</strong>，透過樹狀節點組合實現複雜 AI 行為。相較於有限狀態機（FSM），行為樹更具模組化與可重用性，是現代遊戲 AI 的主流選擇。</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>視覺直觀，易於設計與除錯</li>
+<li>高度模組化：子樹可獨立開發與測試</li>
+<li>可擴展性：新增行為只需插入新節點</li>
+<li>支援複雜決策邏輯的組合</li>
+</ul>
+<h3 id="1-2-節點類型">1.2 節點類型</h3>
+<p>#### 複合節點（Composite Nodes）— 控制流程</p>
+<table>
+<tr><th>節點類型</th><th>行為</th><th>成功條件</th><th>失敗條件</th><th>類比</th></tr>
+<tr><td><strong>Sequence（序列）</strong></td><td>依序執行子節點</td><td>全部成功</td><td>任一失敗</td><td>AND 邏輯</td></tr>
+<tr><td><strong>Selector（選擇）</strong></td><td>依序嘗試子節點</td><td>任一成功</td><td>全部失敗</td><td>OR 邏輯</td></tr>
+<tr><td><strong>Parallel（並行）</strong></td><td>同時執行所有子節點</td><td>全部成功</td><td>任一失敗</td><td>並行處理</td></tr>
+<tr><td><strong>Race（競速）</strong></td><td>同時執行，第一個完成者決定</td><td>任一成功</td><td>全部失敗</td><td>先到先得</td></tr>
+<tr><td><strong>Lotto（抽籤）</strong></td><td>隨機選擇一個子節點執行</td><td>選中者成功</td><td>選中者失敗</td><td>加權隨機</td></tr>
+</table>
+<p>#### 裝飾節點（Decorator Nodes）— 修飾行為</p>
+<table>
+<tr><th>節點類型</th><th>功能</th></tr>
+<tr><td><strong>Repeat</strong></td><td>重複執行子節點（可設次數上限）</td></tr>
+<tr><td><strong>Retry</strong></td><td>失敗時重試子節點</td></tr>
+<tr><td><strong>Inverter</strong></td><td>反轉子節點結果（成功↔失敗）</td></tr>
+<tr><td><strong>Wait</strong></td><td>引入時間延遲</td></tr>
+<tr><td><strong>Guard</strong></td><td>條件守衛，僅在條件滿足時執行子節點</td></tr>
+</table>
+<p>#### 葉節點（Leaf Nodes）— 實際行為</p>
+<table>
+<tr><th>節點類型</th><th>功能</th></tr>
+<tr><td><strong>Action（動作）</strong></td><td>執行具體行為（移動、攻擊、巡邏），回傳 SUCCEEDED/FAILED/RUNNING</td></tr>
+<tr><td><strong>Condition（條件）</strong></td><td>檢查環境狀態（血量是否低於 50%、敵人是否在視野內）</td></tr>
+</table>
+<h3 id="1-3-節點狀態">1.3 節點狀態</h3>
+<ul>
+<li><strong>READY</strong>：等待執行</li>
+<li><strong>RUNNING</strong>：正在執行中（可能需要多個 tick）</li>
+<li><strong>SUCCEEDED</strong>：執行成功</li>
+<li><strong>FAILED</strong>：執行失敗</li>
+</ul>
+<h3 id="1-4-javascript-實作範例">1.4 JavaScript 實作範例</h3>
+<pre><code class="language-javascript">// 簡易行為樹節點基類
+class BTNode {
+  tick(agent, dt) { return &#x27;FAILED&#x27;; }
+}
+
+class Sequence extends BTNode {
+  constructor(children) { super(); this.children = children; }
+  tick(agent, dt) {
+    for (const child of this.children) {
+      const result = child.tick(agent, dt);
+      if (result !== &#x27;SUCCEEDED&#x27;) return result;
+    }
+    return &#x27;SUCCEEDED&#x27;;
+  }
+}
+
+class Selector extends BTNode {
+  constructor(children) { super(); this.children = children; }
+  tick(agent, dt) {
+    for (const child of this.children) {
+      const result = child.tick(agent, dt);
+      if (result !== &#x27;FAILED&#x27;) return result;
+    }
+    return &#x27;FAILED&#x27;;
+  }
+}
+
+// 條件節點：檢查玩家是否在視野範圍
+class IsPlayerInRange extends BTNode {
+  constructor(range) { super(); this.range = range; }
+  tick(agent) {
+    const dist = Math.hypot(agent.x - player.x, agent.y - player.y);
+    return dist &lt; this.range ? &#x27;SUCCEEDED&#x27; : &#x27;FAILED&#x27;;
+  }
+}
+
+// 動作節點：追逐玩家
+class ChasePlayer extends BTNode {
+  tick(agent, dt) {
+    const dx = player.x - agent.x;
+    const dy = player.y - agent.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist &lt; 5) return &#x27;SUCCEEDED&#x27;;
+    agent.x += (dx / dist) * agent.speed * dt;
+    agent.y += (dy / dist) * agent.speed * dt;
+    return &#x27;RUNNING&#x27;;
+  }
+}
+
+// 組合：敵人 AI
+const enemyAI = new Selector([
+  new Sequence([
+    new IsPlayerInRange(200),
+    new ChasePlayer()
+  ]),
+  new Patrol()  // 不在範圍內就巡邏
+]);</code></pre>
+<h3 id="1-5-javascript-行為樹函式庫">1.5 JavaScript 行為樹函式庫</h3>
+<table>
+<tr><th>函式庫</th><th>特色</th><th>大小</th></tr>
+<tr><td><strong>mistreevous</strong></td><td>DSL + JSON 定義、TypeScript、瀏覽器/Node 支援</td><td>~15KB</td></tr>
+<tr><td><strong>BehaviorTree.js</strong></td><td>內建任務註冊表、輕量級</td><td>~8KB</td></tr>
+<tr><td><strong>fluent-behavior-tree</strong></td><td>Fluent API、TypeScript</td><td>~10KB</td></tr>
+</table>
+<hr>
+<h2 id="二-操控行為-steering-behaviors">二、操控行為（Steering Behaviors）</h2>
+<h3 id="2-1-核心概念">2.1 核心概念</h3>
+<p>由 Craig Reynolds（1999 GDC）提出的自主角色操控行為框架。每個行為產生一個<strong>操控力（steering force）</strong>向量，角色依據合力更新速度與位置。</p>
+<p><strong>核心公式</strong>：</p>
+<pre><code class="language-plaintext">steering = desired_velocity - current_velocity
+acceleration = steering / mass
+velocity += acceleration
+position += velocity</code></pre>
+<h3 id="2-2-基礎行為">2.2 基礎行為</h3>
+<table>
+<tr><th>行為</th><th>描述</th><th>適用場景</th></tr>
+<tr><td><strong>Seek（追尋）</strong></td><td>朝目標全速前進</td><td>敵人追擊</td></tr>
+<tr><td><strong>Flee（逃離）</strong></td><td>遠離目標全速後退</td><td>受驚逃跑</td></tr>
+<tr><td><strong>Arrive（抵達）</strong></td><td>接近目標時減速停止</td><td>移動到定點</td></tr>
+<tr><td><strong>Pursue（追蹤）</strong></td><td>預測目標未來位置進行攔截</td><td>智能追擊</td></tr>
+<tr><td><strong>Evade（閃避）</strong></td><td>預測目標未來位置進行閃避</td><td>智能逃跑</td></tr>
+<tr><td><strong>Wander（漫遊）</strong></td><td>保持方向狀態，每幀微量隨機偏移</td><td>NPC 閒逛</td></tr>
+</table>
+<h3 id="2-3-環境導航行為">2.3 環境導航行為</h3>
+<table>
+<tr><th>行為</th><th>描述</th></tr>
+<tr><td><strong>Obstacle Avoidance（障礙迴避）</strong></td><td>偵測前方圓柱體空間內的障礙，側向轉避</td></tr>
+<tr><td><strong>Path Following（路徑跟隨）</strong></td><td>預測未來位置，投射到最近路徑點，偏離時修正</td></tr>
+<tr><td><strong>Wall Avoidance（牆壁迴避）</strong></td><td>向前投射探測射線，偵測到牆壁時產生反方向力</td></tr>
+</table>
+<h3 id="2-4-群集行為-flocking-boids">2.4 群集行為（Flocking / Boids）</h3>
+<p>由 Craig Reynolds（1986）提出，三條簡單規則產生逼真的群體行為：</p>
+<table>
+<tr><th>規則</th><th>描述</th><th>效果</th></tr>
+<tr><td><strong>Separation（分離）</strong></td><td>遠離過近的鄰居</td><td>避免碰撞擁擠</td></tr>
+<tr><td><strong>Alignment（對齊）</strong></td><td>朝鄰居的平均方向轉向</td><td>統一行進方向</td></tr>
+<tr><td><strong>Cohesion（凝聚）</strong></td><td>朝鄰居的平均位置移動</td><td>維持群體聚合</td></tr>
+</table>
+<pre><code class="language-javascript">// Boids 實作骨架
+class Boid {
+  constructor(x, y) {
+    this.pos = { x, y };
+    this.vel = { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1 };
+    this.maxSpeed = 3;
+    this.maxForce = 0.05;
+    this.perceptionRadius = 50;
+  }
+
+  separation(boids) {
+    const steer = { x: 0, y: 0 };
+    let count = 0;
+    for (const other of boids) {
+      const d = this.distTo(other);
+      if (d &gt; 0 &amp;&amp; d &lt; 25) {
+        steer.x += (this.pos.x - other.pos.x) / d;
+        steer.y += (this.pos.y - other.pos.y) / d;
+        count++;
+      }
+    }
+    if (count &gt; 0) { steer.x /= count; steer.y /= count; }
+    return this.limit(steer, this.maxForce);
+  }
+
+  alignment(boids) {
+    const avg = { x: 0, y: 0 };
+    let count = 0;
+    for (const other of boids) {
+      const d = this.distTo(other);
+      if (d &gt; 0 &amp;&amp; d &lt; this.perceptionRadius) {
+        avg.x += other.vel.x;
+        avg.y += other.vel.y;
+        count++;
+      }
+    }
+    if (count &gt; 0) {
+      avg.x /= count; avg.y /= count;
+      return this.limit({ x: avg.x - this.vel.x, y: avg.y - this.vel.y }, this.maxForce);
+    }
+    return { x: 0, y: 0 };
+  }
+
+  cohesion(boids) {
+    const center = { x: 0, y: 0 };
+    let count = 0;
+    for (const other of boids) {
+      const d = this.distTo(other);
+      if (d &gt; 0 &amp;&amp; d &lt; this.perceptionRadius) {
+        center.x += other.pos.x;
+        center.y += other.pos.y;
+        count++;
+      }
+    }
+    if (count &gt; 0) {
+      center.x /= count; center.y /= count;
+      const desired = { x: center.x - this.pos.x, y: center.y - this.pos.y };
+      return this.limit(desired, this.maxForce);
+    }
+    return { x: 0, y: 0 };
+  }
+
+  update(boids) {
+    const sep = this.separation(boids);
+    const ali = this.alignment(boids);
+    const coh = this.cohesion(boids);
+    // 加權合成
+    this.vel.x += sep.x * 1.5 + ali.x * 1.0 + coh.x * 1.0;
+    this.vel.y += sep.y * 1.5 + ali.y * 1.0 + coh.y * 1.0;
+    this.vel = this.limit(this.vel, this.maxSpeed);
+    this.pos.x += this.vel.x;
+    this.pos.y += this.vel.y;
+  }
+}</code></pre>
+<h3 id="2-5-行為組合策略">2.5 行為組合策略</h3>
+<table>
+<tr><th>策略</th><th>描述</th><th>優缺點</th></tr>
+<tr><td><strong>加權線性疊加</strong></td><td>各行為力向量乘以權重後相加</td><td>簡單但行為可能互相抵消</td></tr>
+<tr><td><strong>優先級二值化</strong></td><td>高優先級行為先評估，有結果就不往下</td><td>重要行為優先，但低優先級可能餓死</td></tr>
+<tr><td><strong>動量過濾</strong></td><td>讓物理慣性自然融合跨幀的力</td><td>平滑但反應遲鈍</td></tr>
+</table>
+<hr>
+<h2 id="三-尋路演算法-pathfinding">三、尋路演算法（Pathfinding）</h2>
+<h3 id="3-1-a-演算法">3.1 A* 演算法</h3>
+<p><strong>A</strong>* 是遊戲中最常用的尋路演算法，結合了 Dijkstra 的最短路徑保證與啟發式搜尋的效率。</p>
+<p><strong>核心公式</strong>：<code>f(n) = g(n) + h(n)</code></p>
+<ul>
+<li><code>g(n)</code>：起點到節點 n 的實際成本</li>
+<li><code>h(n)</code>：節點 n 到終點的啟發式估計成本</li>
+<li><code>f(n)</code>：總估計成本</li>
+</ul>
+<p><strong>啟發式函數</strong>：</p>
+<table>
+<tr><th>啟發式</th><th>公式</th><th>適用</th></tr>
+<tr><td><strong>Manhattan</strong></td><td>`</td><td>dx</td><td>+</td><td>dy</td><td>`</td><td>四方向網格</td></tr>
+<tr><td><strong>Euclidean</strong></td><td><code>sqrt(dx^2 + dy^2)</code></td><td>任意方向移動</td></tr>
+<tr><td><strong>Chebyshev</strong></td><td>`max(</td><td>dx</td><td>,</td><td>dy</td><td>)`</td><td>八方向網格</td></tr>
+</table>
+<h3 id="3-2-a-javascript-實作">3.2 A* JavaScript 實作</h3>
+<pre><code class="language-javascript">class AStarPathfinder {
+  constructor(grid, cols, rows) {
+    this.grid = grid; // 2D 陣列，0=可走，1=障礙
+    this.cols = cols;
+    this.rows = rows;
+  }
+
+  findPath(startX, startY, endX, endY) {
+    const openList = [];
+    const closedSet = new Set();
+    const start = { x: startX, y: startY, g: 0, h: 0, f: 0, parent: null };
+    start.h = this.heuristic(start, { x: endX, y: endY });
+    start.f = start.h;
+    openList.push(start);
+
+    while (openList.length &gt; 0) {
+      // 找 f 值最小的節點
+      openList.sort((a, b) =&gt; a.f - b.f);
+      const current = openList.shift();
+
+      if (current.x === endX &amp;&amp; current.y === endY) {
+        return this.reconstructPath(current);
+      }
+
+      closedSet.add(`${current.x},${current.y}`);
+
+      for (const neighbor of this.getNeighbors(current)) {
+        const key = `${neighbor.x},${neighbor.y}`;
+        if (closedSet.has(key)) continue;
+
+        const tentativeG = current.g + 1;
+        const existing = openList.find(n =&gt; n.x === neighbor.x &amp;&amp; n.y === neighbor.y);
+
+        if (!existing || tentativeG &lt; existing.g) {
+          neighbor.g = tentativeG;
+          neighbor.h = this.heuristic(neighbor, { x: endX, y: endY });
+          neighbor.f = neighbor.g + neighbor.h;
+          neighbor.parent = current;
+          if (!existing) openList.push(neighbor);
+        }
+      }
+    }
+    return null; // 無路可走
+  }
+
+  heuristic(a, b) {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); // Manhattan
+  }
+
+  getNeighbors(node) {
+    const dirs = [[0,-1],[1,0],[0,1],[-1,0]]; // 四方向
+    return dirs
+      .map(([dx,dy]) =&gt; ({ x: node.x+dx, y: node.y+dy }))
+      .filter(n =&gt; n.x &gt;= 0 &amp;&amp; n.x &lt; this.cols &amp;&amp; n.y &gt;= 0 &amp;&amp; n.y &lt; this.rows
+                   &amp;&amp; this.grid[n.y][n.x] === 0);
+  }
+
+  reconstructPath(node) {
+    const path = [];
+    while (node) { path.unshift({ x: node.x, y: node.y }); node = node.parent; }
+    return path;
+  }
+}</code></pre>
+<h3 id="3-3-效能優化">3.3 效能優化</h3>
+<table>
+<tr><th>優化技術</th><th>描述</th><th>效果</th></tr>
+<tr><td><strong>Binary Heap</strong></td><td>用二元堆取代陣列排序找最小 f 值</td><td>O(n log n) → O(log n)</td></tr>
+<tr><td><strong>空間雜湊</strong></td><td>用 Set/Map 取代陣列搜尋 closed list</td><td>O(n) → O(1)</td></tr>
+<tr><td><strong>分幀計算</strong></td><td>每幀只計算 N 步，避免卡頓</td><td>適合即時遊戲</td></tr>
+<tr><td><strong>路徑快取</strong></td><td>快取常用起終點的路徑</td><td>減少重複計算</td></tr>
+<tr><td><strong>階層式 A</strong>*</td><td>先在粗粒度網格找大方向，再局部精細搜尋</td><td>大地圖必備</td></tr>
+</table>
+<h3 id="3-4-javascript-尋路函式庫">3.4 JavaScript 尋路函式庫</h3>
+<table>
+<tr><th>函式庫</th><th>特色</th><th>用途</th></tr>
+<tr><td><strong>PathFinding.js</strong></td><td>完整尋路庫、視覺化工具、多種演算法</td><td>通用網格尋路</td></tr>
+<tr><td><strong>EasyStar.js</strong></td><td>非同步 A*、~7KB、框架無關</td><td>輕量 HTML5 遊戲</td></tr>
+<tr><td><strong>NavMesh</strong></td><td>導航網格、多邊形尋路</td><td>非規則地形</td></tr>
+</table>
+<hr>
+<h2 id="四-三大模式整合策略">四、三大模式整合策略</h2>
+<h3 id="4-1-分層架構">4.1 分層架構</h3>
+<pre><code class="language-plaintext">行為樹（高層決策）
+  ├─ 決定目標：攻擊/逃跑/巡邏
+  ├─ 觸發尋路：A* 計算到目標的路徑
+  └─ 執行操控行為：沿路徑移動 + 避障</code></pre>
+<h3 id="4-2-實際整合範例">4.2 實際整合範例</h3>
+<pre><code class="language-javascript">// 行為樹驅動 → 尋路計算 → 操控行為執行
+class SmartEnemy {
+  constructor(grid) {
+    this.pathfinder = new AStarPathfinder(grid, COLS, ROWS);
+    this.path = [];
+    this.currentWaypoint = 0;
+
+    // 行為樹定義
+    this.ai = new Selector([
+      new Sequence([                     // 攻擊模式
+        new IsPlayerInRange(150),
+        new CalculatePath(this),          // A* 尋路
+        new FollowPathWithSteering(this)  // 操控行為沿路徑
+      ]),
+      new Sequence([                     // 巡邏模式
+        new SelectPatrolPoint(this),
+        new CalculatePath(this),
+        new FollowPathWithSteering(this)
+      ])
+    ]);
+  }
+
+  update(dt) {
+    this.ai.tick(this, dt);
+  }
+}</code></pre>
+<h3 id="4-3-何時使用哪種模式">4.3 何時使用哪種模式</h3>
+<table>
+<tr><th>需求</th><th>推薦模式</th><th>理由</th></tr>
+<tr><td>簡單追逐/逃跑</td><td>操控行為（Seek/Flee）</td><td>無需尋路，直線操控即可</td></tr>
+<tr><td>有障礙物的追逐</td><td>A* + Path Following</td><td>需要繞過障礙</td></tr>
+<tr><td>複雜 NPC 決策</td><td>行為樹</td><td>模組化管理多種行為</td></tr>
+<tr><td>群體行為（魚群/鳥群）</td><td>Boids 三規則</td><td>三條規則產生湧現行為</td></tr>
+<tr><td>完整敵人 AI</td><td>三者整合</td><td>決策→尋路→操控完整管線</td></tr>
+</table>
+<hr>
+<h2 id="五-效能考量-html5-canvas-遊戲">五、效能考量（HTML5 Canvas 遊戲）</h2>
+<h3 id="5-1-空間分割優化">5.1 空間分割優化</h3>
+<p>大量 Agent 的鄰居搜尋（O(n^2)）是效能瓶頸。解決方案：</p>
+<ul>
+<li><strong>空間網格</strong>：將世界分成等大的格子，只搜尋相鄰格子內的 Agent</li>
+<li><strong>四叉樹（Quadtree）</strong>：動態細分空間，密集區域自動細化</li>
+</ul>
+<h3 id="5-2-更新頻率">5.2 更新頻率</h3>
+<ul>
+<li>行為樹決策：每 5-10 幀更新一次即可</li>
+<li>操控行為：每幀更新（確保平滑移動）</li>
+<li>A* 尋路：觸發時計算，路徑快取複用</li>
+</ul>
+<h3 id="5-3-agent-數量指引">5.3 Agent 數量指引</h3>
+<table>
+<tr><th>Agent 數量</th><th>建議架構</th></tr>
+<tr><td>&lt; 20</td><td>直接遍歷，無需優化</td></tr>
+<tr><td>20-100</td><td>空間網格 + 分幀尋路</td></tr>
+<tr><td>100-500</td><td>四叉樹 + 階層式 A* + LOD AI</td></tr>
+<tr><td>&gt; 500</td><td>考慮 Web Worker 分線程計算</td></tr>
+</table>
+<hr>
+<h2 id="六-與本專案-d-source-game-的關聯">六、與本專案（D:\Source\game）的關聯</h2>
+<h3 id="直接適用">直接適用</h3>
+<ol>
+<li><strong>小蜜蜂（Space Invaders）</strong>：外星人群可用簡化 Boids 實現更自然的群體移動</li>
+<li><strong>貪吃蛇</strong>：未來加入 AI 對手可用簡單操控行為</li>
+<li><strong>未來策略遊戲</strong>：行為樹 + A* 構建完整 NPC AI</li>
+</ol>
+<h3 id="實作建議">實作建議</h3>
+<ul>
+<li>小型遊戲（&lt;10 敵人）：直接手寫簡易行為樹 + Seek/Flee</li>
+<li>中型遊戲（10-50 敵人）：用 mistreevous 行為樹庫 + EasyStar.js 尋路</li>
+<li>需要群體感：加入 Boids 三規則 + 空間網格優化</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li>Craig Reynolds, &quot;Steering Behaviors For Autonomous Characters&quot;, GDC 1999 (red3d.com/cwr/steer/gdc99)</li>
+<li>Craig Reynolds, &quot;Boids: Flocks, Herds, and Schools&quot;, 1986 (red3d.com/cwr/boids)</li>
+<li>mistreevous: Behaviour Tree Library for JS/TS (github.com/nikkorn/mistreevous)</li>
+<li>EasyStar.js: Asynchronous A* Pathfinding (easystarjs.com)</li>
+<li>PathFinding.js: Comprehensive Grid Pathfinding (github.com/qiao/PathFinding.js)</li>
+<li>Developers Heaven: Game AI - Behavior Trees, State Machines, and Pathfinding</li>
+</ul>
+<hr>
+<p><em>研究日期：2026-02-18</em>
+<em>適用範圍：HTML5/JavaScript Canvas 遊戲開發</em>
+<em>相關知識庫筆記：遊戲狀態機 FSM、碰撞偵測、粒子系統/物件池、ECS 架構</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 Canvas 遊戲效能優化：標記回收 vs splice 回收">
+  <title>HTML5 Canvas 遊戲效能優化：標記回收 vs splice 回收 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>HTML5 Canvas 遊戲效能優化：標記回收 vs splice 回收</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">效能優化</span><span class="tag">JavaScript</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#問題">問題</a></li><li><a href="#解決方案-標記回收-mark-and-reuse">解決方案：標記回收（Mark-and-Reuse）</a></li>  <li><a href="#核心概念">核心概念</a></li>  <li><a href="#實作模式">實作模式</a></li>  <li><a href="#進階-swap-and-pop-適合大量粒子">進階：Swap-and-Pop（適合大量粒子）</a></li><li><a href="#適用場景">適用場景</a></li><li><a href="#額外優化">額外優化</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h2 id="問題">問題</h2>
+<p>在 HTML5 Canvas 遊戲中，粒子、浮動文字、敵人等動態物件需要頻繁新增與移除。常見做法是使用 <code>Array.splice()</code> 移除死亡物件，但這會造成：</p>
+<ol>
+<li><strong>O(n) 陣列搬移</strong>：splice 需要移動後續所有元素</li>
+<li><strong>GC 壓力</strong>：被 splice 的物件變成垃圾等待回收</li>
+<li><strong>幀率不穩定</strong>：GC 觸發時造成掉幀</li>
+</ol>
+<h2 id="解決方案-標記回收-mark-and-reuse">解決方案：標記回收（Mark-and-Reuse）</h2>
+<h3 id="核心概念">核心概念</h3>
+<ul>
+<li>每個物件加 <code>alive</code> 布林欄位</li>
+<li>物件「死亡」時只設 <code>alive = false</code>，不移除</li>
+<li>需要新物件時先搜尋 <code>alive === false</code> 的插槽重用</li>
+<li>遍歷時跳過 <code>!alive</code> 的物件</li>
+</ul>
+<h3 id="實作模式">實作模式</h3>
+<pre><code class="language-javascript">var MAX_ITEMS = 30;
+var items = [];
+
+function getSlot() {
+  for (var i = 0; i &lt; items.length; i++) {
+    if (!items[i].alive) return items[i];
+  }
+  if (items.length &gt;= MAX_ITEMS) return null;
+  var slot = { x: 0, y: 0, alive: false };
+  items.push(slot);
+  return slot;
+}
+
+function spawn(x, y) {
+  var s = getSlot();
+  if (!s) return;
+  s.x = x; s.y = y; s.alive = true;
+}
+
+function update() {
+  for (var i = 0; i &lt; items.length; i++) {
+    if (!items[i].alive) continue;
+    // 更新邏輯...
+    if (shouldDie) items[i].alive = false;
+  }
+}</code></pre>
+<h3 id="進階-swap-and-pop-適合大量粒子">進階：Swap-and-Pop（適合大量粒子）</h3>
+<pre><code class="language-javascript">var activeCount = 0;
+function remove(i) {
+  activeCount--;
+  var tmp = pool[i];
+  pool[i] = pool[activeCount];
+  pool[activeCount] = tmp;
+}</code></pre>
+<h2 id="適用場景">適用場景</h2>
+<ul>
+<li>粒子效果（噴發→消散）</li>
+<li>浮動文字（+分數提示）</li>
+<li>障礙物、敵人、子彈</li>
+<li>軌跡標記</li>
+</ul>
+<h2 id="額外優化">額外優化</h2>
+<ul>
+<li><strong>紙紋理預渲染</strong>：用 OffscreenCanvas 一次性生成背景紋理，避免每幀重繪</li>
+<li><strong>resize 防抖</strong>：高頻 resize 事件搭配 150ms debounce，僅最後一次觸發紋理重建</li>
+<li><strong>顏色快取</strong>：漸層色陣列預計算，長度變化時才重算</li>
+<li><strong>hexToRgba 輔助</strong>：避免 hex + &#x27;40&#x27; 拼接建立漸層色（僅 hex 格式有效），改用 <code>rgba(r,g,b,a)</code> 確保安全</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

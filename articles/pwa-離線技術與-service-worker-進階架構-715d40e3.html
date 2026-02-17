@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PWA 離線技術與 Service Worker 進階架構：從快取策略到背景同步的完整實踐指南（2026）">
+  <title>PWA 離線技術與 Service Worker 進階架構：從快取策略到背景同步的完整實踐指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>PWA 離線技術與 Service Worker 進階架構：從快取策略到背景同步的完整實踐指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">PWA</span><span class="tag">Progressive Web App</span><span class="tag">Service Worker</span><span class="tag">離線技術</span><span class="tag">Cache API</span><span class="tag">Background Sync</span><span class="tag">Workbox</span><span class="tag">IndexedDB</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#一-service-worker-生命週期">一、Service Worker 生命週期</a></li>  <li><a href="#1-1-註冊-registration">1.1 註冊（Registration）</a></li>  <li><a href="#1-2-安裝-install">1.2 安裝（Install）</a></li>  <li><a href="#1-3-激活-activate">1.3 激活（Activate）</a></li>  <li><a href="#1-4-更新機制">1.4 更新機制</a></li><li><a href="#二-六大快取策略-caching-strategies">二、六大快取策略（Caching Strategies）</a></li>  <li><a href="#2-1-cache-first-快取優先">2.1 Cache First（快取優先）</a></li>  <li><a href="#2-2-network-first-網路優先">2.2 Network First（網路優先）</a></li>  <li><a href="#2-3-stale-while-revalidate-陳舊時重驗證">2.3 Stale-While-Revalidate（陳舊時重驗證）</a></li>  <li><a href="#2-4-cache-only-僅快取">2.4 Cache Only（僅快取）</a></li>  <li><a href="#2-5-network-only-僅網路">2.5 Network Only（僅網路）</a></li>  <li><a href="#2-6-cache-then-network-快取後網路">2.6 Cache Then Network（快取後網路）</a></li><li><a href="#三-cache-storage-api-進階用法">三、Cache Storage API 進階用法</a></li>  <li><a href="#3-1-快取版本管理">3.1 快取版本管理</a></li>  <li><a href="#3-2-快取容量管理">3.2 快取容量管理</a></li>  <li><a href="#3-3-storage-api-配額檢查">3.3 Storage API 配額檢查</a></li><li><a href="#四-background-sync-api">四、Background Sync API</a></li>  <li><a href="#4-1-基本背景同步">4.1 基本背景同步</a></li>  <li><a href="#4-2-periodic-background-sync">4.2 Periodic Background Sync</a></li><li><a href="#五-indexeddb-與離線資料管理">五、IndexedDB 與離線資料管理</a></li>  <li><a href="#5-1-idb-keyval-輕量封裝">5.1 idb-keyval 輕量封裝</a></li>  <li><a href="#5-2-離線優先的資料存取模式">5.2 離線優先的資料存取模式</a></li><li><a href="#六-workbox-工具鏈">六、Workbox 工具鏈</a></li>  <li><a href="#6-1-核心模組">6.1 核心模組</a></li>  <li><a href="#6-2-實作範例">6.2 實作範例</a></li>  <li><a href="#6-3-與構建工具整合">6.3 與構建工具整合</a></li><li><a href="#七-web-app-manifest-與安裝體驗">七、Web App Manifest 與安裝體驗</a></li>  <li><a href="#7-1-manifest-完整配置">7.1 Manifest 完整配置</a></li>  <li><a href="#7-2-安裝提示自訂">7.2 安裝提示自訂</a></li><li><a href="#八-push-notification-api">八、Push Notification API</a></li><li><a href="#九-效能最佳實踐">九、效能最佳實踐</a></li>  <li><a href="#9-1-navigation-preload">9.1 Navigation Preload</a></li>  <li><a href="#9-2-快取策略選擇矩陣">9.2 快取策略選擇矩陣</a></li>  <li><a href="#9-3-lighthouse-pwa-檢查清單">9.3 Lighthouse PWA 檢查清單</a></li><li><a href="#十-實際應用場景">十、實際應用場景</a></li>  <li><a href="#10-1-知識庫-pwa-部署方案">10.1 知識庫 PWA 部署方案</a></li>  <li><a href="#10-2-遊戲網站-pwa-部署方案">10.2 遊戲網站 PWA 部署方案</a></li><li><a href="#十一-瀏覽器相容性-2026-年現況">十一、瀏覽器相容性（2026 年現況）</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>PWA 離線技術與 Service Worker 進階架構</h1>
+<h2 id="概述">概述</h2>
+<p>Progressive Web App（PWA）是一種使用現代 Web 技術構建的應用程式，能提供接近原生應用的體驗。其核心技術 <strong>Service Worker</strong> 作為瀏覽器與網路之間的代理層，實現離線存取、背景同步、推播通知等進階功能。本文深入探討 PWA 離線技術的完整架構，涵蓋 Service Worker 生命週期、六大快取策略、背景同步 API、以及 Workbox 工具鏈的最佳實踐。</p>
+<hr>
+<h2 id="一-service-worker-生命週期">一、Service Worker 生命週期</h2>
+<p>Service Worker 的生命週期獨立於網頁，理解其運作是正確實作離線功能的基礎。</p>
+<h3 id="1-1-註冊-registration">1.1 註冊（Registration）</h3>
+<pre><code class="language-javascript">// main.js - 在主線程中註冊
+if (&#x27;serviceWorker&#x27; in navigator) {
+  window.addEventListener(&#x27;load&#x27;, async () =&gt; {
+    try {
+      const registration = await navigator.serviceWorker.register(&#x27;/sw.js&#x27;, {
+        scope: &#x27;/&#x27;,
+        type: &#x27;module&#x27;,  // ES Module SW（Chrome 91+）
+        updateViaCache: &#x27;none&#x27;  // 每次都檢查更新
+      });
+      console.log(&#x27;SW registered:&#x27;, registration.scope);
+    } catch (error) {
+      console.error(&#x27;SW registration failed:&#x27;, error);
+    }
+  });
+}</code></pre>
+<h3 id="1-2-安裝-install">1.2 安裝（Install）</h3>
+<p>安裝階段用於預快取（precache）關鍵資源：</p>
+<pre><code class="language-javascript">// sw.js
+const CACHE_NAME = &#x27;app-shell-v2&#x27;;
+const PRECACHE_URLS = [
+  &#x27;/&#x27;,
+  &#x27;/index.html&#x27;,
+  &#x27;/styles/main.css&#x27;,
+  &#x27;/scripts/app.js&#x27;,
+  &#x27;/images/logo.svg&#x27;,
+  &#x27;/offline.html&#x27;  // 離線 fallback 頁面
+];
+
+self.addEventListener(&#x27;install&#x27;, (event) =&gt; {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache =&gt; cache.addAll(PRECACHE_URLS))
+      .then(() =&gt; self.skipWaiting())  // 跳過等待，立即激活
+  );
+});</code></pre>
+<h3 id="1-3-激活-activate">1.3 激活（Activate）</h3>
+<p>激活階段用於清理舊快取：</p>
+<pre><code class="language-javascript">self.addEventListener(&#x27;activate&#x27;, (event) =&gt; {
+  event.waitUntil(
+    caches.keys().then(cacheNames =&gt; {
+      return Promise.all(
+        cacheNames
+          .filter(name =&gt; name !== CACHE_NAME)
+          .map(name =&gt; caches.delete(name))
+      );
+    }).then(() =&gt; self.clients.claim())  // 立即控制所有頁面
+  );
+});</code></pre>
+<h3 id="1-4-更新機制">1.4 更新機制</h3>
+<ul>
+<li>瀏覽器每 24 小時自動檢查 sw.js 是否有變更（byte-diff）</li>
+<li><code>navigator.serviceWorker.register()</code> 每次呼叫也會觸發檢查</li>
+<li>新版本進入 <code>waiting</code> 狀態，直到所有舊頁面關閉</li>
+<li><code>skipWaiting()</code> + <code>clients.claim()</code> 可強制立即接管</li>
+</ul>
+<hr>
+<h2 id="二-六大快取策略-caching-strategies">二、六大快取策略（Caching Strategies）</h2>
+<h3 id="2-1-cache-first-快取優先">2.1 Cache First（快取優先）</h3>
+<p><strong>適用場景</strong>：靜態資源（CSS、JS、字體、圖片）</p>
+<pre><code class="language-javascript">self.addEventListener(&#x27;fetch&#x27;, (event) =&gt; {
+  event.respondWith(
+    caches.match(event.request)
+      .then(cachedResponse =&gt; {
+        if (cachedResponse) return cachedResponse;
+        return fetch(event.request).then(response =&gt; {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache =&gt; cache.put(event.request, clone));
+          return response;
+        });
+      })
+  );
+});</code></pre>
+<p><strong>優點</strong>：極快回應速度、完全離線可用
+<strong>缺點</strong>：可能回傳過期內容</p>
+<h3 id="2-2-network-first-網路優先">2.2 Network First（網路優先）</h3>
+<p><strong>適用場景</strong>：API 請求、即時數據、使用者資料</p>
+<pre><code class="language-javascript">async function networkFirst(request, cacheName, timeout = 3000) {
+  const cache = await caches.open(cacheName);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() =&gt; controller.abort(), timeout);
+    const response = await fetch(request, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    cache.put(request, response.clone());
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request);
+    return cached || new Response(&#x27;Offline&#x27;, { status: 503 });
+  }
+}</code></pre>
+<p><strong>優點</strong>：數據始終最新
+<strong>缺點</strong>：網路慢時回應延遲</p>
+<h3 id="2-3-stale-while-revalidate-陳舊時重驗證">2.3 Stale-While-Revalidate（陳舊時重驗證）</h3>
+<p><strong>適用場景</strong>：更新頻率中等的資源（部落格文章、產品列表）</p>
+<pre><code class="language-javascript">async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cachedResponse = await cache.match(request);
+  const fetchPromise = fetch(request).then(response =&gt; {
+    cache.put(request, response.clone());
+    return response;
+  });
+  return cachedResponse || fetchPromise;
+}</code></pre>
+<p><strong>優點</strong>：快速回應 + 背景更新
+<strong>缺點</strong>：首次顯示可能是過期內容</p>
+<h3 id="2-4-cache-only-僅快取">2.4 Cache Only（僅快取）</h3>
+<p><strong>適用場景</strong>：完全離線的預快取資源</p>
+<pre><code class="language-javascript">event.respondWith(caches.match(event.request));</code></pre>
+<h3 id="2-5-network-only-僅網路">2.5 Network Only（僅網路）</h3>
+<p><strong>適用場景</strong>：無法快取的請求（POST、認證相關）</p>
+<pre><code class="language-javascript">event.respondWith(fetch(event.request));</code></pre>
+<h3 id="2-6-cache-then-network-快取後網路">2.6 Cache Then Network（快取後網路）</h3>
+<p><strong>適用場景</strong>：需要即時顯示 + 後續更新的 UI</p>
+<pre><code class="language-javascript">// 頁面端（雙重請求模式）
+async function cacheThenNetwork(url) {
+  const cache = await caches.open(&#x27;api-cache&#x27;);
+  const cachedData = await cache.match(url);
+  if (cachedData) {
+    renderUI(await cachedData.json());  // 先顯示快取
+  }
+  const freshData = await fetch(url);
+  renderUI(await freshData.clone().json());  // 再更新為最新
+  cache.put(url, freshData);
+}</code></pre>
+<hr>
+<h2 id="三-cache-storage-api-進階用法">三、Cache Storage API 進階用法</h2>
+<h3 id="3-1-快取版本管理">3.1 快取版本管理</h3>
+<pre><code class="language-javascript">const CACHE_VERSIONS = {
+  &#x27;static&#x27;: &#x27;static-v3&#x27;,
+  &#x27;dynamic&#x27;: &#x27;dynamic-v1&#x27;,
+  &#x27;api&#x27;: &#x27;api-v2&#x27;,
+  &#x27;images&#x27;: &#x27;images-v1&#x27;
+};
+
+// 激活時只清理版本變更的快取
+self.addEventListener(&#x27;activate&#x27;, (event) =&gt; {
+  const currentCaches = Object.values(CACHE_VERSIONS);
+  event.waitUntil(
+    caches.keys().then(names =&gt;
+      Promise.all(
+        names
+          .filter(name =&gt; !currentCaches.includes(name))
+          .map(name =&gt; caches.delete(name))
+      )
+    )
+  );
+});</code></pre>
+<h3 id="3-2-快取容量管理">3.2 快取容量管理</h3>
+<pre><code class="language-javascript">async function trimCache(cacheName, maxItems) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length &gt; maxItems) {
+    await cache.delete(keys[0]);  // 刪除最舊的
+    return trimCache(cacheName, maxItems);  // 遞迴清理
+  }
+}</code></pre>
+<h3 id="3-3-storage-api-配額檢查">3.3 Storage API 配額檢查</h3>
+<pre><code class="language-javascript">if (&#x27;storage&#x27; in navigator &amp;&amp; &#x27;estimate&#x27; in navigator.storage) {
+  const estimate = await navigator.storage.estimate();
+  const percentUsed = (estimate.usage / estimate.quota * 100).toFixed(2);
+  console.log(`Storage: ${percentUsed}% used (${estimate.usage} / ${estimate.quota})`);
+}
+
+// 請求持久化儲存（避免瀏覽器自動清除）
+if (&#x27;persist&#x27; in navigator.storage) {
+  const persistent = await navigator.storage.persist();
+  console.log(`Persistent storage: ${persistent}`);
+}</code></pre>
+<hr>
+<h2 id="四-background-sync-api">四、Background Sync API</h2>
+<h3 id="4-1-基本背景同步">4.1 基本背景同步</h3>
+<p>離線時將操作排隊，恢復連線後自動執行：</p>
+<pre><code class="language-javascript">// 頁面端：註冊同步事件
+async function saveDataOffline(data) {
+  // 先存入 IndexedDB
+  await idb.put(&#x27;outbox&#x27;, data);
+  // 註冊背景同步
+  const registration = await navigator.serviceWorker.ready;
+  await registration.sync.register(&#x27;sync-outbox&#x27;);
+}
+
+// sw.js：處理同步事件
+self.addEventListener(&#x27;sync&#x27;, (event) =&gt; {
+  if (event.tag === &#x27;sync-outbox&#x27;) {
+    event.waitUntil(syncOutbox());
+  }
+});
+
+async function syncOutbox() {
+  const items = await idb.getAll(&#x27;outbox&#x27;);
+  for (const item of items) {
+    try {
+      await fetch(&#x27;/api/sync&#x27;, {
+        method: &#x27;POST&#x27;,
+        headers: { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; },
+        body: JSON.stringify(item)
+      });
+      await idb.delete(&#x27;outbox&#x27;, item.id);
+    } catch (error) {
+      // 同步失敗，瀏覽器會自動重試
+      throw error;
+    }
+  }
+}</code></pre>
+<h3 id="4-2-periodic-background-sync">4.2 Periodic Background Sync</h3>
+<p>定期在背景執行任務（需使用者授權）：</p>
+<pre><code class="language-javascript">// 註冊定期同步
+const registration = await navigator.serviceWorker.ready;
+const status = await navigator.permissions.query({ name: &#x27;periodic-background-sync&#x27; });
+if (status.state === &#x27;granted&#x27;) {
+  await registration.periodicSync.register(&#x27;update-content&#x27;, {
+    minInterval: 24 * 60 * 60 * 1000  // 最少 24 小時
+  });
+}
+
+// sw.js
+self.addEventListener(&#x27;periodicsync&#x27;, (event) =&gt; {
+  if (event.tag === &#x27;update-content&#x27;) {
+    event.waitUntil(updateContent());
+  }
+});</code></pre>
+<p><strong>瀏覽器支援</strong>：Chrome 80+（基於 Site Engagement Score 決定執行頻率）</p>
+<hr>
+<h2 id="五-indexeddb-與離線資料管理">五、IndexedDB 與離線資料管理</h2>
+<h3 id="5-1-idb-keyval-輕量封裝">5.1 idb-keyval 輕量封裝</h3>
+<pre><code class="language-javascript">import { openDB } from &#x27;idb&#x27;;
+
+const dbPromise = openDB(&#x27;app-store&#x27;, 2, {
+  upgrade(db, oldVersion) {
+    if (oldVersion &lt; 1) {
+      const store = db.createObjectStore(&#x27;notes&#x27;, { keyPath: &#x27;id&#x27;, autoIncrement: true });
+      store.createIndex(&#x27;by-date&#x27;, &#x27;updatedAt&#x27;);
+      store.createIndex(&#x27;by-tag&#x27;, &#x27;tags&#x27;, { multiEntry: true });
+    }
+    if (oldVersion &lt; 2) {
+      db.createObjectStore(&#x27;sync-queue&#x27;, { keyPath: &#x27;id&#x27;, autoIncrement: true });
+    }
+  }
+});
+
+// CRUD 操作
+export async function addNote(note) {
+  const db = await dbPromise;
+  return db.put(&#x27;notes&#x27;, { ...note, updatedAt: Date.now() });
+}
+
+export async function getNotesByTag(tag) {
+  const db = await dbPromise;
+  return db.getAllFromIndex(&#x27;notes&#x27;, &#x27;by-tag&#x27;, tag);
+}</code></pre>
+<h3 id="5-2-離線優先的資料存取模式">5.2 離線優先的資料存取模式</h3>
+<pre><code class="language-javascript">async function getDataOfflineFirst(key) {
+  // 1. 先從 IndexedDB 取
+  const cached = await idb.get(&#x27;data-cache&#x27;, key);
+  if (cached &amp;&amp; Date.now() - cached.timestamp &lt; 3600000) {
+    return cached.data;  // 1 小時內的快取直接用
+  }
+  // 2. 嘗試網路
+  try {
+    const response = await fetch(`/api/data/${key}`);
+    const data = await response.json();
+    await idb.put(&#x27;data-cache&#x27;, { key, data, timestamp: Date.now() });
+    return data;
+  } catch (error) {
+    return cached?.data || null;  // 離線降級
+  }
+}</code></pre>
+<hr>
+<h2 id="六-workbox-工具鏈">六、Workbox 工具鏈</h2>
+<p>Workbox 是 Google 維護的 Service Worker 工具庫，大幅簡化快取策略實作。</p>
+<h3 id="6-1-核心模組">6.1 核心模組</h3>
+<table>
+<tr><th>模組</th><th>功能</th></tr>
+<tr><td><code>workbox-routing</code></td><td>URL 匹配與路由</td></tr>
+<tr><td><code>workbox-strategies</code></td><td>六大快取策略封裝</td></tr>
+<tr><td><code>workbox-precaching</code></td><td>預快取清單管理（含版本雜湊）</td></tr>
+<tr><td><code>workbox-expiration</code></td><td>快取過期與配額管理</td></tr>
+<tr><td><code>workbox-background-sync</code></td><td>背景同步佇列</td></tr>
+<tr><td><code>workbox-cacheable-response</code></td><td>可快取回應篩選</td></tr>
+<tr><td><code>workbox-broadcast-update</code></td><td>快取更新通知</td></tr>
+<tr><td><code>workbox-window</code></td><td>Service Worker 生命週期管理</td></tr>
+</table>
+<h3 id="6-2-實作範例">6.2 實作範例</h3>
+<pre><code class="language-javascript">import { precacheAndRoute } from &#x27;workbox-precaching&#x27;;
+import { registerRoute } from &#x27;workbox-routing&#x27;;
+import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from &#x27;workbox-strategies&#x27;;
+import { ExpirationPlugin } from &#x27;workbox-expiration&#x27;;
+import { CacheableResponsePlugin } from &#x27;workbox-cacheable-response&#x27;;
+import { BackgroundSyncPlugin } from &#x27;workbox-background-sync&#x27;;
+
+// 預快取（構建時自動注入清單）
+precacheAndRoute(self.__WB_MANIFEST);
+
+// 靜態資源：Cache First
+registerRoute(
+  ({ request }) =&gt; request.destination === &#x27;style&#x27; ||
+                   request.destination === &#x27;script&#x27; ||
+                   request.destination === &#x27;font&#x27;,
+  new CacheFirst({
+    cacheName: &#x27;static-resources&#x27;,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 })
+    ]
+  })
+);
+
+// 圖片：Cache First + 配額限制
+registerRoute(
+  ({ request }) =&gt; request.destination === &#x27;image&#x27;,
+  new CacheFirst({
+    cacheName: &#x27;images&#x27;,
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 60 * 24 * 60 * 60 }),
+      new CacheableResponsePlugin({ statuses: [0, 200] })
+    ]
+  })
+);
+
+// API 請求：Network First + 超時
+registerRoute(
+  ({ url }) =&gt; url.pathname.startsWith(&#x27;/api/&#x27;),
+  new NetworkFirst({
+    cacheName: &#x27;api-responses&#x27;,
+    networkTimeoutSeconds: 3,
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 5 * 60 })
+    ]
+  })
+);
+
+// 頁面：Stale While Revalidate
+registerRoute(
+  ({ request }) =&gt; request.mode === &#x27;navigate&#x27;,
+  new StaleWhileRevalidate({
+    cacheName: &#x27;pages&#x27;,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] })
+    ]
+  })
+);
+
+// 離線 POST 請求：背景同步
+const bgSyncPlugin = new BackgroundSyncPlugin(&#x27;api-queue&#x27;, {
+  maxRetentionTime: 24 * 60  // 最多保留 24 小時
+});
+
+registerRoute(
+  ({ url }) =&gt; url.pathname.startsWith(&#x27;/api/&#x27;),
+  new NetworkFirst({
+    plugins: [bgSyncPlugin]
+  }),
+  &#x27;POST&#x27;
+);</code></pre>
+<h3 id="6-3-與構建工具整合">6.3 與構建工具整合</h3>
+<pre><code class="language-javascript">// vite.config.js - 使用 vite-plugin-pwa
+import { VitePWA } from &#x27;vite-plugin-pwa&#x27;;
+
+export default defineConfig({
+  plugins: [
+    VitePWA({
+      registerType: &#x27;autoUpdate&#x27;,
+      workbox: {
+        globPatterns: [&#x27;**/*.{js,css,html,ico,png,svg,woff2}&#x27;],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\.example\.com\/.*/i,
+            handler: &#x27;NetworkFirst&#x27;,
+            options: {
+              cacheName: &#x27;api-cache&#x27;,
+              expiration: { maxEntries: 50, maxAgeSeconds: 300 }
+            }
+          }
+        ]
+      },
+      manifest: {
+        name: &#x27;My PWA App&#x27;,
+        short_name: &#x27;MyPWA&#x27;,
+        theme_color: &#x27;#1a1a2e&#x27;,
+        icons: [
+          { src: &#x27;/icons/icon-192.png&#x27;, sizes: &#x27;192x192&#x27;, type: &#x27;image/png&#x27; },
+          { src: &#x27;/icons/icon-512.png&#x27;, sizes: &#x27;512x512&#x27;, type: &#x27;image/png&#x27; }
+        ]
+      }
+    })
+  ]
+});</code></pre>
+<hr>
+<h2 id="七-web-app-manifest-與安裝體驗">七、Web App Manifest 與安裝體驗</h2>
+<h3 id="7-1-manifest-完整配置">7.1 Manifest 完整配置</h3>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;Knowledge Base PWA&quot;,
+  &quot;short_name&quot;: &quot;KB&quot;,
+  &quot;description&quot;: &quot;個人知識庫離線版&quot;,
+  &quot;start_url&quot;: &quot;/?source=pwa&quot;,
+  &quot;display&quot;: &quot;standalone&quot;,
+  &quot;orientation&quot;: &quot;portrait&quot;,
+  &quot;theme_color&quot;: &quot;#1a1a2e&quot;,
+  &quot;background_color&quot;: &quot;#0f0f23&quot;,
+  &quot;icons&quot;: [
+    { &quot;src&quot;: &quot;/icons/icon-72.png&quot;, &quot;sizes&quot;: &quot;72x72&quot;, &quot;type&quot;: &quot;image/png&quot; },
+    { &quot;src&quot;: &quot;/icons/icon-192.png&quot;, &quot;sizes&quot;: &quot;192x192&quot;, &quot;type&quot;: &quot;image/png&quot; },
+    { &quot;src&quot;: &quot;/icons/icon-512.png&quot;, &quot;sizes&quot;: &quot;512x512&quot;, &quot;type&quot;: &quot;image/png&quot; },
+    { &quot;src&quot;: &quot;/icons/maskable-512.png&quot;, &quot;sizes&quot;: &quot;512x512&quot;, &quot;type&quot;: &quot;image/png&quot;, &quot;purpose&quot;: &quot;maskable&quot; }
+  ],
+  &quot;screenshots&quot;: [
+    { &quot;src&quot;: &quot;/screenshots/desktop.png&quot;, &quot;sizes&quot;: &quot;1280x720&quot;, &quot;type&quot;: &quot;image/png&quot;, &quot;form_factor&quot;: &quot;wide&quot; },
+    { &quot;src&quot;: &quot;/screenshots/mobile.png&quot;, &quot;sizes&quot;: &quot;750x1334&quot;, &quot;type&quot;: &quot;image/png&quot;, &quot;form_factor&quot;: &quot;narrow&quot; }
+  ],
+  &quot;share_target&quot;: {
+    &quot;action&quot;: &quot;/share&quot;,
+    &quot;method&quot;: &quot;POST&quot;,
+    &quot;enctype&quot;: &quot;multipart/form-data&quot;,
+    &quot;params&quot;: { &quot;title&quot;: &quot;title&quot;, &quot;text&quot;: &quot;text&quot;, &quot;url&quot;: &quot;url&quot; }
+  }
+}</code></pre>
+<h3 id="7-2-安裝提示自訂">7.2 安裝提示自訂</h3>
+<pre><code class="language-javascript">let deferredPrompt;
+window.addEventListener(&#x27;beforeinstallprompt&#x27;, (e) =&gt; {
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallButton();
+});
+
+async function handleInstallClick() {
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  console.log(`Install ${outcome}`);
+  deferredPrompt = null;
+}</code></pre>
+<hr>
+<h2 id="八-push-notification-api">八、Push Notification API</h2>
+<pre><code class="language-javascript">// 請求通知權限並訂閱
+async function subscribePush() {
+  const permission = await Notification.requestPermission();
+  if (permission !== &#x27;granted&#x27;) return;
+
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+  });
+  // 將 subscription 傳送到後端
+  await fetch(&#x27;/api/push/subscribe&#x27;, {
+    method: &#x27;POST&#x27;,
+    headers: { &#x27;Content-Type&#x27;: &#x27;application/json&#x27; },
+    body: JSON.stringify(subscription)
+  });
+}
+
+// sw.js - 處理推播
+self.addEventListener(&#x27;push&#x27;, (event) =&gt; {
+  const data = event.data?.json() || {};
+  event.waitUntil(
+    self.registration.showNotification(data.title || &#x27;New Update&#x27;, {
+      body: data.body,
+      icon: &#x27;/icons/icon-192.png&#x27;,
+      badge: &#x27;/icons/badge-72.png&#x27;,
+      data: { url: data.url },
+      actions: [
+        { action: &#x27;open&#x27;, title: &#x27;Open&#x27; },
+        { action: &#x27;dismiss&#x27;, title: &#x27;Dismiss&#x27; }
+      ]
+    })
+  );
+});
+
+self.addEventListener(&#x27;notificationclick&#x27;, (event) =&gt; {
+  event.notification.close();
+  if (event.action === &#x27;open&#x27; || !event.action) {
+    event.waitUntil(clients.openWindow(event.notification.data.url || &#x27;/&#x27;));
+  }
+});</code></pre>
+<hr>
+<h2 id="九-效能最佳實踐">九、效能最佳實踐</h2>
+<h3 id="9-1-navigation-preload">9.1 Navigation Preload</h3>
+<p>減少 Service Worker 啟動造成的延遲：</p>
+<pre><code class="language-javascript">self.addEventListener(&#x27;activate&#x27;, (event) =&gt; {
+  event.waitUntil(async function() {
+    if (self.registration.navigationPreload) {
+      await self.registration.navigationPreload.enable();
+    }
+  }());
+});
+
+self.addEventListener(&#x27;fetch&#x27;, (event) =&gt; {
+  if (event.request.mode === &#x27;navigate&#x27;) {
+    event.respondWith(async function() {
+      try {
+        // 使用 preload response（避免 SW 啟動延遲）
+        const preloadResponse = await event.preloadResponse;
+        if (preloadResponse) return preloadResponse;
+        return await fetch(event.request);
+      } catch (error) {
+        return caches.match(&#x27;/offline.html&#x27;);
+      }
+    }());
+  }
+});</code></pre>
+<h3 id="9-2-快取策略選擇矩陣">9.2 快取策略選擇矩陣</h3>
+<table>
+<tr><th>資源類型</th><th>建議策略</th><th>TTL</th><th>理由</th></tr>
+<tr><td>App Shell（HTML/CSS/JS）</td><td>Cache First</td><td>30 天</td><td>版本化，構建時更新</td></tr>
+<tr><td>字體</td><td>Cache First</td><td>365 天</td><td>極少變更</td></tr>
+<tr><td>圖片</td><td>Cache First + 配額</td><td>60 天</td><td>避免佔滿儲存空間</td></tr>
+<tr><td>API 回應（讀取）</td><td>Network First</td><td>5 分鐘</td><td>需要最新資料</td></tr>
+<tr><td>API 回應（寫入）</td><td>Network Only + Background Sync</td><td>--</td><td>確保數據一致性</td></tr>
+<tr><td>第三方資源（CDN）</td><td>Stale While Revalidate</td><td>7 天</td><td>平衡速度與新鮮度</td></tr>
+<tr><td>使用者頭像</td><td>Stale While Revalidate</td><td>1 天</td><td>可接受短暫過期</td></tr>
+</table>
+<h3 id="9-3-lighthouse-pwa-檢查清單">9.3 Lighthouse PWA 檢查清單</h3>
+<ul>
+<li>HTTPS 全站啟用</li>
+<li>有效的 Web App Manifest</li>
+<li>Service Worker 已註冊並控制頁面</li>
+<li>離線時回傳 200 狀態碼</li>
+<li><code>start_url</code> 可離線訪問</li>
+<li>自訂離線頁面（非瀏覽器預設錯誤）</li>
+<li>Maskable icon 已提供</li>
+<li>所有 App Shell 資源已預快取</li>
+</ul>
+<hr>
+<h2 id="十-實際應用場景">十、實際應用場景</h2>
+<h3 id="10-1-知識庫-pwa-部署方案">10.1 知識庫 PWA 部署方案</h3>
+<p>對於本地知識庫（如 localhost:3000）的 PWA 化改造：</p>
+<ol>
+<li><strong>App Shell 架構</strong>：HTML/CSS/JS 預快取，API 使用 Network First</li>
+<li><strong>筆記離線存取</strong>：使用 IndexedDB 快取最近 100 筆筆記</li>
+<li><strong>離線新增筆記</strong>：透過 Background Sync 在恢復連線後同步</li>
+<li><strong>全文搜尋離線化</strong>：使用 MiniSearch 或 Lunr.js 在客戶端建立搜尋索引</li>
+<li><strong>衝突解決</strong>：採用 Last-Write-Wins 或 CRDT（如 Yjs/Automerge）</li>
+</ol>
+<h3 id="10-2-遊戲網站-pwa-部署方案">10.2 遊戲網站 PWA 部署方案</h3>
+<p>對於 HTML5 遊戲門戶網站：</p>
+<ol>
+<li><strong>預快取遊戲清單頁面</strong>：Cache First 確保即開即用</li>
+<li><strong>按需快取遊戲資源</strong>：首次遊玩時快取遊戲 JS/Assets</li>
+<li><strong>離線遊玩</strong>：遊戲核心邏輯完全離線可用</li>
+<li><strong>排行榜同步</strong>：Background Sync 上傳離線分數</li>
+<li><strong>推播新遊戲通知</strong>：Push API 通知使用者新遊戲上線</li>
+</ol>
+<hr>
+<h2 id="十一-瀏覽器相容性-2026-年現況">十一、瀏覽器相容性（2026 年現況）</h2>
+<table>
+<tr><th>API</th><th>Chrome</th><th>Firefox</th><th>Safari</th><th>Edge</th></tr>
+<tr><td>Service Worker</td><td>40+</td><td>44+</td><td>11.1+</td><td>17+</td></tr>
+<tr><td>Cache API</td><td>40+</td><td>39+</td><td>11.1+</td><td>16+</td></tr>
+<tr><td>Background Sync</td><td>49+</td><td>--</td><td>--</td><td>79+</td></tr>
+<tr><td>Periodic BG Sync</td><td>80+</td><td>--</td><td>--</td><td>80+</td></tr>
+<tr><td>Push API</td><td>42+</td><td>44+</td><td>16.4+</td><td>17+</td></tr>
+<tr><td>IndexedDB</td><td>24+</td><td>16+</td><td>10+</td><td>12+</td></tr>
+<tr><td>Navigation Preload</td><td>59+</td><td>--</td><td>--</td><td>79+</td></tr>
+<tr><td>Web App Manifest</td><td>39+</td><td>--</td><td>11.3+</td><td>79+</td></tr>
+</table>
+<p><strong>注意</strong>：Safari 對 Service Worker 和快取的限制較嚴格（7 天未訪問自動清除 SW 與快取）。</p>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN - Service Worker API</a> -- 品質等級 A（官方文件）</li>
+<li><a href="https://web.dev/articles/service-worker-caching-and-http-caching">web.dev - Service Worker Caching and HTTP Caching</a> -- 品質等級 A（Google 官方技術文件）</li>
+<li><a href="https://developer.chrome.com/docs/workbox">Chrome Developers - Workbox</a> -- 品質等級 A（Google 官方文件）</li>
+<li><a href="https://www.w3.org/TR/service-workers/">W3C - Service Workers Specification</a> -- 品質等級 A（W3C 標準）</li>
+<li><a href="https://web.dev/articles/pwa-checklist">web.dev - What Makes a Good PWA</a> -- 品質等級 A（Google 官方指南）</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-18</em>
+<em>研究者：Claude Code Agent</em>
+<em>任務類型：todoist_research（深度思維研究）</em>
+<em>研究深度：adequate（基於官方文件與標準規範，WebSearch/WebFetch 不可用降級為內建知識）</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

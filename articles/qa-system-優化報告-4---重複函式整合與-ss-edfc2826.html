@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #4 - 重複函式整合與 SSO Token 日誌洩漏修復">
+  <title>QA System 優化報告 #4 - 重複函式整合與 SSO Token 日誌洩漏修復 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-security">資訊安全</span>
+        <h1>QA System 優化報告 #4 - 重複函式整合與 SSO Token 日誌洩漏修復</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">重複函式整合</span><span class="tag">SSO Token</span><span class="tag">日誌洩漏</span><span class="tag">品質改善</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化方向">優化方向</a></li><li><a href="#已修復問題-6-項">已修復問題（6 項）</a></li>  <li><a href="#1-重複函式整合-create_access_token-品質改善">1. 重複函式整合 - create_access_token（品質改善）</a></li>  <li><a href="#2-重複函式整合-get_current_user_optional-品質改善">2. 重複函式整合 - get_current_user_optional（品質改善）</a></li>  <li><a href="#3-sso-token-日誌洩漏修復-安全修復-owasp-a09">3. SSO Token 日誌洩漏修復（安全修復 - OWASP A09）</a></li>  <li><a href="#4-soap-結果日誌洩漏修復-安全修復">4. SOAP 結果日誌洩漏修復（安全修復）</a></li>  <li><a href="#5-sso-重定向-url-環境變數化-安全改善">5. SSO 重定向 URL 環境變數化（安全改善）</a></li>  <li><a href="#6-config-py-host-port-環境變數化-安全改善">6. config.py HOST/PORT 環境變數化（安全改善）</a></li><li><a href="#待處理問題">待處理問題</a></li><li><a href="#驗證結果">驗證結果</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #4</h1>
+<blockquote><p>日期：2026-02-17 | 品質分數：4/5 | 第四次掃描</p>
+</blockquote>
+<h2 id="優化方向">優化方向</h2>
+<p>重複函式整合（main.py vs dependencies.py）+ SSO Token 日誌洩漏修復 + SSO URL 環境變數化（承接第三次掃描的 remaining_issues）</p>
+<h2 id="已修復問題-6-項">已修復問題（6 項）</h2>
+<h3 id="1-重複函式整合-create_access_token-品質改善">1. 重複函式整合 - create_access_token（品質改善）</h3>
+<ul>
+<li><strong>問題</strong>：main.py 和 dependencies.py 各自定義了 create_access_token，語義幾乎相同</li>
+<li><strong>修復</strong>：刪除 main.py 版本，改用 <code>from app.dependencies import create_access_token</code></li>
+<li><strong>效益</strong>：單一定義處原則，維護時只需修改一處</li>
+</ul>
+<h3 id="2-重複函式整合-get_current_user_optional-品質改善">2. 重複函式整合 - get_current_user_optional（品質改善）</h3>
+<ul>
+<li><strong>問題</strong>：main.py 定義的版本缺少 joinedload，與 dependencies.py 版本功能重疊但品質較差</li>
+<li><strong>修復</strong>：刪除 main.py 版本（含 optional_oauth2_scheme），統一使用 dependencies.py 版本</li>
+<li><strong>效益</strong>：消除遮蔽 import 的混淆，統一使用含 joinedload 的效能優化版本</li>
+</ul>
+<h3 id="3-sso-token-日誌洩漏修復-安全修復-owasp-a09">3. SSO Token 日誌洩漏修復（安全修復 - OWASP A09）</h3>
+<ul>
+<li><strong>位置</strong>：main.py + auth.py</li>
+<li><strong>問題</strong>：SSO Token（artifact）完整記錄到日誌，攻擊者取得日誌即可偽造身份</li>
+<li><strong>修復</strong>：改為僅記錄「收到 SSO Token（已遮蔽）」</li>
+</ul>
+<h3 id="4-soap-結果日誌洩漏修復-安全修復">4. SOAP 結果日誌洩漏修復（安全修復）</h3>
+<ul>
+<li><strong>位置</strong>：main.py + auth.py</li>
+<li><strong>問題</strong>：SOAP getUserProfile 結果含用戶姓名、帳號、單位等個人資訊</li>
+<li><strong>修復</strong>：改為僅記錄「SOAP 呼叫成功，開始解析用戶資訊」</li>
+</ul>
+<h3 id="5-sso-重定向-url-環境變數化-安全改善">5. SSO 重定向 URL 環境變數化（安全改善）</h3>
+<ul>
+<li><strong>位置</strong>：main.py sso_redirect 函式</li>
+<li><strong>問題</strong>：硬編碼 http://172.20.11.22:8000/sso_login</li>
+<li><strong>修復</strong>：改用 <code>f&quot;http://{settings.HOST}:{settings.PORT}/sso_login&quot;</code></li>
+</ul>
+<h3 id="6-config-py-host-port-環境變數化-安全改善">6. config.py HOST/PORT 環境變數化（安全改善）</h3>
+<ul>
+<li><strong>問題</strong>：HOST 和 PORT 硬編碼</li>
+<li><strong>修復</strong>：改用 <code>os.environ.get(&quot;QA_HOST&quot;, &quot;172.20.11.22&quot;)</code> 和 <code>int(os.environ.get(&quot;QA_PORT&quot;, &quot;8000&quot;))</code></li>
+</ul>
+<h2 id="待處理問題">待處理問題</h2>
+<ul>
+<li>questions.py 超過 1000 行需拆分</li>
+<li>補全 users/roles/departments/export/reports 測試</li>
+<li>datetime.utcnow() 改用 datetime.now(timezone.utc)</li>
+<li>dependencies.py 4 處 JWT 解碼邏輯可抽取共用函式</li>
+</ul>
+<h2 id="驗證結果">驗證結果</h2>
+<ul>
+<li>語法檢查：3 檔案全部通過</li>
+<li>測試：8/10 通過（2 個既有失敗與本次修改無關）</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

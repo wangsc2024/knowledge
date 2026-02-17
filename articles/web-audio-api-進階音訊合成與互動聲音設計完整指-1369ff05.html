@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Web Audio API 進階音訊合成與互動聲音設計完整指南（2026）">
+  <title>Web Audio API 進階音訊合成與互動聲音設計完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Web Audio API 進階音訊合成與互動聲音設計完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Web Audio API</span><span class="tag">音訊合成</span><span class="tag">AudioWorklet</span><span class="tag">空間音效</span><span class="tag">HRTF</span><span class="tag">ADSR</span><span class="tag">遊戲音訊</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#一-核心架構-音訊路由圖">一、核心架構：音訊路由圖</a></li>  <li><a href="#基本概念">基本概念</a></li>  <li><a href="#audionode-分類">AudioNode 分類</a></li><li><a href="#二-audioworklet-自訂即時音訊處理">二、AudioWorklet：自訂即時音訊處理</a></li>  <li><a href="#為什麼需要-audioworklet">為什麼需要 AudioWorklet</a></li>  <li><a href="#實作步驟">實作步驟</a></li>  <li><a href="#audioworklet-最佳實踐">AudioWorklet 最佳實踐</a></li><li><a href="#三-adsr-包絡線與音效塑形">三、ADSR 包絡線與音效塑形</a></li>  <li><a href="#adsr-概念">ADSR 概念</a></li>  <li><a href="#實作-adsr-包絡線">實作 ADSR 包絡線</a></li>  <li><a href="#指數衰減-更自然的聲音">指數衰減（更自然的聲音）</a></li><li><a href="#四-空間音效-3d-spatialization">四、空間音效（3D Spatialization）</a></li>  <li><a href="#hrtf-vs-equalpower">HRTF vs equalpower</a></li>  <li><a href="#完整空間音效設定">完整空間音效設定</a></li>  <li><a href="#距離模型對比">距離模型對比</a></li>  <li><a href="#動態更新音源位置-遊戲角色移動">動態更新音源位置（遊戲角色移動）</a></li><li><a href="#五-效果處理鏈">五、效果處理鏈</a></li>  <li><a href="#串聯效果管線">串聯效果管線</a></li>  <li><a href="#脈衝響應迴響-convolution-reverb">脈衝響應迴響（Convolution Reverb）</a></li><li><a href="#六-lfo-調變與程序化音效">六、LFO 調變與程序化音效</a></li>  <li><a href="#lfo-low-frequency-oscillator-調變">LFO（Low-Frequency Oscillator）調變</a></li>  <li><a href="#程序化噪音生成">程序化噪音生成</a></li>  <li><a href="#自訂波形-periodicwave">自訂波形（PeriodicWave）</a></li><li><a href="#七-精準排程系統-look-ahead-scheduling">七、精準排程系統（Look-Ahead Scheduling）</a></li>  <li><a href="#為什麼不能用-settimeout-直接排程">為什麼不能用 setTimeout 直接排程</a></li>  <li><a href="#look-ahead-排程模式">Look-Ahead 排程模式</a></li><li><a href="#八-遊戲音訊設計模式">八、遊戲音訊設計模式</a></li>  <li><a href="#音效管理器-sound-manager">音效管理器（Sound Manager）</a></li>  <li><a href="#頻譜視覺化">頻譜視覺化</a></li><li><a href="#九-最佳實踐與常見陷阱">九、最佳實踐與常見陷阱</a></li>  <li><a href="#必遵守的規則">必遵守的規則</a></li>  <li><a href="#常見陷阱">常見陷阱</a></li>  <li><a href="#跨瀏覽器相容性">跨瀏覽器相容性</a></li><li><a href="#十-與-daily-digest-prompt-專案的關聯">十、與 daily-digest-prompt 專案的關聯</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Web Audio API 進階音訊合成與互動聲音設計完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>Web Audio API 是瀏覽器原生的高效能音訊處理系統，透過模組化音訊路由圖（Audio Graph）架構，支援即時音訊合成、空間化、效果處理與視覺化。本文系統性整理進階主題：AudioWorklet 自訂處理器、ADSR 包絡線、空間音效（HRTF）、效果處理鏈、LFO 調變、程序化音效生成、精準排程系統，以及遊戲/互動應用的最佳實踐。</p>
+<hr>
+<h2 id="一-核心架構-音訊路由圖">一、核心架構：音訊路由圖</h2>
+<h3 id="基本概念">基本概念</h3>
+<p>Web Audio API 的核心是 <strong>AudioContext</strong>，代表一個音訊處理圖。所有音訊節點（AudioNode）在此圖中連接，形成從音源到輸出的處理管線：</p>
+<pre><code class="language-plaintext">音源（Source）→ 效果（Effects）→ 分析（Analyser）→ 輸出（Destination）</code></pre>
+<h3 id="audionode-分類">AudioNode 分類</h3>
+<table>
+<tr><th>類別</th><th>節點</th><th>用途</th></tr>
+<tr><td><strong>音源</strong></td><td>OscillatorNode</td><td>產生週期波形（sine/square/triangle/sawtooth）</td></tr>
+<tr><td><strong>音源</strong></td><td>AudioBufferSourceNode</td><td>播放預解碼的音訊緩衝區</td></tr>
+<tr><td><strong>音源</strong></td><td>MediaElementAudioSourceNode</td><td>從 <code>&lt;audio&gt;</code>/<code>&lt;video&gt;</code> 元素取得音訊</td></tr>
+<tr><td><strong>效果</strong></td><td>GainNode</td><td>音量控制</td></tr>
+<tr><td><strong>效果</strong></td><td>BiquadFilterNode</td><td>頻率濾波（lowpass/highpass/bandpass/notch 等 8 種）</td></tr>
+<tr><td><strong>效果</strong></td><td>ConvolverNode</td><td>脈衝響應迴響（Reverb）</td></tr>
+<tr><td><strong>效果</strong></td><td>DynamicsCompressorNode</td><td>動態壓縮</td></tr>
+<tr><td><strong>效果</strong></td><td>WaveShaperNode</td><td>波形塑形（Distortion）</td></tr>
+<tr><td><strong>效果</strong></td><td>DelayNode</td><td>延遲效果</td></tr>
+<tr><td><strong>分析</strong></td><td>AnalyserNode</td><td>FFT 頻譜分析與視覺化</td></tr>
+<tr><td><strong>空間</strong></td><td>PannerNode</td><td>3D 空間定位</td></tr>
+<tr><td><strong>空間</strong></td><td>StereoPannerNode</td><td>簡易左右聲道平移</td></tr>
+<tr><td><strong>通道</strong></td><td>ChannelSplitterNode / ChannelMergerNode</td><td>通道分離與合併</td></tr>
+<tr><td><strong>自訂</strong></td><td>AudioWorkletNode</td><td>自訂即時音訊處理（取代已棄用的 ScriptProcessorNode）</td></tr>
+</table>
+<hr>
+<h2 id="二-audioworklet-自訂即時音訊處理">二、AudioWorklet：自訂即時音訊處理</h2>
+<h3 id="為什麼需要-audioworklet">為什麼需要 AudioWorklet</h3>
+<p>AudioWorklet 取代了已棄用的 ScriptProcessorNode，在獨立的音訊渲染執行緒上運行，避免主執行緒阻塞，確保低延遲即時處理。</p>
+<h3 id="實作步驟">實作步驟</h3>
+<p><strong>1. 建立處理器檔案（audio-processor.js）：</strong></p>
+<pre><code class="language-javascript">class CustomSynthProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: &#x27;gain&#x27;, defaultValue: 0.5, minValue: 0, maxValue: 1, automationRate: &#x27;a-rate&#x27; },
+      { name: &#x27;frequency&#x27;, defaultValue: 440, minValue: 20, maxValue: 20000, automationRate: &#x27;a-rate&#x27; }
+    ];
+  }
+
+  constructor(options) {
+    super();
+    this.phase = 0;
+    this.port.onmessage = (e) =&gt; {
+      if (e.data.type === &#x27;waveform&#x27;) this.waveform = e.data.value;
+    };
+  }
+
+  process(inputs, outputs, parameters) {
+    const output = outputs[0];
+    const gainParam = parameters.gain;
+    const freqParam = parameters.frequency;
+
+    for (let channel = 0; channel &lt; output.length; channel++) {
+      const outputChannel = output[channel];
+      for (let i = 0; i &lt; outputChannel.length; i++) {
+        const gain = gainParam.length &gt; 1 ? gainParam[i] : gainParam[0];
+        const freq = freqParam.length &gt; 1 ? freqParam[i] : freqParam[0];
+        this.phase += (2 * Math.PI * freq) / sampleRate;
+        if (this.phase &gt; 2 * Math.PI) this.phase -= 2 * Math.PI;
+        outputChannel[i] = Math.sin(this.phase) * gain;
+      }
+    }
+    return true;
+  }
+}
+
+registerProcessor(&#x27;custom-synth-processor&#x27;, CustomSynthProcessor);</code></pre>
+<p><strong>2. 主執行緒載入與使用：</strong></p>
+<pre><code class="language-javascript">const audioCtx = new AudioContext();
+await audioCtx.audioWorklet.addModule(&#x27;audio-processor.js&#x27;);
+
+const synthNode = new AudioWorkletNode(audioCtx, &#x27;custom-synth-processor&#x27;);
+const gainParam = synthNode.parameters.get(&#x27;gain&#x27;);
+gainParam.setValueAtTime(0.8, audioCtx.currentTime);
+
+synthNode.connect(audioCtx.destination);
+
+// 透過 MessagePort 傳送非音訊資料
+synthNode.port.postMessage({ type: &#x27;waveform&#x27;, value: &#x27;custom&#x27; });</code></pre>
+<h3 id="audioworklet-最佳實踐">AudioWorklet 最佳實踐</h3>
+<ol>
+<li><strong>禁止在 process() 中分配記憶體</strong> — 預先在 constructor 中分配所有緩衝區</li>
+<li><strong>避免阻塞操作</strong> — process() 必須在 128 樣本幀的時間內完成</li>
+<li><strong>使用 AudioParam 而非 MessagePort</strong> 做即時參數控制（AudioParam 支援自動化排程）</li>
+<li><strong>回傳 true 保持處理器存活</strong>，回傳 false 則停止處理</li>
+<li><strong>瀏覽器支援</strong>：Chrome 66+、Firefox 76+、Safari 14.1+、Edge 79+</li>
+</ol>
+<hr>
+<h2 id="三-adsr-包絡線與音效塑形">三、ADSR 包絡線與音效塑形</h2>
+<h3 id="adsr-概念">ADSR 概念</h3>
+<ul>
+<li><strong>Attack</strong>（起音）：音量從 0 上升到最大值的時間</li>
+<li><strong>Decay</strong>（衰減）：從最大值降到持續值的時間</li>
+<li><strong>Sustain</strong>（持續）：按住時維持的音量準位</li>
+<li><strong>Release</strong>（釋放）：放開後音量降到 0 的時間</li>
+</ul>
+<h3 id="實作-adsr-包絡線">實作 ADSR 包絡線</h3>
+<pre><code class="language-javascript">function playNoteWithEnvelope(frequency, time) {
+  const osc = new OscillatorNode(audioCtx, { type: &#x27;sine&#x27;, frequency });
+  const envelope = new GainNode(audioCtx);
+
+  const attack = 0.02;   // 20ms
+  const decay = 0.1;     // 100ms
+  const sustain = 0.7;   // 70% 音量
+  const release = 0.3;   // 300ms
+  const duration = 0.5;  // 總持續時間
+
+  // Attack
+  envelope.gain.setValueAtTime(0, time);
+  envelope.gain.linearRampToValueAtTime(1, time + attack);
+  // Decay → Sustain
+  envelope.gain.linearRampToValueAtTime(sustain, time + attack + decay);
+  // Release
+  envelope.gain.setValueAtTime(sustain, time + duration - release);
+  envelope.gain.linearRampToValueAtTime(0, time + duration);
+
+  osc.connect(envelope).connect(audioCtx.destination);
+  osc.start(time);
+  osc.stop(time + duration + 0.01);
+}</code></pre>
+<h3 id="指數衰減-更自然的聲音">指數衰減（更自然的聲音）</h3>
+<pre><code class="language-javascript">// exponentialRampToValueAtTime 模擬自然衰減
+envelope.gain.setValueAtTime(1, time);
+envelope.gain.exponentialRampToValueAtTime(0.01, time + 2.0);
+// 注意：exponentialRamp 的目標值不可為 0，需用極小值如 0.001</code></pre>
+<hr>
+<h2 id="四-空間音效-3d-spatialization">四、空間音效（3D Spatialization）</h2>
+<h3 id="hrtf-vs-equalpower">HRTF vs equalpower</h3>
+<ul>
+<li><strong>equalpower</strong>：簡單的等功率平移，計算量小</li>
+<li><strong>HRTF</strong>（Head-Related Transfer Function）：模擬人頭聲學，考慮耳廓反射與頭部陰影效應，更逼真的 3D 定位</li>
+</ul>
+<h3 id="完整空間音效設定">完整空間音效設定</h3>
+<pre><code class="language-javascript">const audioCtx = new AudioContext();
+const listener = audioCtx.listener;
+
+// 設定聽者位置（玩家位置）
+listener.positionX.value = 0;
+listener.positionY.value = 1.6;  // 耳朵高度
+listener.positionZ.value = 0;
+
+// 設定聽者朝向
+listener.forwardX.value = 0;
+listener.forwardY.value = 0;
+listener.forwardZ.value = -1;
+listener.upX.value = 0;
+listener.upY.value = 1;
+listener.upZ.value = 0;
+
+// 建立 3D 音源
+const panner = new PannerNode(audioCtx, {
+  panningModel: &#x27;HRTF&#x27;,
+  distanceModel: &#x27;inverse&#x27;,
+  refDistance: 1,
+  maxDistance: 10000,
+  rolloffFactor: 1,
+  coneInnerAngle: 60,     // 全音量區域
+  coneOuterAngle: 90,     // 漸弱區域
+  coneOuterGain: 0.3,     // 錐形外的增益
+  positionX: 5,
+  positionY: 1.6,
+  positionZ: -3,
+  orientationX: 0,
+  orientationY: 0,
+  orientationZ: -1
+});
+
+source.connect(panner).connect(audioCtx.destination);</code></pre>
+<h3 id="距離模型對比">距離模型對比</h3>
+<table>
+<tr><th>模型</th><th>公式特性</th><th>適用場景</th></tr>
+<tr><td><code>linear</code></td><td>線性衰減，到 maxDistance 後靜音</td><td>簡單遊戲、可預測行為</td></tr>
+<tr><td><code>inverse</code></td><td>反比衰減（1/距離），永不完全靜音</td><td>最真實的室外環境</td></tr>
+<tr><td><code>exponential</code></td><td>指數衰減，快速降低</td><td>密閉空間、戲劇效果</td></tr>
+</table>
+<h3 id="動態更新音源位置-遊戲角色移動">動態更新音源位置（遊戲角色移動）</h3>
+<pre><code class="language-javascript">function updateSoundPosition(gameObject) {
+  panner.positionX.setValueAtTime(gameObject.x, audioCtx.currentTime);
+  panner.positionY.setValueAtTime(gameObject.y, audioCtx.currentTime);
+  panner.positionZ.setValueAtTime(gameObject.z, audioCtx.currentTime);
+}
+
+// 旋轉音源方向（使用三角函數）
+function rotateSound(panner, angle) {
+  const rad = angle * Math.PI / 180;
+  panner.orientationX.value = Math.sin(rad);
+  panner.orientationZ.value = -Math.cos(rad);
+}</code></pre>
+<hr>
+<h2 id="五-效果處理鏈">五、效果處理鏈</h2>
+<h3 id="串聯效果管線">串聯效果管線</h3>
+<pre><code class="language-javascript">// 完整的遊戲音效處理鏈
+const source = audioCtx.createBufferSource();
+const filter = new BiquadFilterNode(audioCtx, { type: &#x27;lowpass&#x27;, frequency: 2000, Q: 5 });
+const reverb = audioCtx.createConvolver();
+const compressor = new DynamicsCompressorNode(audioCtx, {
+  threshold: -24, knee: 30, ratio: 12, attack: 0.003, release: 0.25
+});
+const masterGain = new GainNode(audioCtx, { gain: 0.8 });
+
+source.connect(filter)
+      .connect(reverb)
+      .connect(compressor)
+      .connect(masterGain)
+      .connect(audioCtx.destination);</code></pre>
+<h3 id="脈衝響應迴響-convolution-reverb">脈衝響應迴響（Convolution Reverb）</h3>
+<pre><code class="language-javascript">async function loadImpulseResponse(url) {
+  const response = await fetch(url);
+  const buffer = await response.arrayBuffer();
+  const impulse = await audioCtx.decodeAudioData(buffer);
+  const convolver = audioCtx.createConvolver();
+  convolver.buffer = impulse;
+  return convolver;
+}
+
+// Dry/Wet 混合（平行路由）
+const dryGain = new GainNode(audioCtx, { gain: 0.7 });
+const wetGain = new GainNode(audioCtx, { gain: 0.3 });
+const merger = new GainNode(audioCtx);
+
+source.connect(dryGain).connect(merger);
+source.connect(reverb).connect(wetGain).connect(merger);
+merger.connect(audioCtx.destination);</code></pre>
+<hr>
+<h2 id="六-lfo-調變與程序化音效">六、LFO 調變與程序化音效</h2>
+<h3 id="lfo-low-frequency-oscillator-調變">LFO（Low-Frequency Oscillator）調變</h3>
+<pre><code class="language-javascript">// 震顫效果（Tremolo）
+const osc = new OscillatorNode(audioCtx, { type: &#x27;sine&#x27;, frequency: 440 });
+const amp = new GainNode(audioCtx, { gain: 1 });
+const lfo = new OscillatorNode(audioCtx, { type: &#x27;sine&#x27;, frequency: 5 }); // 5Hz 調變
+const lfoGain = new GainNode(audioCtx, { gain: 0.5 }); // 調變深度
+
+lfo.connect(lfoGain).connect(amp.gain); // LFO → 控制音量
+osc.connect(amp).connect(audioCtx.destination);
+lfo.start();
+osc.start();
+
+// 顫音效果（Vibrato）
+const vibrato = new OscillatorNode(audioCtx, { type: &#x27;sine&#x27;, frequency: 6 });
+const vibratoDepth = new GainNode(audioCtx, { gain: 10 }); // 10Hz 頻率偏移
+vibrato.connect(vibratoDepth).connect(osc.frequency); // LFO → 控制頻率
+vibrato.start();</code></pre>
+<h3 id="程序化噪音生成">程序化噪音生成</h3>
+<pre><code class="language-javascript">function createNoiseBuffer(duration, type = &#x27;white&#x27;) {
+  const bufferSize = audioCtx.sampleRate * duration;
+  const buffer = new AudioBuffer({
+    length: bufferSize,
+    sampleRate: audioCtx.sampleRate
+  });
+  const data = buffer.getChannelData(0);
+
+  if (type === &#x27;white&#x27;) {
+    for (let i = 0; i &lt; bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+  } else if (type === &#x27;pink&#x27;) {
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i &lt; bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      b6 = white * 0.115926;
+    }
+  }
+  return buffer;
+}</code></pre>
+<h3 id="自訂波形-periodicwave">自訂波形（PeriodicWave）</h3>
+<pre><code class="language-javascript">// 建立金屬質感波形
+const real = new Float32Array([0, 0.4, 0.4, 1, 0.5, 0.2, 0.1]);
+const imag = new Float32Array(real.length).fill(0);
+const metalWave = new PeriodicWave(audioCtx, { real, imag });
+
+const osc = new OscillatorNode(audioCtx, {
+  type: &#x27;custom&#x27;,
+  periodicWave: metalWave,
+  frequency: 220
+});</code></pre>
+<hr>
+<h2 id="七-精準排程系統-look-ahead-scheduling">七、精準排程系統（Look-Ahead Scheduling）</h2>
+<h3 id="為什麼不能用-settimeout-直接排程">為什麼不能用 setTimeout 直接排程</h3>
+<p>setTimeout 的精度約 4-16ms，對音訊排程不夠精確。Web Audio API 的 <code>audioContext.currentTime</code> 以 sample-accurate 精度運行。</p>
+<h3 id="look-ahead-排程模式">Look-Ahead 排程模式</h3>
+<pre><code class="language-javascript">class AudioScheduler {
+  constructor(audioCtx) {
+    this.audioCtx = audioCtx;
+    this.tempo = 120;           // BPM
+    this.lookahead = 25;        // 檢查間隔（ms）
+    this.scheduleAheadTime = 0.1; // 提前排程時間（秒）
+    this.currentNote = 0;
+    this.nextNoteTime = 0;
+    this.notesInQueue = [];
+    this.timerID = null;
+  }
+
+  nextNote() {
+    const secondsPerBeat = 60.0 / this.tempo;
+    this.nextNoteTime += secondsPerBeat / 4; // 16 分音符
+    this.currentNote = (this.currentNote + 1) % 16;
+  }
+
+  scheduleNote(beatNumber, time) {
+    this.notesInQueue.push({ note: beatNumber, time });
+    // 在此觸發音訊播放
+    this.playSound(beatNumber, time);
+  }
+
+  scheduler() {
+    while (this.nextNoteTime &lt; this.audioCtx.currentTime + this.scheduleAheadTime) {
+      this.scheduleNote(this.currentNote, this.nextNoteTime);
+      this.nextNote();
+    }
+    this.timerID = setTimeout(() =&gt; this.scheduler(), this.lookahead);
+  }
+
+  start() {
+    if (this.audioCtx.state === &#x27;suspended&#x27;) this.audioCtx.resume();
+    this.nextNoteTime = this.audioCtx.currentTime;
+    this.scheduler();
+  }
+
+  stop() {
+    clearTimeout(this.timerID);
+  }
+}</code></pre>
+<p><strong>關鍵原理</strong>：setTimeout 負責「何時檢查」，audioContext.currentTime 負責「何時播放」。兩者結合實現 sample-accurate 排程。</p>
+<hr>
+<h2 id="八-遊戲音訊設計模式">八、遊戲音訊設計模式</h2>
+<h3 id="音效管理器-sound-manager">音效管理器（Sound Manager）</h3>
+<pre><code class="language-javascript">class GameAudioManager {
+  constructor() {
+    this.audioCtx = new AudioContext();
+    this.masterGain = new GainNode(this.audioCtx, { gain: 0.8 });
+    this.sfxGain = new GainNode(this.audioCtx, { gain: 1.0 });
+    this.musicGain = new GainNode(this.audioCtx, { gain: 0.5 });
+    this.bufferCache = new Map();
+
+    this.sfxGain.connect(this.masterGain);
+    this.musicGain.connect(this.masterGain);
+    this.masterGain.connect(this.audioCtx.destination);
+  }
+
+  async loadSound(name, url) {
+    if (this.bufferCache.has(name)) return;
+    const response = await fetch(url);
+    const buffer = await response.arrayBuffer();
+    const audioBuffer = await this.audioCtx.decodeAudioData(buffer);
+    this.bufferCache.set(name, audioBuffer);
+  }
+
+  playSFX(name, options = {}) {
+    const buffer = this.bufferCache.get(name);
+    if (!buffer) return;
+
+    const source = new AudioBufferSourceNode(this.audioCtx, {
+      buffer,
+      playbackRate: options.pitch || 1.0
+    });
+
+    const gain = new GainNode(this.audioCtx, { gain: options.volume || 1.0 });
+    source.connect(gain).connect(this.sfxGain);
+
+    if (options.pan !== undefined) {
+      const panner = new StereoPannerNode(this.audioCtx, { pan: options.pan });
+      gain.disconnect();
+      gain.connect(panner).connect(this.sfxGain);
+    }
+
+    source.start(options.time || 0);
+    return source;
+  }
+
+  // 程序化合成音效（無需預載音檔）
+  synthesizeSFX(type) {
+    const now = this.audioCtx.currentTime;
+    const osc = new OscillatorNode(this.audioCtx);
+    const gain = new GainNode(this.audioCtx);
+    osc.connect(gain).connect(this.sfxGain);
+
+    switch (type) {
+      case &#x27;collect&#x27;:
+        osc.type = &#x27;sine&#x27;;
+        osc.frequency.setValueAtTime(523, now);
+        osc.frequency.linearRampToValueAtTime(1047, now + 0.1);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+        break;
+
+      case &#x27;hit&#x27;:
+        osc.type = &#x27;sawtooth&#x27;;
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.linearRampToValueAtTime(50, now + 0.15);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+        break;
+
+      case &#x27;powerup&#x27;:
+        osc.type = &#x27;sine&#x27;;
+        [523, 659, 784, 1047].forEach((freq, i) =&gt; {
+          osc.frequency.setValueAtTime(freq, now + i * 0.08);
+        });
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.setValueAtTime(0.3, now + 0.24);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.start(now);
+        osc.stop(now + 0.5);
+        break;
+    }
+  }
+
+  resume() {
+    if (this.audioCtx.state === &#x27;suspended&#x27;) return this.audioCtx.resume();
+  }
+}</code></pre>
+<h3 id="頻譜視覺化">頻譜視覺化</h3>
+<pre><code class="language-javascript">function setupVisualizer(audioCtx, source, canvas) {
+  const analyser = new AnalyserNode(audioCtx, { fftSize: 2048 });
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw() {
+    requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(dataArray);
+
+    ctx.fillStyle = &#x27;rgba(0, 0, 0, 0.1)&#x27;;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const barWidth = canvas.width / dataArray.length;
+    dataArray.forEach((value, i) =&gt; {
+      const height = (value / 255) * canvas.height;
+      const hue = (i / dataArray.length) * 360;
+      ctx.fillStyle = `hsl(${hue}, 80%, 50%)`;
+      ctx.fillRect(i * barWidth, canvas.height - height, barWidth - 1, height);
+    });
+  }
+  draw();
+}</code></pre>
+<hr>
+<h2 id="九-最佳實踐與常見陷阱">九、最佳實踐與常見陷阱</h2>
+<h3 id="必遵守的規則">必遵守的規則</h3>
+<ol>
+<li><strong>Autoplay Policy</strong>：瀏覽器要求 AudioContext 必須在使用者互動（click/touch）後才能啟動</li>
+</ol>
+<p>   ``<code>javascript
+   document.addEventListener(&#x27;click&#x27;, () =&gt; {
+     if (audioCtx.state === &#x27;suspended&#x27;) audioCtx.resume();
+   }, { once: true });
+   </code>``</p>
+<ol>
+<li><strong>單一 AudioContext</strong>：整個應用程式只建立一個 AudioContext，重複建立會浪費資源</li>
+</ol>
+<ol>
+<li><strong>GainNode 歸零</strong>：exponentialRampToValueAtTime 的目標值不可為 0，需用 0.001 或更小的值</li>
+</ol>
+<ol>
+<li><strong>清理資源</strong>：不再使用的節點應 disconnect() 並讓 GC 回收</li>
+</ol>
+<p>   ``<code>javascript
+   source.onended = () =&gt; {
+     source.disconnect();
+     gain.disconnect();
+   };
+   </code>``</p>
+<ol>
+<li><strong>音量分級（Gain Staging）</strong>：避免音訊剪裁</li>
+</ol>
+<p>   - 個別音源：0.1-0.3
+   - 類別混音（SFX/Music）：0.5-0.8
+   - 主音量：0.7-0.9</p>
+<h3 id="常見陷阱">常見陷阱</h3>
+<table>
+<tr><th>陷阱</th><th>正確做法</th></tr>
+<tr><td>在 process() 中 new Array()</td><td>預分配緩衝區</td></tr>
+<tr><td>用 setTimeout 做音訊排程</td><td>Look-ahead + audioContext.currentTime</td></tr>
+<tr><td>忽略 AudioContext 狀態</td><td>每次播放前檢查 state === &#x27;suspended&#x27;</td></tr>
+<tr><td>音檔格式不統一</td><td>優先 .ogg（跨瀏覽器），備用 .mp3</td></tr>
+<tr><td>忘記 disconnect 已停止的節點</td><td>onended 中清理</td></tr>
+<tr><td>在行動裝置上音量過大</td><td>預設音量 0.1-0.2</td></tr>
+</table>
+<h3 id="跨瀏覽器相容性">跨瀏覽器相容性</h3>
+<p>推薦工具庫：</p>
+<ul>
+<li><strong>Tone.js</strong>：進階合成、排程、效果（音樂應用）</li>
+<li><strong>Howler.js</strong>：跨瀏覽器音訊播放（遊戲音效）</li>
+<li><strong>standardized-audio-context</strong>：API 一致性填充</li>
+</ul>
+<hr>
+<h2 id="十-與-daily-digest-prompt-專案的關聯">十、與 daily-digest-prompt 專案的關聯</h2>
+<ol>
+<li><strong>禪意遊戲音效</strong>：禪音節奏、正念記憶等遊戲大量使用 Web Audio API 程序化合成頌缽、禪鐘音效，本指南的 ADSR 包絡線和 LFO 調變可直接提升音效品質</li>
+<li><strong>遊戲品質標準</strong>：專案的遊戲品質標準要求「Web Audio API 音效，音量 0.1-0.2」，本指南提供完整的 Gain Staging 框架</li>
+<li><strong>效能優化</strong>：AudioWorklet 取代 ScriptProcessorNode 可避免主執行緒阻塞，符合專案「60 FPS 目標」的效能要求</li>
+<li><strong>空間音效潛力</strong>：未來遊戲可利用 HRTF 空間化為禪修場景增添沉浸感</li>
+<li><strong>程序化音效生成</strong>：零外部依賴的合成方式完全契合專案「零外部音檔」的設計原則</li>
+</ol>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li>MDN Web Docs — Web Audio API Overview: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API</li>
+<li>MDN Web Docs — AudioWorkletProcessor: https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor</li>
+<li>MDN Web Docs — Web Audio Spatialization Basics: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Web_audio_spatialization_basics</li>
+<li>MDN Web Docs — Advanced Techniques (Step Sequencer): https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Advanced_techniques</li>
+<li>MDN Web Docs — Web Audio API Best Practices: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Claude Code Agent</em>
+<em>研究動機：今日完成的禪音節奏遊戲互動體驗升級大量使用 Web Audio API，知識庫僅有基礎頌缽合成筆記，缺乏系統性進階指南</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

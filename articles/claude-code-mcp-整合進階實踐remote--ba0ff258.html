@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code MCP 整合進階實踐：Remote Server、Tool Search 延遲載入與自定義 Server 開發完整指南（2026）">
+  <title>Claude Code MCP 整合進階實踐：Remote Server、Tool Search 延遲載入與自定義 Server 開發完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code MCP 整合進階實踐：Remote Server、Tool Search 延遲載入與自定義 Server 開發完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">MCP</span><span class="tag">Model Context Protocol</span><span class="tag">Remote Server</span><span class="tag">Tool Search</span><span class="tag">延遲載入</span><span class="tag">OAuth 2.1</span><span class="tag">FastMCP</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#主題概述">主題概述</a></li><li><a href="#一-mcp-協議核心架構">一、MCP 協議核心架構</a></li>  <li><a href="#1-1-協議分層設計">1.1 協議分層設計</a></li>  <li><a href="#1-2-三種原語-primitives">1.2 三種原語（Primitives）</a></li>  <li><a href="#1-3-傳輸協議-transport">1.3 傳輸協議（Transport）</a></li><li><a href="#二-remote-mcp-server-遠端伺服器">二、Remote MCP Server（遠端伺服器）</a></li>  <li><a href="#2-1-概述與動機">2.1 概述與動機</a></li>  <li><a href="#2-2-認證機制-oauth-2-1">2.2 認證機制（OAuth 2.1）</a></li>  <li><a href="#2-3-在-claude-code-中配置-remote-mcp-server">2.3 在 Claude Code 中配置 Remote MCP Server</a></li>  <li><a href="#2-4-anthropic-官方提供的-remote-mcp-server">2.4 Anthropic 官方提供的 Remote MCP Server</a></li><li><a href="#三-tool-search-與延遲載入-deferred-tools">三、Tool Search 與延遲載入（Deferred Tools）</a></li>  <li><a href="#3-1-問題根因">3.1 問題根因</a></li>  <li><a href="#3-2-tool-search-解決方案">3.2 Tool Search 解決方案</a></li>  <li><a href="#3-3-toolsearch-工具使用規則">3.3 ToolSearch 工具使用規則</a></li>  <li><a href="#3-4-延遲載入的工具命名規範">3.4 延遲載入的工具命名規範</a></li>  <li><a href="#3-5-實際案例-本專案的-mcp-使用">3.5 實際案例：本專案的 MCP 使用</a></li><li><a href="#四-自定義-mcp-server-開發">四、自定義 MCP Server 開發</a></li>  <li><a href="#4-1-開發框架選擇">4.1 開發框架選擇</a></li>  <li><a href="#4-2-python-fastmcp-快速開發範例">4.2 Python FastMCP 快速開發範例</a></li>  <li><a href="#4-3-在-claude-code-中註冊自定義-server">4.3 在 Claude Code 中註冊自定義 Server</a></li>  <li><a href="#4-4-進階-remote-mcp-server-開發-streamable-h">4.4 進階：Remote MCP Server 開發（Streamable HTTP）</a></li><li><a href="#五-mcp-生態系統現況-2026-年-2-月">五、MCP 生態系統現況（2026 年 2 月）</a></li>  <li><a href="#5-1-mcp-registry">5.1 MCP Registry</a></li>  <li><a href="#5-2-主要客戶端支援">5.2 主要客戶端支援</a></li>  <li><a href="#5-3-mcp-規範版本演進">5.3 MCP 規範版本演進</a></li><li><a href="#六-最佳實踐與安全考量">六、最佳實踐與安全考量</a></li>  <li><a href="#6-1-mcp-安全最佳實踐">6.1 MCP 安全最佳實踐</a></li>  <li><a href="#6-2-效能優化">6.2 效能優化</a></li>  <li><a href="#6-3-開發流程建議">6.3 開發流程建議</a></li><li><a href="#七-與本專案的關聯">七、與本專案的關聯</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Claude Code MCP 整合進階實踐：Remote Server、Tool Search 延遲載入與自定義 Server 開發完整指南</h1>
+<h2 id="主題概述">主題概述</h2>
+<p>Model Context Protocol（MCP）是 Anthropic 提出的開放標準協議，旨在為 LLM 應用提供統一的外部工具與資料源整合介面。2026 年初，Claude Code 的 MCP 整合迎來三大重要進展：<strong>Remote MCP Server</strong> 支援（含 OAuth 2.1 認證）、<strong>Tool Search 延遲載入</strong>機制（將 MCP 工具的 token 消耗從 134K 降至 5K），以及更成熟的<strong>自定義 MCP Server 開發</strong>生態系統。本文深入分析這三個面向的技術細節、架構設計與實踐指南。</p>
+<hr>
+<h2 id="一-mcp-協議核心架構">一、MCP 協議核心架構</h2>
+<h3 id="1-1-協議分層設計">1.1 協議分層設計</h3>
+<p>MCP 採用 Client-Server 架構，由三個核心層組成：</p>
+<ul>
+<li><strong>Host（宿主應用）</strong>：如 Claude Code CLI、Claude Desktop，負責管理 MCP 客戶端生命週期</li>
+<li><strong>MCP Client（客戶端）</strong>：與 MCP Server 建立 1:1 連線，處理協議協商與能力交換</li>
+<li><strong>MCP Server（伺服器）</strong>：暴露 Tools（工具）、Resources（資源）、Prompts（提示模板）三種原語</li>
+</ul>
+<h3 id="1-2-三種原語-primitives">1.2 三種原語（Primitives）</h3>
+<table>
+<tr><th>原語</th><th>方向</th><th>用途</th><th>範例</th></tr>
+<tr><td><strong>Tools</strong></td><td>Server → Client</td><td>可執行的函式，由 LLM 決定呼叫時機</td><td>資料庫查詢、API 呼叫、檔案操作</td></tr>
+<tr><td><strong>Resources</strong></td><td>Server → Client</td><td>結構化資料來源，供 LLM 讀取上下文</td><td>檔案內容、資料庫記錄、即時資料</td></tr>
+<tr><td><strong>Prompts</strong></td><td>Server → Client</td><td>預定義的提示模板，支援參數化</td><td>程式碼審查模板、翻譯模板</td></tr>
+</table>
+<h3 id="1-3-傳輸協議-transport">1.3 傳輸協議（Transport）</h3>
+<ul>
+<li><strong>stdio</strong>：本地 Server，透過標準輸入/輸出通訊（最常見）</li>
+<li><strong>Streamable HTTP</strong>（2025-11-25 規範新增）：取代舊版 SSE，支援 Remote Server</li>
+<li><strong>SSE（已棄用）</strong>：Server-Sent Events，向下相容但建議遷移至 Streamable HTTP</li>
+</ul>
+<hr>
+<h2 id="二-remote-mcp-server-遠端伺服器">二、Remote MCP Server（遠端伺服器）</h2>
+<h3 id="2-1-概述與動機">2.1 概述與動機</h3>
+<p>Remote MCP Server 是 2026 年 MCP 生態最重要的進展之一。與本地 stdio Server 不同，Remote Server 透過 HTTP/HTTPS 暴露 MCP 端點，允許：</p>
+<ul>
+<li><strong>跨機器存取</strong>：團隊成員共享同一組工具</li>
+<li><strong>雲端服務整合</strong>：直接連接 SaaS API（Slack、GitHub、Jira 等）</li>
+<li><strong>零本地安裝</strong>：無需在客戶端安裝 Node.js/Python 運行時</li>
+<li><strong>集中管理</strong>：統一的認證、日誌、存取控制</li>
+</ul>
+<h3 id="2-2-認證機制-oauth-2-1">2.2 認證機制（OAuth 2.1）</h3>
+<p>Remote MCP Server 採用 OAuth 2.1 認證流程：</p>
+<ol>
+<li>Claude Code 作為 OAuth Client，透過 <code>/.well-known/oauth-authorization-server</code> 發現認證端點</li>
+<li>使用 PKCE（Proof Key for Code Exchange）防止授權碼攔截</li>
+<li>支援 <code>authorization_code</code> 和 <code>client_credentials</code> 兩種 grant type</li>
+<li>Token 自動刷新，Session 持久化</li>
+</ol>
+<h3 id="2-3-在-claude-code-中配置-remote-mcp-server">2.3 在 Claude Code 中配置 Remote MCP Server</h3>
+<pre><code class="language-json">// .claude/settings.json 或 ~/.claude/settings.json
+{
+  &quot;mcpServers&quot;: {
+    &quot;remote-slack&quot;: {
+      &quot;url&quot;: &quot;https://mcp.slack.example.com/mcp&quot;,
+      &quot;headers&quot;: {
+        &quot;Authorization&quot;: &quot;Bearer ${SLACK_TOKEN}&quot;
+      }
+    },
+    &quot;remote-github&quot;: {
+      &quot;url&quot;: &quot;https://mcp.github.example.com/sse&quot;
+    }
+  }
+}</code></pre>
+<p><strong>注意事項</strong>：</p>
+<ul>
+<li>Remote Server 使用 <code>url</code> 欄位（非 <code>command</code> + <code>args</code>）</li>
+<li>環境變數引用支援 <code>${VAR_NAME}</code> 語法</li>
+<li>Claude Code 會自動處理 OAuth 授權流程（首次連線時開啟瀏覽器）</li>
+<li>指定 <code>headers</code> 可用於 Bearer Token 或自定義認證</li>
+</ul>
+<h3 id="2-4-anthropic-官方提供的-remote-mcp-server">2.4 Anthropic 官方提供的 Remote MCP Server</h3>
+<p>Anthropic 在 2026 年初推出了第一方 Remote MCP Server：</p>
+<ul>
+<li><strong>Slack MCP</strong>：搜尋頻道/使用者、發送訊息、讀取討論串</li>
+<li><strong>GoDaddy MCP</strong>：網域查詢、可用性檢查</li>
+<li><strong>Cloudflare MCP</strong>：Workers/D1/R2/KV 管理</li>
+<li><strong>Playwright MCP</strong>：瀏覽器自動化（截圖、點擊、表單填寫）</li>
+</ul>
+<p>這些 Server 透過 <code>claude_ai_</code> 前綴命名空間識別，並直接在 Claude Code 中以延遲載入方式提供。</p>
+<hr>
+<h2 id="三-tool-search-與延遲載入-deferred-tools">三、Tool Search 與延遲載入（Deferred Tools）</h2>
+<h3 id="3-1-問題根因">3.1 問題根因</h3>
+<p>傳統 MCP 整合的痛點：當註冊多個 MCP Server 時，所有工具的 schema 定義會在 session 啟動時全部載入到 context window。以 10 個 MCP Server（各 10-15 個工具）為例：</p>
+<ul>
+<li>啟動時載入約 134K tokens 的工具定義</li>
+<li>佔用寶貴的 context window 空間</li>
+<li>絕大多數工具在本次 session 中不會被使用</li>
+</ul>
+<h3 id="3-2-tool-search-解決方案">3.2 Tool Search 解決方案</h3>
+<p>Claude Code 在 2026 年 1 月引入 <strong>Tool Search</strong> 機制（又稱 ToolSearch / Deferred Tools），核心設計：</p>
+<ol>
+<li><strong>延遲載入（Deferred Loading）</strong>：MCP 工具不在啟動時載入，僅在需要時透過 ToolSearch 工具檢索</li>
+<li><strong>兩種查詢模式</strong>：</li>
+</ol>
+<p>   - <strong>關鍵字搜尋</strong>：<code>query: &quot;slack message&quot;</code> → 回傳最多 5 個匹配工具
+   - <strong>精確選取</strong>：<code>query: &quot;select:mcp__slack__send_message&quot;</code> → 直接載入指定工具</p>
+<ol>
+<li><strong>Token 節省</strong>：從 134K 降至約 5K（節省約 96%），僅載入 ToolSearch 本身的定義</li>
+</ol>
+<h3 id="3-3-toolsearch-工具使用規則">3.3 ToolSearch 工具使用規則</h3>
+<pre><code class="language-plaintext">重要：延遲工具在使用前必須透過 ToolSearch 載入
+
+1. 關鍵字搜尋（不確定工具名稱時）：
+   ToolSearch(query=&quot;slack send message&quot;)
+   → 回傳匹配的工具列表，自動載入
+
+2. 精確選取（知道工具名稱時）：
+   ToolSearch(query=&quot;select:mcp__slack__send_message&quot;)
+   → 直接載入該工具
+
+3. 必需關鍵字（知道服務名但不確定工具時）：
+   ToolSearch(query=&quot;+slack send&quot;)
+   → 僅搜尋 slack 相關工具，按 send 排名
+
+禁止：
+- 直接呼叫未載入的延遲工具
+- 關鍵字搜尋後再用 select 重複載入同一工具</code></pre>
+<h3 id="3-4-延遲載入的工具命名規範">3.4 延遲載入的工具命名規範</h3>
+<p>MCP 工具在 Claude Code 中的命名格式為：</p>
+<pre><code class="language-plaintext">mcp__{server_name}__{tool_name}</code></pre>
+<p>例如：</p>
+<ul>
+<li><code>mcp__claude_ai_Slack__slack_send_message</code></li>
+<li><code>mcp__plugin_playwright_playwright__browser_navigate</code></li>
+<li><code>mcp__claude_ai_Cloudflare_Developer_Platform__d1_database_query</code></li>
+</ul>
+<h3 id="3-5-實際案例-本專案的-mcp-使用">3.5 實際案例：本專案的 MCP 使用</h3>
+<p>本專案（daily-digest-prompt）已整合以下 MCP Server：</p>
+<ul>
+<li><strong>Slack MCP</strong>：10 個工具（搜尋頻道、發送訊息、讀取使用者等）</li>
+<li><strong>Cloudflare MCP</strong>：20+ 個工具（D1/KV/R2/Workers 管理）</li>
+<li><strong>GoDaddy MCP</strong>：2 個工具（網域查詢）</li>
+<li><strong>Playwright MCP</strong>：20+ 個工具（瀏覽器自動化）</li>
+</ul>
+<p>全部採用延遲載入，Agent 僅在需要時透過 ToolSearch 動態發現和載入。</p>
+<hr>
+<h2 id="四-自定義-mcp-server-開發">四、自定義 MCP Server 開發</h2>
+<h3 id="4-1-開發框架選擇">4.1 開發框架選擇</h3>
+<table>
+<tr><th>語言</th><th>框架</th><th>特色</th></tr>
+<tr><td>Python</td><td><code>mcp</code> (官方 SDK)</td><td>FastMCP 高階 API，最簡潔</td></tr>
+<tr><td>TypeScript</td><td><code>@modelcontextprotocol/sdk</code></td><td>完整型別支援，適合前端開發者</td></tr>
+<tr><td>Go</td><td><code>mcp-go</code></td><td>高效能，適合系統工具</td></tr>
+<tr><td>Rust</td><td><code>mcp-rust-sdk</code></td><td>極致效能，適合底層工具</td></tr>
+<tr><td>Java/Kotlin</td><td><code>mcp-java-sdk</code> (Spring AI)</td><td>企業生態整合</td></tr>
+</table>
+<h3 id="4-2-python-fastmcp-快速開發範例">4.2 Python FastMCP 快速開發範例</h3>
+<pre><code class="language-python">from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP(&quot;my-research-tools&quot;)
+
+@mcp.tool()
+def search_papers(query: str, max_results: int = 10) -&gt; str:
+    &quot;&quot;&quot;搜尋學術論文&quot;&quot;&quot;
+    # 實際的 API 呼叫邏輯
+    return f&quot;Found {max_results} papers for: {query}&quot;
+
+@mcp.resource(&quot;papers://{paper_id}&quot;)
+def get_paper(paper_id: str) -&gt; str:
+    &quot;&quot;&quot;取得論文詳情&quot;&quot;&quot;
+    return f&quot;Paper details for {paper_id}&quot;
+
+@mcp.prompt()
+def review_prompt(paper_title: str) -&gt; str:
+    &quot;&quot;&quot;生成論文審查提示&quot;&quot;&quot;
+    return f&quot;Please review the following paper: {paper_title}&quot;
+
+if __name__ == &quot;__main__&quot;:
+    mcp.run(transport=&quot;stdio&quot;)</code></pre>
+<h3 id="4-3-在-claude-code-中註冊自定義-server">4.3 在 Claude Code 中註冊自定義 Server</h3>
+<pre><code class="language-json">// .claude/settings.json
+{
+  &quot;mcpServers&quot;: {
+    &quot;my-research&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;path/to/my_server.py&quot;],
+      &quot;env&quot;: {
+        &quot;API_KEY&quot;: &quot;${RESEARCH_API_KEY}&quot;
+      }
+    }
+  }
+}</code></pre>
+<h3 id="4-4-進階-remote-mcp-server-開發-streamable-h">4.4 進階：Remote MCP Server 開發（Streamable HTTP）</h3>
+<pre><code class="language-python">from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP(&quot;remote-tools&quot;)
+
+@mcp.tool()
+def query_database(sql: str) -&gt; str:
+    &quot;&quot;&quot;執行 SQL 查詢&quot;&quot;&quot;
+    # 資料庫操作
+    return &quot;query results&quot;
+
+# 以 HTTP Server 模式啟動
+if __name__ == &quot;__main__&quot;:
+    mcp.run(transport=&quot;streamable-http&quot;, host=&quot;0.0.0.0&quot;, port=8080)</code></pre>
+<hr>
+<h2 id="五-mcp-生態系統現況-2026-年-2-月">五、MCP 生態系統現況（2026 年 2 月）</h2>
+<h3 id="5-1-mcp-registry">5.1 MCP Registry</h3>
+<p>MCP 官方推出了 <strong>MCP Registry</strong>（https://modelcontextprotocol.io/registry），功能包括：</p>
+<ul>
+<li>公開 MCP Server 目錄（可按類別瀏覽）</li>
+<li>版本管理與相容性標記</li>
+<li>安全審查機制</li>
+<li>一鍵安裝指令生成</li>
+</ul>
+<h3 id="5-2-主要客戶端支援">5.2 主要客戶端支援</h3>
+<table>
+<tr><th>客戶端</th><th>MCP 支援</th><th>Tool Search</th><th>Remote Server</th></tr>
+<tr><td>Claude Code CLI</td><td>完整支援</td><td>支援（延遲載入）</td><td>支援（OAuth 2.1）</td></tr>
+<tr><td>Claude Desktop</td><td>完整支援</td><td>部分支援</td><td>支援</td></tr>
+<tr><td>Claude.ai</td><td>透過 Integrations</td><td>N/A</td><td>支援</td></tr>
+<tr><td>Cursor</td><td>支援</td><td>不支援</td><td>支援</td></tr>
+<tr><td>VS Code (Copilot)</td><td>實驗性支援</td><td>不支援</td><td>不支援</td></tr>
+<tr><td>Windsurf</td><td>支援</td><td>不支援</td><td>支援</td></tr>
+<tr><td>Xcode 26.3</td><td>原生整合</td><td>部分支援</td><td>支援</td></tr>
+</table>
+<h3 id="5-3-mcp-規範版本演進">5.3 MCP 規範版本演進</h3>
+<ul>
+<li><strong>2024-11-05</strong>：初始規範，僅 stdio + SSE 傳輸</li>
+<li><strong>2025-03-26</strong>：新增 Streamable HTTP 傳輸、OAuth 2.1 認證框架</li>
+<li><strong>2025-11-25</strong>：當前穩定版，完善 Remote Server 支援、Tool annotations、Elicitation（Server 向 Client 請求資訊）</li>
+</ul>
+<hr>
+<h2 id="六-最佳實踐與安全考量">六、最佳實踐與安全考量</h2>
+<h3 id="6-1-mcp-安全最佳實踐">6.1 MCP 安全最佳實踐</h3>
+<ol>
+<li><strong>最小權限原則</strong>：每個 MCP Server 只暴露必要的工具</li>
+<li><strong>Token 管理</strong>：使用環境變數儲存敏感憑證，不硬編碼</li>
+<li><strong>輸入驗證</strong>：Server 端對所有工具參數進行嚴格驗證</li>
+<li><strong>Prompt Injection 防護</strong>：對外部資料進行消毒處理</li>
+<li><strong>日誌記錄</strong>：記錄所有工具呼叫以便審計</li>
+</ol>
+<h3 id="6-2-效能優化">6.2 效能優化</h3>
+<ol>
+<li><strong>善用 Tool Search</strong>：不要一次載入所有工具</li>
+<li><strong>快取策略</strong>：Remote Server 回應加上適當的 HTTP 快取標頭</li>
+<li><strong>Connection Pooling</strong>：多個工具呼叫共用 HTTP 連線</li>
+<li><strong>Timeout 設定</strong>：為每個工具設定合理的超時時間</li>
+</ol>
+<h3 id="6-3-開發流程建議">6.3 開發流程建議</h3>
+<ol>
+<li>先用 <code>mcp-inspector</code> 工具測試 Server</li>
+<li>在 Claude Code 中用 <code>/mcp</code> 指令檢查連線狀態</li>
+<li>監控 context window 用量（<code>/tokens</code> 或 <code>/cost</code>）</li>
+<li>定期更新 MCP SDK 以獲取最新安全修補</li>
+</ol>
+<hr>
+<h2 id="七-與本專案的關聯">七、與本專案的關聯</h2>
+<p>本專案（daily-digest-prompt）已深度整合 MCP：</p>
+<ul>
+<li><strong>Slack MCP</strong>：每日摘要推播的備選通道</li>
+<li><strong>Cloudflare MCP</strong>：管理邊緣計算資源（D1 資料庫、KV 存儲）</li>
+<li><strong>Playwright MCP</strong>：自動化瀏覽器操作（新聞擷取、截圖）</li>
+<li><strong>自定義 MCP 潛力</strong>：可將知識庫 API（localhost:3000）封裝為 MCP Server，實現：</li>
+</ul>
+<p>  - 統一的工具發現介面
+  - 標準化的認證與授權
+  - 更好的與其他 MCP 客戶端互通</p>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li>MCP 官方文件 - Architecture: https://modelcontextprotocol.io/docs/learn/architecture</li>
+<li>MCP 官方文件 - Server Concepts: https://modelcontextprotocol.io/docs/learn/server-concepts</li>
+<li>Claude Code Docs - Connect to MCP: https://code.claude.com/docs/en/mcp</li>
+<li>MCP Specification 2025-11-25: https://modelcontextprotocol.io/specification/2025-11-25</li>
+<li>Anthropic Blog - Enabling Claude Code to work more autonomously: https://www.anthropic.com/news/enabling-claude-code-to-work-more-autonomously</li>
+<li>MCP GitHub - Python SDK: https://github.com/modelcontextprotocol/python-sdk</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-18</em>
+<em>研究者：Claude Code Agent</em>
+<em>研究動機：知識庫已有 Claude Code 一般功能與 Hooks/權限相關研究，但缺乏 MCP 整合的專門深入研究。本文填補 Remote MCP Server、Tool Search 延遲載入機制、自定義 Server 開發三個方向的知識缺口。</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

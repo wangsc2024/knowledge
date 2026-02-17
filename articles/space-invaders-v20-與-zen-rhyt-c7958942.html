@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Space Invaders v2.0 與 Zen Rhythm v2.0 品質優化實作記錄">
+  <title>Space Invaders v2.0 與 Zen Rhythm v2.0 品質優化實作記錄 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Space Invaders v2.0 與 Zen Rhythm v2.0 品質優化實作記錄</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">Space Invaders</span><span class="tag">Zen Rhythm</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">效能優化</span><span class="tag">品質提升</span><span class="tag">觸控支援</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化日期-2026-02-18">優化日期：2026-02-18</a></li><li><a href="#space-invaders-小蜜蜂-優化項目">Space Invaders (小蜜蜂) 優化項目</a></li>  <li><a href="#1-觸控暫停按鈕-p0">1. 觸控暫停按鈕（P0）</a></li>  <li><a href="#2-關卡過渡動畫-p1">2. 關卡過渡動畫（P1）</a></li>  <li><a href="#3-星空深度分層-p2">3. 星空深度分層（P2）</a></li>  <li><a href="#4-射擊冷卻視覺回饋-p3">4. 射擊冷卻視覺回饋（P3）</a></li>  <li><a href="#5-敵方子彈碰撞區域優化-p2">5. 敵方子彈碰撞區域優化（P2）</a></li>  <li><a href="#6-過關音效">6. 過關音效</a></li><li><a href="#zen-rhythm-禪音節奏-優化項目">Zen Rhythm (禪音節奏) 優化項目</a></li>  <li><a href="#1-暫停恢復-dt-bug-修復-p0">1. 暫停恢復 dt Bug 修復（P0）</a></li>  <li><a href="#2-節拍視覺化指示器-p0">2. 節拍視覺化指示器（P0）</a></li>  <li><a href="#3-ripples-效能優化-p1">3. Ripples 效能優化（P1）</a></li>  <li><a href="#4-hp-自適應難度-p1">4. HP 自適應難度（P1）</a></li>  <li><a href="#5-粒子系統時間制-p2">5. 粒子系統時間制（P2）</a></li>  <li><a href="#6-音符速度一致性-p2">6. 音符速度一致性（P2）</a></li><li><a href="#通用設計模式與心得">通用設計模式與心得</a></li>  <li><a href="#物件池模式">物件池模式</a></li>  <li><a href="#狀態機設計">狀態機設計</a></li>  <li><a href="#時間制-vs-幀制">時間制 vs 幀制</a></li>  <li><a href="#觸控裝置支援三要點">觸控裝置支援三要點</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Space Invaders v2.0 與 Zen Rhythm v2.0 品質優化記錄</h1>
+<h2 id="優化日期-2026-02-18">優化日期：2026-02-18</h2>
+<h2 id="space-invaders-小蜜蜂-優化項目">Space Invaders (小蜜蜂) 優化項目</h2>
+<h3 id="1-觸控暫停按鈕-p0">1. 觸控暫停按鈕（P0）</h3>
+<ul>
+<li><strong>問題</strong>：手機裝置無法按 Esc 暫停遊戲</li>
+<li><strong>解法</strong>：新增 <code>#btnPause</code> 圓形按鈕（右上角），使用 CSS <code>@media (pointer: coarse)</code> 僅在觸控裝置顯示</li>
+<li><strong>學到</strong>：觸控按鈕需同時綁定 touchstart 和 click 事件，確保各裝置相容</li>
+</ul>
+<h3 id="2-關卡過渡動畫-p1">2. 關卡過渡動畫（P1）</h3>
+<ul>
+<li><strong>問題</strong>：過關後直接跳到下一關，體驗突兀</li>
+<li><strong>解法</strong>：新增 STATE.READY 狀態，1.8 秒倒數動畫（READY → GO!），期間顯示關卡數但不允許操作</li>
+<li><strong>學到</strong>：狀態機新增中間狀態比用 setTimeout 更可控，不打斷 requestAnimationFrame 循環</li>
+</ul>
+<h3 id="3-星空深度分層-p2">3. 星空深度分層（P2）</h3>
+<ul>
+<li><strong>問題</strong>：背景只有 60 顆固定偽隨機星，沒有深度感</li>
+<li><strong>解法</strong>：三層星空（80 顆）— 遠景（暗小慢）→ 近景（亮大快），加入閃爍效果（正弦波調變亮度）</li>
+<li><strong>技術</strong>：每顆星星獨立 twinkleSpeed 和 twinkleOffset，避免同步閃爍的不自然感</li>
+</ul>
+<h3 id="4-射擊冷卻視覺回饋-p3">4. 射擊冷卻視覺回饋（P3）</h3>
+<ul>
+<li><strong>問題</strong>：觸控射擊時不知道 cooldown 是否結束</li>
+<li><strong>解法</strong>：玩家底部繪製 24px 寬的 cooldown 進度條，透明度隨 cooldown 遞減</li>
+</ul>
+<h3 id="5-敵方子彈碰撞區域優化-p2">5. 敵方子彈碰撞區域優化（P2）</h3>
+<ul>
+<li><strong>修改</strong>：enemy bullet 碰撞從 4x4 擴大到 6x8，確保不會穿過玩家</li>
+</ul>
+<h3 id="6-過關音效">6. 過關音效</h3>
+<ul>
+<li><strong>新增</strong>：sfxLevelClear() — 四音階上行旋律（C5→E5→G5→C6），增強成就感</li>
+</ul>
+<h2 id="zen-rhythm-禪音節奏-優化項目">Zen Rhythm (禪音節奏) 優化項目</h2>
+<h3 id="1-暫停恢復-dt-bug-修復-p0">1. 暫停恢復 dt Bug 修復（P0）</h3>
+<ul>
+<li><strong>問題</strong>：暫停後恢復時 lastBeatTime 和 lastTime 不一致，首幀 dt 異常大導致音符位置跳躍</li>
+<li><strong>解法</strong>：resumeGame() 計算 pauseDuration，同步調整 lastBeatTime、startTime、lastBeatIndicatorTime、lastTime</li>
+<li><strong>教訓</strong>：所有與 performance.now() 相關的時間戳都必須在暫停恢復時同步偏移</li>
+</ul>
+<h3 id="2-節拍視覺化指示器-p0">2. 節拍視覺化指示器（P0）</h3>
+<ul>
+<li><strong>問題</strong>：節奏遊戲核心體驗不足，玩家無法預判下一拍</li>
+<li><strong>解法</strong>：drawBeatIndicator() — 目標線下方的進度條，顯示拍間進度</li>
+</ul>
+<p>  - 半透明背景 + 場景色填充 + 脈動光點 + 四分音符刻度線
+  - beatIndicatorPhase 從 0 到 1 循環，視覺化節拍時間</p>
+<ul>
+<li><strong>學到</strong>：節奏遊戲的視覺 metronome 能大幅降低學習曲線</li>
+</ul>
+<h3 id="3-ripples-效能優化-p1">3. Ripples 效能優化（P1）</h3>
+<ul>
+<li><strong>問題</strong>：使用 Array.splice() 移除已消失的漣漪，高頻操作產生 GC 壓力</li>
+<li><strong>解法</strong>：固定大小陣列（MAX_RIPPLES=30）+ active flag，swap-and-pop 模式</li>
+<li><strong>效能收益</strong>：零記憶體分配，適合 60FPS 遊戲循環</li>
+</ul>
+<h3 id="4-hp-自適應難度-p1">4. HP 自適應難度（P1）</h3>
+<ul>
+<li><strong>問題</strong>：BPM 200 時固定扣 8 HP 過於苛刻，新手難以存活</li>
+<li><strong>解法</strong>：根據 BPM 動態調整 — BPM&gt;160: 扣5, BPM&gt;120: 扣6, 其他: 扣8</li>
+<li><strong>設計思維</strong>：高 BPM 時音符密度增加，miss 機率上升，減少單次懲罰維持公平</li>
+</ul>
+<h3 id="5-粒子系統時間制-p2">5. 粒子系統時間制（P2）</h3>
+<ul>
+<li><strong>問題</strong>：粒子 life 使用 frame 計數，不同 FPS 下表現不一致</li>
+<li><strong>解法</strong>：全面改為秒制（lifeSec），updateParticles(dtSec) 使用真實時間差</li>
+</ul>
+<p>  - 速度單位改為 pixels/sec，重力改為 pixels/sec²
+  - 所有 UI timer（hitFeedback、meaningDisplay、milestoneDisplay、achievementPopup）也改為秒制</p>
+<h3 id="6-音符速度一致性-p2">6. 音符速度一致性（P2）</h3>
+<ul>
+<li><strong>問題</strong>：updateNotes 使用 dt/16.67 假設 60fps，低 FPS 時移動距離不準</li>
+<li><strong>解法</strong>：speed 單位統一為 pixels/sec，直接用 n.speed * dtSec</li>
+</ul>
+<h2 id="通用設計模式與心得">通用設計模式與心得</h2>
+<h3 id="物件池模式">物件池模式</h3>
+<ul>
+<li>粒子池、子彈池、漣漪池都使用固定大小陣列 + active flag</li>
+<li>避免 new/push/splice 的記憶體分配，適合高頻遊戲循環</li>
+</ul>
+<h3 id="狀態機設計">狀態機設計</h3>
+<ul>
+<li>每個遊戲都有完整狀態機（LOADING→MENU→READY/PLAYING→PAUSED→GAME_OVER/LEVEL_CLEAR）</li>
+<li>中間狀態（如 READY）比 setTimeout 更可控</li>
+</ul>
+<h3 id="時間制-vs-幀制">時間制 vs 幀制</h3>
+<ul>
+<li>遊戲邏輯一律使用 dtSec（秒）作為時間單位</li>
+<li>所有 UI 動畫 timer 也使用秒，避免 FPS 依賴</li>
+<li>dt 上限 cap 在 50ms（0.05s），防止卡頓後的追趕</li>
+</ul>
+<h3 id="觸控裝置支援三要點">觸控裝置支援三要點</h3>
+<ol>
+<li>暫停按鈕：Esc 鍵的觸控替代方案</li>
+<li>touch-action: none 防止瀏覽器手勢干擾</li>
+<li>所有觸控按鈕同時綁定 touchstart + click 確保相容性</li>
+</ol>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="禪意遊戲品質優化實戰記錄（2026-02-18）— 六根淨化、Space Invaders、禪音節奏">
+  <title>禪意遊戲品質優化實戰記錄（2026-02-18）— 六根淨化、Space Invaders、禪音節奏 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-buddhism">佛學</span>
+        <h1>禪意遊戲品質優化實戰記錄（2026-02-18）— 六根淨化、Space Invaders、禪音節奏</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">品質優化</span><span class="tag">Canvas</span><span class="tag">Web Audio API</span><span class="tag">禪意遊戲</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#三款禪意遊戲品質優化記錄">三款禪意遊戲品質優化記錄</a></li>  <li><a href="#遊戲概覽">遊戲概覽</a></li>  <li><a href="#品質評估結果">品質評估結果</a></li>  <li><a href="#本次優化項目">本次優化項目</a></li>  <li><a href="#共通設計模式觀察">共通設計模式觀察</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h2 id="三款禪意遊戲品質優化記錄">三款禪意遊戲品質優化記錄</h2>
+<h3 id="遊戲概覽">遊戲概覽</h3>
+<ol>
+<li><strong>六根淨化（six-roots-zen）</strong>：禪修打字遊戲，透過打字淨化眼耳鼻舌身意六根</li>
+<li><strong>Space Invaders</strong>：經典小蜜蜂復刻，純 Canvas + Web Audio API</li>
+<li><strong>禪音節奏（zen-rhythm）</strong>：節奏遊戲，禪字從天而降，在正確時機擊中</li>
+</ol>
+<h3 id="品質評估結果">品質評估結果</h3>
+<table>
+<tr><th>遊戲</th><th>品質分</th><th>Game Loop</th><th>碰撞</th><th>物件池</th><th>狀態機</th><th>觸控</th><th>音效</th></tr>
+<tr><td>六根淨化</td><td>4/5</td><td>事件驅動（打字遊戲）</td><td>N/A</td><td>粒子池 30</td><td>完整 4 狀態</td><td>虛擬鍵盤引導</td><td>Web Audio</td></tr>
+<tr><td>Space Invaders</td><td>4.5/5</td><td>rAF + delta time</td><td>AABB</td><td>粒子 200 + 子彈 20</td><td>完整 7 狀態</td><td>方向+射擊按鈕</td><td>8-bit 合成</td></tr>
+<tr><td>禪音節奏</td><td>4/5</td><td>rAF + delta time</td><td>距離判定</td><td>粒子 300 + 漣漪 30</td><td>完整 5 狀態</td><td>多指觸控</td><td>五聲音階</td></tr>
+</table>
+<h3 id="本次優化項目">本次優化項目</h3>
+<ol>
+<li><strong>zen-rhythm — LOADING 狀態繪製</strong></li>
+</ol>
+<p>   - 問題：字體載入期間（Google Fonts）畫面空白
+   - 解法：preInit() 先用 sans-serif 顯示「載入中...」，fonts.ready 後切換
+   - 效果：消除首屏白屏</p>
+<ol>
+<li><strong>zen-rhythm — resize debounce</strong></li>
+</ol>
+<p>   - 問題：resize 事件頻繁觸發 canvas 重排
+   - 解法：150ms debounce timer
+   - 效果：避免效能浪費</p>
+<ol>
+<li><strong>space_invaders — LOADING 狀態繪製</strong></li>
+</ol>
+<p>   - 問題：已有 LOADING 狀態定義但無繪製邏輯
+   - 解法：加入 drawLoadingScreen() 含星空背景
+   - 效果：完整狀態流程</p>
+<ol>
+<li><strong>six-roots-zen — Escape 鍵雙重監聽修正</strong></li>
+</ol>
+<p>   - 問題：input keydown 和 document keydown 都監聽 Escape → togglePause 被呼叫兩次（暫停後立即恢復）
+   - 解法：移除 input 上的 Escape 處理，統一由 document 處理
+   - 效果：修正暫停功能</p>
+<h3 id="共通設計模式觀察">共通設計模式觀察</h3>
+<ul>
+<li><strong>物件池模式</strong>：三款遊戲都使用物件池管理粒子/子彈，避免 GC 壓力</li>
+<li><strong>狀態機模式</strong>：每款都有完整的狀態機，管理 MENU → PLAYING → PAUSED → GAMEOVER 流程</li>
+<li><strong>Web Audio API</strong>：全部使用 oscillator 合成音效，無需載入外部音檔</li>
+<li><strong>localStorage 持久化</strong>：三款都支援進度/最高分儲存</li>
+<li><strong>成就系統</strong>：六根淨化和禪音節奏都有成就解鎖機制</li>
+<li><strong>delta time</strong>：Canvas 遊戲都使用 delta time 確保幀率無關的物理更新</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 可觀測性缺口分析與故障自愈架構升級方案（2026）">
+  <title>Daily-Digest-Prompt 可觀測性缺口分析與故障自愈架構升級方案（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Daily-Digest-Prompt 可觀測性缺口分析與故障自愈架構升級方案（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">daily-digest-prompt</span><span class="tag">可觀測性</span><span class="tag">Observability</span><span class="tag">故障自愈</span><span class="tag">Self-Healing</span><span class="tag">分散式追蹤</span><span class="tag">Trace</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#一-研究背景與動機">一、研究背景與動機</a></li>  <li><a href="#核心數據-真實數據-非估算">核心數據（真實數據，非估算）</a></li><li><a href="#二-可觀測性三支柱缺口分析">二、可觀測性三支柱缺口分析</a></li>  <li><a href="#2-1-日誌-logs-現有但不完整">2.1 日誌（Logs）— 現有但不完整</a></li>  <li><a href="#2-2-指標-metrics-有但分散">2.2 指標（Metrics）— 有但分散</a></li>  <li><a href="#2-3-追蹤-traces-完全缺失">2.3 追蹤（Traces）— 完全缺失</a></li><li><a href="#三-故障自愈架構現狀與瓶頸">三、故障自愈架構現狀與瓶頸</a></li>  <li><a href="#3-1-現有自愈能力">3.1 現有自愈能力</a></li>  <li><a href="#3-2-自愈瓶頸分析">3.2 自愈瓶頸分析</a></li><li><a href="#四-升級方案-從被動日誌到主動修復的五層架構">四、升級方案：從被動日誌到主動修復的五層架構</a></li>  <li><a href="#第-1-層-補齊分散式追蹤-trace-id-貫穿">第 1 層：補齊分散式追蹤（Trace ID 貫穿）</a></li>  <li><a href="#第-2-層-增強語義標籤-業務上下文">第 2 層：增強語義標籤（業務上下文）</a></li>  <li><a href="#第-3-層-時序指標趨勢引擎">第 3 層：時序指標趨勢引擎</a></li>  <li><a href="#第-4-層-預測式自愈-predictive-self-healing">第 4 層：預測式自愈（Predictive Self-Healing）</a></li>  <li><a href="#第-5-層-健康儀表板自動生成">第 5 層：健康儀表板自動生成</a></li><li><a href="#五-具體行動優先級">五、具體行動優先級</a></li>  <li><a href="#p0-本週可實施-效益最高">P0（本週可實施，效益最高）</a></li>  <li><a href="#p1-兩週內實施">P1（兩週內實施）</a></li>  <li><a href="#p2-一個月內實施">P2（一個月內實施）</a></li><li><a href="#六-與既有優化方案的互補關係">六、與既有優化方案的互補關係</a></li><li><a href="#七-參考架構與啟發">七、參考架構與啟發</a></li><li><a href="#八-預期效益量化">八、預期效益量化</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 可觀測性缺口分析與故障自愈架構升級方案</h1>
+<p>研究日期：2026-02-17
+任務 ID：6g2FfvWmxqhCWx85</p>
+<hr>
+<h2 id="一-研究背景與動機">一、研究背景與動機</h2>
+<p>本專案（daily-digest-prompt）已建構一套多層自動化排程系統，透過 Windows Task Scheduler 驅動 Claude Code Agent 執行每日摘要、Todoist 任務規劃、系統審查等 6 種排程。系統累計每日 44+ 次執行，包含 18 個自動任務、20 個 Skill、306 個測試案例。</p>
+<p>然而，從最新的 <code>context/system-insight.json</code>（2026-02-16）揭露的數據中，我們發現 <strong>可觀測性（Observability）存在結構性缺口</strong>，導致故障難以快速定位、自愈迴圈效能受限。本文從「深度思維」角度，系統性分析這些缺口並提出升級方案。</p>
+<h3 id="核心數據-真實數據-非估算">核心數據（真實數據，非估算）</h3>
+<ul>
+<li>近 7 天工具呼叫：6,697 次</li>
+<li>近 7 天 Session 數：234 個</li>
+<li>快取命中率：<strong>12.2%</strong>（門檻 40%，差距 28 個百分點）</li>
+<li>Skill 覆蓋率：<strong>40%</strong>（門檻 70%，僅 8/20 被追蹤）</li>
+<li>todoist-team 成功率：<strong>74.5%</strong>（47 次中 12 次失敗）</li>
+<li>自動任務公平性：<strong>CV=0.61</strong>（門檻 0.5，3 個任務零執行）</li>
+<li>錯誤率：<strong>0.0%</strong>（正面指標）</li>
+</ul>
+<hr>
+<h2 id="二-可觀測性三支柱缺口分析">二、可觀測性三支柱缺口分析</h2>
+<h3 id="2-1-日誌-logs-現有但不完整">2.1 日誌（Logs）— 現有但不完整</h3>
+<p><strong>現狀</strong>：<code>post_tool_logger.py</code> 產生結構化 JSONL，含自動標籤分類（15 種標籤）和 50MB 緊急輪轉。</p>
+<p><strong>缺口 1：團隊模式盲區</strong></p>
+<ul>
+<li>根因：團隊模式（<code>Start-Job</code>）啟動的子 Agent 各自擁有獨立的 <code>claude -p</code> 進程</li>
+<li>每個子 Agent 都會觸發自己的 Hooks，但日誌的 <code>sid</code>（session_id）前 12 字元可能相同（來自同一排程觸發）</li>
+<li><strong>結果</strong>：無法區分 Phase 1 的 5 個並行 Agent 各自的行為。system-insight 報告中 Skill 覆蓋率只記錄到 8 個，實際 12 個 Skill 在子 Agent 中使用但未被歸因。</li>
+</ul>
+<p><strong>缺口 2：因果鏈斷裂</strong></p>
+<ul>
+<li>現有日誌只記錄「單次工具呼叫」，缺少呼叫之間的因果關係</li>
+<li>例：「Todoist API 回傳空列表 → 觸發自動任務 → 選擇楞嚴經研究 → KB 搜尋去重 → 匯入筆記」這條鏈路在日誌中表現為 5 個獨立事件，無法追溯完整決策路徑</li>
+</ul>
+<p><strong>缺口 3：缺少業務語義</strong></p>
+<ul>
+<li>標籤僅描述技術動作（<code>api-call</code>、<code>cache-read</code>），未標記業務意圖（<code>digest-assembly</code>、<code>task-routing</code>、<code>auto-task-selection</code>）</li>
+<li>使得 <code>query_logs.py</code> 只能回答「今天呼叫了多少次 API」，無法回答「今天摘要組裝失敗的根因是什麼」</li>
+</ul>
+<h3 id="2-2-指標-metrics-有但分散">2.2 指標（Metrics）— 有但分散</h3>
+<p><strong>現狀</strong>：</p>
+<ul>
+<li><code>health-scoring.yaml</code>：6 維度加權評分</li>
+<li><code>benchmark.yaml</code>：7 個效能基準線</li>
+<li><code>system-insight.json</code>：7 個洞察指標</li>
+</ul>
+<p><strong>缺口 4：指標無時序</strong></p>
+<ul>
+<li>所有指標都是「快照型」（某一刻的值），缺少時序趨勢</li>
+<li>無法回答「快取命中率是從什麼時候開始下降的？」或「todoist-team 失敗率的趨勢是變好還是變差？」</li>
+<li><code>session-summary.jsonl</code> 有時序資料，但未被 system-insight 用於趨勢計算</li>
+</ul>
+<p><strong>缺口 5：指標門檻靜態</strong></p>
+<ul>
+<li><code>benchmark.yaml</code> 的 target 是固定值（如 <code>&gt;= 95%</code>），不會根據歷史基線自適應</li>
+<li>系統初期和穩定期的期望值不同，靜態門檻會產生「永遠報警」或「麻痺效應」</li>
+</ul>
+<h3 id="2-3-追蹤-traces-完全缺失">2.3 追蹤（Traces）— 完全缺失</h3>
+<p><strong>缺口 6：無分散式追蹤</strong></p>
+<ul>
+<li>最嚴重的可觀測性缺口</li>
+<li>團隊模式涉及：PowerShell 排程器 → N 個 <code>claude -p</code> 子進程 → 各自的 API 呼叫 → 結果寫入 <code>results/*.json</code> → 組裝 Agent 讀取</li>
+<li>沒有 trace ID 貫穿整個管線，Phase 1 失敗時無法確定是哪個子 Agent 的哪個步驟出問題</li>
+<li>system-insight.json 的 <code>high_failure_hours: [18, 19, 20, 21, 22]</code> 只知道「這些時段失敗多」，不知道失敗的具體環節</li>
+</ul>
+<hr>
+<h2 id="三-故障自愈架構現狀與瓶頸">三、故障自愈架構現狀與瓶頸</h2>
+<h3 id="3-1-現有自愈能力">3.1 現有自愈能力</h3>
+<p>目前的自愈迴圈（<code>templates/auto-tasks/self-heal.md</code>）具備以下能力：</p>
+<table>
+<tr><th>修復項</th><th>機制</th><th>效能</th></tr>
+<tr><td>高失敗率 API 快取清除</td><td>刪除 cache/*.json</td><td>被動，需依賴 system-insight.json</td></tr>
+<tr><td>research-registry 過期清理</td><td>移除 &gt;7 天 entries</td><td>簡單有效</td></tr>
+<tr><td>auto-tasks-today 跨日歸零</td><td>重置計數</td><td>簡單有效</td></tr>
+<tr><td>JSONL 大檔輪轉</td><td>50MB 重命名</td><td>事後補救</td></tr>
+<tr><td>殘留檔案清理</td><td>檢查排程 + 刪除</td><td>簡單有效</td></tr>
+</table>
+<h3 id="3-2-自愈瓶頸分析">3.2 自愈瓶頸分析</h3>
+<p><strong>瓶頸 1：反應式而非預測式</strong></p>
+<ul>
+<li>自愈迴圈在問題「已發生」後才修復，不具備預測能力</li>
+<li>例：todoist-team 2/15 凌晨連續 11 次失敗，自愈需等到被觸發才清快取，期間浪費 11 個排程 slot</li>
+</ul>
+<p><strong>瓶頸 2：修復範圍有限</strong></p>
+<ul>
+<li>5 項修復動作都是「清除/重置」型，缺少「調參/路由切換」型的高階自愈</li>
+<li>無法自動將失敗的團隊模式降級為單一模式</li>
+<li>無法自動調整 TTL 以應對 API 不穩定時段</li>
+</ul>
+<p><strong>瓶頸 3：修復驗證不足</strong></p>
+<ul>
+<li>self-heal 修復後只檢查檔案是否清除成功，不驗證「根因是否解決」</li>
+<li>例：清除快取後不會等待下一次排程確認快取是否恢復正常</li>
+</ul>
+<p><strong>瓶頸 4：依賴 system-insight.json</strong></p>
+<ul>
+<li>前置檢查明確說「若不存在或修改時間超過 24 小時 → 跳過步驟 1 資料分析」</li>
+<li>如果 system-insight 自己也是零執行（如 2/16 的情況），自愈迴圈會退化為「只做清理」</li>
+</ul>
+<hr>
+<h2 id="四-升級方案-從被動日誌到主動修復的五層架構">四、升級方案：從被動日誌到主動修復的五層架構</h2>
+<h3 id="第-1-層-補齊分散式追蹤-trace-id-貫穿">第 1 層：補齊分散式追蹤（Trace ID 貫穿）</h3>
+<p><strong>方案</strong>：在 PowerShell 排程腳本中生成 <code>trace_id</code>（UUID），透過環境變數傳遞給所有子 Agent。</p>
+<pre><code class="language-powershell"># run-agent-team.ps1 中
+$TraceId = [guid]::NewGuid().ToString(&#x27;N&#x27;).Substring(0, 16)
+$env:AGENT_TRACE_ID = $TraceId
+
+# 傳遞給子 Agent
+Start-Job -ScriptBlock {
+    $env:AGENT_TRACE_ID = $using:TraceId
+    claude -p ... --allowedTools &quot;Read,Bash,Write&quot;
+}</code></pre>
+<p><strong>修改 post_tool_logger.py</strong>：從 <code>$env:AGENT_TRACE_ID</code> 讀取 trace_id，寫入每條 JSONL entry。</p>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>一條 trace_id 貫穿排程觸發 → Phase 1 多路並行 → Phase 2 組裝 → 通知推播</li>
+<li><code>query_logs.py --trace &lt;id&gt;</code> 可追溯整個排程週期的完整行為</li>
+<li>解決「快取命中率低」的根因調查：可追蹤同一 trace 下哪些子 Agent 重複呼叫了相同 API</li>
+</ul>
+<h3 id="第-2-層-增強語義標籤-業務上下文">第 2 層：增強語義標籤（業務上下文）</h3>
+<p><strong>方案</strong>：在 post_tool_logger.py 增加業務語義標籤。</p>
+<p>新增標籤：</p>
+<ul>
+<li><code>phase-1</code> / <code>phase-2</code> / <code>phase-3</code>：管線階段</li>
+<li><code>digest-fetch</code> / <code>digest-assemble</code>：摘要管線的具體步驟</li>
+<li><code>task-routing</code> / <code>task-execution</code> / <code>auto-task-selection</code>：Todoist 管線步驟</li>
+<li><code>self-heal-repair</code> / <code>self-heal-verify</code>：自愈動作</li>
+</ul>
+<p><strong>實作方式</strong>：透過環境變數 <code>$env:AGENT_PHASE</code> 和 <code>$env:AGENT_PIPELINE</code> 由 PowerShell 腳本設定。</p>
+<h3 id="第-3-層-時序指標趨勢引擎">第 3 層：時序指標趨勢引擎</h3>
+<p><strong>方案</strong>：在 system-insight Skill 中增加「趨勢計算」模組。</p>
+<pre><code class="language-json">// context/system-insight.json 新增欄位
+&quot;trends&quot;: {
+  &quot;cache_hit_ratio&quot;: {
+    &quot;current&quot;: 0.122,
+    &quot;7d_avg&quot;: 0.135,
+    &quot;14d_avg&quot;: 0.180,
+    &quot;direction&quot;: &quot;declining&quot;,
+    &quot;change_rate&quot;: -0.032  // 每天下降 3.2%
+  },
+  &quot;success_rate&quot;: {
+    &quot;current&quot;: 0.901,
+    &quot;7d_avg&quot;: 0.89,
+    &quot;14d_avg&quot;: 0.92,
+    &quot;direction&quot;: &quot;declining&quot;,
+    &quot;change_rate&quot;: -0.002
+  }
+}</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>自愈迴圈可根據趨勢預判問題（如「快取命中率連續 3 天下降」），在指標觸及門檻前主動介入</li>
+<li><code>check-health.ps1</code> 可顯示趨勢箭頭（上升/下降/持平），而非僅顯示數字</li>
+</ul>
+<h3 id="第-4-層-預測式自愈-predictive-self-healing">第 4 層：預測式自愈（Predictive Self-Healing）</h3>
+<p><strong>方案</strong>：將自愈迴圈從「事後清理」升級為「預測 + 預防 + 修復」三階段。</p>
+<p><strong>預測階段</strong>：</p>
+<ul>
+<li>分析 <code>high_failure_hours</code>，在高風險時段前主動預熱快取</li>
+<li>偵測「連續 N 次失敗」模式，在第 3 次失敗時自動觸發降級</li>
+</ul>
+<p><strong>預防階段</strong>：</p>
+<ul>
+<li>動態 TTL 調整：API 不穩定時自動延長快取 TTL</li>
+<li>模式切換：todoist-team 連續 2 次失敗 → 自動降級為 todoist-single</li>
+<li>排程間距調整：高失敗率時段自動增加執行間隔</li>
+</ul>
+<p><strong>修復階段</strong>（現有 + 新增）：</p>
+<ul>
+<li>新增：自動重建損壞的 JSON 檔案（目前只通知人工）</li>
+<li>新增：自動重啟失敗的子 Agent（Phase 1 部分失敗時，僅重試失敗的路）</li>
+<li>新增：修復後自動驗證（等待下一次排程結果，確認修復有效）</li>
+</ul>
+<h3 id="第-5-層-健康儀表板自動生成">第 5 層：健康儀表板自動生成</h3>
+<p><strong>方案</strong>：每日 system-insight 執行後，自動生成 Markdown 儀表板。</p>
+<pre><code class="language-markdown"># 系統健康儀表板 2026-02-17
+
+## 核心指標趨勢（7 天）
+| 指標 | 今日 | 7 天均值 | 趨勢 | 狀態 |
+|------|------|---------|------|------|
+| 成功率 | 90.1% | 89% | 下降 | 注意 |
+| 快取命中率 | 12.2% | 13.5% | 下降 | 警告 |
+| 錯誤率 | 0.0% | 0.1% | 持平 | 正常 |
+
+## 今日自愈行動
+- 清除 todoist.json 快取（原因：API 連續 3 次逾時）
+- todoist-team 自動降級為 todoist-single（觸發：連續 2 次 phase1 失敗）</code></pre>
+<hr>
+<h2 id="五-具體行動優先級">五、具體行動優先級</h2>
+<h3 id="p0-本週可實施-效益最高">P0（本週可實施，效益最高）</h3>
+<ol>
+<li><strong>Trace ID 機制</strong>：修改 5 個 <code>run-*-team.ps1</code> + <code>post_tool_logger.py</code>，預估 1-2 小時</li>
+</ol>
+<p>   - 立即解決團隊模式可觀測性盲區
+   - 為快取命中率根因調查提供資料基礎</p>
+<ol>
+<li><strong>快取共享策略</strong>：在 Phase 1 prompts 中加入「先檢查快取再呼叫 API」的明確指示</li>
+</ol>
+<p>   - 直接提升快取命中率（預估 12% → 30%+）
+   - 修改 5 個 <code>prompts/team/fetch-*.md</code></p>
+<h3 id="p1-兩週內實施">P1（兩週內實施）</h3>
+<ol>
+<li><strong>趨勢計算模組</strong>：修改 <code>skills/system-insight/SKILL.md</code> + 建立歷史快照機制</li>
+<li><strong>自動降級機制</strong>：在 <code>run-todoist-agent-team.ps1</code> 中加入失敗計數 + 降級邏輯</li>
+<li><strong>語義標籤</strong>：修改 <code>post_tool_logger.py</code> 增加環境變數讀取</li>
+</ol>
+<h3 id="p2-一個月內實施">P2（一個月內實施）</h3>
+<ol>
+<li><strong>預測式自愈</strong>：擴展 <code>self-heal.md</code> + 新增時段分析邏輯</li>
+<li><strong>健康儀表板</strong>：自動生成每日 Markdown 報告</li>
+</ol>
+<hr>
+<h2 id="六-與既有優化方案的互補關係">六、與既有優化方案的互補關係</h2>
+<p>本方案與 2026-02-16 的「Token 經濟學與漸進式上下文載入優化方案」互補：</p>
+<table>
+<tr><th>維度</th><th>Token 經濟學方案</th><th>可觀測性方案（本文）</th></tr>
+<tr><td>關注點</td><td>減少 Context Window 消耗</td><td>提升故障定位與自愈效率</td></tr>
+<tr><td>改善目標</td><td>Skill 載入效率</td><td>系統穩定性與可靠性</td></tr>
+<tr><td>修改範圍</td><td>SKILL_INDEX.md、Skill frontmatter</td><td>PowerShell 腳本、Hooks、self-heal</td></tr>
+<tr><td>共同受益</td><td>兩者都減少無效的排程執行（一個從效率，一個從可靠性）</td></tr>
+</table>
+<hr>
+<h2 id="七-參考架構與啟發">七、參考架構與啟發</h2>
+<ol>
+<li><strong>OpenTelemetry 三支柱模型</strong>（Logs + Metrics + Traces）：本方案的「Trace ID 貫穿」設計直接借鏡 OpenTelemetry 的分散式追蹤概念，將其適配到 Agent 排程場景</li>
+</ol>
+<ol>
+<li><strong>Google SRE 四大黃金信號</strong>（延遲、流量、錯誤、飽和）：</li>
+</ol>
+<p>   - 延遲 → <code>duration_stability</code>（已有）
+   - 流量 → <code>total_tool_calls</code>（已有）
+   - 錯誤 → <code>error_rate</code> + <code>block_rate</code>（已有）
+   - 飽和 → <strong>缺失</strong>：建議追蹤 Context Window 使用率和排程 slot 消耗率</p>
+<ol>
+<li><strong>IBM 自主計算（Autonomic Computing）四大自我能力</strong>：</li>
+</ol>
+<p>   - Self-Configuration：自動調參（本方案 P1 的動態 TTL）
+   - Self-Healing：故障修復（本方案核心）
+   - Self-Optimization：效能優化（已有 round-robin）
+   - Self-Protection：安全防護（已有 Hooks 機制）</p>
+<ol>
+<li><strong>Netflix Chaos Engineering 理念</strong>：建議未來引入「混沌測試」——故意讓某個 API 返回錯誤，驗證降級和自愈機制是否正常運作</li>
+</ol>
+<hr>
+<h2 id="八-預期效益量化">八、預期效益量化</h2>
+<table>
+<tr><th>指標</th><th>目前值</th><th>實施後預期</th><th>改善幅度</th></tr>
+<tr><td>快取命中率</td><td>12.2%</td><td>35-45%</td><td>+180-270%</td></tr>
+<tr><td>Skill 覆蓋率追蹤</td><td>40%</td><td>80%+</td><td>+100%</td></tr>
+<tr><td>todoist-team 成功率</td><td>74.5%</td><td>90%+</td><td>+21%</td></tr>
+<tr><td>故障定位時間</td><td>手動查 JSONL</td><td>trace 追溯</td><td>從分鐘級到秒級</td></tr>
+<tr><td>自愈修復範圍</td><td>5 項清理</td><td>8+ 項含調參</td><td>+60%</td></tr>
+</table>
+<hr>
+<p><em>本研究基於 daily-digest-prompt 專案 2026-02-16 的 system-insight.json 真實數據分析，所有數字均來自實際執行記錄。</em>
+<em>參考架構：OpenTelemetry Observability Primer、Google SRE Book Chapter 6、IBM Autonomic Computing White Paper</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

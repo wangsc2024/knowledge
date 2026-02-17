@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Vite 遊戲門戶網站開發經驗 - ES6 模組與路徑規範">
+  <title>Vite 遊戲門戶網站開發經驗 - ES6 模組與路徑規範 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Vite 遊戲門戶網站開發經驗 - ES6 模組與路徑規範</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">Vite</span><span class="tag">ES6</span><span class="tag">Cloudflare Pages</span><span class="tag">遊戲開發</span><span class="tag">Web開發</span><span class="tag">前端</span><span class="tag">除錯經驗</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案背景">專案背景</a></li><li><a href="#關鍵問題與解決方案">關鍵問題與解決方案</a></li>  <li><a href="#1-es6-模組導入-導出問題">1. ES6 模組導入/導出問題</a></li>  <li><a href="#2-遊戲目錄結構規範">2. 遊戲目錄結構規範</a></li>  <li><a href="#3-相對路徑返回連結">3. 相對路徑返回連結</a></li>  <li><a href="#4-vite-建置配置">4. Vite 建置配置</a></li><li><a href="#cloudflare-pages-部署">Cloudflare Pages 部署</a></li><li><a href="#除錯經驗">除錯經驗</a></li>  <li><a href="#遊戲卡片不顯示">遊戲卡片不顯示</a></li>  <li><a href="#路徑-404-錯誤">路徑 404 錯誤</a></li>  <li><a href="#建置失敗">建置失敗</a></li><li><a href="#檔案結構範例">檔案結構範例</a></li><li><a href="#維護建議">維護建議</a></li><li><a href="#相關技術">相關技術</a></li><li><a href="#參考文件">參考文件</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Vite 遊戲門戶網站開發經驗</h1>
+<h2 id="專案背景">專案背景</h2>
+<p>使用 Vite 建置遊戲門戶網站，部署至 Cloudflare Pages。包含 8 個 HTML5 遊戲，使用 ES6 模組動態生成遊戲卡片。</p>
+<h2 id="關鍵問題與解決方案">關鍵問題與解決方案</h2>
+<h3 id="1-es6-模組導入-導出問題">1. ES6 模組導入/導出問題</h3>
+<p><strong>問題：</strong> 遊戲卡片完全不顯示，打包後 getAllGames() 未定義</p>
+<p><strong>根因：</strong></p>
+<ul>
+<li>使用 CommonJS 的 </li>
+<li>未正確導入模組，依賴全域變數檢查</li>
+<li>Vite 打包時，CommonJS 導出在瀏覽器環境無法正確運作</li>
+</ul>
+<p><strong>解決方案：</strong></p>
+<p><strong>關鍵要點：</strong></p>
+<ul>
+<li>Vite 是 ES6 模組優先的建置工具</li>
+<li>瀏覽器環境必須使用 ES6 </li>
+<li>CommonJS 的  僅適用於 Node.js 環境</li>
+</ul>
+<h3 id="2-遊戲目錄結構規範">2. 遊戲目錄結構規範</h3>
+<p><strong>問題：</strong> blockPuzzle 遊戲路徑錯誤，無法正常載入</p>
+<p><strong>根因：</strong></p>
+<ul>
+<li>blockPuzzle 路徑為 4 層：</li>
+<li>其他遊戲都是 2 層：</li>
+<li>路徑不一致造成導航和資源載入問題</li>
+</ul>
+<p><strong>解決方案：</strong>
+統一所有遊戲為 2 層結構</p>
+<p><strong>最佳實踐：</strong></p>
+<ul>
+<li>所有遊戲保持相同的目錄深度</li>
+<li>避免超過 3 層的深層嵌套</li>
+<li>路徑一致性有助於維護和擴展</li>
+</ul>
+<h3 id="3-相對路徑返回連結">3. 相對路徑返回連結</h3>
+<p><strong>問題：</strong> 遊戲內的「返回」連結指向錯誤的 URL</p>
+<p><strong>根因：</strong></p>
+<ul>
+<li>使用  只能回到  目錄</li>
+<li>遊戲在 ，需要回到根目錄</li>
+</ul>
+<p><strong>解決方案：</strong></p>
+<p><strong>相對路徑規則：</strong></p>
+<ul>
+<li>= 上一層目錄</li>
+<li>= 上兩層目錄</li>
+<li>= 根目錄（絕對路徑）</li>
+</ul>
+<h3 id="4-vite-建置配置">4. Vite 建置配置</h3>
+<p><strong>關鍵配置：</strong></p>
+<p><strong>要點：</strong></p>
+<ul>
+<li>確保資源使用相對路徑</li>
+<li>自訂 plugin 在建置完成後複製靜態資源</li>
+<li>Cloudflare Pages 會自動偵測 Vite 專案</li>
+</ul>
+<h2 id="cloudflare-pages-部署">Cloudflare Pages 部署</h2>
+<p><strong>配置：</strong></p>
+<ul>
+<li>Framework preset: Vite</li>
+<li>Build command: </li>
+<li>Build output directory: </li>
+</ul>
+<p><strong>注意事項：</strong></p>
+<ol>
+<li>確保  中所有依賴都在  或 </li>
+<li>避免使用 optional dependencies（可能導致建置失敗）</li>
+<li>使用相對路徑確保在任何 base URL 下都能正常運作</li>
+</ol>
+<h2 id="除錯經驗">除錯經驗</h2>
+<h3 id="遊戲卡片不顯示">遊戲卡片不顯示</h3>
+<ol>
+<li>檢查瀏覽器 Console 是否有模組載入錯誤</li>
+<li>確認  語句的路徑正確（包含  副檔名）</li>
+<li>檢查 declare -x ACLOCAL_PATH=&quot;/mingw64/share/aclocal:/usr/share/aclocal&quot;</li>
+</ol>
+<p>declare -x ALLUSERSPROFILE=&quot;C:\\ProgramData&quot;
+declare -x APPDATA=&quot;C:\\Users\\user\\AppData\\Roaming&quot;
+declare -x CHROME_CRASHPAD_PIPE_NAME=&quot;\\\\.\\pipe\\crashpad_679120_QHFXJEILOYHTAAIG&quot;
+declare -x CLAUDECODE=&quot;1&quot;
+declare -x CLAUDE_AGENT_SDK_VERSION=&quot;0.2.42&quot;
+declare -x CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=&quot;true&quot;
+declare -x CLAUDE_CODE_ENTRYPOINT=&quot;claude-vscode&quot;
+declare -x CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=&quot;1&quot;
+declare -x CLIENTNAME=&quot;WSCPC&quot;
+declare -x COMMONPROGRAMFILES=&quot;C:\\Program Files\\Common Files&quot;
+declare -x COMPUTERNAME=&quot;307PC0014011129&quot;
+declare -x COMSPEC=&quot;C:\\WINDOWS\\system32\\cmd.exe&quot;
+declare -x CONFIG_SITE=&quot;/etc/config.site&quot;
+declare -x COREPACK_ENABLE_AUTO_PIN=&quot;0&quot;
+declare -x CUDA_PATH=&quot;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0&quot;
+declare -x CUDA_PATH_V11_8=&quot;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.8&quot;
+declare -x CUDA_PATH_V12_1=&quot;D:\\CUDA\\V121&quot;
+declare -x CUDA_PATH_V12_2=&quot;D:\\CUDA&quot;
+declare -x CUDA_PATH_V13_0=&quot;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0&quot;
+declare -x CURSOR_EXTENSION_HOST_ROLE=&quot;user&quot;
+declare -x CURSOR_TRACE_ID=&quot;eadb197599b84ead9834c3ee174470d2&quot;
+declare -x ChocolateyInstall=&quot;C:\\ProgramData\\chocolatey&quot;
+declare -x ChocolateyLastPathUpdate=&quot;133621079880149048&quot;
+declare -x CommonProgramW6432=&quot;C:\\Program Files\\Common Files&quot;
+declare -x DISPLAY=&quot;needs-to-be-defined&quot;
+declare -x DriverData=&quot;C:\\Windows\\System32\\Drivers\\DriverData&quot;
+declare -x EFC_26012_1592913036=&quot;1&quot;
+declare -x ELECTRON_RUN_AS_NODE=&quot;1&quot;
+declare -x EXEPATH=&quot;C:\\Program Files\\Git\\bin&quot;
+declare -x GIT_EDITOR=&quot;true&quot;
+declare -x HOME=&quot;/c/Users/user&quot;
+declare -x HOMEDRIVE=&quot;C:&quot;
+declare -x HOMEPATH=&quot;\\Users\\user&quot;
+declare -x HOSTNAME=&quot;307PC0014011129&quot;
+declare -x INFOPATH=&quot;/mingw64/local/info:/mingw64/share/info:/usr/local/info:/usr/share/info:/usr/info:/share/info&quot;
+declare -x LANG=&quot;zh_TW.UTF-8&quot;
+declare -x LOCALAPPDATA=&quot;C:\\Users\\user\\AppData\\Local&quot;
+declare -x LOGONSERVER=&quot;\\\\307PC0014011129&quot;
+declare -x MANPATH=&quot;/mingw64/local/man:/mingw64/share/man:/usr/local/man:/usr/share/man:/usr/man:/share/man&quot;
+declare -x MCP_CONNECTION_NONBLOCKING=&quot;true&quot;
+declare -x MINGW_CHOST=&quot;x86_64-w64-mingw32&quot;
+declare -x MINGW_PACKAGE_PREFIX=&quot;mingw-w64-x86_64&quot;
+declare -x MINGW_PREFIX=&quot;/mingw64&quot;
+declare -x MSYS=&quot;disable_pcon&quot;
+declare -x MSYSTEM=&quot;MINGW64&quot;
+declare -x MSYSTEM_CARCH=&quot;x86_64&quot;
+declare -x MSYSTEM_CHOST=&quot;x86_64-w64-mingw32&quot;
+declare -x MSYSTEM_PREFIX=&quot;/mingw64&quot;
+declare -x NUMBER_OF_PROCESSORS=&quot;20&quot;
+declare -x NVTOOLSEXT_PATH=&quot;C:\\Program Files\\NVIDIA Corporation\\NvToolsExt\\&quot;
+declare -x NoDefaultCurrentDirectoryInExePath=&quot;1&quot;
+declare -x OLDPWD
+declare -x OLLAMA_MODELS=&quot;D:\\ollama\\models&quot;
+declare -x ORIGINAL_PATH=&quot;/mingw64/bin:/usr/bin:/c/Users/user/bin:/d/Python311/Scripts:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/x64:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/libnvvp:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/d/CUDA/V121/bin:/d/CUDA/V121/libnvvp:/d/CUDA/bin:/d/CUDA/libnvvp:/c/Windows/system32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0:/c/Windows/System32/OpenSSH:/c/Program Files/Docker/Docker/resources/bin:/cmd:/c/ProgramData/chocolatey/bin:/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/c/Program Files/CMake/bin:/c/Program Files (x86)/cloudflared:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Roaming/npm:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/d/nodejs:/c/Program Files/PowerShell/7:/c/Program Files/GitHub CLI:/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.3.1:/c/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR:/c/Program Files/PuTTY:/c/Users/user/.local/bin:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/user/.cache/lm-studio/bin:/c/Users/user/AppData/Roaming/npm:/d/Windsurf/bin:/c/Users/user/AppData/Roaming/Python/Python312/Scripts:/d/sqlite:/c/Program Files/heroku/bin:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/d/Kiro/bin:/c/Users/user/AppData/Local/Programs/Antigravity/bin&quot;
+declare -x ORIGINAL_TEMP=&quot;/tmp&quot;
+declare -x ORIGINAL_TMP=&quot;/tmp&quot;
+declare -x OS=&quot;Windows_NT&quot;
+declare -x OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=&quot;delta&quot;
+declare -x OneDrive=&quot;C:\\Users\\user\\OneDrive&quot;
+declare -x PATH=&quot;/c/Users/user/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/user/bin:/d/Python311/Scripts:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/x64:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/libnvvp:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/d/CUDA/V121/bin:/d/CUDA/V121/libnvvp:/d/CUDA/bin:/d/CUDA/libnvvp:/c/Windows/system32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0:/c/Windows/System32/OpenSSH:/c/Program Files/Docker/Docker/resources/bin:/cmd:/c/ProgramData/chocolatey/bin:/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/c/Program Files/CMake/bin:/c/Program Files (x86)/cloudflared:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Roaming/npm:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/d/nodejs:/c/Program Files/PowerShell/7:/c/Program Files/GitHub CLI:/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.3.1:/c/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR:/c/Program Files/PuTTY:/c/Users/user/.local/bin:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/user/.cache/lm-studio/bin:/c/Users/user/AppData/Roaming/npm:/d/Windsurf/bin:/c/Users/user/AppData/Roaming/Python/Python312/Scripts:/d/sqlite:/c/Program Files/heroku/bin:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/d/Kiro/bin:/c/Users/user/AppData/Local/Programs/Antigravity/bin:/usr/bin/vendor_perl:/usr/bin/core_perl&quot;
+declare -x PATHEXT=&quot;.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC&quot;
+declare -x PKG_CONFIG_PATH=&quot;/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig&quot;
+declare -x PKG_CONFIG_SYSTEM_INCLUDE_PATH=&quot;/mingw64/include&quot;
+declare -x PKG_CONFIG_SYSTEM_LIBRARY_PATH=&quot;/mingw64/lib&quot;
+declare -x PLINK_PROTOCOL=&quot;ssh&quot;
+declare -x POWERSHELL_DISTRIBUTION_CHANNEL=&quot;MSI:Windows 10 Pro&quot;
+declare -x PROCESSOR_ARCHITECTURE=&quot;AMD64&quot;
+declare -x PROCESSOR_IDENTIFIER=&quot;Intel64 Family 6 Model 191 Stepping 2, GenuineIntel&quot;
+declare -x PROCESSOR_LEVEL=&quot;6&quot;
+declare -x PROCESSOR_REVISION=&quot;bf02&quot;
+declare -x PROGRAMFILES=&quot;C:\\Program Files&quot;
+declare -x PS1=&quot;\\[\\033]0;\$TITLEPREFIX:\$PWD\\007\\]\\n\\[\\033[32m\\]\\u@\\h \\[\\033[35m\\]\$MSYSTEM \\[\\033[33m\\]\\w\\[\\033[36m\\]\<code>__git_ps1\</code>\\[\\033[0m\\]\\n\$ &quot;
+declare -x PSModulePath=&quot;C:\\Users\\user\\Documents\\WindowsPowerShell\\Modules;&quot;
+declare -x PUBLIC=&quot;C:\\Users\\Public&quot;
+declare -x PWD=&quot;/d/Source/daily-digest-prompt&quot;
+declare -x ProgramData=&quot;C:\\ProgramData&quot;
+declare -x ProgramW6432=&quot;C:\\Program Files&quot;
+declare -x REMOTE_MCP_URL=&quot;http://127.0.0.1:8001&quot;
+declare -x SESSIONNAME=&quot;RDP-Tcp#1&quot;
+declare -x SHELL=&quot;/usr/bin/bash&quot;
+declare -x SHLVL=&quot;1&quot;
+declare -x SSH_ASKPASS=&quot;/mingw64/bin/git-askpass.exe&quot;
+declare -x SYSTEMDRIVE=&quot;C:&quot;
+declare -x SYSTEMROOT=&quot;C:\\WINDOWS&quot;
+declare -x TEMP=&quot;/tmp&quot;
+declare -x TERM=&quot;xterm-256color&quot;
+declare -x TMP=&quot;/tmp&quot;
+declare -x TMPDIR=&quot;/tmp&quot;
+declare -x TODOIST_API_TOKEN=&quot;225d244f19204e92371f15f15a84ac9998740376&quot;
+declare -x USER
+declare -x USERDOMAIN=&quot;307PC0014011129&quot;
+declare -x USERDOMAIN_ROAMINGPROFILE=&quot;307PC0014011129&quot;
+declare -x USERNAME=&quot;001401&quot;
+declare -x USERPROFILE=&quot;C:\\Users\\user&quot;
+declare -x USE_REMOTE_MCP=&quot;true&quot;
+declare -x UV_LINK_MODE=&quot;copy&quot;
+declare -x VIRTUAL_ENV=&quot;D:\\Python311&quot;
+declare -x VSCODE_CODE_CACHE_PATH=&quot;C:\\Users\\user\\AppData\\Roaming\\Cursor\\CachedData\\7b9c34466f5c119e93c3e654bb80fe9306b6cc70&quot;
+declare -x VSCODE_CRASH_REPORTER_PROCESS_TYPE=&quot;extensionHost&quot;
+declare -x VSCODE_CWD=&quot;C:\\Users\\user\\AppData\\Local\\Programs\\cursor&quot;
+declare -x VSCODE_ESM_ENTRYPOINT=&quot;vs/workbench/api/node/extensionHostProcess&quot;
+declare -x VSCODE_HANDLES_UNCAUGHT_ERRORS=&quot;true&quot;
+declare -x VSCODE_IPC_HOOK=&quot;\\\\.\\pipe\\4de85216-2.4.37-main-sock&quot;
+declare -x VSCODE_L10N_BUNDLE_LOCATION=&quot;file:///c%3A/Users/user/.cursor/extensions/ms-ceintl.vscode-language-pack-zh-hant-1.105.0-universal/translations/extensions/vscode.html-language-features.i18n.json&quot;
+declare -x VSCODE_NLS_CONFIG=&quot;{\&quot;userLocale\&quot;:\&quot;zh-tw\&quot;,\&quot;osLocale\&quot;:\&quot;zh-tw\&quot;,\&quot;resolvedLanguage\&quot;:\&quot;zh-tw\&quot;,\&quot;defaultMessagesFile\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\cursor\\\\resources\\\\app\\\\out\\\\nls.messages.json\&quot;,\&quot;languagePack\&quot;:{\&quot;translationsConfigFile\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\tcf.json\&quot;,\&quot;messagesFile\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\7b9c34466f5c119e93c3e654bb80fe9306b6cc70\\\\nls.messages.json\&quot;,\&quot;corruptMarkerFile\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\corrupted.info\&quot;},\&quot;locale\&quot;:\&quot;zh-tw\&quot;,\&quot;availableLanguages\&quot;:{\&quot;*\&quot;:\&quot;zh-tw\&quot;},\&quot;_languagePackId\&quot;:\&quot;f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\&quot;,\&quot;_languagePackSupport\&quot;:true,\&quot;_translationsConfigFile\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\tcf.json\&quot;,\&quot;_cacheRoot\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\&quot;,\&quot;_resolvedLanguagePackCoreLocation\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\7b9c34466f5c119e93c3e654bb80fe9306b6cc70\&quot;,\&quot;_corruptedFile\&quot;:\&quot;C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\corrupted.info\&quot;}&quot;
+declare -x VSCODE_PID=&quot;679120&quot;
+declare -x VSCODE_PROCESS_TITLE=&quot;extension-host (user) [1-1]&quot;
+declare -x WINDIR=&quot;C:\\WINDOWS&quot;
+declare -x ZES_ENABLE_SYSMAN=&quot;1&quot; 和  是否配對</p>
+<h3 id="路徑-404-錯誤">路徑 404 錯誤</h3>
+<ol>
+<li>檢查  中的 path 設定</li>
+<li>確認  目錄結構正確</li>
+<li>驗證 Vite plugin 是否正確複製檔案</li>
+</ol>
+<h3 id="建置失敗">建置失敗</h3>
+<ol>
+<li>刪除  和 </li>
+<li>重新執行 </li>
+<li>檢查依賴版本衝突</li>
+</ol>
+<h2 id="檔案結構範例">檔案結構範例</h2>
+<h2 id="維護建議">維護建議</h2>
+<ol>
+<li><strong>新增遊戲時：</strong></li>
+</ol>
+<p>   - 確保 2 層目錄結構
+   - 檢查返回連結使用 
+   - 更新 
+   - 執行  並本地測試</p>
+<ol>
+<li><strong>修改現有遊戲：</strong></li>
+</ol>
+<p>   - 先修改  下的源檔案
+   - 重新建置後檢查 
+   - 確認 git 提交包含所有變更</p>
+<ol>
+<li><strong>部署前檢查：</strong></li>
+</ol>
+<p>   - ES6 模組正確導入/導出
+   - 所有路徑使用相對路徑
+   - 本地  測試
+   - Git 提交訊息清晰</p>
+<h2 id="相關技術">相關技術</h2>
+<ul>
+<li>Vite 5.4.21</li>
+<li>ES6 Modules</li>
+<li>Cloudflare Pages</li>
+<li>HTML5 遊戲開發</li>
+<li>相對路徑導航</li>
+</ul>
+<h2 id="參考文件">參考文件</h2>
+<ul>
+<li>專案維護指南：</li>
+<li>Vite 官方文件：https://vitejs.dev/</li>
+<li>ES6 模組規範：https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules</li>
+</ul>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

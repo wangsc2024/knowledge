@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Space Invaders (小蜜蜂) v1.0 創建心得 — 粒子爆炸 + 8-bit 音效合成">
+  <title>Space Invaders (小蜜蜂) v1.0 創建心得 — 粒子爆炸 + 8-bit 音效合成 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Space Invaders (小蜜蜂) v1.0 創建心得 — 粒子爆炸 + 8-bit 音效合成</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">Space Invaders</span><span class="tag">小蜜蜂</span><span class="tag">粒子系統</span><span class="tag">Web Audio API</span><span class="tag">8-bit</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#核心技術實作">核心技術實作</a></li>  <li><a href="#1-外星人陣列系統-5-11">1. 外星人陣列系統（5×11）</a></li>  <li><a href="#2-aabb-碰撞偵測">2. AABB 碰撞偵測</a></li>  <li><a href="#3-物件池-object-pool">3. 物件池（Object Pool）</a></li>  <li><a href="#4-web-audio-api-8-bit-音效">4. Web Audio API 8-bit 音效</a></li>  <li><a href="#5-粒子系統爆炸效果">5. 粒子系統爆炸效果</a></li><li><a href="#遊戲設計特色">遊戲設計特色</a></li><li><a href="#品質指標">品質指標</a></li><li><a href="#學到的教訓">學到的教訓</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Space Invaders (小蜜蜂) v1.0 創建心得</h1>
+<h2 id="概述">概述</h2>
+<p>從零建立經典 Space Invaders 復古遊戲，純 HTML5 Canvas + Web Audio API，含兩個創意改良：粒子系統爆炸效果與 8-bit 音效合成。</p>
+<h2 id="核心技術實作">核心技術實作</h2>
+<h3 id="1-外星人陣列系統-5-11">1. 外星人陣列系統（5×11）</h3>
+<ul>
+<li>步進式移動（非連續式）：每步移動固定像素，碰邊後下移一行</li>
+<li>移動間隔隨存活數量動態加速：<code>interval = base × (aliveCount / totalCount)</code></li>
+<li>三種外星人類型：頂排（30分，紅色）、中排（20分，綠色）、底排（10分，白色）</li>
+<li>底排優先射擊：每列只有最底部存活外星人可發射子彈</li>
+</ul>
+<h3 id="2-aabb-碰撞偵測">2. AABB 碰撞偵測</h3>
+<ul>
+<li>子彈 vs 外星人、子彈 vs 護盾像素、子彈 vs 玩家、外星人 vs 護盾</li>
+<li>護盾採用像素級破壞：11×8 bitmap，每個像素 4×4px，被擊中後獨立移除</li>
+<li>AABB 函式複用率高，單一函式處理所有碰撞場景</li>
+</ul>
+<h3 id="3-物件池-object-pool">3. 物件池（Object Pool）</h3>
+<ul>
+<li>子彈池（MAX_BULLETS=20）：玩家與敵人共用，<code>fireBullet()</code> 找第一個非活躍物件</li>
+<li>粒子池（MAX_PARTICLES=200）：<code>spawnParticles()</code> 從池中取用，零 GC 壓力</li>
+<li>關鍵設計：<code>active</code> 旗標控制生命週期，避免 array push/splice</li>
+</ul>
+<h3 id="4-web-audio-api-8-bit-音效">4. Web Audio API 8-bit 音效</h3>
+<ul>
+<li>方波（square）：射擊音 880Hz × 80ms</li>
+<li>鋸齒波（sawtooth）：爆炸音 150Hz × 150ms + 80Hz × 200ms 雙層疊加</li>
+<li>三角波（triangle）：玩家被擊音 100Hz × 400ms</li>
+<li>ADSR 簡化：<code>exponentialRampToValueAtTime</code> 實現自然衰減</li>
+<li>延遲初始化：AudioContext 在用戶手勢（click/touch）時才建立，符合瀏覽器政策</li>
+</ul>
+<h3 id="5-粒子系統爆炸效果">5. 粒子系統爆炸效果</h3>
+<ul>
+<li>擊中外星人：12 顆粒子，顏色繼承外星人類型色</li>
+<li>擊中 UFO：20 顆粒子，紅色爆炸</li>
+<li>擊中護盾：3 顆粒子，綠色碎片</li>
+<li>粒子屬性：隨機角度散射、速度 40-160 px/s、壽命 0.3-0.7s、透明度漸隱</li>
+</ul>
+<h2 id="遊戲設計特色">遊戲設計特色</h2>
+<ul>
+<li><strong>狀態機</strong>：MENU → PLAYING → PAUSED → GAME_OVER / LEVEL_CLEAR</li>
+<li><strong>UFO 神秘飛船</strong>：隨機 15-25 秒出現，擊中得 50/100/150/300 隨機分</li>
+<li><strong>螢幕震動</strong>：<code>ctx.translate()</code> 配合 screenShake 衰減，擊中時視覺回饋</li>
+<li><strong>動態星空</strong>：60 顆星星以不同速度滾動，增加太空氛圍</li>
+<li><strong>難度曲線</strong>：每升一級，外星人移動間隔 -0.08s、射擊間隔 -0.1s、子彈速度 +15px/s</li>
+<li><strong>localStorage</strong>：最高分持久化</li>
+</ul>
+<h2 id="品質指標">品質指標</h2>
+<ul>
+<li>requestAnimationFrame 遊戲循環，dt cap 50ms</li>
+<li>物件池零 GC 壓力</li>
+<li>鍵盤 + 滑鼠 + 觸控三輸入</li>
+<li>響應式 Canvas + 固定觸控按鈕</li>
+<li>純 Canvas 程式化繪製，無外部資源</li>
+</ul>
+<h2 id="學到的教訓">學到的教訓</h2>
+<ol>
+<li><strong>步進式 vs 連續式移動</strong>：原版 Space Invaders 用步進式（每拍移動一步），不是連續平滑移動</li>
+<li><strong>護盾像素級破壞</strong>：用 bitmap + 像素物件陣列比整張圖碰撞更精確且易實作</li>
+<li><strong>Web Audio API ADSR</strong>：<code>exponentialRampToValueAtTime(0.001, ...)</code> 中目標值不能為 0（會報錯），用 0.001 替代</li>
+<li><strong>觸控 + 鍵盤並存</strong>：需同時維護 keys{} 和 touchXxx 布林值，update 中 OR 合併</li>
+</ol>
+<hr>
+<p><em>創建日期：2026-02-17</em>
+<em>遊戲版本：v1.0</em>
+<em>創意方向：粒子系統爆炸效果 + 8-bit 音效合成</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

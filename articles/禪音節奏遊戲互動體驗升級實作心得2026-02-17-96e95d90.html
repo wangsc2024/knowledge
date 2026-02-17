@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="禪音節奏遊戲互動體驗升級實作心得（2026-02-17）">
+  <title>禪音節奏遊戲互動體驗升級實作心得（2026-02-17） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-buddhism">佛學</span>
+        <h1>禪音節奏遊戲互動體驗升級實作心得（2026-02-17）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-16</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">互動體驗</span><span class="tag">成就系統</span><span class="tag">螢幕震動</span><span class="tag">節拍可視化</span><span class="tag">Combo</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化概要">優化概要</a></li><li><a href="#新增功能">新增功能</a></li>  <li><a href="#1-節拍脈動可視化">1. 節拍脈動可視化</a></li>  <li><a href="#2-螢幕震動回饋">2. 螢幕震動回饋</a></li>  <li><a href="#3-combo-里程碑動畫">3. Combo 里程碑動畫</a></li>  <li><a href="#4-成就系統">4. 成就系統</a></li>  <li><a href="#5-連續天數追蹤">5. 連續天數追蹤</a></li>  <li><a href="#6-返回首頁連結">6. 返回首頁連結</a></li><li><a href="#技術要點">技術要點</a></li>  <li><a href="#螢幕震動實作">螢幕震動實作</a></li>  <li><a href="#成就檢查機制">成就檢查機制</a></li>  <li><a href="#向後相容性">向後相容性</a></li><li><a href="#品質清單">品質清單</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>禪音節奏（Zen Rhythm）互動體驗升級</h1>
+<h2 id="優化概要">優化概要</h2>
+<p>針對禪音節奏（zen-rhythm）遊戲進行互動體驗升級，新增四大系統提升玩家沉浸感和長期黏著度。</p>
+<h2 id="新增功能">新增功能</h2>
+<h3 id="1-節拍脈動可視化">1. 節拍脈動可視化</h3>
+<ul>
+<li>每個節拍觸發 <code>beatPulse</code> 變數（0→1 瞬間拉升，以 0.92 衰減）</li>
+<li>目標線上每個車道產生擴散圓環，視覺化「看到」節拍</li>
+<li>螢幕邊緣產生場景色的脈動暈影（radialGradient vignette）</li>
+<li>效果隨場景轉變（枯山水灰紫→春芽綠→盛花粉→極樂淨土金）</li>
+</ul>
+<h3 id="2-螢幕震動回饋">2. 螢幕震動回饋</h3>
+<ul>
+<li>PERFECT 命中：微震（intensity=3），強化精準命中的滿足感</li>
+<li>MISS 失誤：中震（intensity=5），強調失誤的嚴肅性</li>
+<li>Combo 里程碑：強震（intensity=8），配合全螢幕閃光</li>
+<li>實作方式：Canvas <code>ctx.translate(shakeX, shakeY)</code>，每幀隨機偏移 + 指數衰減</li>
+</ul>
+<h3 id="3-combo-里程碑動畫">3. Combo 里程碑動畫</h3>
+<ul>
+<li>五個里程碑：10連(初入禪境)、25連(漸入佳境)、50連(三昧現前)、75連(禪悅法喜)、100連(圓滿證悟)</li>
+<li>達成時觸發：全螢幕金色閃光 + 中央大字動畫（scale 動畫入場 + fade 出場）+ 禪語副標題</li>
+<li>和聲音效：四音和弦（C-E-G-C&#x27;）1.5 秒長衰減</li>
+<li>從中心爆發 30 個金色粒子</li>
+<li>combo 歸零時重設里程碑追蹤，鼓勵重新挑戰</li>
+</ul>
+<h3 id="4-成就系統">4. 成就系統</h3>
+<ul>
+<li>10 個成就：初心(首次PERFECT)、精進(10連)、禪定(25連)、三昧(50連)、明鏡(10次PERFECT)、般若(30次PERFECT)、功德(破千分)、圓滿(破五千分)、法藏(蒐集全部禪字)、不動心(單局零MISS)</li>
+<li>解鎖時頂部彈出通知（圓角矩形 + 金色邊框 + 滑入動畫）</li>
+<li>解鎖音效：四音琶音（C5-E5-G5-C6），0.1 秒間距</li>
+<li>持久化至 localStorage，選單顯示進度</li>
+<li>結算畫面顯示本局解鎖的成就</li>
+</ul>
+<h3 id="5-連續天數追蹤">5. 連續天數追蹤</h3>
+<ul>
+<li>localStorage 記錄 lastPlayDate 和 consecutiveDays</li>
+<li>每次開始遊戲時更新（連續日 +1 或重置為 1）</li>
+<li>選單畫面顯示「連續修行第 N 天」</li>
+</ul>
+<h3 id="6-返回首頁連結">6. 返回首頁連結</h3>
+<ul>
+<li>index.html 新增固定位置的「← 返回」連結</li>
+</ul>
+<h2 id="技術要點">技術要點</h2>
+<h3 id="螢幕震動實作">螢幕震動實作</h3>
+<pre><code class="language-javascript">// 每幀更新
+shakeX = (Math.random() - 0.5) * shakeIntensity * 2;
+shakeY = (Math.random() - 0.5) * shakeIntensity * 2;
+shakeIntensity *= 0.9; // 指數衰減
+
+// 繪圖時
+ctx.save();
+ctx.translate(shakeX, shakeY);
+// ... 繪製場景 ...
+ctx.restore();</code></pre>
+<h3 id="成就檢查機制">成就檢查機制</h3>
+<ul>
+<li>每次命中時即時檢查（tryHitLane 末尾呼叫 checkAchievements）</li>
+<li>遊戲結束時再次檢查（處理依賴 gameOver 狀態的成就如「不動心」）</li>
+<li>使用閉包函數 <code>check: (stats) =&gt; stats.maxCombo &gt;= 10</code> 作為成就條件</li>
+</ul>
+<h3 id="向後相容性">向後相容性</h3>
+<ul>
+<li>所有新功能都是增量添加，不影響原有遊戲邏輯</li>
+<li><code>roundRect</code> API 改用 <code>arcTo</code> 手動繪製圓角，確保舊瀏覽器相容</li>
+<li>所有 localStorage 操作都有 try/catch 保護</li>
+</ul>
+<h2 id="品質清單">品質清單</h2>
+<ul>
+<li>[x] requestAnimationFrame 遊戲循環</li>
+<li>[x] 完整狀態機</li>
+<li>[x] 三種輸入支援（鍵盤/滑鼠/觸控）</li>
+<li>[x] 語法檢查通過（node -c）</li>
+<li>[x] 無 setInterval、無遊戲循環 splice</li>
+<li>[x] 暫停功能正常</li>
+<li>[x] 向後相容</li>
+</ul>
+<hr>
+<p><em>優化日期: 2026-02-17</em>
+<em>優化工具: Claude Code Agent</em>
+<em>遊戲位置: D:/Source/game/zen-rhythm/</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

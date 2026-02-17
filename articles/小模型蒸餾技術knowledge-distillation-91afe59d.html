@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="小模型蒸餾技術（Knowledge Distillation）完整指南：從 LLM 到 SLM 的知識遷移方法論（2026）">
+  <title>小模型蒸餾技術（Knowledge Distillation）完整指南：從 LLM 到 SLM 的知識遷移方法論（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>小模型蒸餾技術（Knowledge Distillation）完整指南：從 LLM 到 SLM 的知識遷移方法論（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">AI</span><span class="tag">知識蒸餾</span><span class="tag">Knowledge Distillation</span><span class="tag">小模型</span><span class="tag">SLM</span><span class="tag">LLM</span><span class="tag">MiniLLM</span><span class="tag">GKD</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#一-概述">一、概述</a></li>  <li><a href="#為什麼需要小模型蒸餾">為什麼需要小模型蒸餾？</a></li><li><a href="#二-蒸餾分類體系-三大支柱">二、蒸餾分類體系（三大支柱）</a></li>  <li><a href="#2-1-演算法維度-algorithm">2.1 演算法維度（Algorithm）</a></li>  <li><a href="#2-2-技能維度-skill">2.2 技能維度（Skill）</a></li>  <li><a href="#2-3-垂直領域維度-verticalization">2.3 垂直領域維度（Verticalization）</a></li><li><a href="#三-關鍵方法論深度解析">三、關鍵方法論深度解析</a></li>  <li><a href="#3-1-minillm-on-policy-蒸餾的突破">3.1 MiniLLM — On-Policy 蒸餾的突破</a></li>  <li><a href="#3-2-distilling-step-by-step-用更少資料超越大模型">3.2 Distilling Step-by-Step — 用更少資料超越大模型</a></li>  <li><a href="#3-3-gkd-廣義知識蒸餾">3.3 GKD — 廣義知識蒸餾</a></li>  <li><a href="#3-4-orca-漸進式學習的典範">3.4 Orca — 漸進式學習的典範</a></li>  <li><a href="#3-5-deepseek-r1-蒸餾-推理能力遷移">3.5 DeepSeek-R1 蒸餾 — 推理能力遷移</a></li><li><a href="#四-2025-2026-年主要小模型蒸餾成果">四、2025-2026 年主要小模型蒸餾成果</a></li><li><a href="#五-蒸餾最佳實踐與實務建議">五、蒸餾最佳實踐與實務建議</a></li>  <li><a href="#5-1-方法選擇決策樹">5.1 方法選擇決策樹</a></li>  <li><a href="#5-2-關鍵成功因素">5.2 關鍵成功因素</a></li>  <li><a href="#5-3-常見陷阱">5.3 常見陷阱</a></li><li><a href="#六-未來趨勢與展望">六、未來趨勢與展望</a></li><li><a href="#七-參考來源">七、參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>小模型蒸餾技術（Knowledge Distillation）完整指南</h1>
+<blockquote><p>從大型語言模型（LLM）到小型語言模型（SLM）的知識遷移方法論
+研究日期：2026-02-18</p>
+</blockquote>
+<hr>
+<h2 id="一-概述">一、概述</h2>
+<p>知識蒸餾（Knowledge Distillation, KD）是將大型語言模型的高級能力轉移到更小、更高效模型中的關鍵技術。在 2025-2026 年，隨著 GPT-4、Claude、DeepSeek-R1 等大模型的成熟，KD 已成為實現 AI 民主化與邊緣部署的核心方法論。</p>
+<h3 id="為什麼需要小模型蒸餾">為什麼需要小模型蒸餾？</h3>
+<table>
+<tr><th>驅動因素</th><th>說明</th></tr>
+<tr><td>推論成本</td><td>GPT-4 級模型推論成本高昂，小模型可降低 10-100 倍</td></tr>
+<tr><td>延遲需求</td><td>即時應用（聊天、程式碼補全）需要毫秒級回應</td></tr>
+<tr><td>隱私合規</td><td>數據不能離開企業邊界，需要本地部署</td></tr>
+<tr><td>硬體限制</td><td>邊緣裝置（手機、IoT）僅支援 1-7B 參數模型</td></tr>
+<tr><td>專業化</td><td>通用大模型在特定領域不如專精小模型</td></tr>
+</table>
+<hr>
+<h2 id="二-蒸餾分類體系-三大支柱">二、蒸餾分類體系（三大支柱）</h2>
+<p>根據 Xu et al. (2024) 的綜合調查，LLM 知識蒸餾可從三個維度理解：</p>
+<h3 id="2-1-演算法維度-algorithm">2.1 演算法維度（Algorithm）</h3>
+<p>#### 知識引出（Knowledge Elicitation）</p>
+<p>從教師模型提取知識的方式：</p>
+<ol>
+<li><strong>標籤化（Labeling）</strong>：教師模型生成回應作為訓練標籤</li>
+</ol>
+<p>   - 最簡單直接，適用於黑盒模型（如 GPT-4 API）
+   - 典型代表：Alpaca、Vicuna</p>
+<ol>
+<li><strong>擴展化（Expansion）</strong>：教師補充額外知識</li>
+</ol>
+<p>   - Chain-of-Thought 蒸餾：提取推理過程而非僅結果
+   - 代表作：Orca（微軟）利用 GPT-4 的詳細解釋軌跡</p>
+<ol>
+<li><strong>數據合成（Data Curation）</strong>：教師生成多樣化訓練數據</li>
+</ol>
+<p>   - Self-Instruct 範式：讓教師模型生成指令-回應對
+   - 代表作：WizardLM（Evol-Instruct）</p>
+<ol>
+<li><strong>特徵蒸餾（Feature Distillation）</strong>：直接利用中間層表示</li>
+</ol>
+<p>   - 適用於白盒模型，可遷移注意力模式和隱藏狀態
+   - 效果通常優於純輸出蒸餾</p>
+<ol>
+<li><strong>反饋蒸餾（Feedback Distillation）</strong>：教師作為評判者</li>
+</ol>
+<p>   - 教師評估學生輸出並提供改進信號
+   - 代表作：Constitutional AI（Anthropic）</p>
+<p>#### 蒸餾演算法</p>
+<table>
+<tr><th>方法</th><th>核心思想</th><th>代表作品</th></tr>
+<tr><td>標準 KL 散度</td><td>最小化師生輸出分佈差異</td><td>傳統 KD</td></tr>
+<tr><td>反向 KL 散度</td><td>避免學生高估低機率區域</td><td>MiniLLM</td></tr>
+<tr><td>序列級 KD</td><td>在完整生成序列上蒸餾</td><td>SeqKD</td></tr>
+<tr><td>On-Policy 蒸餾</td><td>學生在自己的輸出上學習</td><td>GKD, MiniLLM</td></tr>
+<tr><td>對抗式蒸餾</td><td>判別器區分師生輸出</td><td>Lion</td></tr>
+</table>
+<h3 id="2-2-技能維度-skill">2.2 技能維度（Skill）</h3>
+<p>蒸餾可針對特定能力：</p>
+<ul>
+<li><strong>指令遵循</strong>：讓小模型精確理解並執行複雜指令</li>
+<li><strong>推理能力</strong>：數學推理、邏輯推理、程式碼生成</li>
+<li><strong>對齊能力</strong>：安全性、有益性、誠實性</li>
+<li><strong>Agent 能力</strong>：工具使用、規劃、環境互動</li>
+<li><strong>多模態能力</strong>：跨模態理解與生成</li>
+</ul>
+<h3 id="2-3-垂直領域維度-verticalization">2.3 垂直領域維度（Verticalization）</h3>
+<p>針對特定產業的專精蒸餾：</p>
+<ul>
+<li>醫療、法律、金融、科學、教育等</li>
+<li>結合領域數據與通用蒸餾技術</li>
+</ul>
+<hr>
+<h2 id="三-關鍵方法論深度解析">三、關鍵方法論深度解析</h2>
+<h3 id="3-1-minillm-on-policy-蒸餾的突破">3.1 MiniLLM — On-Policy 蒸餾的突破</h3>
+<p><strong>論文</strong>：MiniLLM: Knowledge Distillation of Large Language Models (Gu et al., 2024)</p>
+<p><strong>核心創新</strong>：</p>
+<ul>
+<li>用<strong>反向 KL 散度</strong>（Reverse KLD）替代標準 KL 散度</li>
+<li>標準 KL 傾向讓學生覆蓋教師的所有模式（mode-covering），導致生成品質下降</li>
+<li>反向 KL 鼓勵學生專注在教師的高機率區域（mode-seeking），生成更精確</li>
+</ul>
+<p><strong>On-Policy 策略</strong>：</p>
+<ul>
+<li>學生在自己生成的序列上學習，而非固定數據集</li>
+<li>解決訓練-推論分佈不匹配（exposure bias）問題</li>
+</ul>
+<p><strong>實驗結果</strong>：</p>
+<ul>
+<li>支援 120M 到 13B 參數的模型</li>
+<li>生成品質、校準度、長文本能力均優於基線</li>
+<li>在指令遵循任務上表現尤為突出</li>
+</ul>
+<h3 id="3-2-distilling-step-by-step-用更少資料超越大模型">3.2 Distilling Step-by-Step — 用更少資料超越大模型</h3>
+<p><strong>論文</strong>：Distilling Step-by-Step! (Hsieh et al., 2023)</p>
+<p><strong>核心創新</strong>：</p>
+<ul>
+<li>從 LLM 提取<strong>推理過程（rationales）</strong>作為額外監督信號</li>
+<li>多任務學習框架：同時學習答案和推理過程</li>
+</ul>
+<p><strong>驚人發現</strong>：</p>
+<ul>
+<li>770M 的 T5 模型用 80% 數據就能超越 540B 的 PaLM（few-shot）</li>
+<li>資料需求比標準微調少 50% 以上</li>
+<li>比標準蒸餾少用大量未標注數據</li>
+</ul>
+<p><strong>啟示</strong>：小模型不只是「壓縮版大模型」，透過正確的蒸餾方法，可以在特定任務上真正超越教師。</p>
+<h3 id="3-3-gkd-廣義知識蒸餾">3.3 GKD — 廣義知識蒸餾</h3>
+<p><strong>論文</strong>：On-Policy Distillation of Language Models (Agarwal et al., 2024)</p>
+<p><strong>核心創新</strong>：</p>
+<ul>
+<li>解決自回歸模型蒸餾的分佈不匹配問題</li>
+<li>學生在<strong>自己生成的序列</strong>上獲得教師反饋</li>
+<li>支援多種損失函數（不限於 KL 散度）</li>
+<li>可無縫整合 RLHF</li>
+</ul>
+<p><strong>三種訓練模式</strong>：</p>
+<ol>
+<li>On-Policy：學生生成 + 教師反饋（最佳品質）</li>
+<li>Off-Policy：固定數據集 + 教師分佈（最高效率）</li>
+<li>Mixed：結合兩者</li>
+</ol>
+<h3 id="3-4-orca-漸進式學習的典範">3.4 Orca — 漸進式學習的典範</h3>
+<p><strong>論文</strong>：Orca: Progressive Learning from Complex Explanation Traces of GPT-4 (Microsoft, 2023)</p>
+<p><strong>核心策略</strong>：</p>
+<ul>
+<li><strong>不只模仿結果，更模仿推理過程</strong></li>
+<li>利用 GPT-4 的解釋軌跡（explanation traces）和逐步思考過程</li>
+<li>漸進式學習：先從 ChatGPT 學基礎，再從 GPT-4 學進階</li>
+</ul>
+<p><strong>成果</strong>：</p>
+<ul>
+<li>13B 參數模型在 BBH 上超越 Vicuna-13B 100%+</li>
+<li>在 BBH 上達到 ChatGPT 水平</li>
+<li>在 SAT/LSAT/GRE/GMAT 上表現具競爭力</li>
+</ul>
+<h3 id="3-5-deepseek-r1-蒸餾-推理能力遷移">3.5 DeepSeek-R1 蒸餾 — 推理能力遷移</h3>
+<p><strong>論文</strong>：DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via RL (2025)</p>
+<p><strong>蒸餾策略</strong>：</p>
+<ul>
+<li>大規模模型通過純強化學習湧現推理模式（自我反思、驗證、動態策略調整）</li>
+<li>將湧現的推理模式系統性地蒸餾到小模型</li>
+<li>蒸餾版 7B 模型在數學和程式碼任務上表現驚人</li>
+</ul>
+<p><strong>Open R1 社群複現</strong>（Hugging Face）：</p>
+<ul>
+<li>發布 OpenR1-Math-220K 蒸餾數據集</li>
+<li>7B 蒸餾模型在 CodeForces 上超越 Claude 3.7 Sonnet</li>
+<li>Mixture-of-Thoughts：350K 驗證推理軌跡（跨數學/程式/科學）</li>
+</ul>
+<hr>
+<h2 id="四-2025-2026-年主要小模型蒸餾成果">四、2025-2026 年主要小模型蒸餾成果</h2>
+<table>
+<tr><th>模型</th><th>參數量</th><th>教師</th><th>蒸餾方法</th><th>亮點</th></tr>
+<tr><td>Phi-4-mini (Microsoft)</td><td>3.8B</td><td>GPT-4 級合成數據</td><td>高品質數據篩選 + 蒸餾</td><td>數學推理接近 7B 模型</td></tr>
+<tr><td>DeepSeek-R1-Distill</td><td>1.5B-70B</td><td>DeepSeek-R1-671B</td><td>推理軌跡蒸餾</td><td>7B 超越 Claude 3.7</td></tr>
+<tr><td>OpenR1-Distill-7B</td><td>7B</td><td>DeepSeek-R1</td><td>開源社群蒸餾</td><td>數學/程式碼強勁</td></tr>
+<tr><td>Orca-2 (Microsoft)</td><td>7B/13B</td><td>GPT-4</td><td>漸進式推理蒸餾</td><td>超越同量級所有模型</td></tr>
+<tr><td>Gemma-2 (Google)</td><td>2B/9B/27B</td><td>大型 Gemma</td><td>知識蒸餾 + 模型合併</td><td>2B 效能驚人</td></tr>
+<tr><td>SmolLM2 (HuggingFace)</td><td>135M-1.7B</td><td>多來源蒸餾</td><td>合成數據 + 課程學習</td><td>超小模型典範</td></tr>
+<tr><td>Qwen3.5 小模型</td><td>0.5B-32B</td><td>Qwen 旗艦</td><td>混合蒸餾策略</td><td>29+ 語言支援</td></tr>
+</table>
+<hr>
+<h2 id="五-蒸餾最佳實踐與實務建議">五、蒸餾最佳實踐與實務建議</h2>
+<h3 id="5-1-方法選擇決策樹">5.1 方法選擇決策樹</h3>
+<pre><code class="language-plaintext">教師模型是否可用白盒存取？
+├── 是 → 特徵蒸餾 + On-Policy KD（最佳效果）
+│   ├── 推理任務 → 反向 KL + CoT 蒸餾
+│   └── 通用任務 → GKD 混合模式
+└── 否（僅 API）→ 輸出蒸餾
+    ├── 推理任務 → Distilling Step-by-Step
+    ├── 通用指令 → Orca 式漸進學習
+    └── 對齊任務 → Constitutional AI 式反饋</code></pre>
+<h3 id="5-2-關鍵成功因素">5.2 關鍵成功因素</h3>
+<ol>
+<li><strong>數據品質 &gt; 數據數量</strong>：高品質的蒸餾數據比大量低品質數據更有效</li>
+<li><strong>推理過程蒸餾</strong>：蒸餾 CoT 推理過程比蒸餾最終答案效果好 2-3 倍</li>
+<li><strong>On-Policy 訓練</strong>：讓學生在自己的輸出上學習，解決 exposure bias</li>
+<li><strong>漸進式學習</strong>：先學簡單再學複雜，Orca 的分階段策略驗證有效</li>
+<li><strong>反向 KL 散度</strong>：生成模型使用反向 KL 優於標準 KL</li>
+<li><strong>多任務蒸餾</strong>：同時蒸餾多種能力比逐一蒸餾更高效</li>
+</ol>
+<h3 id="5-3-常見陷阱">5.3 常見陷阱</h3>
+<table>
+<tr><th>陷阱</th><th>症狀</th><th>解決方案</th></tr>
+<tr><td>風格模仿</td><td>學生只學會教師的語言風格，推理能力未提升</td><td>使用推理軌跡蒸餾而非純回應蒸餾</td></tr>
+<tr><td>Mode Collapse</td><td>學生生成單調重複的回應</td><td>使用 GKD 的 On-Policy 訓練</td></tr>
+<tr><td>Exposure Bias</td><td>訓練時表現好，推論時品質下降</td><td>在學生自己的輸出上做 KD</td></tr>
+<tr><td>過度蒸餾</td><td>小模型強行學大模型所有能力導致全面退化</td><td>聚焦特定技能蒸餾</td></tr>
+<tr><td>法律風險</td><td>使用封閉模型輸出訓練可能違反服務條款</td><td>確認教師模型的使用條款</td></tr>
+</table>
+<hr>
+<h2 id="六-未來趨勢與展望">六、未來趨勢與展望</h2>
+<ol>
+<li><strong>推理蒸餾民主化</strong>：DeepSeek-R1 + Open R1 證明推理能力可被蒸餾到 7B 模型，2026 年預期更多開源推理蒸餾數據集</li>
+<li><strong>自蒸餾（Self-Distillation）</strong>：模型用自己的高品質輸出來改進自己，無需外部教師</li>
+<li><strong>多模態蒸餾</strong>：從大型視覺-語言模型蒸餾到小型多模態模型</li>
+<li><strong>蒸餾 + 量化</strong>：結合 GGUF/AWQ 量化與蒸餾，雙重壓縮</li>
+<li><strong>Agent 蒸餾</strong>：將複雜的 Agent 行為（工具使用、規劃）蒸餾到小模型</li>
+<li><strong>邊緣部署專用蒸餾</strong>：針對手機/IoT 裝置的極限壓縮蒸餾</li>
+</ol>
+<hr>
+<h2 id="七-參考來源">七、參考來源</h2>
+<ol>
+<li><a href="https://arxiv.org/abs/2402.13116">A Survey on Knowledge Distillation of Large Language Models</a> -- 品質等級 A | 2024-02 | Xu et al., HKU/UMD/Microsoft</li>
+<li><a href="https://arxiv.org/abs/2305.02301">Distilling Step-by-Step! Outperforming Larger Language Models with Less Data</a> -- 品質等級 A | 2023-05 | Hsieh et al., Google Research</li>
+<li><a href="https://arxiv.org/abs/2306.08543">MiniLLM: Knowledge Distillation of Large Language Models</a> -- 品質等級 A | 2023-06 | Gu et al.</li>
+<li><a href="https://arxiv.org/abs/2306.13649">On-Policy Distillation of Language Models: GKD</a> -- 品質等級 A | 2023-06 | Agarwal et al., Google DeepMind</li>
+<li><a href="https://arxiv.org/abs/2306.02707">Orca: Progressive Learning from Complex Explanation Traces of GPT-4</a> -- 品質等級 A | 2023-06 | Mukherjee et al., Microsoft Research</li>
+<li><a href="https://arxiv.org/abs/2501.12948">DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via RL</a> -- 品質等級 A | 2025-01 | DeepSeek AI</li>
+<li><a href="https://github.com/Tebmer/Awesome-Knowledge-Distillation-of-LLMs">Awesome-Knowledge-Distillation-of-LLMs</a> -- 品質等級 A | GitHub | 論文集合與分類</li>
+</ol>
+<hr>
+<p><em>研究者：AI 研究助手</em>
+<em>研究日期：2026-02-18</em>
+<em>來源數量：7（全部 A 級）</em>
+<em>研究深度：thorough</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="JavaScript Entity-Component-System（ECS）遊戲架構模式完整指南（2026）">
+  <title>JavaScript Entity-Component-System（ECS）遊戲架構模式完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>JavaScript Entity-Component-System（ECS）遊戲架構模式完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">ECS</span><span class="tag">Entity-Component-System</span><span class="tag">遊戲架構</span><span class="tag">JavaScript</span><span class="tag">bitECS</span><span class="tag">HTML5遊戲</span><span class="tag">設計模式</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#三大核心元素">三大核心元素</a></li>  <li><a href="#ecs-vs-oop-對比">ECS vs OOP 對比</a></li>  <li><a href="#三種資料儲存架構">三種資料儲存架構</a></li><li><a href="#javascript-ecs-框架比較-2026">JavaScript ECS 框架比較（2026）</a></li>  <li><a href="#bitecs-核心-api-示範">bitECS 核心 API 示範</a></li><li><a href="#最佳實踐與常見陷阱">最佳實踐與常見陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li>  <li><a href="#常見陷阱">常見陷阱</a></li><li><a href="#與本專案的關聯">與本專案的關聯</a></li>  <li><a href="#直接應用-d-source-game-遊戲目錄">直接應用：D:\Source\game 遊戲目錄</a></li>  <li><a href="#間接應用-agent-架構啟發">間接應用：Agent 架構啟發</a></li>  <li><a href="#適用時機評估">適用時機評估</a></li><li><a href="#從零實作最小-ecs-適用於-html5-canvas">從零實作最小 ECS（適用於 HTML5 Canvas）</a></li><li><a href="#知名遊戲的-ecs-採用">知名遊戲的 ECS 採用</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>JavaScript Entity-Component-System（ECS）遊戲架構模式完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>Entity-Component-System（ECS）是一種以<strong>組合優於繼承</strong>為核心的遊戲架構設計模式，將遊戲物件拆分為三個正交概念：Entity（實體，純 ID）、Component（組件，純資料）、System（系統，純邏輯）。ECS 源自 2002 年 Scott Bilas 在 GDC 的演講，後經 Overwatch、Minecraft、Unity DOTS、Bevy 等知名專案採用而成為主流遊戲架構。在 JavaScript/HTML5 Canvas 遊戲開發中，ECS 特別適合管理大量互動物件（敵人、子彈、粒子、道具等），是進階遊戲架構的必備知識。</p>
+<hr>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="三大核心元素">三大核心元素</h3>
+<table>
+<tr><th>元素</th><th>定義</th><th>原則</th></tr>
+<tr><td><strong>Entity（實體）</strong></td><td>唯一識別碼（通常是整數 ID）</td><td>不含任何資料或邏輯，僅作為組件的容器</td></tr>
+<tr><td><strong>Component（組件）</strong></td><td>純資料結構（Plain Data）</td><td>只有狀態，沒有方法或行為</td></tr>
+<tr><td><strong>System（系統）</strong></td><td>純邏輯函數</td><td>查詢擁有特定組件組合的實體，對其執行操作</td></tr>
+</table>
+<h3 id="ecs-vs-oop-對比">ECS vs OOP 對比</h3>
+<pre><code class="language-plaintext">// 傳統 OOP：行為綁定在物件上
+class Player {
+  position = { x: 0, y: 0 };
+  velocity = { x: 0, y: 0 };
+  update() { this.position.x += this.velocity.x; }
+}
+
+// ECS：資料與行為完全分離
+// Component（純資料）
+const Position = { x: [], y: [] };
+const Velocity = { x: [], y: [] };
+
+// System（純邏輯）
+function movementSystem(world) {
+  for (const eid of query(world, [Position, Velocity])) {
+    Position.x[eid] += Velocity.x[eid] * world.dt;
+    Position.y[eid] += Velocity.y[eid] * world.dt;
+  }
+}</code></pre>
+<h3 id="三種資料儲存架構">三種資料儲存架構</h3>
+<ol>
+<li><strong>Archetype（原型/表格式）</strong>：將相同組件組合的實體存在同一張表，列是組件、行是實體。查詢迭代極快（線性存取），但新增/移除組件需要搬移實體到不同表。代表：Flecs、Unity DOTS、Bevy ECS。</li>
+</ol>
+<ol>
+<li><strong>Sparse Set（稀疏集合）</strong>：每個組件用稀疏集合存儲，以實體 ID 為鍵。新增/移除組件快速，但迭代可能較慢。代表：EnTT、Shipyard。</li>
+</ol>
+<ol>
+<li><strong>Bitset（位元集）</strong>：用陣列索引 + 位元遮罩表示組件存在性。代表：EntityX、bitECS。</li>
+</ol>
+<hr>
+<h2 id="javascript-ecs-框架比較-2026">JavaScript ECS 框架比較（2026）</h2>
+<table>
+<tr><th>框架</th><th>Stars</th><th>週下載量</th><th>特色</th><th>適用場景</th></tr>
+<tr><td><strong>bitECS</strong></td><td>1.3K</td><td>~3K</td><td>極致效能、5KB 壓縮、TypedArray SoA/AoS、零依賴</td><td>效能敏感的 Canvas 遊戲</td></tr>
+<tr><td><strong>Miniplex</strong></td><td>1K</td><td>~1K</td><td>React 綁定、友善 API</td><td>React/R3F 3D 場景</td></tr>
+<tr><td><strong>Koota</strong></td><td>600</td><td>~900</td><td>React 綁定、新興框架</td><td>React 生態整合</td></tr>
+<tr><td><strong>Becsy</strong></td><td>300</td><td>~500</td><td>多執行緒、10x 快於 ECSY</td><td>大規模模擬</td></tr>
+<tr><td><strong>Javelin</strong></td><td>200</td><td>~500</td><td>內建網路支援</td><td>多人遊戲</td></tr>
+<tr><td><strong>ECSY</strong></td><td>1K</td><td>~150</td><td>較早期、維護減少</td><td>不推薦新專案</td></tr>
+</table>
+<h3 id="bitecs-核心-api-示範">bitECS 核心 API 示範</h3>
+<pre><code class="language-javascript">import { createWorld, addEntity, addComponent, query } from &#x27;bitecs&#x27;;
+
+// 1. 建立世界
+const world = createWorld({
+  components: {
+    Position: { x: new Float32Array(1e5), y: new Float32Array(1e5) },
+    Velocity: { x: new Float32Array(1e5), y: new Float32Array(1e5) },
+    Health: { current: new Float32Array(1e5), max: new Float32Array(1e5) },
+    Enemy: [],    // 標籤組件（無資料）
+    Bullet: []
+  }
+});
+
+// 2. 建立實體
+const player = addEntity(world);
+addComponent(world, player, &#x27;Position&#x27;);
+addComponent(world, player, &#x27;Velocity&#x27;);
+addComponent(world, player, &#x27;Health&#x27;);
+world.components.Health.current[player] = 100;
+world.components.Health.max[player] = 100;
+
+// 3. 定義系統
+function movementSystem(world) {
+  const { Position, Velocity } = world.components;
+  for (const eid of query(world, [&#x27;Position&#x27;, &#x27;Velocity&#x27;])) {
+    Position.x[eid] += Velocity.x[eid] * world.time.delta;
+    Position.y[eid] += Velocity.y[eid] * world.time.delta;
+  }
+}
+
+function renderSystem(world, ctx) {
+  const { Position, Enemy, Bullet } = world.components;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const eid of query(world, [&#x27;Position&#x27;])) {
+    // 根據組件標籤選擇繪製方式
+    ctx.fillRect(Position.x[eid], Position.y[eid], 10, 10);
+  }
+}
+
+// 4. 遊戲迴圈
+function gameLoop(timestamp) {
+  world.time.delta = (timestamp - world.time.last) / 1000;
+  world.time.last = timestamp;
+  
+  movementSystem(world);
+  collisionSystem(world);
+  renderSystem(world, ctx);
+  
+  requestAnimationFrame(gameLoop);
+}</code></pre>
+<hr>
+<h2 id="最佳實踐與常見陷阱">最佳實踐與常見陷阱</h2>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>組件保持小而專注</strong>：<code>Position</code>、<code>Velocity</code>、<code>Health</code> 各自獨立，不要合併成 <code>PhysicsBody</code>。太大失去組合彈性，太小造成不必要複雜度。</li>
+</ol>
+<ol>
+<li><strong>系統單一職責</strong>：一個系統做一件事。<code>movementSystem</code> 只管移動、<code>collisionSystem</code> 只管碰撞、<code>renderSystem</code> 只管繪製。</li>
+</ol>
+<ol>
+<li><strong>用標籤組件（Tag Component）分類</strong>：不含資料的組件用於標記實體類型，如 <code>Enemy</code>、<code>Bullet</code>、<code>PowerUp</code>。</li>
+</ol>
+<ol>
+<li><strong>利用 TypedArray 提升效能</strong>：<code>Float32Array</code> 比普通陣列在數值運算上快 2-5 倍，且記憶體佈局更友善快取。</li>
+</ol>
+<ol>
+<li><strong>SoA（Structure of Arrays）優於 AoS</strong>：當系統只存取部分欄位時（如移動系統只需 x, y），SoA 讓相同欄位連續排列，提升快取命中率。</li>
+</ol>
+<ol>
+<li><strong>系統執行順序很重要</strong>：輸入 → 物理 → 碰撞 → 遊戲邏輯 → 渲染，確保每幀資料一致。</li>
+</ol>
+<h3 id="常見陷阱">常見陷阱</h3>
+<ol>
+<li><strong>不要在組件中放邏輯</strong>：組件是純資料，永遠不要有 <code>update()</code> 方法。</li>
+</ol>
+<ol>
+<li><strong>避免系統間的隱式依賴</strong>：系統 A 修改的資料被系統 B 讀取時，要明確排序。</li>
+</ol>
+<ol>
+<li><strong>不要過早優化</strong>：先用簡單陣列，有效能瓶頸再換 TypedArray。</li>
+</ol>
+<ol>
+<li><strong>字串鍵效能差</strong>：頻繁查詢時，用數值索引取代字串鍵。</li>
+</ol>
+<ol>
+<li><strong>實體刪除要延遲</strong>：在系統迭代中標記刪除，迭代結束後統一執行，避免迭代器失效。</li>
+</ol>
+<hr>
+<h2 id="與本專案的關聯">與本專案的關聯</h2>
+<h3 id="直接應用-d-source-game-遊戲目錄">直接應用：D:\Source\game 遊戲目錄</h3>
+<p>本專案的 creative-game 自動任務每日優化 <code>D:\Source\game</code> 目錄下的 HTML5 Canvas 遊戲。目前遊戲（貪吃蛇、禪音節奏、小蜜蜂、念珠冥想等）主要使用傳統 OOP 或簡易物件管理。當遊戲物件數量增加（如小蜜蜂的 55 個外星人 + 子彈 + 粒子 + 護盾），ECS 能帶來：</p>
+<ol>
+<li><strong>效能提升</strong>：TypedArray + SoA 佈局對大量粒子/子彈的批次更新特別有效</li>
+<li><strong>功能擴展容易</strong>：新增道具系統只需加 <code>PowerUp</code> 組件 + <code>powerUpSystem</code>，不需修改現有程式碼</li>
+<li><strong>動態組合</strong>：敵人可在運行時獲得 <code>Shield</code>、<code>Invincible</code> 等組件</li>
+</ol>
+<h3 id="間接應用-agent-架構啟發">間接應用：Agent 架構啟發</h3>
+<p>ECS 的「資料與行為分離」原則與本專案的 Skill-First 架構異曲同工：</p>
+<ul>
+<li>Skill = Component（描述能力的純資料/配置）</li>
+<li>Agent = Entity（持有 Skill 組合的執行單元）</li>
+<li>Pipeline = System（依序處理具有特定 Skill 的 Agent）</li>
+</ul>
+<h3 id="適用時機評估">適用時機評估</h3>
+<table>
+<tr><th>遊戲類型</th><th>推薦架構</th><th>原因</th></tr>
+<tr><td>簡單遊戲（&lt;50 物件）</td><td>傳統 OOP</td><td>ECS 過度工程</td></tr>
+<tr><td>中型遊戲（50-500 物件）</td><td>輕量 ECS（手寫或 bitECS）</td><td>平衡複雜度與彈性</td></tr>
+<tr><td>大型遊戲（&gt;500 物件）</td><td>完整 ECS 框架</td><td>效能和擴展性必要</td></tr>
+</table>
+<hr>
+<h2 id="從零實作最小-ecs-適用於-html5-canvas">從零實作最小 ECS（適用於 HTML5 Canvas）</h2>
+<pre><code class="language-javascript">// 最小 ECS 實作（約 60 行）
+class World {
+  constructor() {
+    this.nextId = 0;
+    this.entities = new Set();
+    this.components = new Map(); // componentName -&gt; Map&lt;entityId, data&gt;
+    this.systems = [];
+  }
+
+  createEntity() {
+    const id = this.nextId++;
+    this.entities.add(id);
+    return id;
+  }
+
+  removeEntity(id) {
+    this.entities.delete(id);
+    for (const store of this.components.values()) {
+      store.delete(id);
+    }
+  }
+
+  addComponent(entityId, name, data = {}) {
+    if (!this.components.has(name)) {
+      this.components.set(name, new Map());
+    }
+    this.components.get(name).set(entityId, data);
+  }
+
+  getComponent(entityId, name) {
+    return this.components.get(name)?.get(entityId);
+  }
+
+  query(...componentNames) {
+    const results = [];
+    for (const eid of this.entities) {
+      if (componentNames.every(name =&gt; 
+        this.components.get(name)?.has(eid)
+      )) {
+        results.push(eid);
+      }
+    }
+    return results;
+  }
+
+  addSystem(fn) {
+    this.systems.push(fn);
+  }
+
+  update(dt) {
+    for (const system of this.systems) {
+      system(this, dt);
+    }
+  }
+}
+
+// 使用範例：小蜜蜂遊戲
+const world = new World();
+
+// 建立玩家
+const player = world.createEntity();
+world.addComponent(player, &#x27;Position&#x27;, { x: 400, y: 550 });
+world.addComponent(player, &#x27;Velocity&#x27;, { x: 0, y: 0 });
+world.addComponent(player, &#x27;Player&#x27;, {});
+world.addComponent(player, &#x27;Renderable&#x27;, { width: 30, height: 20, color: &#x27;#0f0&#x27; });
+
+// 批次建立外星人
+for (let row = 0; row &lt; 5; row++) {
+  for (let col = 0; col &lt; 11; col++) {
+    const alien = world.createEntity();
+    world.addComponent(alien, &#x27;Position&#x27;, { x: 50 + col * 50, y: 30 + row * 40 });
+    world.addComponent(alien, &#x27;Velocity&#x27;, { x: 1, y: 0 });
+    world.addComponent(alien, &#x27;Enemy&#x27;, { type: row &lt; 2 ? &#x27;top&#x27; : &#x27;bottom&#x27;, points: (5 - row) * 10 });
+    world.addComponent(alien, &#x27;Renderable&#x27;, { width: 24, height: 24, color: &#x27;#f00&#x27; });
+    world.addComponent(alien, &#x27;Health&#x27;, { current: 1 });
+  }
+}
+
+// 移動系統
+world.addSystem((world, dt) =&gt; {
+  for (const eid of world.query(&#x27;Position&#x27;, &#x27;Velocity&#x27;)) {
+    const pos = world.getComponent(eid, &#x27;Position&#x27;);
+    const vel = world.getComponent(eid, &#x27;Velocity&#x27;);
+    pos.x += vel.x * dt;
+    pos.y += vel.y * dt;
+  }
+});
+
+// 渲染系統
+world.addSystem((world, dt) =&gt; {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const eid of world.query(&#x27;Position&#x27;, &#x27;Renderable&#x27;)) {
+    const pos = world.getComponent(eid, &#x27;Position&#x27;);
+    const render = world.getComponent(eid, &#x27;Renderable&#x27;);
+    ctx.fillStyle = render.color;
+    ctx.fillRect(pos.x, pos.y, render.width, render.height);
+  }
+});
+
+// 遊戲迴圈
+let lastTime = 0;
+function gameLoop(timestamp) {
+  const dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+  world.update(dt);
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);</code></pre>
+<hr>
+<h2 id="知名遊戲的-ecs-採用">知名遊戲的 ECS 採用</h2>
+<ul>
+<li><strong>Overwatch</strong>（暴雪）：自研 ECS 框架，GDC 2017 經典演講</li>
+<li><strong>Minecraft</strong>（Bedrock 版）：使用 EnTT（C++ ECS）</li>
+<li><strong>Unity DOTS</strong>：2019 年起官方 ECS 框架</li>
+<li><strong>Bevy Engine</strong>：Rust 遊戲引擎，原生 ECS 架構</li>
+<li><strong>A-Frame</strong>：Web VR 框架，完整 ECS 實作</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://en.wikipedia.org/wiki/Entity_component_system">Entity Component System - Wikipedia</a></li>
+<li><a href="https://github.com/SanderMertens/ecs-faq">ECS FAQ - SanderMertens/GitHub</a></li>
+<li><a href="https://github.com/NateTheGreatt/bitECS">bitECS GitHub Repository</a></li>
+<li><a href="https://www.webgamedev.com/code-architecture/ecs">ECS Libraries - Web Game Dev</a></li>
+<li><a href="https://roamingwildgaming.org/2025/06/01/ecs-guide-for-game-design/">ECS Guide for Game Design - Roaming Wild Gaming</a></li>
+<li><a href="https://github.com/noctjs/ecs-benchmark">ECS Benchmark Comparison - noctjs/GitHub</a></li>
+<li><a href="https://excaliburjs.com/docs/entity-component-system/">Excalibur.js ECS Documentation</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Tech Research Agent</em>
+<em>任務類型：tech_research（今日任務技術研究）</em>
+<em>關聯任務：小蜜蜂 Space Invaders、貪吃蛇道具系統、禪音節奏遊戲等多款 Canvas 遊戲的架構升級參考</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

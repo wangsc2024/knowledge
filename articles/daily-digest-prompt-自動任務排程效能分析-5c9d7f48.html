@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 自動任務排程效能分析與智慧調度策略優化方案（2026）">
+  <title>Daily-Digest-Prompt 自動任務排程效能分析與智慧調度策略優化方案（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Daily-Digest-Prompt 自動任務排程效能分析與智慧調度策略優化方案（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">daily-digest-prompt</span><span class="tag">排程效能</span><span class="tag">智慧調度</span><span class="tag">round-robin</span><span class="tag">MQAPS</span><span class="tag">Priority-Weighted</span><span class="tag">自動任務</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#一-研究背景與動機">一、研究背景與動機</a></li><li><a href="#二-現況分析-排程效能瓶頸">二、現況分析：排程效能瓶頸</a></li>  <li><a href="#2-1-現行架構">2.1 現行架構</a></li>  <li><a href="#2-2-具體瓶頸量化">2.2 具體瓶頸量化</a></li><li><a href="#三-學術基礎-排程演算法比較">三、學術基礎：排程演算法比較</a></li>  <li><a href="#3-1-mqaps-multi-queue-adaptive-priority-">3.1 MQAPS（Multi-Queue Adaptive Priority Scheduling）</a></li>  <li><a href="#3-2-priority-based-round-robin-pbrr">3.2 Priority-Based Round-Robin（PBRR）</a></li>  <li><a href="#3-3-adaptive-scheduling-自適應排程">3.3 Adaptive Scheduling（自適應排程）</a></li><li><a href="#四-優化方案-三層智慧調度架構">四、優化方案：三層智慧調度架構</a></li>  <li><a href="#方案-1-priority-weighted-round-robin-優先加權輪">方案 1：Priority-Weighted Round-Robin（優先加權輪轉）</a></li>  <li><a href="#方案-2-失敗重試佇列-retry-queue">方案 2：失敗重試佇列（Retry Queue）</a></li>  <li><a href="#方案-3-群組時段映射-time-slot-affinity">方案 3：群組時段映射（Time-Slot Affinity）</a></li><li><a href="#五-實施路徑與優先順序">五、實施路徑與優先順序</a></li>  <li><a href="#5-1-漸進式遷移策略">5.1 漸進式遷移策略</a></li><li><a href="#六-文件驅動架構相容性">六、文件驅動架構相容性</a></li><li><a href="#七-效能基準線與監控指標">七、效能基準線與監控指標</a></li>  <li><a href="#7-1-建議追蹤指標">7.1 建議追蹤指標</a></li>  <li><a href="#7-2-jain-x27-s-fairness-index-計算">7.2 Jain&amp;#x27;s Fairness Index 計算</a></li><li><a href="#八-與既有優化的整合">八、與既有優化的整合</a></li><li><a href="#九-參考文獻">九、參考文獻</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 自動任務排程效能分析與智慧調度策略優化方案</h1>
+<p>研究日期：2026-02-18
+任務 ID：6g2FfvWmxqhCWx85</p>
+<hr>
+<h2 id="一-研究背景與動機">一、研究背景與動機</h2>
+<p>本專案（daily-digest-prompt）擁有 18 個自動任務，分為 8 大群組，合計每日上限 45 次，採用 round-robin 純輪轉策略。系統每日約 44 次執行（雙軌：整點單一模式 + 半點團隊模式），涵蓋 6 種排程類型。</p>
+<p>然而，前幾期優化報告已涵蓋：Token 經濟學（2/16）、可觀測性缺口（2/17）、Hooks 規則（2/16）、架構強化（2/14-15）。本文從<strong>尚未分析的角度 — 自動任務排程效能與智慧調度策略</strong>切入，系統性分析現有 round-robin 輪轉的不足，並提出基於學術研究的優化方案。</p>
+<hr>
+<h2 id="二-現況分析-排程效能瓶頸">二、現況分析：排程效能瓶頸</h2>
+<h3 id="2-1-現行架構">2.1 現行架構</h3>
+<pre><code class="language-plaintext">觸發條件 → round-robin 選取 → 模板載入 → Agent 執行 → 結果記錄
+            ↑                                              ↓
+    next_execution_order ←───── 指針 +1 ──────────────────┘</code></pre>
+<table>
+<tr><th>維度</th><th>現況</th><th>問題</th></tr>
+<tr><td>選取策略</td><td>純 round-robin</td><td>不考慮任務優先級、時段適配、歷史成功率</td></tr>
+<tr><td>timeout 管理</td><td>靜態 by-type</td><td>未根據實際執行時間動態調整</td></tr>
+<tr><td>資源競爭</td><td>整點+半點同時觸發</td><td>雙軌 Todoist 可能競爭同一任務</td></tr>
+<tr><td>失敗處理</td><td>跳過繼續輪轉</td><td>失敗任務不會重試，浪費 slot</td></tr>
+<tr><td>群組平衡</td><td>靠 daily_limit 硬上限</td><td>佛學(12) vs GitHub靈感(1) 嚴重失衡</td></tr>
+</table>
+<h3 id="2-2-具體瓶頸量化">2.2 具體瓶頸量化</h3>
+<p><strong>瓶頸 1：佔比失衡</strong></p>
+<ul>
+<li>佛學研究佔 26.7%（12/45）、AI/技術佔 37.8%（17/45）</li>
+<li>系統維護僅 11.1%（5/45），GitHub 靈感僅 2.2%（1/45）</li>
+<li>若全日只有 11 個 auto-task slots，佛學+AI 就佔滿 29/45 的配額，其他群組被餓死（starvation）</li>
+</ul>
+<p><strong>瓶頸 2：時段盲目</strong></p>
+<ul>
+<li>凌晨 2-7 點觸發研究任務 vs 白天觸發研究任務，品質應有差異（外部 API 可用性、搜尋結果新鮮度）</li>
+<li>Git push 適合集中在特定時段（如下午/晚上，累積足夠變更後推送）</li>
+<li>系統維護（log audit、self-heal）適合凌晨低負載時段</li>
+</ul>
+<p><strong>瓶頸 3：失敗浪費</strong></p>
+<ul>
+<li>自動任務失敗後直接跳過，不會重新排入佇列</li>
+<li>若 KB 服務暫時不可用導致研究任務失敗，該 slot 永久浪費</li>
+<li>無失敗原因分類，無法區分「暫時性故障」vs「永久性錯誤」</li>
+</ul>
+<hr>
+<h2 id="三-學術基礎-排程演算法比較">三、學術基礎：排程演算法比較</h2>
+<h3 id="3-1-mqaps-multi-queue-adaptive-priority-">3.1 MQAPS（Multi-Queue Adaptive Priority Scheduling）</h3>
+<p>來自 PMC 研究（2024），提出雙層佇列階層架構：</p>
+<ul>
+<li><strong>Ready Queue（RQ）</strong>：新任務進入，按優先級排序</li>
+<li><strong>Secondary Queue（SQ）</strong>：已執行過但未完成的任務，降低優先級</li>
+<li><strong>閾值機制</strong>：優先級 &gt; 2 留在 RQ，≤ 2 移至 SQ</li>
+<li><strong>動態時間量</strong>：佇列非空時，TQ = 所有待排程任務的平均執行時間</li>
+</ul>
+<p><strong>效能提升</strong>：比傳統 RR 減少 3-7% 週轉時間，context switching 降低 3.4%。</p>
+<p><strong>本專案可借鑒</strong>：將「成功率高」的任務保持在 RQ 優先執行，「成功率低」的降級到 SQ 減少資源浪費。</p>
+<h3 id="3-2-priority-based-round-robin-pbrr">3.2 Priority-Based Round-Robin（PBRR）</h3>
+<p>結合優先級排程與 round-robin 的混合方法：</p>
+<ul>
+<li>同優先級任務用 round-robin 輪轉</li>
+<li>不同優先級用 preemptive priority 排序</li>
+<li>避免 starvation 的同時保持公平性</li>
+</ul>
+<p><strong>本專案可借鑒</strong>：將 18 個任務分為 3 個優先級層級，每層內部 round-robin。</p>
+<h3 id="3-3-adaptive-scheduling-自適應排程">3.3 Adaptive Scheduling（自適應排程）</h3>
+<p>根據系統狀態動態調整策略：</p>
+<ul>
+<li><strong>歷史感知</strong>：分析過去 7 天的執行成功率，動態調整 daily_limit</li>
+<li><strong>時段感知</strong>：不同時段偏好不同類型任務</li>
+<li><strong>負載感知</strong>：API 服務健康狀況影響任務選取</li>
+</ul>
+<hr>
+<h2 id="四-優化方案-三層智慧調度架構">四、優化方案：三層智慧調度架構</h2>
+<h3 id="方案-1-priority-weighted-round-robin-優先加權輪">方案 1：Priority-Weighted Round-Robin（優先加權輪轉）</h3>
+<p><strong>原理</strong>：保留 round-robin 的公平性基礎，加入動態權重。</p>
+<pre><code class="language-yaml"># config/scheduling-weights.yaml（建議新增）
+weights:
+  time_of_day:      # 時段權重
+    00-06: { maintenance: 2.0, research: 0.5, creative: 0.3 }
+    07-09: { research: 1.5, maintenance: 0.5, creative: 1.0 }
+    10-17: { research: 1.0, creative: 1.5, maintenance: 0.5 }
+    18-23: { research: 1.2, creative: 1.0, maintenance: 1.5 }
+  
+  success_rate:     # 歷史成功率權重
+    above_80: 1.0   # 維持
+    60_to_80: 0.8   # 略降
+    below_60: 0.5   # 大幅降低，讓出 slot
+  
+  recency:          # 最近執行距離權重
+    never_today: 1.5  # 今日未執行，優先
+    once_today: 1.0   # 已執行一次
+    twice_plus: 0.7   # 已執行多次，降低</code></pre>
+<p><strong>選取公式</strong>：</p>
+<pre><code class="language-plaintext">score = base_priority × time_weight × success_weight × recency_weight</code></pre>
+<p>從所有未達 daily_limit 的任務中，選取 score 最高者執行。</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>維持 round-robin 的基礎公平性（所有任務都有基礎分）</li>
+<li>時段適配（凌晨做維護、白天做研究）</li>
+<li>歷史感知（失敗率高的任務自動降權）</li>
+<li>實施成本低（只需新增一個 YAML 配置 + 修改選取邏輯）</li>
+</ul>
+<h3 id="方案-2-失敗重試佇列-retry-queue">方案 2：失敗重試佇列（Retry Queue）</h3>
+<p><strong>原理</strong>：借鑒 MQAPS 的雙層佇列。</p>
+<pre><code class="language-plaintext">[Primary Queue] ──成功──→ 完成記錄
+       ↓ 失敗
+[Retry Queue] ──等待冷卻──→ [Primary Queue 末尾]
+       ↓ 重試 2 次仍失敗
+    標記為 permanent_failure，通知用戶</code></pre>
+<p><strong>配置建議</strong>：</p>
+<pre><code class="language-yaml"># config/retry-policy.yaml（建議新增）
+retry:
+  max_attempts: 2
+  cooldown_slots: 3        # 冷卻 3 個 slot 後重試
+  failure_classification:
+    transient:             # 暫時性故障（值得重試）
+      - &quot;KB 服務未啟動&quot;
+      - &quot;API timeout&quot;
+      - &quot;rate limit&quot;
+    permanent:             # 永久性錯誤（不重試）
+      - &quot;模板不存在&quot;
+      - &quot;配置解析錯誤&quot;</code></pre>
+<p><strong>預期效益</strong>：回收 20-30% 的失敗浪費 slot。</p>
+<h3 id="方案-3-群組時段映射-time-slot-affinity">方案 3：群組時段映射（Time-Slot Affinity）</h3>
+<p><strong>原理</strong>：不同類型任務在不同時段的執行品質不同。</p>
+<pre><code class="language-yaml"># config/scheduling-weights.yaml 的 time_slot_affinity 區段
+affinity:
+  maintenance:  # 系統維護：凌晨最佳
+    tasks: [log_audit, self_heal, system_insight, git_push]
+    preferred_hours: [0, 1, 2, 3, 4, 5, 22, 23]
+    boost: 2.0
+  
+  research:  # 研究任務：白天最佳（API 穩定、搜尋結果新鮮）
+    tasks: [tech_research, ai_deep_research, unsloth_research, ai_github_research, ai_smart_city, ai_sysdev]
+    preferred_hours: [8, 9, 10, 11, 14, 15, 16, 17]
+    boost: 1.5
+  
+  buddhist:  # 佛學研究：不受時段影響（KB 本地、內容穩定）
+    tasks: [shurangama, jiaoguangzong, fahua, jingtu]
+    preferred_hours: null  # 任何時段皆可
+    boost: 1.0
+  
+  creative:  # 創意任務：下午最佳
+    tasks: [creative_game_optimize, qa_optimize, skill_audit]
+    preferred_hours: [14, 15, 16, 17, 18, 19, 20]
+    boost: 1.3</code></pre>
+<hr>
+<h2 id="五-實施路徑與優先順序">五、實施路徑與優先順序</h2>
+<table>
+<tr><th>#</th><th>方案</th><th>複雜度</th><th>預期效益</th><th>優先級</th><th>預估工時</th></tr>
+<tr><td>1</td><td>Priority-Weighted RR</td><td>中</td><td>排程品質提升 30%+</td><td>P1</td><td>3-4h</td></tr>
+<tr><td>2</td><td>失敗重試佇列</td><td>中</td><td>回收 20-30% 失敗 slot</td><td>P1</td><td>2-3h</td></tr>
+<tr><td>3</td><td>群組時段映射</td><td>低</td><td>任務-時段適配度提升</td><td>P2</td><td>1-2h</td></tr>
+</table>
+<p><strong>建議執行順序</strong>：1 → 3 → 2</p>
+<p>理由：</p>
+<ol>
+<li>Priority-Weighted RR 是核心改進，取代純 round-robin，效益最大</li>
+<li>群組時段映射配置簡單（只加 YAML），可快速驗證效果</li>
+<li>失敗重試佇列需要修改 tracking_file schema 和選取邏輯，複雜度較高但長期收益大</li>
+</ol>
+<h3 id="5-1-漸進式遷移策略">5.1 漸進式遷移策略</h3>
+<p>為避免一次性大改導致系統不穩定：</p>
+<p><strong>階段 A（1 週）</strong>：僅新增 <code>scheduling-weights.yaml</code>，選取邏輯加入權重計算，但保留 round-robin 指針作為 fallback</p>
+<p><strong>階段 B（2 週）</strong>：觀察 1 週數據後，啟用時段親和性，透過 <code>system-insight</code> 自動任務監控效果</p>
+<p><strong>階段 C（3 週）</strong>：啟用失敗重試佇列，修改 <code>auto-tasks-today.json</code> schema 加入 <code>retry_queue</code> 欄位</p>
+<hr>
+<h2 id="六-文件驅動架構相容性">六、文件驅動架構相容性</h2>
+<p>所有方案遵循專案「改配置不改 prompt」原則：</p>
+<table>
+<tr><th>方案</th><th>需新增/修改的配置文件</th><th>需修改的 prompt/腳本</th></tr>
+<tr><td>方案 1</td><td><code>config/scheduling-weights.yaml</code>（新增）</td><td><code>hour-todoist-prompt.md</code> 選取邏輯段落</td></tr>
+<tr><td>方案 2</td><td><code>config/retry-policy.yaml</code>（新增）</td><td><code>hour-todoist-prompt.md</code> 失敗處理段落</td></tr>
+<tr><td>方案 3</td><td>合併入 <code>scheduling-weights.yaml</code></td><td>同方案 1</td></tr>
+</table>
+<p><strong>向後相容</strong>：若新配置文件不存在，fallback 到現行 round-robin 行為，確保零風險升級。</p>
+<hr>
+<h2 id="七-效能基準線與監控指標">七、效能基準線與監控指標</h2>
+<h3 id="7-1-建議追蹤指標">7.1 建議追蹤指標</h3>
+<pre><code class="language-yaml"># 新增至 config/benchmark.yaml
+scheduling_metrics:
+  slot_utilization:          # slot 利用率 = 成功執行 / 總 slot
+    baseline: 0.75
+    target: 0.90
+  
+  group_fairness_index:      # Jain&#x27;s Fairness Index（0-1，1=完全公平）
+    baseline: 0.65           # 現行估計
+    target: 0.85
+  
+  time_affinity_score:       # 任務-時段適配度（0-1）
+    baseline: 0.50           # 純隨機
+    target: 0.80
+  
+  retry_recovery_rate:       # 重試成功率
+    baseline: 0.0            # 目前無重試
+    target: 0.60</code></pre>
+<h3 id="7-2-jain-x27-s-fairness-index-計算">7.2 Jain&#x27;s Fairness Index 計算</h3>
+<pre><code class="language-plaintext">J(x1, x2, ..., xn) = (Σxi)² / (n × Σxi²)</code></pre>
+<p>其中 xi = 群組 i 的實際執行次數 / 群組 i 的每日上限。J=1 表示完全公平（所有群組等比消耗配額），J→0 表示極度不公平。</p>
+<hr>
+<h2 id="八-與既有優化的整合">八、與既有優化的整合</h2>
+<table>
+<tr><th>既有優化</th><th>本方案整合點</th></tr>
+<tr><td>Token 經濟學（2/16）</td><td>權重計算可納入 Token 消耗預估</td></tr>
+<tr><td>可觀測性（2/17）</td><td>排程指標自動寫入 system-insight</td></tr>
+<tr><td>Hooks 規則（2/16）</td><td>validate_config 新增 scheduling-weights schema 驗證</td></tr>
+<tr><td>研究去重（2/15）</td><td>去重失敗不計入失敗重試（屬正常行為）</td></tr>
+<tr><td>故障自愈（2/17）</td><td>self-heal 可自動檢測排程異常並調整權重</td></tr>
+</table>
+<hr>
+<h2 id="九-參考文獻">九、參考文獻</h2>
+<ol>
+<li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11623127/">Enhancing task execution: MQAPS dual-layer approach</a> — Multi-Queue Adaptive Priority Scheduling 學術論文</li>
+<li><a href="https://www.altexsoft.com/blog/schedule-optimization/">Schedule Optimization: Technical Approaches</a> — 排程優化技術綜述（MP/CP/RL）</li>
+<li><a href="https://promptengineering.org/agents-at-work-the-2026-playbook-for-building-reliable-agentic-workflows/">Agents At Work: 2026 Playbook</a> — 2026 年可靠 Agent 工作流建構指南</li>
+<li><a href="https://en.wikipedia.org/wiki/Round-robin_scheduling">Round-robin scheduling - Wikipedia</a> — Round-Robin 排程基礎</li>
+<li><a href="https://link.springer.com/article/10.1007/s10462-025-11208-8">AI-driven job scheduling in cloud computing</a> — AI 驅動的雲端排程綜合綜述</li>
+<li><a href="https://link.springer.com/chapter/10.1007/978-3-031-68639-9_24">Optimizing Round-Robin in Real-Time Systems</a> — 即時系統 RR 優化</li>
+</ol>
+<hr>
+<p><em>本研究基於 daily-digest-prompt 專案的 `config/frequency-limits.yaml`（18 個自動任務定義）和 `config/timeouts.yaml`（timeout 配置）真實數據分析。優化方案遵循專案「文件驅動架構」原則，所有改動透過 YAML 配置實現，不改 prompt 核心邏輯。</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

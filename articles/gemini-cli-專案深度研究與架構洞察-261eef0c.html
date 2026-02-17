@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="gemini-cli 專案深度研究與架構洞察">
+  <title>gemini-cli 專案深度研究與架構洞察 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>gemini-cli 專案深度研究與架構洞察</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">GitHub研究</span><span class="tag">gemini-cli</span><span class="tag">CLI設計</span><span class="tag">Agent編排</span><span class="tag">Hook系統</span><span class="tag">Skill系統</span><span class="tag">架構比較</span></div>
+        </div>
+      </div>
+
+      
+
+      <div class="article-content">
+        <p>&lt;h1&gt;gemini-cli 專案深度研究與架構洞察&lt;/h1&gt;&lt;h2&gt;專案概述&lt;/h2&gt;&lt;p&gt;Google 官方開源 Gemini AI CLI 工具，v0.30.0-nightly，Apache 2.0 授權。技術棧：Node.js 20+ / TypeScript / React (Ink) / esbuild / Vitest。規模：4,664 commits、1,449 TypeScript 檔案、6 個 monorepo packages。&lt;/p&gt;&lt;h2&gt;Monorepo 結構&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;packages/cli&lt;/strong&gt;：前端 UI（React/Ink 終端機渲染）&lt;/li&gt;&lt;li&gt;&lt;strong&gt;packages/core&lt;/strong&gt;：後端邏輯（API 編排、工具執行、排程器）含 agents/scheduler/tools/hooks/skills/policy/safety/routing 等模組&lt;/li&gt;&lt;li&gt;&lt;strong&gt;packages/sdk&lt;/strong&gt;：程式化 SDK（GeminiCliAgent 類別）&lt;/li&gt;&lt;li&gt;&lt;strong&gt;packages/a2a-server&lt;/strong&gt;：實驗性 Agent-to-Agent 伺服器&lt;/li&gt;&lt;/ul&gt;&lt;h2&gt;關鍵機制&lt;/h2&gt;&lt;h3&gt;1. Agent 編排&lt;/h3&gt;&lt;p&gt;結構化 AgentDefinition（promptConfig + modelConfig + runConfig + toolConfig + outputConfig），支援 local/remote Agent，Agent Registry 集中管理，LocalAgentExecutor 執行 Agent Loop。5 種終止模式：GOAL/ERROR/TIMEOUT/MAX_TURNS/ABORTED。&lt;/p&gt;&lt;h3&gt;2. Hook 系統&lt;/h3&gt;&lt;p&gt;11 種事件（BeforeTool/AfterTool/BeforeAgent/AfterAgent/SessionStart/SessionEnd/Notification/PreCompress/BeforeModel/AfterModel/BeforeToolSelection），5 種決策（ask/block/deny/approve/allow），四層配置優先級（Project &gt; User &gt; System &gt; Extensions）。&lt;/p&gt;&lt;h3&gt;3. Skill 系統&lt;/h3&gt;&lt;p&gt;SKILL.md frontmatter（name + description）+ Markdown body，與 daily-digest-prompt 格式高度一致。載入優先級：Built-in → Extension → User → Workspace。ActivateSkillTool 工具啟用 Skill。&lt;/p&gt;&lt;h3&gt;4. Policy Engine&lt;/h3&gt;&lt;p&gt;TOML 策略配置、規則匹配（工具名稱 + 參數 pattern + Approval Mode）、通配符支援、Shell 安全分析。SafetyChecker 協議含 protocolVersion 版本化。&lt;/p&gt;&lt;h3&gt;5. 重試機制&lt;/h3&gt;&lt;p&gt;retryWithBackoff：指數退避 + 隨機 jitter（初始 5s、最大 30s）。錯誤分類：TerminalQuotaError（不可重試）、RetryableQuotaError（可重試）、ValidationRequiredError（需使用者動作）。支援 AbortSignal、模型自動降級。&lt;/p&gt;&lt;h3&gt;6. 模型路由&lt;/h3&gt;&lt;p&gt;CompositeStrategy 策略鏈：FallbackStrategy → OverrideStrategy → ClassifierStrategy → NumericalClassifierStrategy → DefaultStrategy。&lt;/p&gt;&lt;h2&gt;可移植技術（P0）&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;&lt;strong&gt;指數退避重試&lt;/strong&gt;：可直接適配到 PowerShell 腳本&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Safety Checker 協議版本化&lt;/strong&gt;：在 hook JSON 中加入 protocol_version&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Agent 終止模式分類&lt;/strong&gt;：擴展 scheduler-state.json 的 result 欄位為 5 種&lt;/li&gt;&lt;/ol&gt;&lt;h2&gt;與 daily-digest-prompt 比較&lt;/h2&gt;&lt;p&gt;Gemini CLI 是程式碼驅動的企業級平台（1,449 TS 檔）；daily-digest-prompt 是文件驅動的精簡系統（改配置不改 prompt）。Skill 格式高度一致，證明設計方向正確。本專案獨有優勢：研究去重、自動任務輪轉、ntfy 通知、跨次記憶持久化。&lt;/p&gt;</p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

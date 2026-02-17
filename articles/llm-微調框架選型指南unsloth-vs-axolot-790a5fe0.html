@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LLM 微調框架選型指南：Unsloth vs Axolotl vs LLaMA-Factory vs torchtune 深度比較（2026）">
+  <title>LLM 微調框架選型指南：Unsloth vs Axolotl vs LLaMA-Factory vs torchtune 深度比較（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>LLM 微調框架選型指南：Unsloth vs Axolotl vs LLaMA-Factory vs torchtune 深度比較（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">框架比較</span><span class="tag">Axolotl</span><span class="tag">LLaMA-Factory</span><span class="tag">torchtune</span><span class="tag">LoRA</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#核心對比矩陣">核心對比矩陣</a></li><li><a href="#各框架深度分析">各框架深度分析</a></li>  <li><a href="#1-unsloth-極致單卡效能王">1. Unsloth — 極致單卡效能王</a></li>  <li><a href="#2-axolotl-生產級配置驅動">2. Axolotl — 生產級配置驅動</a></li>  <li><a href="#3-llama-factory-零程式碼-gui-訓練">3. LLaMA-Factory — 零程式碼 GUI 訓練</a></li>  <li><a href="#4-torchtune-pytorch-官方學習框架">4. torchtune — PyTorch 官方學習框架</a></li><li><a href="#決策樹-如何選擇">決策樹：如何選擇</a></li><li><a href="#互補整合-框架不互斥">互補整合：框架不互斥</a></li><li><a href="#python-程式碼範例-各框架快速上手">Python 程式碼範例：各框架快速上手</a></li>  <li><a href="#unsloth-推薦單卡場景">Unsloth（推薦單卡場景）</a></li>  <li><a href="#llama-factory-yaml-配置-cli">LLaMA-Factory（YAML 配置 + CLI）</a></li>  <li><a href="#axolotl-yaml-配置驅動">Axolotl（YAML 配置驅動）</a></li>  <li><a href="#torchtune-cli-yaml">torchtune（CLI + YAML）</a></li><li><a href="#效能對比數據">效能對比數據</a></li>  <li><a href="#單卡-llama-3-1-8b-qlora-alpaca-資料集">單卡 Llama 3.1 8B QLoRA（Alpaca 資料集）</a></li>  <li><a href="#llama-3-3-70b-qlora-80gb-a100">Llama 3.3 70B QLoRA（80GB A100）</a></li><li><a href="#社群生態與成熟度">社群生態與成熟度</a></li><li><a href="#2026-年最新動態">2026 年最新動態</a></li><li><a href="#常見問題與解法">常見問題與解法</a></li><li><a href="#與現有知識庫內容的關聯">與現有知識庫內容的關聯</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>LLM 微調框架選型指南：Unsloth vs Axolotl vs LLaMA-Factory vs torchtune</h1>
+<h2 id="概述">概述</h2>
+<p>隨著開源 LLM 生態日趨成熟，微調框架的選擇直接影響訓練效率、資源消耗與開發體驗。本文深入比較 2026 年四大主流 LLM 微調框架——Unsloth、Axolotl、LLaMA-Factory 與 torchtune，從效能、功能、易用性、生態整合等多維度提供選型指引，協助團隊依據實際場景做出最佳決策。</p>
+<p>四個框架各有明確定位：Unsloth 主打極致單卡效能（Triton 核心手動反向傳播，2-5x 加速），Axolotl 強調生產級配置驅動（YAML 一個檔案涵蓋全流程），LLaMA-Factory 提供零程式碼 GUI 訓練（100+ 模型即開即訓），torchtune 則是 PyTorch 官方出品的 Pythonic 學習導向方案。</p>
+<hr>
+<h2 id="核心對比矩陣">核心對比矩陣</h2>
+<table>
+<tr><th>維度</th><th>Unsloth</th><th>Axolotl</th><th>LLaMA-Factory</th><th>torchtune</th></tr>
+<tr><td><strong>GitHub Stars</strong></td><td>~52K</td><td>~11K</td><td>~67K</td><td>~5.7K</td></tr>
+<tr><td><strong>定位</strong></td><td>極致單卡效能</td><td>配置驅動生產級</td><td>零程式碼 GUI 訓練</td><td>PyTorch 官方學習框架</td></tr>
+<tr><td><strong>核心技術</strong></td><td>Triton 核心 + 手動反向傳播</td><td>Flash Attention + Multipacking</td><td>Unsloth 整合 + Liger Kernel</td><td>原生 PyTorch + torchao</td></tr>
+<tr><td><strong>訓練加速</strong></td><td>2-5x（vs HF baseline）</td><td>1.5-2x（依配置）</td><td>1.7x（啟用 Unsloth 時）</td><td>1-1.5x（依優化組合）</td></tr>
+<tr><td><strong>VRAM 節省</strong></td><td>70-80%</td><td>中等（依配置）</td><td>中等-高（啟用 Unsloth）</td><td>中等（依優化組合）</td></tr>
+<tr><td><strong>Multi-GPU</strong></td><td>支援（2025 新增）</td><td>原生支援（FSDP/DeepSpeed）</td><td>原生支援（FSDP/DeepSpeed）</td><td>原生支援（FSDP）</td></tr>
+<tr><td><strong>Multi-Node</strong></td><td>不支援</td><td>支援（Torchrun/Ray）</td><td>支援</td><td>支援</td></tr>
+<tr><td><strong>GUI</strong></td><td>無（Notebook 導向）</td><td>無</td><td>Gradio Web UI</td><td>無</td></tr>
+<tr><td><strong>配置方式</strong></td><td>Python 程式碼</td><td>YAML</td><td>YAML + GUI</td><td>YAML + Python</td></tr>
+<tr><td><strong>準確度損失</strong></td><td>0%（精確計算）</td><td>0%</td><td>0%</td><td>0%</td></tr>
+<tr><td><strong>量化訓練</strong></td><td>4-bit/8-bit/FP8</td><td>QLoRA/GPTQ/QAT</td><td>2/3/4/5/6/8-bit QLoRA</td><td>QAT</td></tr>
+<tr><td><strong>RL 支援</strong></td><td>GRPO/GSPO/DPO/ORPO/PPO</td><td>GRPO/DPO/IPO/KTO/ORPO</td><td>PPO/DPO/KTO/ORPO</td><td>DPO/PPO/GRPO</td></tr>
+<tr><td><strong>Vision/多模態</strong></td><td>支援（Qwen-VL, Gemma3, LLaVA）</td><td>支援（LLaVA, Qwen-VL, Pixtral）</td><td>支援（LLaVA, Qwen-VL, InternVL）</td><td>支援（Llama Vision）</td></tr>
+<tr><td><strong>TTS</strong></td><td>支援（Orpheus, Whisper）</td><td>不支援</td><td>不支援</td><td>不支援</td></tr>
+<tr><td><strong>Embedding 微調</strong></td><td>支援（1.8-3.3x 加速）</td><td>不支援</td><td>不支援</td><td>不支援</td></tr>
+<tr><td><strong>匯出格式</strong></td><td>GGUF/vLLM/SGLang/HF</td><td>HF/GGUF</td><td>HF/vLLM/Ollama</td><td>HF</td></tr>
+<tr><td><strong>授權</strong></td><td>Apache 2.0</td><td>Apache 2.0</td><td>Apache 2.0</td><td>BSD-3-Clause</td></tr>
+</table>
+<hr>
+<h2 id="各框架深度分析">各框架深度分析</h2>
+<h3 id="1-unsloth-極致單卡效能王">1. Unsloth — 極致單卡效能王</h3>
+<p><strong>核心優勢</strong>：</p>
+<ul>
+<li>手動推導反向傳播 + Triton 核心重寫，實現 2-5x 訓練加速</li>
+<li>70-80% VRAM 節省，0% 準確度損失</li>
+<li>長上下文支援極佳：8B 模型在 24GB GPU 可達 78K context，80GB GPU 可達 342K</li>
+<li>70B 模型在 80GB GPU 支援 89K context（HF+FA2 僅 6.9K）</li>
+<li>獨家功能：MoE 12x 加速、Embedding 微調、TTS 微調、Dynamic 2.0 量化</li>
+<li>FP8 RL 訓練可在消費級 GPU 上執行</li>
+</ul>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>單卡/少量 GPU 環境（個人、小團隊）</li>
+<li>需要極致記憶體效率（消費級 GPU 訓練大模型）</li>
+<li>快速原型驗證與迭代</li>
+<li>RL 訓練（GRPO 長上下文 7x 優勢）</li>
+</ul>
+<p><strong>限制</strong>：</p>
+<ul>
+<li>多節點訓練不支援</li>
+<li>無 GUI，需撰寫 Python 程式碼</li>
+<li>高度客製化配置需深入理解 API</li>
+</ul>
+<h3 id="2-axolotl-生產級配置驅動">2. Axolotl — 生產級配置驅動</h3>
+<p><strong>核心優勢</strong>：</p>
+<ul>
+<li>單一 YAML 檔案涵蓋完整訓練管線（預處理→訓練→評估→量化→推論）</li>
+<li>生產級 Multi-GPU/Multi-Node 支援（FSDP1/FSDP2/DeepSpeed + Torchrun/Ray）</li>
+<li>ND Parallelism：單節點或跨節點組合 Context/Tensor/FSDP 並行</li>
+<li>Sequence Parallelism 支援超長上下文擴展</li>
+<li>豐富的效能優化組合（Multipacking + Flash Attention + Flex Attention + Liger Kernel + Cut Cross Entropy）</li>
+<li>QAT 支援 NVFP4</li>
+<li>FP8 微調（via torchao）</li>
+<li>活躍的企業級社群支援</li>
+</ul>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>大規模生產環境（多卡、多節點）</li>
+<li>需要高度可重現性（YAML 配置版本控制）</li>
+<li>企業級團隊需要穩定、可維護的訓練管線</li>
+<li>需要進階並行策略（ND Parallelism、Sequence Parallelism）</li>
+</ul>
+<p><strong>限制</strong>：</p>
+<ul>
+<li>學習曲線較陡（YAML 配置項繁多）</li>
+<li>安裝較複雜（依賴管理較重）</li>
+<li>單卡效能不及 Unsloth</li>
+</ul>
+<h3 id="3-llama-factory-零程式碼-gui-訓練">3. LLaMA-Factory — 零程式碼 GUI 訓練</h3>
+<p><strong>核心優勢</strong>：</p>
+<ul>
+<li>Gradio Web UI 零程式碼訓練（真正的即開即訓）</li>
+<li>支援 100+ 模型，最新模型 Day-0/Day-1 支援</li>
+<li>最廣泛的量化方案（2/3/4/5/6/8-bit，AQLM/AWQ/GPTQ/HQQ/EETQ）</li>
+<li>內建 Unsloth 整合（<code>use_unsloth: true</code> 一鍵啟用，額外 170% 加速）</li>
+<li>內建 KTransformers 整合（2 張 4090 + CPU 可微調千億模型）</li>
+<li>進階優化演算法最多：GaLore/BAdam/APOLLO/Adam-mini/Muon/DoRA/LongLoRA/LoftQ/PiSSA</li>
+<li>多模態廣泛支援（圖像/影片/音訊理解）</li>
+<li>Ollama modelfile 匯出</li>
+<li>學術引用 1000+</li>
+</ul>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>快速入門（非技術背景用戶）</li>
+<li>教學與研究（GUI 大幅降低門檻）</li>
+<li>需要廣泛模型支援的團隊</li>
+<li>中文社群（強大的中文支援與文件）</li>
+<li>需要 KTransformers 在低端硬體微調超大模型</li>
+</ul>
+<p><strong>限制</strong>：</p>
+<ul>
+<li>GUI 雖方便但不易自動化</li>
+<li>效能優化主要依賴外部工具（Unsloth、Liger Kernel）</li>
+<li>程式碼結構較複雜，深度客製化較困難</li>
+</ul>
+<h3 id="4-torchtune-pytorch-官方學習框架">4. torchtune — PyTorch 官方學習框架</h3>
+<p><strong>核心優勢</strong>：</p>
+<ul>
+<li>PyTorch 官方出品，與 PyTorch 生態深度整合（torchao、torch.compile）</li>
+<li>程式碼簡潔、可讀性高（Pythonic 風格，易於學習和擴展）</li>
+<li>最佳化組合文件透明（詳細的記憶體/速度 tradeoff 數據）</li>
+<li>BSD-3 授權，最為寬鬆</li>
+<li>知識蒸餾支援完善</li>
+<li>Multi-Node 訓練穩定</li>
+</ul>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>學習 LLM 微調原理（官方教材級程式碼）</li>
+<li>需要深度客製化訓練邏輯的研究者</li>
+<li>PyTorch 重度用戶（已熟悉生態）</li>
+<li>需要最新 PyTorch 特性（torch.compile、torchao）</li>
+</ul>
+<p><strong>限制</strong>：</p>
+<ul>
+<li>效能優化不如 Unsloth 激進</li>
+<li>模型支援數量較少</li>
+<li>社群規模最小</li>
+<li>部分功能仍在開發中（GRPO 單卡、PPO LoRA 等）</li>
+</ul>
+<hr>
+<h2 id="決策樹-如何選擇">決策樹：如何選擇</h2>
+<pre><code class="language-plaintext">你的場景是？
+├── 單卡 / 消費級 GPU → Unsloth（2-5x 加速，省 70-80% VRAM）
+├── 多卡生產環境
+│   ├── 需要進階並行策略 → Axolotl（ND/Sequence Parallelism）
+│   └── 需要簡單配置 → LLaMA-Factory（GUI + YAML）
+├── 完全零程式碼 → LLaMA-Factory（Gradio GUI）
+├── 學習 / 研究
+│   ├── 想理解原理 → torchtune（Pythonic 官方實作）
+│   └── 想快速實驗 → Unsloth（Colab 友善）
+├── 超大模型 + 低端硬體 → LLaMA-Factory（KTransformers 整合）
+├── 長上下文訓練 → Unsloth（78K-342K context on single GPU）
+├── RL 訓練 → Unsloth（GRPO 長上下文 7x，FP8 消費級 GPU）
+├── TTS / Embedding → Unsloth（獨家支援）
+└── 中文生態 / 企業 → LLaMA-Factory（最強中文社群）</code></pre>
+<hr>
+<h2 id="互補整合-框架不互斥">互補整合：框架不互斥</h2>
+<p>值得注意的是，這些框架並非完全互斥：</p>
+<ol>
+<li><strong>LLaMA-Factory + Unsloth</strong>：<code>use_unsloth: true</code> 一鍵整合，在 LLaMA-Factory 的易用性上疊加 Unsloth 的效能</li>
+<li><strong>Axolotl + Unsloth</strong>：Axolotl 的 Unsloth 整合（早期支援，2024 年 Q1）</li>
+<li><strong>所有框架 + vLLM/SGLang</strong>：訓練後部署可共用推論引擎</li>
+</ol>
+<hr>
+<h2 id="python-程式碼範例-各框架快速上手">Python 程式碼範例：各框架快速上手</h2>
+<h3 id="unsloth-推薦單卡場景">Unsloth（推薦單卡場景）</h3>
+<pre><code class="language-python">from unsloth import FastLanguageModel
+from trl import SFTTrainer, SFTConfig
+from datasets import load_dataset
+
+# 載入模型（4-bit 量化）
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=&quot;unsloth/Llama-3.1-8B-bnb-4bit&quot;,
+    max_seq_length=2048,
+    load_in_4bit=True,
+)
+
+# 添加 LoRA 層
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=16,
+    target_modules=[&quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+                    &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;],
+    lora_alpha=16,
+    lora_dropout=0,
+    use_gradient_checkpointing=&quot;unsloth&quot;,  # 30% 更少 VRAM
+)
+
+# 訓練
+dataset = load_dataset(&quot;yahma/alpaca-cleaned&quot;, split=&quot;train&quot;)
+trainer = SFTTrainer(
+    model=model,
+    train_dataset=dataset,
+    tokenizer=tokenizer,
+    args=SFTConfig(
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,
+        warmup_steps=10,
+        max_steps=60,
+        learning_rate=2e-4,
+        optim=&quot;adamw_8bit&quot;,
+        output_dir=&quot;outputs&quot;,
+    ),
+)
+trainer.train()
+
+# 儲存為 GGUF（可直接用 Ollama 部署）
+model.save_pretrained_gguf(&quot;model-gguf&quot;, tokenizer, quantization_method=&quot;q4_k_m&quot;)</code></pre>
+<h3 id="llama-factory-yaml-配置-cli">LLaMA-Factory（YAML 配置 + CLI）</h3>
+<pre><code class="language-yaml"># train_config.yaml
+model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_rank: 16
+lora_target: q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj
+dataset: alpaca_en
+template: llama3
+use_unsloth: true  # 一鍵啟用 Unsloth 加速!
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 4
+learning_rate: 2.0e-4
+num_train_epochs: 3.0
+output_dir: outputs/llama3-lora</code></pre>
+<pre><code class="language-bash"># CLI 訓練
+llamafactory-cli train train_config.yaml
+
+# 或啟動 GUI
+llamafactory-cli webui</code></pre>
+<h3 id="axolotl-yaml-配置驅動">Axolotl（YAML 配置驅動）</h3>
+<pre><code class="language-yaml"># axolotl_config.yaml
+base_model: meta-llama/Llama-3.1-8B-Instruct
+model_type: LlamaForCausalLM
+load_in_4bit: true
+adapter: lora
+lora_r: 16
+lora_alpha: 16
+lora_target_linear: true
+datasets:
+  - path: yahma/alpaca-cleaned
+    type: alpaca
+micro_batch_size: 2
+gradient_accumulation_steps: 4
+learning_rate: 0.0002
+optimizer: adamw_bnb_8bit
+num_epochs: 3
+flash_attention: true
+output_dir: ./outputs</code></pre>
+<pre><code class="language-bash">axolotl train axolotl_config.yaml</code></pre>
+<h3 id="torchtune-cli-yaml">torchtune（CLI + YAML）</h3>
+<pre><code class="language-bash"># 下載模型
+tune download meta-llama/Llama-3.1-8B-Instruct --output-dir /tmp/Llama-3.1-8B
+
+# LoRA 微調（內建配置）
+tune run lora_finetune_single_device --config llama3_1/8B_lora_single_device
+
+# 自定義配置
+tune run lora_finetune_single_device --config my_config.yaml \
+  dataset.packed=True \
+  compile=True \
+  batch_size=2</code></pre>
+<hr>
+<h2 id="效能對比數據">效能對比數據</h2>
+<h3 id="單卡-llama-3-1-8b-qlora-alpaca-資料集">單卡 Llama 3.1 8B QLoRA（Alpaca 資料集）</h3>
+<table>
+<tr><th>框架</th><th>VRAM 使用</th><th>訓練速度（相對）</th><th>最大 Context Length（24GB GPU）</th></tr>
+<tr><td>Unsloth</td><td>~5 GB</td><td>2x baseline</td><td>78,475</td></tr>
+<tr><td>Axolotl</td><td>~8 GB</td><td>1.3x baseline</td><td>~12,000（估計）</td></tr>
+<tr><td>LLaMA-Factory（+Unsloth）</td><td>~5.5 GB</td><td>1.7x baseline</td><td>~70,000（估計）</td></tr>
+<tr><td>torchtune</td><td>~7.4 GB</td><td>1x baseline</td><td>~5,000（估計）</td></tr>
+<tr><td>HuggingFace + FA2（baseline）</td><td>~12 GB</td><td>1x</td><td>5,789</td></tr>
+</table>
+<p><em>注意：以上數據來自各框架官方 benchmark，實際表現依硬體、模型、資料集而異。</em></p>
+<h3 id="llama-3-3-70b-qlora-80gb-a100">Llama 3.3 70B QLoRA（80GB A100）</h3>
+<table>
+<tr><th>框架</th><th>Context Length</th><th>備註</th></tr>
+<tr><td>Unsloth</td><td>89,389</td><td>13x vs HF+FA2</td></tr>
+<tr><td>HuggingFace + FA2</td><td>6,916</td><td>baseline</td></tr>
+</table>
+<hr>
+<h2 id="社群生態與成熟度">社群生態與成熟度</h2>
+<table>
+<tr><th>指標</th><th>Unsloth</th><th>Axolotl</th><th>LLaMA-Factory</th><th>torchtune</th></tr>
+<tr><td>GitHub Stars</td><td>~52K</td><td>~11K</td><td>~67K</td><td>~5.7K</td></tr>
+<tr><td>發起時間</td><td>2023</td><td>2023</td><td>2023</td><td>2024</td></tr>
+<tr><td>背後組織</td><td>Unsloth AI（新創）</td><td>Axolotl AI Cloud</td><td>個人（hiyouga）</td><td>PyTorch/Meta</td></tr>
+<tr><td>文件品質</td><td>優良（官網 + Blog）</td><td>優良（docs.axolotl.ai）</td><td>中等（改進中）</td><td>優良（PyTorch 風格）</td></tr>
+<tr><td>企業採用</td><td>中</td><td>高</td><td>最高（Amazon/NVIDIA/Alibaba）</td><td>中</td></tr>
+<tr><td>學術引用</td><td>低</td><td>低</td><td>最高（1000+ 引用）</td><td>中</td></tr>
+<tr><td>更新頻率</td><td>極高（幾乎每日）</td><td>高（每月大版本）</td><td>極高</td><td>中（季度版本）</td></tr>
+</table>
+<hr>
+<h2 id="2026-年最新動態">2026 年最新動態</h2>
+<ul>
+<li><strong>Unsloth</strong>：MoE 12x 加速、FP8 RL、500K+ 上下文訓練、Embedding 微調、TTS 支援、gpt-oss 支援</li>
+<li><strong>Axolotl</strong>：ND Parallelism、Sequence Parallelism、QAT NVFP4、Kimi-Linear/Plano/MiMo 支援</li>
+<li><strong>LLaMA-Factory</strong>：KTransformers 整合（千億模型低端硬體微調）、Megatron-core 後端、OFT/OFTv2、EasyR1 RL 框架</li>
+<li><strong>torchtune</strong>：Qwen3 支援、Llama4 支援、Multi-Node 正式支援、GRPO 多卡分散式</li>
+</ul>
+<hr>
+<h2 id="常見問題與解法">常見問題與解法</h2>
+<p><strong>Q1: 我只有一張 RTX 4090（24GB），該選哪個？</strong>
+A: Unsloth。它的 Triton 核心針對單卡優化最深，8B 模型可達 78K context，7B 全量微調也能放下。</p>
+<p><strong>Q2: 我需要在 4 張 A100 上訓練 70B 模型，該選哪個？</strong>
+A: Axolotl 或 LLaMA-Factory。Axolotl 的 ND Parallelism 更靈活；LLaMA-Factory 的 GUI 更方便監控。</p>
+<p><strong>Q3: 團隊有非技術成員想參與模型微調？</strong>
+A: LLaMA-Factory 的 Gradio GUI 是唯一選擇，零程式碼即可完成訓練。</p>
+<p><strong>Q4: 我想深入理解 LLM 微調的原理？</strong>
+A: torchtune。PyTorch 官方出品，程式碼簡潔可讀，是最佳學習教材。</p>
+<p><strong>Q5: 可以混用嗎？</strong>
+A: 可以。推薦 Unsloth 做原型驗證（快、省資源）→ Axolotl/LLaMA-Factory 做生產部署（穩定、可擴展）。模型權重格式互通（HuggingFace Hub 標準）。</p>
+<hr>
+<h2 id="與現有知識庫內容的關聯">與現有知識庫內容的關聯</h2>
+<ul>
+<li><strong>Unsloth 架構原理與 LoRA/QLoRA 配置最佳實踐</strong>：本文的效能數據補充了架構原理的實際應用場景</li>
+<li><strong>Unsloth GGUF 量化匯出與推論部署</strong>：匯出格式對比表顯示 Unsloth 在 GGUF 匯出上的獨特優勢</li>
+<li><strong>Unsloth 資料集準備與偏好優化（DPO/ORPO/GRPO）</strong>：RL 支援對比表擴展了偏好優化在不同框架的可用性</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li><a href="https://github.com/unslothai/unsloth">Unsloth GitHub</a>（52K stars）</li>
+<li><a href="https://unsloth.ai/docs">Unsloth 官方文件</a></li>
+<li><a href="https://github.com/axolotl-ai-cloud/axolotl">Axolotl GitHub</a>（11K stars）</li>
+<li><a href="https://docs.axolotl.ai">Axolotl 文件</a></li>
+<li><a href="https://github.com/hiyouga/LLaMA-Factory">LLaMA-Factory GitHub</a>（67K stars）</li>
+<li><a href="https://arxiv.org/abs/2403.13372">LLaMA-Factory 論文</a></li>
+<li><a href="https://github.com/pytorch/torchtune">torchtune GitHub</a>（5.7K stars）</li>
+<li><a href="https://pytorch.org/torchtune/main/index.html">torchtune 文件</a></li>
+<li><a href="https://huggingface.co/blog/unsloth-trl">HuggingFace Blog: Unsloth + TRL</a></li>
+<li><a href="https://huggingface.co/blog/accelerate-nd-parallel">HuggingFace Blog: Axolotl ND Parallelism</a></li>
+</ul>
+<p><em>研究日期：2026-02-17</em>
+<em>研究者：Unsloth Research Agent</em></p>
+
+      </div>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>
