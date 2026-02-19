@@ -8,6 +8,7 @@ import json
 import hashlib
 import os
 import re
+import sys
 from datetime import datetime
 from html import escape
 
@@ -29,6 +30,15 @@ KEYWORDS = [
 
 # 分類映射（順序決定優先級）
 def categorize(title, tags):
+    """根據標題與標籤判定文章分類。
+
+    Args:
+        title: 文章標題
+        tags: 標籤列表
+
+    Returns:
+        (分類名稱, 分類 slug) 的元組
+    """
     tags_str = ','.join(tags) if tags else ''
     combined = title + tags_str
     if any(k in combined for k in ['佛', '楞嚴', '禪', '心經', '金剛', '維摩', '咒', '淨土', '法華', '教觀', '阿彌陀']):
@@ -48,18 +58,43 @@ def categorize(title, tags):
     return '其他', 'other'
 
 def generate_slug(title, note_id):
-    """生成 URL-friendly slug"""
+    """生成 URL-friendly slug。
+
+    Args:
+        title: 文章標題
+        note_id: 筆記 ID
+
+    Returns:
+        URL 安全的 slug 字串
+    """
     slug = re.sub(r'[^\w\s\u4e00-\u9fff-]', '', title[:30])
     slug = re.sub(r'\s+', '-', slug).lower()
     return f"{slug}-{note_id[:8]}" if slug else f"article-{note_id[:8]}"
 
 def content_hash(title, content_text):
-    """計算內容雜湊用於判斷是否更新"""
+    """計算內容雜湊用於判斷是否更新。
+
+    使用 SHA-256 取前 12 字元，降低碰撞風險。
+
+    Args:
+        title: 文章標題
+        content_text: 文章內容文字
+
+    Returns:
+        12 字元的十六進位雜湊字串
+    """
     text = (title + (content_text[:500] if content_text else ''))
-    return hashlib.md5(text.encode()).hexdigest()[:8]
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 def tiptap_to_html(content_json):
-    """將 Tiptap JSON 轉換為 HTML"""
+    """將 Tiptap JSON 轉換為 HTML。
+
+    Args:
+        content_json: Tiptap JSON 物件或 JSON 字串
+
+    Returns:
+        轉換後的 HTML 字串
+    """
     if not content_json:
         return ""
 
@@ -68,7 +103,7 @@ def tiptap_to_html(content_json):
             doc = json.loads(content_json)
         else:
             doc = content_json
-    except:
+    except (json.JSONDecodeError, TypeError):
         return ""
 
     def render_marks(text, marks):
@@ -145,7 +180,14 @@ def tiptap_to_html(content_json):
     return render_node(doc)
 
 def extract_headings(html_content):
-    """從 HTML 中提取 h2/h3 標題用於生成 TOC"""
+    """從 HTML 中提取 h2/h3 標題用於生成 TOC。
+
+    Args:
+        html_content: HTML 字串
+
+    Returns:
+        標題資訊的列表，每項含 level, text, slug
+    """
     headings = []
     pattern = re.compile(r'<h([23])>(.*?)</h[23]>', re.DOTALL)
     for match in pattern.finditer(html_content):
@@ -157,12 +199,17 @@ def extract_headings(html_content):
     return headings
 
 def inject_heading_ids(html_content, headings):
-    """在 HTML 標題中注入 id 屬性"""
+    """在 HTML 標題中注入 id 屬性。
+
+    Args:
+        html_content: 原始 HTML 字串
+        headings: extract_headings 回傳的標題列表
+
+    Returns:
+        注入 id 後的 HTML 字串
+    """
     result = html_content
     for h in headings:
-        old = f'<h{h["level"]}>{re.escape(h["text"])}'
-        # Simple replacement: add id to first occurrence
-        pattern = f'<h{h["level"]}>'
         target_text = h['text']
         result = result.replace(
             f'<h{h["level"]}>{target_text}</h{h["level"]}>',
@@ -172,7 +219,14 @@ def inject_heading_ids(html_content, headings):
     return result
 
 def generate_toc_html(headings):
-    """生成目錄 HTML"""
+    """生成目錄 HTML。
+
+    Args:
+        headings: 標題列表
+
+    Returns:
+        目錄 HTML 字串，不足 3 個標題時回傳空字串
+    """
     if len(headings) < 3:
         return ''
     items = []
@@ -187,7 +241,16 @@ def generate_toc_html(headings):
       </details>'''
 
 def generate_article_html(note, category_name, category_slug):
-    """生成文章頁面 HTML（含閱讀進度條、TOC、回到頂部）"""
+    """生成文章頁面 HTML（含閱讀進度條、TOC、回到頂部）。
+
+    Args:
+        note: 筆記資料字典
+        category_name: 分類名稱
+        category_slug: 分類 slug
+
+    Returns:
+        完整的文章頁面 HTML
+    """
     title = note.get('title', 'Untitled')
     tags = note.get('tags', []) or []
     content = note.get('content')
@@ -271,7 +334,17 @@ def generate_article_html(note, category_name, category_slug):
 '''
 
 def generate_index_html(articles_by_category, sync_time, total_count, new_article_ids=None):
-    """生成首頁 HTML（含最近更新、搜尋計數、分類折疊、回到頂部、鍵盤快捷鍵）"""
+    """生成首頁 HTML（含最近更新、搜尋計數、分類折疊、回到頂部、鍵盤快捷鍵）。
+
+    Args:
+        articles_by_category: 按分類組織的文章字典
+        sync_time: 同步時間字串
+        total_count: 文章總數
+        new_article_ids: 新文章 ID 集合（用於標示 NEW 徽章）
+
+    Returns:
+        完整的首頁 HTML
+    """
     sections = []
     nav_items = []
     new_article_ids = new_article_ids or set()
@@ -289,9 +362,7 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
 
     # 收集最近更新的文章（取最新 8 篇）
     all_articles = []
-    cat_slug_map = {}
     for cat_name, cat_slug in category_order:
-        cat_slug_map[cat_name] = cat_slug
         for art in articles_by_category.get(cat_name, []):
             art['_cat_name'] = cat_name
             art['_cat_slug'] = cat_slug
@@ -518,12 +589,16 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
 '''
 
 def main():
-    import sys
     sys.stdout.reconfigure(encoding='utf-8')
 
     os.makedirs(ARTICLES_DIR, exist_ok=True)
 
-    with open(f'{OUTPUT_DIR}/temp_notes.json', 'r', encoding='utf-8') as f:
+    temp_notes_path = f'{OUTPUT_DIR}/temp_notes.json'
+    if not os.path.exists(temp_notes_path):
+        print("錯誤：找不到 temp_notes.json，請先從知識庫匯出筆記。")
+        sys.exit(1)
+
+    with open(temp_notes_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     sync_log_path = f'{OUTPUT_DIR}/sync-log.json'
@@ -633,9 +708,12 @@ def main():
         json.dump(new_sync_log, f, ensure_ascii=False, indent=2)
 
     # 清理暫存檔
-    for f_name in ['temp_notes.json', 'temp_all_notes.json', 'temp_notes_p1.json',
-                    'temp_notes_p2.json', 'temp_notes_p3.json', 'temp_notes_p4.json',
-                    'temp_notes_p5.json']:
+    temp_files = [
+        'temp_notes.json', 'temp_all_notes.json', 'temp_notes_p1.json',
+        'temp_notes_p2.json', 'temp_notes_p3.json', 'temp_notes_p4.json',
+        'temp_notes_p5.json'
+    ]
+    for f_name in temp_files:
         temp_file = f'{OUTPUT_DIR}/{f_name}'
         if os.path.exists(temp_file):
             os.remove(temp_file)
