@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NVIDIA OpenReasoning Nemotron — 開源推理模型家族：大規模蒸餾、GenSelect 多代理推理與 Agentic AI 基礎建設">
+  <title>NVIDIA OpenReasoning Nemotron — 開源推理模型家族：大規模蒸餾、GenSelect 多代理推理與 Agentic AI 基礎建設 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>NVIDIA OpenReasoning Nemotron — 開源推理模型家族：大規模蒸餾、GenSelect 多代理推理與 Agentic AI 基礎建設</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">5 分鐘閱讀</span>
+          <div class="tags"><span class="tag">AI</span><span class="tag">NVIDIA</span><span class="tag">OpenReasoning</span><span class="tag">Nemotron</span><span class="tag">推理模型</span><span class="tag">蒸餾</span><span class="tag">GenSelect</span><span class="tag">Qwen</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#核心技術亮點">核心技術亮點</a></li>  <li><a href="#1-大規模資料蒸餾-large-scale-data-distillation">1. 大規模資料蒸餾（Large-Scale Data Distillation）</a></li>  <li><a href="#2-基準測試表現-pass-1">2. 基準測試表現（Pass@1）</a></li>  <li><a href="#3-genselect-多代理生成式解答選擇">3. GenSelect — 多代理生成式解答選擇</a></li>  <li><a href="#4-llama-nemotron-企業級推理模型-gtc-2025-發布">4. Llama Nemotron 企業級推理模型（GTC 2025 發布）</a></li><li><a href="#產業生態與企業採用">產業生態與企業採用</a></li><li><a href="#技術棧與工具鏈">技術棧與工具鏈</a></li><li><a href="#與既有技術的比較與定位">與既有技術的比較與定位</a></li>  <li><a href="#openreasoning-nemotron-vs-deepseek-r1-蒸餾">OpenReasoning Nemotron vs DeepSeek R1 蒸餾版</a></li>  <li><a href="#openreasoning-vs-llama-nemotron">OpenReasoning vs Llama Nemotron</a></li><li><a href="#對-ai-產業的意義與未來展望">對 AI 產業的意義與未來展望</a></li>  <li><a href="#1-蒸餾技術的里程碑">1. 蒸餾技術的里程碑</a></li>  <li><a href="#2-多代理推理的普及化">2. 多代理推理的普及化</a></li>  <li><a href="#3-開源推理生態的加速">3. 開源推理生態的加速</a></li>  <li><a href="#4-企業-agentic-ai-的基礎建設">4. 企業 Agentic AI 的基礎建設</a></li>  <li><a href="#5-acereasoning-nemotron-的後續進展">5. AceReasoning-Nemotron 的後續進展</a></li><li><a href="#實用資訊">實用資訊</a></li>  <li><a href="#模型下載-hugging-face">模型下載（Hugging Face）</a></li>  <li><a href="#開源工具">開源工具</a></li>  <li><a href="#相關論文">相關論文</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>NVIDIA OpenReasoning Nemotron — 開源推理模型家族</h1>
+<h2 id="概述">概述</h2>
+<p>NVIDIA 於 2025 年推出 OpenReasoning-Nemotron 系列，是一組基於 Qwen 2.5 架構、從 DeepSeek R1 0528 671B 模型大規模蒸餾而來的開源推理模型。該系列包含 1.5B、7B、14B、32B 四種尺寸，在數學、科學、程式碼等推理基準測試中達到同尺寸級別的最先進（SOTA）表現。這標誌著「純 SFT 蒸餾（無 RL）也能達到頂尖推理能力」的重要里程碑，為後續強化學習研究提供了強大的基線模型。</p>
+<p>同時，NVIDIA 更早在 2025 年 3 月的 GTC 大會上發布了 Llama Nemotron 推理模型家族（基於 Meta Llama 架構），以 Nano / Super / Ultra 三種規格覆蓋從邊緣裝置到多 GPU 伺服器的完整部署需求，瞄準企業級 Agentic AI 應用。</p>
+<hr>
+<h2 id="核心技術亮點">核心技術亮點</h2>
+<h3 id="1-大規模資料蒸餾-large-scale-data-distillation">1. 大規模資料蒸餾（Large-Scale Data Distillation）</h3>
+<ul>
+<li><strong>資料規模</strong>：從 DeepSeek R1 0528 671B 模型生成 500 萬條高品質推理解答</li>
+<li><strong>涵蓋領域</strong>：數學（Mathematics）、程式碼（Coding）、科學（Science）</li>
+<li><strong>架構基礎</strong>：基於 Qwen 2.5 系列（1.5B / 7B / 14B / 32B），非 Llama 架構</li>
+<li><strong>訓練方法</strong>：僅使用監督式微調（SFT）蒸餾，<strong>刻意不使用強化學習（RL）</strong></li>
+<li><strong>設計哲學</strong>：展示純資料蒸餾的極限能力，為社群提供 RL 研究的起點</li>
+<li><strong>開源工具</strong>：資料生成、前後處理、模型轉換、訓練、評估的完整流程開源於 NeMo-Skills</li>
+</ul>
+<h3 id="2-基準測試表現-pass-1">2. 基準測試表現（Pass@1）</h3>
+<table>
+<tr><th>模型</th><th>GPQA</th><th>MMLU-PRO</th><th>AIME24</th><th>AIME25</th><th>HMMT Feb 25</th><th>LiveCodeBench v6</th><th>SciCode</th></tr>
+<tr><td>1.5B</td><td>31.6</td><td>47.5</td><td>55.5</td><td>45.6</td><td>31.5</td><td>28.6</td><td>1.0</td></tr>
+<tr><td>7B</td><td>61.1</td><td>71.9</td><td>84.7</td><td>78.2</td><td>63.5</td><td>63.3</td><td>20.3</td></tr>
+<tr><td>14B</td><td>71.6</td><td>77.5</td><td>87.8</td><td>82.0</td><td>71.2</td><td>67.8</td><td>32.4</td></tr>
+<tr><td>32B</td><td>73.1</td><td>80.0</td><td>89.2</td><td>84.0</td><td>73.8</td><td>70.2</td><td>39.6</td></tr>
+</table>
+<p>所有評估均為 pass@1，在同尺寸級別均超越先前的 DeepSeek R1 原始蒸餾模型。</p>
+<h3 id="3-genselect-多代理生成式解答選擇">3. GenSelect — 多代理生成式解答選擇</h3>
+<p>GenSelect 是 OpenReasoning Nemotron 的核心創新之一：</p>
+<ul>
+<li><strong>原理</strong>：啟動多個並行推理生成（如 64 個），然後訓練模型選擇最佳解答</li>
+<li><strong>訓練方式</strong>：使用 DeepSeek R1 0528 671B 的完整推理軌跡（而非摘要）進行訓練</li>
+<li><strong>泛化能力</strong>：僅在數學問題上訓練，但能力直接泛化到程式碼問題</li>
+<li><strong>驚人結果</strong>：32B 模型在 GenSelect@64 模式下，接近甚至超越 o3 (High) 的分數</li>
+</ul>
+<p><strong>GenSelect@64 結果（32B 模型）</strong>：</p>
+<table>
+<tr><th>基準</th><th>Pass@1</th><th>Majority@64</th><th>GenSelect</th></tr>
+<tr><td>AIME24</td><td>89.2</td><td>93.3</td><td>93.3</td></tr>
+<tr><td>AIME25</td><td>84.0</td><td>90.0</td><td>93.3</td></tr>
+<tr><td>HMMT Feb 25</td><td>73.8</td><td>86.7</td><td>96.7</td></tr>
+<tr><td>LiveCodeBench</td><td>70.2</td><td>n/a</td><td>75.3</td></tr>
+</table>
+<h3 id="4-llama-nemotron-企業級推理模型-gtc-2025-發布">4. Llama Nemotron 企業級推理模型（GTC 2025 發布）</h3>
+<table>
+<tr><th>規格</th><th>目標場景</th><th>部署需求</th></tr>
+<tr><td>Nano</td><td>PC 與邊緣裝置</td><td>最高精度（小型）</td></tr>
+<tr><td>Super</td><td>單一 GPU 伺服器</td><td>最佳精度與吞吐量</td></tr>
+<tr><td>Ultra</td><td>多 GPU 伺服器</td><td>最大 Agentic 精度</td></tr>
+</table>
+<ul>
+<li>基於 Meta Llama 架構，經 NVIDIA DGX Cloud 大規模後訓練</li>
+<li>使用 NVIDIA Nemotron 與其他開放模型生成的高品質合成資料</li>
+<li>後訓練優化使精度提升最高 20%，推理速度比其他開源推理模型快 5 倍</li>
+<li>以 NVIDIA NIM 微服務形式提供，企業級生產就緒</li>
+</ul>
+<hr>
+<h2 id="產業生態與企業採用">產業生態與企業採用</h2>
+<p>多家企業巨頭已整合 Llama Nemotron 推理模型：</p>
+<ul>
+<li><strong>Microsoft</strong>：整合至 Azure AI Foundry，擴展 Azure AI Agent Service</li>
+<li><strong>SAP</strong>：強化 Joule AI 助手與 ABAP 程式碼補全</li>
+<li><strong>ServiceNow</strong>：建構更高效能的企業 AI Agent</li>
+<li><strong>Accenture</strong>：整合至 AI Refinery 平台，加速行業定制 Agent</li>
+<li><strong>Deloitte</strong>：納入 Zora AI 平台，支援人類決策模擬</li>
+<li><strong>CrowdStrike / Atlassian / Box / Cadence / IQVIA</strong>：各自在安全、協作、內容管理等領域應用</li>
+</ul>
+<hr>
+<h2 id="技術棧與工具鏈">技術棧與工具鏈</h2>
+<p>NVIDIA 同時發布配套的 Agentic AI 工具建設：</p>
+<ol>
+<li><strong>NVIDIA AI-Q Blueprint</strong>：連接企業知識與 AI Agent 的藍圖，整合 NeMo Retriever 多模態檢索</li>
+<li><strong>NVIDIA Agent Intelligence Toolkit</strong>：開源 Agent 連接、優化與透明化工具</li>
+<li><strong>NVIDIA AI Data Platform</strong>：企業級 AI 查詢 Agent 基礎設施參考設計</li>
+<li><strong>NIM 微服務</strong>：優化複雜 Agentic AI 推理，支援持續學習與即時適應</li>
+<li><strong>NeMo 微服務</strong>：建立資料飛輪（Data Flywheel），讓 Agent 從人類與 AI 回饋中持續學習</li>
+<li><strong>NeMo-Skills</strong>：開源訓練工具鏈，涵蓋資料生成、訓練、評估全流程</li>
+</ol>
+<hr>
+<h2 id="與既有技術的比較與定位">與既有技術的比較與定位</h2>
+<h3 id="openreasoning-nemotron-vs-deepseek-r1-蒸餾">OpenReasoning Nemotron vs DeepSeek R1 蒸餾版</h3>
+<table>
+<tr><th>面向</th><th>DeepSeek R1 蒸餾</th><th>OpenReasoning Nemotron</th></tr>
+<tr><td>蒸餾來源</td><td>R1 初版</td><td>R1 0528（更強）</td></tr>
+<tr><td>資料規模</td><td>較小</td><td>500 萬條</td></tr>
+<tr><td>模型尺寸</td><td>8B（0528 版僅一個）</td><td>1.5B / 7B / 14B / 32B</td></tr>
+<tr><td>多代理推理</td><td>無</td><td>GenSelect</td></tr>
+<tr><td>開源程度</td><td>模型權重</td><td>模型 + 訓練流程 + 評估代碼</td></tr>
+<tr><td>授權</td><td>MIT</td><td>CC-BY-4.0</td></tr>
+</table>
+<h3 id="openreasoning-vs-llama-nemotron">OpenReasoning vs Llama Nemotron</h3>
+<table>
+<tr><th>面向</th><th>OpenReasoning Nemotron</th><th>Llama Nemotron</th></tr>
+<tr><td>架構</td><td>Qwen 2.5</td><td>Meta Llama</td></tr>
+<tr><td>定位</td><td>研究社群（純 SFT 基線）</td><td>企業生產級部署</td></tr>
+<tr><td>蒸餾來源</td><td>DeepSeek R1 0528</td><td>多源合成資料</td></tr>
+<tr><td>部署方式</td><td>Hugging Face 下載</td><td>NVIDIA NIM 微服務</td></tr>
+<tr><td>特色</td><td>GenSelect 多代理推理</td><td>Nano/Super/Ultra 分層</td></tr>
+</table>
+<hr>
+<h2 id="對-ai-產業的意義與未來展望">對 AI 產業的意義與未來展望</h2>
+<h3 id="1-蒸餾技術的里程碑">1. 蒸餾技術的里程碑</h3>
+<p>OpenReasoning Nemotron 證明了「純 SFT 蒸餾」在大規模高品質資料下可以達到接近 RL 訓練的推理能力。500 萬條蒸餾資料的規模遠超先前同類工作，為「資料品質 + 規模 = 推理能力」的假說提供了有力證據。</p>
+<h3 id="2-多代理推理的普及化">2. 多代理推理的普及化</h3>
+<p>GenSelect 技術讓小型模型（32B）透過多次並行推理 + 智慧選擇，達到接近 o3 (High) 等級的表現。這種「以量換質」的策略，讓推理能力不再完全依賴模型規模。</p>
+<h3 id="3-開源推理生態的加速">3. 開源推理生態的加速</h3>
+<p>完整的訓練工具鏈（NeMo-Skills）加上即將釋出的 500 萬條蒸餾資料集，將大幅降低推理模型研究的門檻，預期催生更多基於 RL（如 GRPO、Curriculum RL）的社群改進。</p>
+<h3 id="4-企業-agentic-ai-的基礎建設">4. 企業 Agentic AI 的基礎建設</h3>
+<p>Llama Nemotron + NIM 微服務的組合，提供了從邊緣到雲端的完整推理部署方案。Jensen Huang 在 GTC 上明確定位：「開源推理模型 + 軟體工具 = 加速 Agentic AI 勞動力的建構基礎」。</p>
+<h3 id="5-acereasoning-nemotron-的後續進展">5. AceReasoning-Nemotron 的後續進展</h3>
+<p>NVIDIA 已展示 AceReasoning-Nemotron 使用課程式 RL（Curriculum RL）在 OpenReasoning 基線上的進一步提升，數學和程式碼能力分別透過循序漸進的 RL 訓練獲得更穩定的改善。</p>
+<hr>
+<h2 id="實用資訊">實用資訊</h2>
+<h3 id="模型下載-hugging-face">模型下載（Hugging Face）</h3>
+<ul>
+<li><a href="https://huggingface.co/nvidia/OpenReasoning-Nemotron-1.5B">nvidia/OpenReasoning-Nemotron-1.5B</a></li>
+<li><a href="https://huggingface.co/nvidia/OpenReasoning-Nemotron-7B">nvidia/OpenReasoning-Nemotron-7B</a></li>
+<li><a href="https://huggingface.co/nvidia/OpenReasoning-Nemotron-14B">nvidia/OpenReasoning-Nemotron-14B</a></li>
+<li><a href="https://huggingface.co/nvidia/OpenReasoning-Nemotron-32B">nvidia/OpenReasoning-Nemotron-32B</a></li>
+</ul>
+<h3 id="開源工具">開源工具</h3>
+<ul>
+<li><a href="https://github.com/NVIDIA/NeMo-Skills">NeMo-Skills</a> — 資料生成、訓練、評估完整工具鏈</li>
+<li>授權：CC-BY-4.0（商業可用）</li>
+</ul>
+<h3 id="相關論文">相關論文</h3>
+<ul>
+<li>OpenReasoning-Nemotron Technical Report (arXiv:2507.09075)</li>
+<li>OpenMathReasoning Dataset (arXiv:2504.16891)</li>
+<li>GenSelect: Generative Solution Selection (arXiv:2504.01943)</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://nvidianews.nvidia.com/news/nvidia-launches-family-of-open-reasoning-ai-models-for-developers-and-enterprises-to-build-agentic-ai-platforms">NVIDIA Newsroom - Launches Family of Open Reasoning AI Models</a></li>
+<li><a href="https://huggingface.co/blog/nvidia/openreasoning-nemotron">Hugging Face Blog - OpenReasoning-Nemotron</a></li>
+<li><a href="https://news.ycombinator.com/item?id=44641729">Hacker News Discussion (84 points)</a></li>
+<li><a href="https://huggingface.co/nvidia/OpenReasoning-Nemotron-32B">Hugging Face Model Page - nvidia/OpenReasoning-Nemotron-32B</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-19</em>
+<em>研究類型：AI 最新技術研究 — 開源推理模型與蒸餾技術</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="ai-驅動的智慧廢棄物管理與循環經濟技術ai-分類機器人-e1517e2f.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">AI 驅動的智慧廢棄物管理與循環經濟技術：AI 分類機器人、IoT 智慧垃圾桶、路線優化與台灣回收奇蹟</span></a><a href="cline-開源-ai-coding-agent-深度洞-530963eb.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Cline — 開源 AI Coding Agent 深度洞察報告：架構設計、Memory Bank 與可借鏡技術（58K Stars, 2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

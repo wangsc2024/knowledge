@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Web Workers 與 OffscreenCanvas — 瀏覽器多執行緒遊戲運算完整指南（2026）">
+  <title>Web Workers 與 OffscreenCanvas — 瀏覽器多執行緒遊戲運算完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Web Workers 與 OffscreenCanvas — 瀏覽器多執行緒遊戲運算完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Web Workers</span><span class="tag">OffscreenCanvas</span><span class="tag">多執行緒</span><span class="tag">遊戲運算</span><span class="tag">SharedArrayBuffer</span><span class="tag">Canvas</span><span class="tag">HTML5遊戲</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述-200-字">技術概述（200 字）</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#web-workers-基礎架構">Web Workers 基礎架構</a></li>  <li><a href="#offscreencanvas-原理">OffscreenCanvas 原理</a></li><li><a href="#遊戲渲染架構模式">遊戲渲染架構模式</a></li>  <li><a href="#模式一-worker-全權渲染-推薦">模式一：Worker 全權渲染（推薦）</a></li>  <li><a href="#模式二-物理計算分離-主執行緒渲染-worker-計算">模式二：物理計算分離（主執行緒渲染 + Worker 計算）</a></li>  <li><a href="#模式三-sharedarraybuffer-零拷貝共享-進階">模式三：SharedArrayBuffer 零拷貝共享（進階）</a></li><li><a href="#最佳實踐與常見陷阱">最佳實踐與常見陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li>  <li><a href="#常見陷阱">常見陷阱</a></li><li><a href="#瀏覽器相容性-2026">瀏覽器相容性（2026）</a></li><li><a href="#與本專案的關聯-daily-digest-prompt-遊戲生態">與本專案的關聯（daily-digest-prompt 遊戲生態）</a></li>  <li><a href="#直接應用場景">直接應用場景</a></li>  <li><a href="#漸進式整合策略">漸進式整合策略</a></li><li><a href="#效能基準參考">效能基準參考</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Web Workers 與 OffscreenCanvas — 瀏覽器多執行緒遊戲運算完整指南</h1>
+<h2 id="技術概述-200-字">技術概述（200 字）</h2>
+<p>Web Workers 允許 JavaScript 在背景執行緒運行 CPU 密集型任務，而 OffscreenCanvas 將 Canvas 渲染從 DOM 解耦，使其可在 Worker 中執行。兩者結合實現了瀏覽器端的真正多執行緒遊戲運算：主執行緒負責 UI 互動與事件處理，Worker 執行緒負責物理計算與 Canvas 渲染。對 HTML5 Canvas 遊戲而言，這意味著即使主執行緒因 DOM 操作忙碌，遊戲動畫仍能維持 60 FPS 平滑運行。搭配 SharedArrayBuffer 與 Atomics API，更可實現零拷貝的高效能跨執行緒資料共享，適用於粒子系統、碰撞偵測等大量運算場景。</p>
+<hr>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="web-workers-基礎架構">Web Workers 基礎架構</h3>
+<p>Web Workers 是獨立的 JavaScript 執行環境，運行在與主執行緒不同的執行緒中，有自己的全域作用域（<code>self</code>）。</p>
+<p><strong>三種 Worker 類型：</strong></p>
+<table>
+<tr><th>類型</th><th>生命週期</th><th>共享性</th><th>適用場景</th></tr>
+<tr><td>Dedicated Worker</td><td>與建立頁面綁定</td><td>單一頁面獨佔</td><td>遊戲渲染、物理計算</td></tr>
+<tr><td>Shared Worker</td><td>跨多個頁面共享</td><td>多頁面共用</td><td>跨分頁資料共享</td></tr>
+<tr><td>Service Worker</td><td>獨立於頁面生命週期</td><td>代理網路請求</td><td>離線快取、推播</td></tr>
+</table>
+<p><strong>遊戲開發主要使用 Dedicated Worker</strong>，因為遊戲通常是單頁面應用，且需要最低的通訊延遲。</p>
+<h3 id="offscreencanvas-原理">OffscreenCanvas 原理</h3>
+<p>OffscreenCanvas 是一個可以脫離 DOM 渲染的 Canvas 介面。它有兩種建立方式：</p>
+<ol>
+<li><strong>直接建立</strong>（無 DOM 關聯，用於資料處理）：</li>
+</ol>
+<pre><code class="language-javascript">const offscreen = new OffscreenCanvas(800, 600);
+const ctx = offscreen.getContext(&#x27;2d&#x27;);</code></pre>
+<ol>
+<li><strong>從 DOM Canvas 轉移</strong>（用於遊戲渲染，操作自動同步到 DOM）：</li>
+</ol>
+<pre><code class="language-javascript">const canvas = document.querySelector(&#x27;#gameCanvas&#x27;);
+const offscreen = canvas.transferControlToOffscreen();</code></pre>
+<p><strong>關鍵差異</strong>：使用 <code>transferControlToOffscreen()</code> 後，所有在 OffscreenCanvas 上的繪圖操作會自動反映到 DOM 中的 <code>&lt;canvas&gt;</code> 元素上。</p>
+<hr>
+<h2 id="遊戲渲染架構模式">遊戲渲染架構模式</h2>
+<h3 id="模式一-worker-全權渲染-推薦">模式一：Worker 全權渲染（推薦）</h3>
+<p>將整個遊戲迴圈（Game Loop）搬到 Worker 中：</p>
+<pre><code class="language-javascript">// main.js（主執行緒）
+const canvas = document.getElementById(&#x27;gameCanvas&#x27;);
+const offscreen = canvas.transferControlToOffscreen();
+const worker = new Worker(&#x27;game-worker.js&#x27;);
+
+// 將 OffscreenCanvas 轉移給 Worker（第二個參數為 transferable 陣列）
+worker.postMessage({ type: &#x27;init&#x27;, canvas: offscreen }, [offscreen]);
+
+// 轉發輸入事件到 Worker
+canvas.addEventListener(&#x27;click&#x27;, (e) =&gt; {
+  worker.postMessage({ type: &#x27;click&#x27;, x: e.offsetX, y: e.offsetY });
+});
+canvas.addEventListener(&#x27;keydown&#x27;, (e) =&gt; {
+  worker.postMessage({ type: &#x27;keydown&#x27;, key: e.key });
+});</code></pre>
+<pre><code class="language-javascript">// game-worker.js（Worker 執行緒）
+let canvas, ctx;
+let lastTime = 0;
+
+self.onmessage = function(event) {
+  const { type } = event.data;
+  
+  if (type === &#x27;init&#x27;) {
+    canvas = event.data.canvas;
+    ctx = canvas.getContext(&#x27;2d&#x27;);
+    // 啟動遊戲迴圈
+    requestAnimationFrame(gameLoop);
+  }
+  
+  if (type === &#x27;keydown&#x27;) {
+    handleInput(event.data.key);
+  }
+};
+
+function gameLoop(timestamp) {
+  const dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+  
+  update(dt);  // 物理更新
+  render();    // 渲染
+  
+  requestAnimationFrame(gameLoop);
+}
+
+function update(dt) {
+  // 物理計算、碰撞偵測、AI 邏輯等
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // 繪製遊戲場景
+}</code></pre>
+<p><strong>優點</strong>：主執行緒完全空閒，UI 不受影響。
+<strong>缺點</strong>：輸入事件需透過 postMessage 傳遞，有微小延遲。</p>
+<h3 id="模式二-物理計算分離-主執行緒渲染-worker-計算">模式二：物理計算分離（主執行緒渲染 + Worker 計算）</h3>
+<p>適合粒子系統、A* 尋路等 CPU 密集計算：</p>
+<pre><code class="language-javascript">// main.js
+const physicsWorker = new Worker(&#x27;physics-worker.js&#x27;);
+const canvas = document.getElementById(&#x27;gameCanvas&#x27;);
+const ctx = canvas.getContext(&#x27;2d&#x27;);
+let entities = [];
+
+physicsWorker.onmessage = function(event) {
+  entities = event.data.entities; // 更新後的實體位置
+};
+
+function gameLoop() {
+  // 將當前狀態發送給 Worker 計算
+  physicsWorker.postMessage({ entities, dt: 1/60 });
+  
+  // 主執行緒負責渲染（使用上一幀的計算結果）
+  render(entities);
+  requestAnimationFrame(gameLoop);
+}</code></pre>
+<pre><code class="language-javascript">// physics-worker.js
+self.onmessage = function(event) {
+  const { entities, dt } = event.data;
+  
+  // CPU 密集型計算
+  for (let i = 0; i &lt; entities.length; i++) {
+    entities[i].x += entities[i].vx * dt;
+    entities[i].y += entities[i].vy * dt;
+    // 碰撞偵測...
+  }
+  
+  self.postMessage({ entities });
+};</code></pre>
+<h3 id="模式三-sharedarraybuffer-零拷貝共享-進階">模式三：SharedArrayBuffer 零拷貝共享（進階）</h3>
+<p>避免 postMessage 的序列化/反序列化開銷：</p>
+<pre><code class="language-javascript">// main.js
+const ENTITY_COUNT = 1000;
+const FLOATS_PER_ENTITY = 4; // x, y, vx, vy
+const sab = new SharedArrayBuffer(
+  ENTITY_COUNT * FLOATS_PER_ENTITY * Float32Array.BYTES_PER_ELEMENT
+);
+const positions = new Float32Array(sab);
+
+const worker = new Worker(&#x27;physics-worker.js&#x27;);
+worker.postMessage({ sab, entityCount: ENTITY_COUNT });
+
+function render() {
+  // 直接讀取共享記憶體，零拷貝
+  for (let i = 0; i &lt; ENTITY_COUNT; i++) {
+    const offset = i * FLOATS_PER_ENTITY;
+    const x = positions[offset];
+    const y = positions[offset + 1];
+    ctx.fillRect(x, y, 4, 4);
+  }
+  requestAnimationFrame(render);
+}</code></pre>
+<pre><code class="language-javascript">// physics-worker.js
+let positions;
+
+self.onmessage = function(event) {
+  const { sab, entityCount } = event.data;
+  positions = new Float32Array(sab);
+  
+  function physicsLoop() {
+    for (let i = 0; i &lt; entityCount; i++) {
+      const offset = i * 4;
+      positions[offset] += positions[offset + 2] / 60;     // x += vx * dt
+      positions[offset + 1] += positions[offset + 3] / 60; // y += vy * dt
+    }
+    setTimeout(physicsLoop, 16); // ~60fps
+  }
+  physicsLoop();
+};</code></pre>
+<p><strong>安全性注意</strong>：SharedArrayBuffer 需要特定的安全標頭：</p>
+<pre><code class="language-plaintext">Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp</code></pre>
+<hr>
+<h2 id="最佳實踐與常見陷阱">最佳實踐與常見陷阱</h2>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>功能偵測優先</strong>：</li>
+</ol>
+<pre><code class="language-javascript">if (&#x27;OffscreenCanvas&#x27; in window) {
+  // 使用 Worker 渲染
+} else {
+  // 降級到主執行緒渲染
+}</code></pre>
+<ol>
+<li><strong>使用 Transferable Objects 減少複製成本</strong>：</li>
+</ol>
+<pre><code class="language-javascript">// 好：轉移所有權（零拷貝）
+worker.postMessage({ canvas: offscreen }, [offscreen]);
+
+// 好：轉移 ArrayBuffer
+const buffer = new ArrayBuffer(1024);
+worker.postMessage({ data: buffer }, [buffer]);
+
+// 差：結構化複製（有序列化開銷）
+worker.postMessage({ data: largeObject });</code></pre>
+<ol>
+<li><strong>批量處理輸入事件</strong>：不要每個 keydown 都 postMessage，而是每幀收集一次。</li>
+</ol>
+<pre><code class="language-javascript">let inputBuffer = [];
+window.addEventListener(&#x27;keydown&#x27;, (e) =&gt; inputBuffer.push(e.key));
+
+function sendInputs() {
+  if (inputBuffer.length &gt; 0) {
+    worker.postMessage({ type: &#x27;inputs&#x27;, keys: inputBuffer });
+    inputBuffer = [];
+  }
+  requestAnimationFrame(sendInputs);
+}</code></pre>
+<ol>
+<li><strong>Worker 中使用 requestAnimationFrame</strong>（非 setInterval）：</li>
+</ol>
+<p>OffscreenCanvas 帶來了 Worker 中的 <code>requestAnimationFrame</code> 支援，這個幀率僅在 Worker 上下文中運作，不受主執行緒阻塞影響。</p>
+<ol>
+<li><strong>Mock 缺失的 DOM 屬性</strong>（使用 Three.js 等函式庫時）：</li>
+</ol>
+<pre><code class="language-javascript">// Three.js 期望 canvas.style.width/height
+canvas.style = { width: 0, height: 0 };
+const renderer = new THREE.WebGLRenderer({ canvas });</code></pre>
+<h3 id="常見陷阱">常見陷阱</h3>
+<ol>
+<li><strong>transferControlToOffscreen 只能呼叫一次</strong>：同一個 <code>&lt;canvas&gt;</code> 元素只能轉移一次控制權。</li>
+</ol>
+<ol>
+<li><strong>Worker 無法存取 DOM</strong>：所有 DOM 相關操作（事件監聽、元素建立）必須在主執行緒。</li>
+</ol>
+<ol>
+<li><strong>postMessage 的結構化複製有成本</strong>：大型物件（如完整遊戲狀態）的序列化/反序列化會消耗時間。對簡單遊戲可能得不償失。</li>
+</ol>
+<ol>
+<li><strong>SharedArrayBuffer 安全限制</strong>：本地開發（file://）無法使用，需要 HTTPS + 特定 COOP/COEP 標頭。</li>
+</ol>
+<ol>
+<li><strong>不適用於簡單場景</strong>：如果遊戲邏輯輕量（如靜態畫面、低粒子數），Worker 通訊開銷可能超過收益。</li>
+</ol>
+<hr>
+<h2 id="瀏覽器相容性-2026">瀏覽器相容性（2026）</h2>
+<table>
+<tr><th>功能</th><th>Chrome</th><th>Firefox</th><th>Safari</th><th>Edge</th></tr>
+<tr><td>Web Workers</td><td>全部支援</td><td>全部支援</td><td>全部支援</td><td>全部支援</td></tr>
+<tr><td>OffscreenCanvas (2D)</td><td>69+</td><td>105+</td><td>16.4+</td><td>79+</td></tr>
+<tr><td>OffscreenCanvas (WebGL)</td><td>69+</td><td>105+</td><td>17.0+</td><td>79+</td></tr>
+<tr><td>SharedArrayBuffer</td><td>68+</td><td>79+</td><td>15.2+</td><td>79+</td></tr>
+<tr><td>requestAnimationFrame in Worker</td><td>69+</td><td>105+</td><td>16.4+</td><td>79+</td></tr>
+</table>
+<p><strong>2026 年現況</strong>：所有主流瀏覽器均已支援，iOS Safari 16.4+ 也加入，可以安心使用。</p>
+<hr>
+<h2 id="與本專案的關聯-daily-digest-prompt-遊戲生態">與本專案的關聯（daily-digest-prompt 遊戲生態）</h2>
+<h3 id="直接應用場景">直接應用場景</h3>
+<ol>
+<li><strong>HTML5 遊戲效能優化</strong>：禪境遊廊（zen-game-portal）的多款遊戲（貪吃蛇、打磚塊、小蜜蜂、禪音節奏等）可以將 Game Loop 移至 Worker，解放主執行緒給 UI 互動。</li>
+</ol>
+<ol>
+<li><strong>粒子系統加速</strong>：目前多款遊戲使用 Canvas 粒子系統（物件池模式），當粒子數量大（50+）時可將粒子位置計算移至 Worker。</li>
+</ol>
+<ol>
+<li><strong>A* 尋路與遊戲 AI</strong>：已研究的行為樹和 A* 尋路演算法，路徑計算可在 Worker 中異步執行，避免造成卡頓。</li>
+</ol>
+<ol>
+<li><strong>碰撞偵測離線化</strong>：AABB 和 SAT 碰撞偵測在實體數量增多時可移至 Worker 計算。</li>
+</ol>
+<h3 id="漸進式整合策略">漸進式整合策略</h3>
+<pre><code class="language-plaintext">階段 1：功能偵測 + 降級
+  - 偵測 OffscreenCanvas 支援
+  - 不支援時回退到主執行緒渲染（現有模式）
+
+階段 2：渲染遷移
+  - 將 Game Loop 移至 Worker
+  - 輸入事件透過 postMessage 轉發
+
+階段 3：物理分離
+  - 粒子系統計算移至獨立 Worker
+  - 使用 SharedArrayBuffer 共享粒子位置
+
+階段 4：多 Worker 架構
+  - 渲染 Worker + 物理 Worker + AI Worker
+  - 適用於複雜遊戲（如 Space Invaders v3.0）</code></pre>
+<hr>
+<h2 id="效能基準參考">效能基準參考</h2>
+<table>
+<tr><th>場景</th><th>主執行緒渲染</th><th>Worker + OffscreenCanvas</th><th>提升</th></tr>
+<tr><td>1000 粒子動畫（主執行緒繁忙）</td><td>~15 FPS</td><td>~60 FPS</td><td>4x</td></tr>
+<tr><td>重計算 + 渲染</td><td>明顯卡頓</td><td>平滑運行</td><td>主觀改善顯著</td></tr>
+<tr><td>簡單靜態場景</td><td>~60 FPS</td><td>~60 FPS</td><td>無提升（通訊開銷）</td></tr>
+</table>
+<p><strong>結論</strong>：Worker 渲染的收益與場景複雜度正相關。粒子系統、物理模擬、AI 計算等 CPU 密集場景受益最大。</p>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://web.dev/articles/offscreen-canvas">web.dev - OffscreenCanvas: speed up your canvas operations with a web worker</a> — Google 官方技術文件（品質等級 A）</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas">MDN - OffscreenCanvas</a> — Mozilla 官方 API 文件（品質等級 A）</li>
+<li><a href="https://macarthur.me/posts/animate-canvas-in-a-worker/">Alex MacArthur - Consider Animating Your Canvas in a Web Worker</a> — 實作教學（品質等級 B+）</li>
+<li><a href="https://www.webgamedev.com/performance/offscreen-canvas">Web Game Dev - OffscreenCanvas</a> — 遊戲開發專業資源（品質等級 B+）</li>
+<li><a href="https://evilmartians.com/chronicles/faster-webgl-three-js-3d-graphics-with-offscreencanvas-and-web-workers">Evil Martians - Faster WebGL/Three.js 3D graphics with OffscreenCanvas and Web Workers</a> — Three.js 整合實踐（品質等級 A-）</li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="roguelike-程序化內容生成pcg完整指南地牢生-5e191585.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Roguelike 程序化內容生成（PCG）完整指南：地牢生成演算法、物品平衡與 HTML5 實作（2026）</span></a><a href="pong-乒乓-v10-創建心得-霓虹視覺-8-d1a711a9.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Pong (乒乓) v1.0 創建心得 — 霓虹視覺 + 8-bit 音效合成</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

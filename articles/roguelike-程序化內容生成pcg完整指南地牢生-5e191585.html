@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Roguelike 程序化內容生成（PCG）完整指南：地牢生成演算法、物品平衡與 HTML5 實作（2026）">
+  <title>Roguelike 程序化內容生成（PCG）完整指南：地牢生成演算法、物品平衡與 HTML5 實作（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Roguelike 程序化內容生成（PCG）完整指南：地牢生成演算法、物品平衡與 HTML5 實作（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Roguelike</span><span class="tag">程序化生成</span><span class="tag">PCG</span><span class="tag">地牢生成</span><span class="tag">BSP</span><span class="tag">WFC</span><span class="tag">Cellular Automata</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#一-技術概述">一、技術概述</a></li><li><a href="#二-核心地牢生成演算法">二、核心地牢生成演算法</a></li>  <li><a href="#2-1-隨機房間放置法-random-room-placement">2.1 隨機房間放置法（Random Room Placement）</a></li>  <li><a href="#2-2-二元空間分割法-bsp-tree">2.2 二元空間分割法（BSP Tree）</a></li>  <li><a href="#2-3-元胞自動機法-cellular-automata">2.3 元胞自動機法（Cellular Automata）</a></li>  <li><a href="#2-4-波函數崩塌法-wave-function-collapse-wfc">2.4 波函數崩塌法（Wave Function Collapse, WFC）</a></li>  <li><a href="#2-5-混合策略-推薦">2.5 混合策略（推薦）</a></li><li><a href="#三-物品系統與掉落平衡">三、物品系統與掉落平衡</a></li>  <li><a href="#3-1-power-value-計分系統">3.1 Power Value 計分系統</a></li>  <li><a href="#3-2-稀有度分級-rarity-tiers">3.2 稀有度分級（Rarity Tiers）</a></li>  <li><a href="#3-3-加權掉落表-weighted-loot-table">3.3 加權掉落表（Weighted Loot Table）</a></li>  <li><a href="#3-4-防挫敗機制-pity-system">3.4 防挫敗機制（Pity System）</a></li><li><a href="#四-html5-canvas-實作最佳實踐">四、HTML5 Canvas 實作最佳實踐</a></li>  <li><a href="#4-1-seed-系統-確定性隨機">4.1 Seed 系統（確定性隨機）</a></li>  <li><a href="#4-2-效能優化">4.2 效能優化</a></li>  <li><a href="#4-3-難度曲線設計">4.3 難度曲線設計</a></li><li><a href="#五-與本專案的關聯">五、與本專案的關聯</a></li>  <li><a href="#5-1-輪迴塔-tower-of-samsara-應用">5.1 輪迴塔（Tower of Samsara）應用</a></li>  <li><a href="#5-2-可優化方向">5.2 可優化方向</a></li>  <li><a href="#5-3-通用-daily-digest-prompt-應用">5.3 通用 daily-digest-prompt 應用</a></li><li><a href="#六-常見陷阱與最佳實踐">六、常見陷阱與最佳實踐</a></li>  <li><a href="#陷阱">陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li><li><a href="#七-演算法選型決策樹">七、演算法選型決策樹</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Roguelike 程序化內容生成（PCG）完整指南</h1>
+<h2 id="一-技術概述">一、技術概述</h2>
+<p>Procedural Content Generation（PCG，程序化內容生成）是 Roguelike 遊戲的靈魂技術，從 1980 年的 Rogue 到現代的 Hades、Dead Cells、Slay the Spire，PCG 確保每次遊玩體驗獨一無二。PCG 涵蓋地圖生成、物品掉落、敵人配置、難度曲線等多個面向，其核心挑戰在於「受控的隨機性」——既要足夠隨機保持新鮮感，又要有足夠約束確保可玩性。</p>
+<p>本研究聚焦於四大核心演算法、物品平衡系統設計，以及 HTML5 Canvas 實作的最佳實踐，特別著重與 daily-digest-prompt 專案中「輪迴塔（Tower of Samsara）」Roguelike 遊戲的關聯與應用。</p>
+<hr>
+<h2 id="二-核心地牢生成演算法">二、核心地牢生成演算法</h2>
+<h3 id="2-1-隨機房間放置法-random-room-placement">2.1 隨機房間放置法（Random Room Placement）</h3>
+<p><strong>原理</strong>：最直觀的方法——隨機生成房間，檢查碰撞，用走廊連接。</p>
+<p><strong>步驟</strong>：</p>
+<ol>
+<li>初始化地圖為全牆壁（blocked）</li>
+<li>隨機生成房間（x, y, width, height），碰撞檢測排除重疊</li>
+<li>對每對相鄰房間，隨機選擇「先水平後垂直」或「先垂直後水平」挖掘走廊</li>
+<li>玩家放置在第一個房間中心</li>
+</ol>
+<p><strong>碰撞檢測</strong>（Rect 類別）：</p>
+<pre><code class="language-javascript">class Rect {
+  constructor(x, y, w, h) {
+    this.x1 = x; this.y1 = y;
+    this.x2 = x + w; this.y2 = y + h;
+  }
+  center() {
+    return [Math.floor((this.x1+this.x2)/2), Math.floor((this.y1+this.y2)/2)];
+  }
+  intersects(other) {
+    return this.x1 &lt;= other.x2 &amp;&amp; this.x2 &gt;= other.x1 &amp;&amp;
+           this.y1 &lt;= other.y2 &amp;&amp; this.y2 &gt;= other.y1;
+  }
+}</code></pre>
+<p><strong>優點</strong>：簡單、可預測、易除錯
+<strong>缺點</strong>：房間分布可能不均勻，走廊形狀單調</p>
+<h3 id="2-2-二元空間分割法-bsp-tree">2.2 二元空間分割法（BSP Tree）</h3>
+<p><strong>原理</strong>：利用 BSP 樹將地圖遞迴分割為子區域，確保房間不重疊。</p>
+<p><strong>步驟</strong>：</p>
+<ol>
+<li>從整個地圖矩形開始</li>
+<li>隨機選擇分割方向（水平/垂直）和位置</li>
+<li>將當前區域分為兩個子區域</li>
+<li>對每個子區域重複分割（深度限制 n 次）</li>
+<li>在每個葉節點放置房間</li>
+<li>沿分割線連接相鄰房間</li>
+</ol>
+<pre><code class="language-javascript">function splitBSP(node, depth) {
+  if (depth &gt;= MAX_DEPTH || node.w &lt; MIN_SIZE*2 || node.h &lt; MIN_SIZE*2) return;
+  const horizontal = Math.random() &gt; 0.5;
+  if (horizontal) {
+    const split = randInt(node.y + MIN_SIZE, node.y + node.h - MIN_SIZE);
+    node.left = { x: node.x, y: node.y, w: node.w, h: split - node.y };
+    node.right = { x: node.x, y: split, w: node.w, h: node.h - (split - node.y) };
+  } else {
+    const split = randInt(node.x + MIN_SIZE, node.x + node.w - MIN_SIZE);
+    node.left = { x: node.x, y: node.y, w: split - node.x, h: node.h };
+    node.right = { x: split, y: node.y, w: node.w - (split - node.x), h: node.h };
+  }
+  splitBSP(node.left, depth + 1);
+  splitBSP(node.right, depth + 1);
+}</code></pre>
+<p><strong>優點</strong>：保證空間利用率，無重疊，結構均勻
+<strong>缺點</strong>：生成結果偏向矩形，可能感覺太規則</p>
+<h3 id="2-3-元胞自動機法-cellular-automata">2.3 元胞自動機法（Cellular Automata）</h3>
+<p><strong>原理</strong>：模擬自然洞穴形成——隨機填充地圖後，用鄰居規則迭代平滑。</p>
+<p><strong>4-5 法則</strong>：</p>
+<ul>
+<li>牆壁 + ≥4 個鄰居是牆壁 → 維持牆壁</li>
+<li>空地 + ≥5 個鄰居是牆壁 → 變成牆壁</li>
+<li>迭代 4-7 次產生自然洞穴地形</li>
+</ul>
+<pre><code class="language-javascript">function cellularAutomata(grid, iterations) {
+  for (let i = 0; i &lt; iterations; i++) {
+    const newGrid = grid.map(row =&gt; [...row]);
+    for (let y = 1; y &lt; H-1; y++) {
+      for (let x = 1; x &lt; W-1; x++) {
+        const neighbors = countWallNeighbors(grid, x, y);
+        newGrid[y][x] = neighbors &gt;= 5 ? 1 : 0; // 1=wall, 0=floor
+      }
+    }
+    grid = newGrid;
+  }
+  return grid;
+}</code></pre>
+<p><strong>優點</strong>：生成自然、有機的地形，適合洞穴/自然環境
+<strong>缺點</strong>：可能產生斷開的區域（需 flood fill 驗證連通性）</p>
+<h3 id="2-4-波函數崩塌法-wave-function-collapse-wfc">2.4 波函數崩塌法（Wave Function Collapse, WFC）</h3>
+<p><strong>原理</strong>：基於約束傳播——定義 Tile 之間的鄰接規則，演算法自動生成符合規則的地圖。</p>
+<p><strong>步驟</strong>：</p>
+<ol>
+<li>定義 Tile 集（地板、牆壁、門、走廊等）及其鄰接約束</li>
+<li>初始化所有格子為「所有可能 Tile」的疊加態</li>
+<li>選擇熵最低的格子（可能性最少），隨機崩塌為一個 Tile</li>
+<li>傳播約束給鄰居，移除不相容的可能性</li>
+<li>重複直到所有格子都崩塌（或遇到矛盾需回溯）</li>
+</ol>
+<p><strong>優點</strong>：生成高品質、視覺一致的地圖，支持複雜 Tile 規則
+<strong>缺點</strong>：計算量大，可能需要回溯，配置 Tile 規則較費工</p>
+<h3 id="2-5-混合策略-推薦">2.5 混合策略（推薦）</h3>
+<p>現代 Roguelike 常混合多種方法：</p>
+<ul>
+<li><strong>BSP + WFC</strong>：先用 BSP 分割空間確定房間，再用 WFC 填充細節</li>
+<li><strong>Random Room + A* 走廊</strong>：隨機放置房間，用 A* 尋路挖掘自然走廊</li>
+<li><strong>CA + BSP</strong>：洞穴區用 CA，結構區用 BSP，兩者無縫銜接</li>
+</ul>
+<hr>
+<h2 id="三-物品系統與掉落平衡">三、物品系統與掉落平衡</h2>
+<h3 id="3-1-power-value-計分系統">3.1 Power Value 計分系統</h3>
+<p>每個物品賦予「力量值（Power Value）」，基於屬性加總：</p>
+<pre><code class="language-plaintext">Power = BaseAttack × 1.0 + Defense × 0.8 + Speed × 0.5 + SpecialEffect × 2.0</code></pre>
+<p>掉落時設定目標 Power，隨機生成物品後調整（加 buff/debuff）直到接近目標。</p>
+<h3 id="3-2-稀有度分級-rarity-tiers">3.2 稀有度分級（Rarity Tiers）</h3>
+<table>
+<tr><th>稀有度</th><th>機率</th><th>Power 倍率</th><th>顏色</th></tr>
+<tr><td>Common</td><td>60%</td><td>×1.0</td><td>白色</td></tr>
+<tr><td>Uncommon</td><td>25%</td><td>×1.3</td><td>綠色</td></tr>
+<tr><td>Rare</td><td>10%</td><td>×1.7</td><td>藍色</td></tr>
+<tr><td>Epic</td><td>4%</td><td>×2.2</td><td>紫色</td></tr>
+<tr><td>Legendary</td><td>1%</td><td>×3.0</td><td>金色</td></tr>
+</table>
+<h3 id="3-3-加權掉落表-weighted-loot-table">3.3 加權掉落表（Weighted Loot Table）</h3>
+<pre><code class="language-javascript">function rollLoot(table, playerLevel) {
+  const totalWeight = table.reduce((sum, item) =&gt; sum + item.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const item of table) {
+    roll -= item.weight;
+    if (roll &lt;= 0) {
+      return scaleItem(item, playerLevel);
+    }
+  }
+}
+
+function scaleItem(item, level) {
+  return {
+    ...item,
+    power: item.basePower * (1 + level * 0.1),
+    stats: Object.fromEntries(
+      Object.entries(item.baseStats).map(([k, v]) =&gt; [k, Math.floor(v * (1 + level * 0.08))])
+    )
+  };
+}</code></pre>
+<h3 id="3-4-防挫敗機制-pity-system">3.4 防挫敗機制（Pity System）</h3>
+<ul>
+<li><strong>保底機制</strong>：連續 N 次未掉稀有物品後，強制提升機率</li>
+<li><strong>地板掉落</strong>：每層至少掉落 1 件有用物品，避免「空手」挫敗感</li>
+<li><strong>漸進稀有度</strong>：越深層，Rare+ 物品權重越高</li>
+</ul>
+<hr>
+<h2 id="四-html5-canvas-實作最佳實踐">四、HTML5 Canvas 實作最佳實踐</h2>
+<h3 id="4-1-seed-系統-確定性隨機">4.1 Seed 系統（確定性隨機）</h3>
+<pre><code class="language-javascript">// 使用 Mulberry32 PRNG（輕量、快速）
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed &gt;&gt;&gt; 15, 1 | seed);
+    t = t + Math.imul(t ^ t &gt;&gt;&gt; 7, 61 | t) ^ t;
+    return ((t ^ t &gt;&gt;&gt; 14) &gt;&gt;&gt; 0) / 4294967296;
+  };
+}
+const rng = mulberry32(12345); // 固定 seed = 可重現</code></pre>
+<h3 id="4-2-效能優化">4.2 效能優化</h3>
+<ol>
+<li><strong>格子陣列用 Typed Array</strong>：<code>new Uint8Array(W * H)</code> 替代 2D 陣列</li>
+<li><strong>視窗裁剪（Viewport Culling）</strong>：只繪製可視範圍內的 Tile</li>
+<li><strong>離屏 Canvas 預渲染</strong>：靜態地圖繪製到離屏 Canvas，每幀只 drawImage</li>
+<li><strong>物件池管理</strong>：敵人、粒子、掉落物用物件池避免 GC 壓力</li>
+</ol>
+<h3 id="4-3-難度曲線設計">4.3 難度曲線設計</h3>
+<pre><code class="language-javascript">function generateFloor(floorNum) {
+  const difficulty = 1 + floorNum * 0.15; // 線性遞增
+  return {
+    roomCount: Math.min(5 + Math.floor(floorNum / 3), 15),
+    enemyCount: Math.floor(3 * difficulty),
+    enemyHP: Math.floor(10 * difficulty),
+    lootQuality: Math.min(floorNum * 0.05, 1.0), // 掉落品質上限
+    trapDensity: Math.min(0.02 * difficulty, 0.15),
+    bossEvery: 5 // 每 5 層出 Boss
+  };
+}</code></pre>
+<hr>
+<h2 id="五-與本專案的關聯">五、與本專案的關聯</h2>
+<h3 id="5-1-輪迴塔-tower-of-samsara-應用">5.1 輪迴塔（Tower of Samsara）應用</h3>
+<p>本專案今日完成的「輪迴塔 — Tower of Samsara Roguelike 無限攀塔遊戲」直接使用了 PCG 技術：</p>
+<ul>
+<li><strong>平台配置</strong>：每層隨機生成平台位置、尖刺障礙、道具配置</li>
+<li><strong>六道場景漸變</strong>：根據層數切換視覺主題（人道→天道→修羅道…）</li>
+<li><strong>禪字收集系統</strong>：隨機分布收集物，滿足 Roguelike 的收集驅動</li>
+</ul>
+<h3 id="5-2-可優化方向">5.2 可優化方向</h3>
+<ol>
+<li><strong>BSP 分區生成</strong>：為垂直攀塔遊戲設計垂直 BSP 分割，確保平台可達性</li>
+<li><strong>Seed 分享</strong>：實作 Mulberry32 PRNG，讓玩家分享 seed 碼挑戰同一關卡</li>
+<li><strong>動態難度調整（DDA）</strong>：根據玩家死亡率自動調整平台密度和道具出現率</li>
+<li><strong>Pity System</strong>：連續死亡 N 次後降低難度或增加道具密度</li>
+</ol>
+<h3 id="5-3-通用-daily-digest-prompt-應用">5.3 通用 daily-digest-prompt 應用</h3>
+<ul>
+<li><strong>creative-game-optimize 自動任務</strong>：可將 PCG 技術應用到現有遊戲的關卡生成優化</li>
+<li><strong>遊戲 AI 設計模式</strong>：搭配先前研究的行為樹和 A* 尋路，建構完整的 Roguelike 技術棧</li>
+<li><strong>ECS 架構整合</strong>：先前研究的 Entity-Component-System 模式是 PCG 內容管理的理想架構</li>
+</ul>
+<hr>
+<h2 id="六-常見陷阱與最佳實踐">六、常見陷阱與最佳實踐</h2>
+<h3 id="陷阱">陷阱</h3>
+<ol>
+<li><strong>不可達區域</strong>：生成後必須用 Flood Fill 驗證連通性，斷開區域需用走廊修補</li>
+<li><strong>過度隨機</strong>：100% 隨機 = 無趣。混合手工設計的「骨架」+ PCG 填充是黃金法則</li>
+<li><strong>效能陷阱</strong>：WFC 和大型 CA 可能導致生成卡頓，應在載入畫面或 Web Worker 中預生成</li>
+<li><strong>除錯困難</strong>：隨機內容難以重現 Bug，必須實作 Seed 系統</li>
+</ol>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>定義清晰規則</strong>：可達性、最短路徑長度、資源分布密度都需要量化約束</li>
+<li><strong>混合手工 + PCG</strong>：Boss 房、關鍵劇情點手工設計，其餘 PCG 填充</li>
+<li><strong>大量測試</strong>：建立工具自動模擬數千次生成，統計分析品質指標</li>
+<li><strong>使用 Seed</strong>：確定性隨機支持重現、分享、除錯</li>
+<li><strong>維持設計身份</strong>：PCG 生成的內容必須符合遊戲的主題、美術風格和難度曲線</li>
+</ol>
+<hr>
+<h2 id="七-演算法選型決策樹">七、演算法選型決策樹</h2>
+<pre><code class="language-plaintext">需要什麼類型的地圖？
+├── 結構化房間+走廊 → BSP Tree 或 Random Room
+│   ├── 需要均勻分布 → BSP Tree
+│   └── 需要自由形狀 → Random Room + A*
+├── 自然洞穴/有機地形 → Cellular Automata
+│   └── 需要保證連通 → CA + Flood Fill + 走廊修補
+├── 高品質 Tile 拼接 → Wave Function Collapse
+│   └── 需要快速生成 → WFC + 預計算約束表
+└── 垂直攀塔/平台跳躍 → 分層生成
+    └── 確保可達性 → 由下往上生成 + 跳躍距離約束</code></pre>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="http://pcg.wikidot.com/pcg-algorithm:dungeon-generation">PCG Wiki - Dungeon Generation</a></li>
+<li><a href="https://www.gamedeveloper.com/programming/procedural-dungeon-generation-algorithm">Gamedeveloper - Procedural Dungeon Generation Algorithm</a></li>
+<li><a href="https://rogueliketutorials.com/tutorials/tcod/2019/part-3/">Roguelike Tutorials - Generating a Dungeon</a></li>
+<li><a href="https://slsdo.github.io/procedural-dungeon/">Procedural Dungeon Generator - Future Data Lab</a></li>
+<li><a href="https://shaankhan.dev/blog/wfc-and-bsp-for-procedural-dungeons-2021">WFC + BSP for Procedural Dungeons - Shaan Khan</a></li>
+<li><a href="https://www.wayline.io/blog/roguelike-itemization-balancing-randomness-player-agency">Roguelike Itemization: Balancing Randomness - Wayline</a></li>
+<li><a href="https://genieee.com/procedural-generation-in-mobile-games-a-2025-design-guide/">PCG in Mobile Games Design Guide - Genieee</a></li>
+<li><a href="https://www.gamedeveloper.com/design/loot-drop-best-practices">Loot Drop Best Practices - Gamedeveloper</a></li>
+<li><a href="https://github.com/marukrap/RoguelikeDevResources">Roguelike Dev Resources - GitHub</a></li>
+<li><a href="https://arxiv.org/html/2410.15644v1">PCG Survey with LLM Integration - arXiv</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-19</em>
+<em>研究者：Tech Research Agent（tech_research）</em>
+<em>關聯專案任務：輪迴塔（Tower of Samsara）Roguelike 無限攀塔遊戲</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="系統-log-審查報告---2026-02-19-7847ef7b.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">系統 Log 審查報告 - 2026-02-19</span></a><a href="web-workers-與-offscreencanvas--cb7cf5a2.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Web Workers 與 OffscreenCanvas — 瀏覽器多執行緒遊戲運算完整指南（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="2025-2026 年 Chat 對話系統主流架構模式完整研究：傳輸層、Streaming、前後端分離與工具系統設計">
+  <title>2025-2026 年 Chat 對話系統主流架構模式完整研究：傳輸層、Streaming、前後端分離與工具系統設計 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>2025-2026 年 Chat 對話系統主流架構模式完整研究：傳輸層、Streaming、前後端分離與工具系統設計</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">13 分鐘閱讀</span>
+          <div class="tags"><span class="tag">Chat系統</span><span class="tag">WebSocket</span><span class="tag">SSE</span><span class="tag">FastAPI</span><span class="tag">React</span><span class="tag">Streaming</span><span class="tag">LLM</span><span class="tag">架構設計</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#研究背景">研究背景</a></li><li><a href="#一-傳輸層技術比較-websocket-vs-sse-vs-long-polli">一、傳輸層技術比較：WebSocket vs SSE vs Long Polling</a></li>  <li><a href="#1-1-核心技術差異">1.1 核心技術差異</a></li>  <li><a href="#1-2-效能與頻寬比較">1.2 效能與頻寬比較</a></li>  <li><a href="#1-3-適用場景-2025-2026-最佳實踐">1.3 適用場景（2025-2026 最佳實踐）</a></li>  <li><a href="#1-4-實作建議">1.4 實作建議</a></li><li><a href="#二-llm-streaming-回應實作-token-by-token">二、LLM Streaming 回應實作（Token-by-Token）</a></li>  <li><a href="#2-1-為何需要-streaming">2.1 為何需要 Streaming</a></li>  <li><a href="#2-2-sse-vs-websocket-for-llm-streaming">2.2 SSE vs WebSocket for LLM Streaming</a></li>  <li><a href="#2-3-技術實作細節">2.3 技術實作細節</a></li>  <li><a href="#2-4-客戶端處理-javascript">2.4 客戶端處理（JavaScript）</a></li>  <li><a href="#2-5-websocket-based-realtime-api-新發展">2.5 WebSocket-based Realtime API（新發展）</a></li><li><a href="#三-前後端分離架構模式">三、前後端分離架構模式</a></li>  <li><a href="#3-1-標準技術棧組合-2025-2026">3.1 標準技術棧組合（2025-2026）</a></li>  <li><a href="#3-2-典型架構分層">3.2 典型架構分層</a></li>  <li><a href="#3-3-farm-stack-fastapi-react-mongodb">3.3 FARM Stack（FastAPI + React + MongoDB）</a></li>  <li><a href="#3-4-ai-native-stack-llm-優先架構">3.4 AI-Native Stack（LLM 優先架構）</a></li>  <li><a href="#3-5-開發環境設定">3.5 開發環境設定</a></li>  <li><a href="#3-6-通訊模式">3.6 通訊模式</a></li>  <li><a href="#3-7-生產環境部署模式">3.7 生產環境部署模式</a></li><li><a href="#四-工具系統設計-可擴展的-tool-registry">四、工具系統設計（可擴展的 Tool Registry）</a></li>  <li><a href="#4-1-核心架構原則">4.1 核心架構原則</a></li>  <li><a href="#4-2-模組化分層架構">4.2 模組化分層架構</a></li>  <li><a href="#4-3-plugin-可插拔格式處理器">4.3 Plugin 可插拔格式處理器</a></li>  <li><a href="#4-4-工具發現與搜尋">4.4 工具發現與搜尋</a></li>  <li><a href="#4-5-擴展性模式">4.5 擴展性模式</a></li>  <li><a href="#4-6-安全與隔離">4.6 安全與隔離</a></li>  <li><a href="#4-7-與本專案對照">4.7 與本專案對照</a></li><li><a href="#五-技術棧推薦與選型指南">五、技術棧推薦與選型指南</a></li>  <li><a href="#5-1-推薦組合-2025-2026-主流">5.1 推薦組合（2025-2026 主流）</a></li>  <li><a href="#5-2-關鍵技術選型決策">5.2 關鍵技術選型決策</a></li>  <li><a href="#5-3-部署架構推薦">5.3 部署架構推薦</a></li>  <li><a href="#5-4-開發工具與生態">5.4 開發工具與生態</a></li><li><a href="#六-與本專案-daily-digest-prompt-的對照與應用">六、與本專案（daily-digest-prompt）的對照與應用</a></li>  <li><a href="#6-1-現有架構對應">6.1 現有架構對應</a></li>  <li><a href="#6-2-若要建構-chat-ui">6.2 若要建構 Chat UI</a></li>  <li><a href="#6-3-升級價值">6.3 升級價值</a></li><li><a href="#七-總結與建議">七、總結與建議</a></li>  <li><a href="#7-1-核心結論">7.1 核心結論</a></li>  <li><a href="#7-2-選型建議矩陣">7.2 選型建議矩陣</a></li>  <li><a href="#7-3-未來趨勢">7.3 未來趨勢</a></li><li><a href="#參考來源">參考來源</a></li>  <li><a href="#傳輸層技術">傳輸層技術</a></li>  <li><a href="#llm-streaming-實作">LLM Streaming 實作</a></li>  <li><a href="#前後端架構">前後端架構</a></li>  <li><a href="#工具系統設計">工具系統設計</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>2025-2026 年 Chat 對話系統主流架構模式完整研究：傳輸層、Streaming、前後端分離與工具系統設計</h1>
+<h2 id="研究背景">研究背景</h2>
+<p>本研究在既有「Function Calling 與工具調用架構」基礎上，擴展涵蓋傳輸層技術、前後端分離架構、Streaming 實作、工具系統設計與技術棧推薦，建構完整的 Chat 對話系統知識體系。</p>
+<hr>
+<h2 id="一-傳輸層技術比較-websocket-vs-sse-vs-long-polli">一、傳輸層技術比較：WebSocket vs SSE vs Long Polling</h2>
+<h3 id="1-1-核心技術差異">1.1 核心技術差異</h3>
+<table>
+<tr><th>面向</th><th>WebSocket</th><th>SSE (Server-Sent Events)</th><th>Long Polling</th></tr>
+<tr><td><strong>通訊方向</strong></td><td>全雙工（雙向）</td><td>單向（Server → Client）</td><td>偽雙向（輪詢）</td></tr>
+<tr><td><strong>協議</strong></td><td>WS/WSS（獨立協議）</td><td>HTTP/HTTPS</td><td>HTTP/HTTPS</td></tr>
+<tr><td><strong>連線方式</strong></td><td>持久化連線</td><td>持久化連線</td><td>間歇性連線</td></tr>
+<tr><td><strong>每幀開銷</strong></td><td>2 bytes</td><td>~5 bytes</td><td>數百 bytes（完整 HTTP header）</td></tr>
+<tr><td><strong>自動重連</strong></td><td>需手動實作</td><td>瀏覽器原生支援</td><td>無需（每次重新請求）</td></tr>
+<tr><td><strong>瀏覽器支援</strong></td><td>98%+</td><td>97%+（IE 不支援）</td><td>100%</td></tr>
+<tr><td><strong>CDN/反向代理</strong></td><td>需特別配置</td><td>原生支援</td><td>完全支援</td></tr>
+</table>
+<h3 id="1-2-效能與頻寬比較">1.2 效能與頻寬比較</h3>
+<p><strong>真實世界數據</strong>（來自生產環境）：</p>
+<ul>
+<li><strong>頻寬節省</strong>：1M 事件/日，從 Long Polling 升級到 WebSocket/SSE 可節省 <strong>760 MB 流量</strong></li>
+<li><strong>伺服器成本</strong>：</li>
+</ul>
+<p>  - Long Polling：8 台 c5.2xlarge（$6k/月），CPU 60-80%
+  - 遷移至 SSE 後：3 台（$2.2k/月），CPU 20-30%
+  - <strong>年度節省：$45k</strong></p>
+<p><strong>延遲表現</strong>：</p>
+<ul>
+<li>WebSocket：最低延遲（全雙工單一持久連線）</li>
+<li>SSE：接近 WebSocket（單向但持久連線）</li>
+<li>Long Polling：最高延遲（每次需完整 HTTP 往返 + 重連 CPU 負載）</li>
+</ul>
+<h3 id="1-3-適用場景-2025-2026-最佳實踐">1.3 適用場景（2025-2026 最佳實踐）</h3>
+<p><strong>SSE 被低估</strong>：80% 需要 WebSocket 的場景其實 SSE 就夠了——更簡單、更可靠、陷阱更少。</p>
+<table>
+<tr><th>場景</th><th>推薦方案</th><th>理由</th></tr>
+<tr><td><strong>LLM Token Streaming</strong></td><td>SSE</td><td>單向傳輸、自動重連、HTTP 相容性佳</td></tr>
+<tr><td><strong>即時聊天（Chat）</strong></td><td>WebSocket</td><td>需雙向即時通訊</td></tr>
+<tr><td><strong>儀表板更新/即時股價</strong></td><td>SSE</td><td>伺服器推送資料，客戶端不需回傳</td></tr>
+<tr><td><strong>協作編輯（如 Google Docs）</strong></td><td>WebSocket</td><td>需即時雙向同步</td></tr>
+<tr><td><strong>低頻率通知（每分鐘一次）</strong></td><td>Long Polling</td><td>最節省資源</td></tr>
+<tr><td><strong>弱網路環境（2G/3G）</strong></td><td>Long Polling</td><td>比 WebSocket 穩定</td></tr>
+</table>
+<p><strong>混合策略</strong>：現代應用常同時使用——儀表板更新用 SSE，聊天功能用 WebSocket。Socket.IO 等函式庫會自動在 WebSocket、Polling 等傳輸方式間降級。</p>
+<h3 id="1-4-實作建議">1.4 實作建議</h3>
+<p><strong>漸進式策略</strong>：</p>
+<ol>
+<li>從簡單開始：不要因為潮流就用 WebSocket</li>
+<li>先用一般 HTTP 輪詢 → 若成為瓶頸 → 遷移至 SSE</li>
+<li>若 SSE 不夠 → 才考慮 WebSocket</li>
+</ol>
+<hr>
+<h2 id="二-llm-streaming-回應實作-token-by-token">二、LLM Streaming 回應實作（Token-by-Token）</h2>
+<h3 id="2-1-為何需要-streaming">2.1 為何需要 Streaming</h3>
+<p><strong>2025-2026 共識</strong>：Streaming 不再是「錦上添花」，而是<strong>新標準</strong>。Token-by-token streaming 建立動態的即時「打字」效果，大幅改善使用者體驗，讓應用感覺顯著更靈敏、更互動。</p>
+<h3 id="2-2-sse-vs-websocket-for-llm-streaming">2.2 SSE vs WebSocket for LLM Streaming</h3>
+<p><strong>SSE 勝出</strong>：SSE 以 10% 的複雜度提供 90% WebSocket 的好處。</p>
+<p><strong>SSE 優勢</strong>：</p>
+<ul>
+<li>單向傳輸（正是 LLM 輸出所需）</li>
+<li>輕量級</li>
+<li>基於標準 HTTP</li>
+<li>自動重連（無需額外處理）</li>
+<li>與大多數 CDN/反向代理相容</li>
+</ul>
+<p><strong>結論</strong>：2025-2026 年，<strong>FastAPI + SSE</strong> 已成為 LLM Token Streaming 的標準方案。</p>
+<h3 id="2-3-技術實作細節">2.3 技術實作細節</h3>
+<p>#### 通用 SSE 協議格式</p>
+<p>三大主流 LLM API 工作方式大致相同：</p>
+<pre><code class="language-http">Content-Type: text/event-stream
+
+data: {&quot;id&quot;: &quot;1&quot;, &quot;delta&quot;: {&quot;content&quot;: &quot;Hello&quot;}}\r\n\r\n
+data: {&quot;id&quot;: &quot;2&quot;, &quot;delta&quot;: {&quot;content&quot;: &quot; world&quot;}}\r\n\r\n
+data: [DONE]\r\n\r\n</code></pre>
+<p><strong>關鍵技術點</strong>：</p>
+<ul>
+<li>HTTP Header：<code>Content-Type: text/event-stream</code></li>
+<li>每個資料塊以 <code>\r\n\r\n</code> 分隔</li>
+<li>每塊包含 <code>data: JSON</code> 行</li>
+<li>Anthropic 額外包含 <code>event:</code> 行標註事件類型</li>
+</ul>
+<p>#### OpenAI Streaming 實作</p>
+<pre><code class="language-python"># OpenAI Python SDK
+response = client.chat.completions.create(
+    model=&quot;gpt-4o&quot;,
+    messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello&quot;}],
+    stream=True,
+    stream_options={&quot;include_usage&quot;: True}  # 最終訊息含 token 使用量
+)
+
+for chunk in response:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end=&quot;&quot;)</code></pre>
+<p><strong>特點</strong>：</p>
+<ul>
+<li><code>stream=True</code> 啟用串流</li>
+<li>最後一個 chunk 包含完整 usage 資訊（input + output tokens）</li>
+</ul>
+<p>#### Anthropic/Claude Streaming 實作</p>
+<pre><code class="language-python"># Anthropic Python SDK
+with client.messages.stream(
+    model=&quot;claude-opus-4-6&quot;,
+    max_tokens=1024,
+    messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello&quot;}]
+) as stream:
+    for text in stream.text_stream:
+        print(text, end=&quot;&quot;)</code></pre>
+<p><strong>特點</strong>（2026-02-13 更新）：</p>
+<ul>
+<li>使用 Server-Sent Events (SSE) 串流更新</li>
+<li>訊息開頭包含 input tokens 結構，可在結尾合併 output tokens</li>
+<li>回應格式最近有變更，需注意版本相容性</li>
+</ul>
+<p>#### FastAPI SSE 實作模式</p>
+<pre><code class="language-python">from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+import asyncio
+
+app = FastAPI()
+
+async def token_generator():
+    &quot;&quot;&quot;Async generator for token-by-token streaming&quot;&quot;&quot;
+    tokens = [&quot;Hello&quot;, &quot; &quot;, &quot;world&quot;, &quot;!&quot;]
+    for token in tokens:
+        yield f&quot;data: {json.dumps({&#x27;token&#x27;: token})}\n\n&quot;
+        await asyncio.sleep(0.1)  # 模擬 LLM 生成延遲
+    yield &quot;data: [DONE]\n\n&quot;
+
+@app.get(&quot;/stream&quot;)
+async def stream_tokens():
+    return StreamingResponse(
+        token_generator(),
+        media_type=&quot;text/event-stream&quot;
+    )</code></pre>
+<p><strong>FastAPI 優勢</strong>：</p>
+<ul>
+<li><code>StreamingResponse</code> + async generator 實現高效非阻塞串流</li>
+<li>支援 backpressure-aware yielding</li>
+<li>自動處理連線關閉</li>
+<li>與 Starlette 內建 SSE 能力整合</li>
+</ul>
+<h3 id="2-4-客戶端處理-javascript">2.4 客戶端處理（JavaScript）</h3>
+<pre><code class="language-javascript">const eventSource = new EventSource(&#x27;/stream&#x27;);
+
+eventSource.onmessage = (event) =&gt; {
+    const data = JSON.parse(event.data);
+    if (data.token) {
+        document.getElementById(&#x27;output&#x27;).innerText += data.token;
+    }
+};
+
+eventSource.onerror = () =&gt; {
+    eventSource.close();
+};</code></pre>
+<p><strong>瀏覽器原生 EventSource API</strong>：</p>
+<ul>
+<li>自動重連</li>
+<li>自動解析 <code>data:</code> 行</li>
+<li>簡潔的 API</li>
+</ul>
+<h3 id="2-5-websocket-based-realtime-api-新發展">2.5 WebSocket-based Realtime API（新發展）</h3>
+<p><strong>vLLM Realtime API</strong>（2026）：受 OpenAI Realtime API 啟發的 WebSocket 端點，提供雙向串流。</p>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>需要客戶端即時送回中斷指令（如語音對話的打斷功能）</li>
+<li>多模態互動（語音 + 文字同步）</li>
+</ul>
+<hr>
+<h2 id="三-前後端分離架構模式">三、前後端分離架構模式</h2>
+<h3 id="3-1-標準技術棧組合-2025-2026">3.1 標準技術棧組合（2025-2026）</h3>
+<p>#### 後端：FastAPI</p>
+<p><strong>為何選 FastAPI</strong>：</p>
+<ul>
+<li>高效能（基於 Starlette 與 Pydantic）</li>
+<li>原生 async/await 支援（非阻塞 I/O）</li>
+<li>自動 API 文件生成（OpenAPI/Swagger）</li>
+<li>內建 WebSocket 與 SSE 支援</li>
+<li>型別提示與資料驗證</li>
+</ul>
+<p>#### 前端：React 或 Next.js</p>
+<p><strong>React（Vite）</strong>：</p>
+<ul>
+<li>快速開發熱模組重載（HMR）</li>
+<li>靈活的 UI 元件化</li>
+<li>強大的生態系統</li>
+</ul>
+<p><strong>Next.js</strong>：</p>
+<ul>
+<li>伺服器端渲染（SSR）</li>
+<li>檔案式路由</li>
+<li>API Routes（可作為 BFF 層）</li>
+<li>內建效能優化</li>
+</ul>
+<h3 id="3-2-典型架構分層">3.2 典型架構分層</h3>
+<pre><code class="language-plaintext">┌─────────────────────────────────────────┐
+│          前端 (React / Next.js)          │
+│  - UI Components                         │
+│  - State Management (Zustand/Jotai)     │
+│  - WebSocket/SSE Client                  │
+└──────────────┬──────────────────────────┘
+               │ HTTP / WebSocket / SSE
+┌──────────────▼──────────────────────────┐
+│          後端 (FastAPI)                  │
+│  - API Endpoints                         │
+│  - WebSocket/SSE Handlers                │
+│  - LLM Orchestration (LangChain)         │
+│  - Tool Execution                        │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│          資料層                          │
+│  - MongoDB / PostgreSQL                  │
+│  - Redis (Cache / Session)               │
+│  - Vector DB (RAG)                       │
+└─────────────────────────────────────────┘</code></pre>
+<h3 id="3-3-farm-stack-fastapi-react-mongodb">3.3 FARM Stack（FastAPI + React + MongoDB）</h3>
+<p><strong>FARM = FastAPI + React + MongoDB</strong></p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>全 JavaScript/Python 棧（團隊技能統一）</li>
+<li>FastAPI 高效能 Python 後端</li>
+<li>React 靈活前端</li>
+<li>MongoDB 可擴展 NoSQL 資料庫</li>
+<li>最小設定快速搭建強健應用</li>
+</ul>
+<h3 id="3-4-ai-native-stack-llm-優先架構">3.4 AI-Native Stack（LLM 優先架構）</h3>
+<p><strong>技術組合</strong>：</p>
+<ul>
+<li><strong>LangChain</strong>：AI 編排（chain、agent、memory）</li>
+<li><strong>FastAPI</strong>：高效能 Python 後端</li>
+<li><strong>Next.js</strong>：前端（支援 SSR）</li>
+</ul>
+<p><strong>為何 AI-Native</strong>：消除將 AI 後加到傳統架構的摩擦，專為聊天機器人與 LLM 功能設計。</p>
+<h3 id="3-5-開發環境設定">3.5 開發環境設定</h3>
+<p><strong>典型 Monorepo 結構</strong>：</p>
+<pre><code class="language-plaintext">project/
+├── frontend/          # React / Next.js
+│   ├── src/
+│   ├── package.json
+│   └── vite.config.ts
+├── backend/           # FastAPI
+│   ├── app/
+│   ├── requirements.txt
+│   └── main.py
+└── docker-compose.yml # 可選</code></pre>
+<p><strong>開發流程</strong>：</p>
+<ul>
+<li>終端 1：<code>cd frontend &amp;&amp; npm run dev</code>（Vite dev server，port 5173）</li>
+<li>終端 2：<code>cd backend &amp;&amp; uvicorn main:app --reload</code>（FastAPI，port 8000）</li>
+</ul>
+<p><strong>CORS 配置</strong>（FastAPI）：</p>
+<pre><code class="language-python">from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[&quot;http://localhost:5173&quot;],  # React dev server
+    allow_credentials=True,
+    allow_methods=[&quot;*&quot;],
+    allow_headers=[&quot;*&quot;],
+)</code></pre>
+<h3 id="3-6-通訊模式">3.6 通訊模式</h3>
+<p><strong>RESTful API</strong>：</p>
+<ul>
+<li>CRUD 操作</li>
+<li>使用者認證</li>
+<li>配置管理</li>
+</ul>
+<p><strong>WebSocket</strong>（雙向即時）：</p>
+<ul>
+<li>聊天訊息</li>
+<li>協作編輯</li>
+<li>即時通知</li>
+</ul>
+<p><strong>SSE</strong>（單向串流）：</p>
+<ul>
+<li>LLM token streaming</li>
+<li>進度更新</li>
+<li>儀表板即時資料</li>
+</ul>
+<h3 id="3-7-生產環境部署模式">3.7 生產環境部署模式</h3>
+<p><strong>容器化部署</strong>：</p>
+<pre><code class="language-yaml"># docker-compose.yml
+version: &#x27;3.8&#x27;
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - &quot;80:80&quot;
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    ports:
+      - &quot;8000:8000&quot;
+    environment:
+      - DATABASE_URL=postgresql://...
+      - REDIS_URL=redis://...
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:15
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine</code></pre>
+<p><strong>Serverless 選項</strong>：</p>
+<ul>
+<li>前端：Vercel / Netlify</li>
+<li>後端：AWS Lambda + API Gateway / Cloudflare Workers</li>
+</ul>
+<hr>
+<h2 id="四-工具系統設計-可擴展的-tool-registry">四、工具系統設計（可擴展的 Tool Registry）</h2>
+<h3 id="4-1-核心架構原則">4.1 核心架構原則</h3>
+<p><strong>ToolRegistry 三大核心原則</strong>（2026 最佳實踐）：</p>
+<ol>
+<li><strong>協議無關性（Protocol Agnosticism）</strong>：不綁定特定 LLM 供應商</li>
+<li><strong>開發者簡化（Developer Simplicity）</strong>：降低整合門檻</li>
+<li><strong>執行效率（Execution Efficiency）</strong>：最小化開銷</li>
+</ol>
+<h3 id="4-2-模組化分層架構">4.2 模組化分層架構</h3>
+<pre><code class="language-plaintext">┌─────────────────────────────────────────┐
+│       Tool Definition Layer              │
+│  - JSON Schema / Python TypedDict        │
+│  - Description + Parameters              │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│       Tool Registry Layer                │
+│  - Tool Discovery (list/search)          │
+│  - Format Handler (動態註冊新 provider)   │
+│  - Validation (schema check)             │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│       Execution Layer                    │
+│  - Sandboxed Execution                   │
+│  - Timeout Control                       │
+│  - Error Handling                        │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│       Result Aggregation Layer           │
+│  - Parallel Call Merging                 │
+│  - Result Formatting                     │
+└─────────────────────────────────────────┘</code></pre>
+<h3 id="4-3-plugin-可插拔格式處理器">4.3 Plugin 可插拔格式處理器</h3>
+<p><strong>動態註冊範例</strong>：</p>
+<pre><code class="language-python">class ToolRegistry:
+    def __init__(self):
+        self._tools = {}
+        self._format_handlers = {
+            &quot;openai&quot;: OpenAIFormatHandler(),
+            &quot;anthropic&quot;: AnthropicFormatHandler(),
+            &quot;mcp&quot;: MCPFormatHandler(),
+        }
+    
+    def register_format_handler(self, name: str, handler):
+        &quot;&quot;&quot;動態新增 provider 無需修改核心&quot;&quot;&quot;
+        self._format_handlers[name] = handler
+    
+    def register_tool(self, tool_def: dict, format: str = &quot;openai&quot;):
+        handler = self._format_handlers[format]
+        normalized = handler.normalize(tool_def)
+        self._tools[normalized[&#x27;name&#x27;]] = normalized</code></pre>
+<h3 id="4-4-工具發現與搜尋">4.4 工具發現與搜尋</h3>
+<p><strong>靜態發現</strong>（OpenAI/Claude）：</p>
+<pre><code class="language-python">tools = [
+    {&quot;type&quot;: &quot;function&quot;, &quot;function&quot;: {...}},
+    {&quot;type&quot;: &quot;function&quot;, &quot;function&quot;: {...}}
+]
+# 在每次 API 呼叫時提供</code></pre>
+<p><strong>動態發現</strong>（MCP）：</p>
+<pre><code class="language-python"># Client → Server
+{&quot;jsonrpc&quot;: &quot;2.0&quot;, &quot;method&quot;: &quot;tools/list&quot;}
+
+# Server → Client
+{
+  &quot;tools&quot;: [
+    {&quot;name&quot;: &quot;get_weather&quot;, &quot;description&quot;: &quot;...&quot;, &quot;inputSchema&quot;: {...}},
+    {&quot;name&quot;: &quot;search_web&quot;, &quot;description&quot;: &quot;...&quot;, &quot;inputSchema&quot;: {...}}
+  ]
+}</code></pre>
+<p><strong>混合模式</strong>（本專案 SKILL_INDEX.md）：</p>
+<ul>
+<li>索引檔案提供快速查詢</li>
+<li>按需載入完整 SKILL.md</li>
+<li>支援標籤路由與關鍵字路由</li>
+</ul>
+<h3 id="4-5-擴展性模式">4.5 擴展性模式</h3>
+<p><strong>1. Decorator-based Registration</strong>（Python）：</p>
+<pre><code class="language-python">from tool_registry import tool
+
+@tool(
+    name=&quot;get_weather&quot;,
+    description=&quot;取得指定地點的天氣&quot;,
+    parameters={
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;properties&quot;: {
+            &quot;location&quot;: {&quot;type&quot;: &quot;string&quot;}
+        }
+    }
+)
+async def get_weather(location: str) -&gt; dict:
+    # 實作
+    return {&quot;temp&quot;: 25, &quot;condition&quot;: &quot;sunny&quot;}</code></pre>
+<p><strong>2. Manifest-based Discovery</strong>（類似瀏覽器擴充套件）：</p>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;weather-tools&quot;,
+  &quot;version&quot;: &quot;1.0.0&quot;,
+  &quot;tools&quot;: [
+    {
+      &quot;id&quot;: &quot;get_weather&quot;,
+      &quot;handler&quot;: &quot;handlers/weather.py:get_weather&quot;,
+      &quot;schema&quot;: &quot;schemas/weather.json&quot;
+    }
+  ]
+}</code></pre>
+<p><strong>3. MCP Server 模式</strong>（標準化）：</p>
+<pre><code class="language-python"># 每個工具作為獨立 MCP Server
+# Client 動態連線多個 Servers
+# 自動發現與整合</code></pre>
+<h3 id="4-6-安全與隔離">4.6 安全與隔離</h3>
+<p><strong>執行隔離</strong>：</p>
+<ul>
+<li>Sandboxed 執行環境（Docker / Firecracker）</li>
+<li>資源限制（CPU / Memory / Network）</li>
+<li>Timeout 強制終止</li>
+</ul>
+<p><strong>權限管理</strong>：</p>
+<ul>
+<li>工具分級（read-only / read-write / privileged）</li>
+<li>使用者確認（Human-in-the-Loop）</li>
+<li>審計日誌</li>
+</ul>
+<h3 id="4-7-與本專案對照">4.7 與本專案對照</h3>
+<p><strong>daily-digest-prompt 的工具系統</strong>：</p>
+<table>
+<tr><th>本專案實作</th><th>標準化對應</th><th>說明</th></tr>
+<tr><td><code>SKILL_INDEX.md</code></td><td><code>tools/list</code></td><td>工具發現索引</td></tr>
+<tr><td><code>routing.yaml</code></td><td>Tool Selection</td><td>三層路由決策</td></tr>
+<tr><td><code>skills/&lt;name&gt;/SKILL.md</code></td><td>Tool Definition</td><td>完整規格與執行邏輯</td></tr>
+<tr><td>子 Agent 模板</td><td>Execution Handler</td><td>實際執行邏輯</td></tr>
+<tr><td><code>api-cache</code></td><td>Middleware</td><td>快取與降級</td></tr>
+</table>
+<p><strong>升級路徑</strong>：將現有 Skills 封裝為 MCP Servers，實現跨 LLM 平台相容。</p>
+<hr>
+<h2 id="五-技術棧推薦與選型指南">五、技術棧推薦與選型指南</h2>
+<h3 id="5-1-推薦組合-2025-2026-主流">5.1 推薦組合（2025-2026 主流）</h3>
+<p>#### 方案 A：FARM Stack（全端 JavaScript/Python）</p>
+<pre><code class="language-plaintext">前端：React (Vite) + TypeScript
+後端：FastAPI + Pydantic
+資料庫：MongoDB
+快取：Redis
+部署：Docker + Nginx</code></pre>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>團隊熟悉 Python + JavaScript</li>
+<li>需要快速原型開發</li>
+<li>資料結構靈活（NoSQL 優勢）</li>
+</ul>
+<p>#### 方案 B：AI-Native Stack（LLM 優先）</p>
+<pre><code class="language-plaintext">前端：Next.js 14 (App Router)
+後端：FastAPI + LangChain
+資料庫：PostgreSQL + pgvector (RAG)
+快取：Redis
+部署：Vercel (前端) + Railway (後端)</code></pre>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>LLM 功能為核心</li>
+<li>需要 RAG 與向量搜尋</li>
+<li>SEO 需求（Next.js SSR）</li>
+</ul>
+<p>#### 方案 C：Serverless / 邊緣運算</p>
+<pre><code class="language-plaintext">前端：Next.js + React
+後端：Cloudflare Workers + D1 + Vectorize
+LLM：Cloudflare Workers AI
+部署：Cloudflare Pages + Workers</code></pre>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li>全球低延遲需求</li>
+<li>成本優化（按量計費）</li>
+<li>不需複雜狀態管理</li>
+</ul>
+<h3 id="5-2-關鍵技術選型決策">5.2 關鍵技術選型決策</h3>
+<p>#### 前端框架</p>
+<table>
+<tr><th>框架</th><th>優勢</th><th>適用場景</th></tr>
+<tr><td>React (Vite)</td><td>靈活、生態豐富、HMR 快</td><td>SPA、儀表板</td></tr>
+<tr><td>Next.js</td><td>SSR、SEO、檔案路由</td><td>需 SEO 的公開網站</td></tr>
+<tr><td>Vue 3</td><td>學習曲線平緩、響應式佳</td><td>中小型專案</td></tr>
+</table>
+<p>#### 後端框架（Python）</p>
+<table>
+<tr><th>框架</th><th>優勢</th><th>適用場景</th></tr>
+<tr><td>FastAPI</td><td>高效能、async、自動文件</td><td>LLM API、即時應用</td></tr>
+<tr><td>Django</td><td>完整生態、ORM 強大</td><td>傳統 Web 應用</td></tr>
+<tr><td>Flask</td><td>輕量、簡單</td><td>微服務、小型 API</td></tr>
+</table>
+<p><strong>FastAPI 為何勝出</strong>（2026）：</p>
+<ul>
+<li>原生 async/await（WebSocket/SSE 支援佳）</li>
+<li>Pydantic 資料驗證（LLM 輸出結構化）</li>
+<li>自動生成 OpenAPI 文件（開發效率高）</li>
+<li>LangChain 整合緊密</li>
+</ul>
+<p>#### 資料庫選擇</p>
+<table>
+<tr><th>資料庫</th><th>適用場景</th><th>理由</th></tr>
+<tr><td>PostgreSQL + pgvector</td><td>需 RAG 向量搜尋</td><td>單一資料庫支援關聯 + 向量</td></tr>
+<tr><td>MongoDB</td><td>彈性 schema、文件儲存</td><td>聊天歷史、JSON 結構</td></tr>
+<tr><td>Redis</td><td>快取、Session、訊息佇列</td><td>高速存取、Pub/Sub</td></tr>
+<tr><td>SQLite</td><td>單機應用、原型開發</td><td>輕量、零配置</td></tr>
+</table>
+<p>#### 傳輸層選擇</p>
+<table>
+<tr><th>需求</th><th>推薦方案</th><th>理由</th></tr>
+<tr><td>LLM Token Streaming</td><td>SSE</td><td>單向、自動重連、HTTP 相容</td></tr>
+<tr><td>即時聊天</td><td>WebSocket</td><td>雙向即時</td></tr>
+<tr><td>儀表板更新</td><td>SSE</td><td>伺服器推送足夠</td></tr>
+<tr><td>低頻通知</td><td>Long Polling</td><td>最節省資源</td></tr>
+</table>
+<h3 id="5-3-部署架構推薦">5.3 部署架構推薦</h3>
+<p>#### 開發環境</p>
+<pre><code class="language-bash"># 前端 (port 5173)
+cd frontend &amp;&amp; npm run dev
+
+# 後端 (port 8000)
+cd backend &amp;&amp; uvicorn main:app --reload
+
+# Redis
+docker run -p 6379:6379 redis:7-alpine</code></pre>
+<p>#### 生產環境</p>
+<p><strong>容器化部署</strong>：</p>
+<pre><code class="language-plaintext">Load Balancer (Nginx/Cloudflare)
+  ↓
+Frontend (Docker: React build)
+  ↓
+Backend (Docker: FastAPI + Gunicorn/Uvicorn)
+  ↓
+Database (PostgreSQL/MongoDB)
+Cache (Redis)</code></pre>
+<p><strong>Serverless 部署</strong>：</p>
+<pre><code class="language-plaintext">Frontend: Vercel / Netlify
+Backend: AWS Lambda / Cloudflare Workers
+Database: PlanetScale / Neon (Serverless PostgreSQL)
+Cache: Upstash Redis</code></pre>
+<h3 id="5-4-開發工具與生態">5.4 開發工具與生態</h3>
+<p><strong>必備工具</strong>：</p>
+<ul>
+<li><strong>型別檢查</strong>：TypeScript (前端) + Pydantic (後端)</li>
+<li><strong>API 測試</strong>：Postman / Thunder Client</li>
+<li><strong>WebSocket 測試</strong>：websocat / Postman</li>
+<li><strong>日誌分析</strong>：structlog + ELK Stack</li>
+<li><strong>監控</strong>：Prometheus + Grafana</li>
+</ul>
+<p><strong>FastAPI 生態</strong>：</p>
+<ul>
+<li><strong>ORM</strong>：SQLAlchemy / Tortoise ORM</li>
+<li><strong>認證</strong>：FastAPI-Users / Authlib</li>
+<li><strong>任務佇列</strong>：Celery + Redis / Arq</li>
+<li><strong>LLM 整合</strong>：LangChain / LlamaIndex</li>
+</ul>
+<hr>
+<h2 id="六-與本專案-daily-digest-prompt-的對照與應用">六、與本專案（daily-digest-prompt）的對照與應用</h2>
+<h3 id="6-1-現有架構對應">6.1 現有架構對應</h3>
+<table>
+<tr><th>本專案設計</th><th>Chat 系統對應</th><th>說明</th></tr>
+<tr><td>SKILL_INDEX.md</td><td>Tool Registry</td><td>工具發現索引</td></tr>
+<tr><td>routing.yaml</td><td>Tool Selection Logic</td><td>三層路由 = 工具選擇策略</td></tr>
+<tr><td>sub-agent 模板</td><td>Tool Execution Handler</td><td>各工具執行邏輯</td></tr>
+<tr><td>api-cache</td><td>Middleware</td><td>快取與降級 = 生產環境防護</td></tr>
+<tr><td>ntfy-notify</td><td>Notification System</td><td>結果通知 = 工具執行完成回呼</td></tr>
+</table>
+<h3 id="6-2-若要建構-chat-ui">6.2 若要建構 Chat UI</h3>
+<p><strong>推薦架構</strong>：</p>
+<pre><code class="language-plaintext">前端：React + Vite + Zustand
+  - Chat UI Components
+  - EventSource (SSE client)
+  
+後端：FastAPI + MCP Protocol
+  - 將 Skills 封裝為 MCP Servers
+  - SSE endpoint for token streaming
+  - Tool execution via MCP tools/call
+  
+傳輸：SSE (Token Streaming) + HTTP (Tool Calls)</code></pre>
+<p><strong>實作步驟</strong>：</p>
+<ol>
+<li><strong>Skills → MCP Servers</strong>：每個 Skill 轉為獨立 MCP Server</li>
+<li><strong>路由邏輯 → Tool Selection</strong>：routing.yaml 規則映射為 LLM 的工具選擇提示</li>
+<li><strong>FastAPI SSE Endpoint</strong>：實作 <code>/chat/stream</code> 端點</li>
+<li><strong>React Chat UI</strong>：EventSource 接收 tokens，顯示打字效果</li>
+</ol>
+<h3 id="6-3-升級價值">6.3 升級價值</h3>
+<p><strong>動態工具發現</strong>：新增 Skill 後自動可用，無需修改前端程式碼</p>
+<p><strong>標準化錯誤處理</strong>：MCP 協議統一錯誤格式</p>
+<p><strong>跨 LLM 相容</strong>：不綁定 OpenAI/Claude，可切換模型供應商</p>
+<hr>
+<h2 id="七-總結與建議">七、總結與建議</h2>
+<h3 id="7-1-核心結論">7.1 核心結論</h3>
+<ol>
+<li><strong>傳輸層</strong>：LLM streaming 首選 SSE，雙向聊天用 WebSocket</li>
+<li><strong>前後端分離</strong>：FastAPI + React/Next.js 已成 2025-2026 主流</li>
+<li><strong>Streaming 實作</strong>：FastAPI StreamingResponse + async generator = 最簡潔方案</li>
+<li><strong>工具系統</strong>：MCP 協議成為事實標準，ToolRegistry 提供協議無關抽象層</li>
+<li><strong>技術棧</strong>：FARM Stack（通用）或 AI-Native Stack（LLM 優先）</li>
+</ol>
+<h3 id="7-2-選型建議矩陣">7.2 選型建議矩陣</h3>
+<table>
+<tr><th>專案特徵</th><th>推薦技術棧</th></tr>
+<tr><td>LLM 為核心功能</td><td>FastAPI + Next.js + LangChain + PostgreSQL/pgvector</td></tr>
+<tr><td>需全球低延遲</td><td>Cloudflare Workers + D1 + Vectorize + Pages</td></tr>
+<tr><td>快速原型開發</td><td>FastAPI + React (Vite) + MongoDB</td></tr>
+<tr><td>企業級 + RAG</td><td>FastAPI + Next.js + PostgreSQL/pgvector + Redis</td></tr>
+</table>
+<h3 id="7-3-未來趨勢">7.3 未來趨勢</h3>
+<ul>
+<li><strong>MCP 協議普及</strong>：2026 年將有更多 LLM 供應商支援 MCP</li>
+<li><strong>邊緣運算崛起</strong>：Cloudflare Workers AI 等邊緣 LLM 推論</li>
+<li><strong>Streaming 成標配</strong>：非 streaming 回應將被視為糟糕體驗</li>
+<li><strong>Multi-Agent 協作</strong>：工具系統演進為 Agent 網路（Handoff、Multi-Agent Orchestration）</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<h3 id="傳輸層技術">傳輸層技術</h3>
+<ul>
+<li>Polling vs. Long Polling vs. SSE vs. WebSockets vs. Webhooks (blog.algomaster.io)</li>
+<li>WebSockets vs. SSE vs. Long Polling: Which Should You Use? (blog.openreplay.com)</li>
+<li>WebSocket vs SSE vs Long Polling: Choosing Real-time in 2025 (potapov.me)</li>
+<li>Server-Sent Events (SSE) vs WebSockets vs Long Polling: What&#x27;s Best in 2025? (medium.com/@ShantKhayalian)</li>
+</ul>
+<h3 id="llm-streaming-實作">LLM Streaming 實作</h3>
+<ul>
+<li>FastAPI + SSE for LLM Tokens: Smooth Streaming without WebSockets (medium.com/@hadiyolworld007)</li>
+<li>Stream LLM Output in FastAPI: A 5-Step 2025 Tutorial (junkangworld.com)</li>
+<li>FastAPI Server-Sent Events for LLM Streaming: Smooth Tokens, Low Latency (medium.com/@2nick2patel2)</li>
+<li>How to Stream LLM Responses in Real-Time Using FastAPI and SSE (blog.gopenai.com)</li>
+<li>Comparing the streaming response structure for different LLM APIs (medium.com/percolation-labs)</li>
+<li>How streaming LLM APIs work - Simon Willison&#x27;s TILs (til.simonwillison.net)</li>
+</ul>
+<h3 id="前後端架構">前後端架構</h3>
+<ul>
+<li>Build a Production Chatbot Web App with LangChain (FastAPI + React + RAG + Streaming) (thelinuxcode.com)</li>
+<li>FastAPI + WebSockets + React: Real-Time Features for Your Modern Apps (medium.com/@suganthi2496)</li>
+<li>FARM Stack Guide: How to Build Full-Stack Apps with FastAPI, React &amp; MongoDB (datacamp.com)</li>
+<li>How to Incorporate Advanced WebSocket Architectures in FastAPI for High Performance Real Time Systems (hexshift.medium.com)</li>
+</ul>
+<h3 id="工具系統設計">工具系統設計</h3>
+<ul>
+<li>ToolRegistry: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs (arxiv.org/html/2507.10593v1)</li>
+<li>LLM Agent Architecture Explained: Components and Applications (leanware.co)</li>
+<li>Top 7 Open Source AI Agent Frameworks for Building AI Agents (adopt.ai)</li>
+<li>5 Key Trends Shaping Agentic Development in 2026 (thenewstack.io)</li>
+</ul>
+<hr>
+<p><em>研究日期：2026-02-19</em>  
+<em>研究者：Claude Code Agent</em>  
+<em>任務類型：chat 對話系統架構研究</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="unsloth-故障排除與效能調優實戰指南2026-51b93502.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Unsloth 故障排除與效能調優實戰指南（2026）</span></a><a href="ai-深度研究世界模型world-models-從語-96fc92d2.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">AI 深度研究：世界模型（World Models）— 從語言預測到物理世界模擬的典範轉移（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

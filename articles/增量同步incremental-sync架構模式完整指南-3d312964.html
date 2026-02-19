@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="增量同步（Incremental Sync）架構模式完整指南：差異偵測、衝突解決與大規模資料同步策略（2026）">
+  <title>增量同步（Incremental Sync）架構模式完整指南：差異偵測、衝突解決與大規模資料同步策略（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>增量同步（Incremental Sync）架構模式完整指南：差異偵測、衝突解決與大規模資料同步策略（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">增量同步</span><span class="tag">Incremental Sync</span><span class="tag">CDC</span><span class="tag">CRDT</span><span class="tag">差異同步</span><span class="tag">衝突解決</span><span class="tag">資料同步</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#一-技術概述">一、技術概述</a></li><li><a href="#二-核心概念與原理">二、核心概念與原理</a></li>  <li><a href="#2-1-增量同步的三步流程">2.1 增量同步的三步流程</a></li>  <li><a href="#2-2-同步水位標記-watermark">2.2 同步水位標記（Watermark）</a></li><li><a href="#三-四大變更偵測機制">三、四大變更偵測機制</a></li>  <li><a href="#3-1-時間戳型-timestamp-based">3.1 時間戳型（Timestamp-Based）</a></li>  <li><a href="#3-2-日誌型-cdc-log-based-change-data-captur">3.2 日誌型 CDC（Log-Based Change Data Capture）</a></li>  <li><a href="#3-3-觸發器型-trigger-based">3.3 觸發器型（Trigger-Based）</a></li>  <li><a href="#3-4-快照比對法-snapshot-comparison">3.4 快照比對法（Snapshot Comparison）</a></li>  <li><a href="#機制選型矩陣">機制選型矩陣</a></li><li><a href="#四-衝突解決策略">四、衝突解決策略</a></li>  <li><a href="#4-1-last-write-wins-lww">4.1 Last-Write-Wins（LWW）</a></li>  <li><a href="#4-2-crdts-conflict-free-replicated-data-">4.2 CRDTs（Conflict-Free Replicated Data Types）</a></li>  <li><a href="#4-3-differential-synchronization-差異同步">4.3 Differential Synchronization（差異同步）</a></li><li><a href="#五-最佳實踐與常見陷阱">五、最佳實踐與常見陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li>  <li><a href="#常見陷阱">常見陷阱</a></li><li><a href="#六-與本專案-daily-digest-prompt-的關聯">六、與本專案（daily-digest-prompt）的關聯</a></li>  <li><a href="#6-1-現有同步場景分析">6.1 現有同步場景分析</a></li>  <li><a href="#6-2-可改進方向">6.2 可改進方向</a></li>  <li><a href="#6-3-程式碼範例-知識庫增量同步">6.3 程式碼範例：知識庫增量同步</a></li><li><a href="#七-新興趨勢-2026">七、新興趨勢（2026）</a></li><li><a href="#八-參考來源">八、參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>增量同步（Incremental Sync）架構模式完整指南</h1>
+<h2 id="一-技術概述">一、技術概述</h2>
+<p>增量同步（Incremental Sync）是一種僅傳輸自上次同步以來變更的資料（新增、修改、刪除）的同步策略，相較於全量同步（Full Sync）可大幅降低網路頻寬、運算資源與延遲。在現代分散式系統、多裝置協作、離線優先應用中，增量同步已成為資料一致性的核心架構模式。本指南涵蓋四大變更偵測機制、三大衝突解決策略，以及與本專案（daily-digest-prompt）的具體應用方案。</p>
+<hr>
+<h2 id="二-核心概念與原理">二、核心概念與原理</h2>
+<h3 id="2-1-增量同步的三步流程">2.1 增量同步的三步流程</h3>
+<pre><code class="language-plaintext">變更偵測（Change Detection）→ 選擇性傳輸（Selective Transfer）→ 合併應用（Merge &amp; Apply）</code></pre>
+<ol>
+<li><strong>變更偵測</strong>：識別自上次同步點以來的新增、修改、刪除記錄</li>
+<li><strong>選擇性傳輸</strong>：僅傳輸差異資料（delta），非完整資料集</li>
+<li><strong>合併應用</strong>：在目標端執行 UPSERT/MERGE 操作，處理衝突</li>
+</ol>
+<h3 id="2-2-同步水位標記-watermark">2.2 同步水位標記（Watermark）</h3>
+<p>每次同步完成後記錄一個「水位標記」（通常是時間戳或序號），下次同步僅處理超過此標記的記錄。這是最基本也最廣泛使用的增量同步機制。</p>
+<hr>
+<h2 id="三-四大變更偵測機制">三、四大變更偵測機制</h2>
+<h3 id="3-1-時間戳型-timestamp-based">3.1 時間戳型（Timestamp-Based）</h3>
+<p><strong>原理</strong>：追蹤 <code>modified_at</code> 欄位，僅載入超過上次水位標記的記錄。</p>
+<pre><code class="language-javascript">// 範例：基於時間戳的增量查詢
+async function incrementalSync(lastSyncTimestamp) {
+  const changes = await db.query(
+    &#x27;SELECT * FROM records WHERE modified_at &gt; ? ORDER BY modified_at ASC&#x27;,
+    [lastSyncTimestamp]
+  );
+  // 處理變更...
+  const newWatermark = changes.length &gt; 0 
+    ? changes[changes.length - 1].modified_at 
+    : lastSyncTimestamp;
+  return { changes, newWatermark };
+}</code></pre>
+<p><strong>優點</strong>：實作簡單、開銷低、易於監控
+<strong>缺點</strong>：無法捕獲刪除操作（需搭配軟刪除）、時間戳精度問題、分散式系統時鐘偏移</p>
+<h3 id="3-2-日誌型-cdc-log-based-change-data-captur">3.2 日誌型 CDC（Log-Based Change Data Capture）</h3>
+<p><strong>原理</strong>：直接從資料庫交易日誌（Transaction Log）讀取變更。</p>
+<ul>
+<li>PostgreSQL：使用 WAL（Write-Ahead Log）+ logical decoding</li>
+<li>MySQL：使用 Binlog</li>
+<li>MongoDB：使用 Change Streams</li>
+</ul>
+<p><strong>優點</strong>：近即時、捕獲所有操作（含刪除）、完整審計軌跡
+<strong>缺點</strong>：資料庫特定實作、設置複雜、需要額外權限</p>
+<h3 id="3-3-觸發器型-trigger-based">3.3 觸發器型（Trigger-Based）</h3>
+<p><strong>原理</strong>：資料庫觸發器在每次 INSERT/UPDATE/DELETE 時，將變更詳情寫入影子表（Shadow Table）。</p>
+<pre><code class="language-sql">-- 影子表記錄所有變更
+CREATE TABLE changes_log (
+  id SERIAL PRIMARY KEY,
+  table_name TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  operation TEXT NOT NULL, -- INSERT, UPDATE, DELETE
+  changed_at TIMESTAMP DEFAULT NOW(),
+  old_data JSONB,
+  new_data JSONB
+);
+
+-- 觸發器範例
+CREATE TRIGGER track_changes
+AFTER INSERT OR UPDATE OR DELETE ON records
+FOR EACH ROW EXECUTE FUNCTION log_change();</code></pre>
+<p><strong>優點</strong>：細粒度追蹤、適用任何支援觸發器的資料庫
+<strong>缺點</strong>：增加源系統負擔、影子表需要定期清理</p>
+<h3 id="3-4-快照比對法-snapshot-comparison">3.4 快照比對法（Snapshot Comparison）</h3>
+<p><strong>原理</strong>：定期拍攝完整快照，比較前後差異。</p>
+<p><strong>優點</strong>：適用任何資料源（含無 CDC 支援的系統）、無需修改源系統
+<strong>缺點</strong>：計算與儲存開銷大、延遲高、不適合即時場景</p>
+<h3 id="機制選型矩陣">機制選型矩陣</h3>
+<table>
+<tr><th>特性</th><th>時間戳</th><th>日誌 CDC</th><th>觸發器</th><th>快照比對</th></tr>
+<tr><td>實作複雜度</td><td>低</td><td>高</td><td>中</td><td>低</td></tr>
+<tr><td>即時性</td><td>中</td><td>高</td><td>中</td><td>低</td></tr>
+<tr><td>捕獲刪除</td><td>否</td><td>是</td><td>是</td><td>是</td></tr>
+<tr><td>源系統開銷</td><td>低</td><td>極低</td><td>中</td><td>高</td></tr>
+<tr><td>適用場景</td><td>一般應用</td><td>企業級</td><td>中型系統</td><td>遺留系統</td></tr>
+</table>
+<hr>
+<h2 id="四-衝突解決策略">四、衝突解決策略</h2>
+<h3 id="4-1-last-write-wins-lww">4.1 Last-Write-Wins（LWW）</h3>
+<p>最簡單的策略：以最新時間戳的寫入為準。</p>
+<pre><code class="language-javascript">function resolveConflict(local, remote) {
+  return local.modified_at &gt; remote.modified_at ? local : remote;
+}</code></pre>
+<p><strong>優點</strong>：實作簡單、效能高
+<strong>缺點</strong>：可能丟失並行修改、依賴準確時鐘</p>
+<h3 id="4-2-crdts-conflict-free-replicated-data-">4.2 CRDTs（Conflict-Free Replicated Data Types）</h3>
+<p>CRDT 是一類特殊資料結構，保證在任意順序合併後都能收斂到一致狀態，從根本上消除衝突。</p>
+<p><strong>常見 CRDT 類型</strong>：</p>
+<ul>
+<li><strong>G-Counter</strong>：只增計數器，各節點本地遞增，合併時取 max</li>
+<li><strong>PN-Counter</strong>：正負計數器，支援遞增和遞減</li>
+<li><strong>G-Set</strong>：只增集合，合併時取聯集</li>
+<li><strong>OR-Set</strong>（Observed-Remove Set）：支援新增和刪除的集合</li>
+<li><strong>LWW-Register</strong>：Last-Writer-Wins 暫存器</li>
+</ul>
+<pre><code class="language-javascript">// G-Counter 範例（分散式計數）
+class GCounter {
+  constructor(nodeId) {
+    this.nodeId = nodeId;
+    this.counts = {};  // { nodeId: count }
+  }
+  increment() {
+    this.counts[this.nodeId] = (this.counts[this.nodeId] || 0) + 1;
+  }
+  value() {
+    return Object.values(this.counts).reduce((sum, c) =&gt; sum + c, 0);
+  }
+  merge(other) {
+    for (const [node, count] of Object.entries(other.counts)) {
+      this.counts[node] = Math.max(this.counts[node] || 0, count);
+    }
+  }
+}</code></pre>
+<p><strong>實作庫推薦</strong>：</p>
+<ul>
+<li><strong>Automerge</strong>：JSON-like 結構的 CRDT，支援巢狀物件</li>
+<li><strong>Yjs</strong>：高效能 CRDT，廣泛用於協作編輯器</li>
+<li><strong>RxDB</strong>：支援 CRDT 的前端資料庫</li>
+</ul>
+<h3 id="4-3-differential-synchronization-差異同步">4.3 Differential Synchronization（差異同步）</h3>
+<p>Neil Fraser 提出的演算法，核心概念：</p>
+<ol>
+<li>客戶端和伺服器各維護一份「影子副本」（Shadow Copy）</li>
+<li>客戶端：比較本地文件與影子副本 → 產生 diff → 發送給伺服器</li>
+<li>伺服器：將 diff 應用到影子副本 → 比較影子副本與伺服器文件 → 產生逆向 diff</li>
+<li>雙向 diff 交換，實現即時雙向同步</li>
+</ol>
+<p><strong>優點</strong>：支援任意內容格式、容錯性強、適合協作編輯
+<strong>缺點</strong>：計算密集（diff + patch）、需要維護影子副本</p>
+<hr>
+<h2 id="五-最佳實踐與常見陷阱">五、最佳實踐與常見陷阱</h2>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>冪等操作</strong>：所有同步操作必須是冪等的（重複執行結果相同），使用 UPSERT 而非 INSERT</li>
+<li><strong>軟刪除</strong>：不要物理刪除記錄，使用 <code>deleted_at</code> 標記，確保刪除操作可同步</li>
+<li><strong>版本向量</strong>：使用向量時鐘（Vector Clock）或版本號追蹤因果關係</li>
+<li><strong>檢查點與恢復</strong>：定期保存同步檢查點，失敗時可從檢查點恢復而非完整重同步</li>
+<li><strong>批次處理</strong>：大量變更分批傳輸，避免單次傳輸過大</li>
+<li><strong>監控指標</strong>：追蹤同步延遲、衝突頻率、失敗率</li>
+</ol>
+<h3 id="常見陷阱">常見陷阱</h3>
+<table>
+<tr><th>陷阱</th><th>症狀</th><th>解決方案</th></tr>
+<tr><td>刪除遺漏</td><td>已刪除的記錄在同步後復活</td><td>使用軟刪除或 CDC</td></tr>
+<tr><td>時鐘偏移</td><td>分散式節點時間不一致導致排序錯誤</td><td>使用邏輯時鐘（Lamport/Vector Clock）</td></tr>
+<tr><td>資料膨脹</td><td>變更日誌/影子表無限增長</td><td>定期清理已同步的歷史記錄</td></tr>
+<tr><td>衝突風暴</td><td>大量並行修改產生海量衝突</td><td>鎖定機制或樂觀並行控制（OCC）</td></tr>
+<tr><td>初始同步瓶頸</td><td>首次全量同步耗時過長</td><td>分段加載 + 並行處理 + 建立增量基線</td></tr>
+</table>
+<hr>
+<h2 id="六-與本專案-daily-digest-prompt-的關聯">六、與本專案（daily-digest-prompt）的關聯</h2>
+<h3 id="6-1-現有同步場景分析">6.1 現有同步場景分析</h3>
+<p>本專案已有多處增量同步的應用場景：</p>
+<ol>
+<li><strong>知識庫增量同步</strong>：<code>知識庫 v4 同步（313 篇文章）</code> — 靜態網站生成時需要偵測新增/修改的筆記，僅重新生成變更的頁面</li>
+<li><strong>快取同步</strong>：<code>cache/*.json</code> — API 回應快取使用時間戳型 TTL 機制</li>
+<li><strong>研究去重</strong>：<code>context/research-registry.json</code> — 7 天滾動窗口的增量清理</li>
+<li><strong>排程狀態</strong>：<code>state/scheduler-state.json</code> — 保留最近 200 筆的滾動窗口</li>
+</ol>
+<h3 id="6-2-可改進方向">6.2 可改進方向</h3>
+<ol>
+<li><strong>知識庫靜態網站同步優化</strong>：</li>
+</ol>
+<p>   - 目前可能是全量重建，改為時間戳型增量同步
+   - 記錄 <code>last_sync_timestamp</code>，僅重新生成 <code>modified_at &gt; last_sync_timestamp</code> 的頁面
+   - 預估效能提升：從 313 頁全建 → 僅建 10-20 頁/次</p>
+<ol>
+<li><strong>研究 Registry 改進</strong>：</li>
+</ol>
+<p>   - 目前 research-registry.json 使用日期過濾，可改為更精確的序號型水位標記
+   - 加入 <code>sync_version</code> 欄位，確保跨進程的一致讀寫</p>
+<ol>
+<li><strong>Todoist 任務快取</strong>：</li>
+</ol>
+<p>   - 目前每次查詢 Todoist API，可記錄上次 sync_token
+   - Todoist API v1 支援 <code>sync_token</code> 增量同步（僅回傳變更項目）</p>
+<h3 id="6-3-程式碼範例-知識庫增量同步">6.3 程式碼範例：知識庫增量同步</h3>
+<pre><code class="language-javascript">// 增量同步知識庫到靜態網站
+async function incrementalKBSync() {
+  // 1. 讀取上次同步水位
+  const lastSync = await readJSON(&#x27;state/kb-sync-state.json&#x27;);
+  const watermark = lastSync?.last_modified || &#x27;1970-01-01T00:00:00Z&#x27;;
+  
+  // 2. 查詢知識庫中變更的筆記
+  const response = await fetch(
+    `http://localhost:3000/api/notes?modified_after=${watermark}&amp;limit=100`
+  );
+  const { notes } = await response.json();
+  
+  if (notes.length === 0) {
+    console.log(&#x27;無需同步，所有頁面已是最新&#x27;);
+    return;
+  }
+  
+  // 3. 僅重新生成變更的頁面
+  for (const note of notes) {
+    await generateStaticPage(note);
+  }
+  
+  // 4. 更新水位標記
+  const newWatermark = notes[notes.length - 1].modified_at;
+  await writeJSON(&#x27;state/kb-sync-state.json&#x27;, {
+    last_modified: newWatermark,
+    last_sync_at: new Date().toISOString(),
+    pages_synced: notes.length
+  });
+  
+  console.log(`增量同步完成：${notes.length} 頁已更新`);
+}</code></pre>
+<hr>
+<h2 id="七-新興趨勢-2026">七、新興趨勢（2026）</h2>
+<ol>
+<li><strong>AI 驅動同步</strong>：使用機器學習預測同步需求、自動調整同步頻率、智能衝突解決</li>
+<li><strong>Event-Driven Architecture</strong>：事件驅動架構支援亞秒級同步延遲</li>
+<li><strong>Edge-First Sync</strong>：邊緣計算優先的同步策略（如 Cloudflare Durable Objects）</li>
+<li><strong>嵌入式 CRDT</strong>：Zvec 等嵌入式向量資料庫開始整合 CRDT 支援</li>
+</ol>
+<hr>
+<h2 id="八-參考來源">八、參考來源</h2>
+<ol>
+<li>Neil Fraser, &quot;Differential Synchronization&quot; (https://neil.fraser.name/writing/sync/)</li>
+<li>CRDT.tech - Conflict-Free Replicated Data Types (https://crdt.tech/)</li>
+<li>Skyvia, &quot;Incremental Load Strategy for Data Warehouses (2026 Guide)&quot;</li>
+<li>StackSync, &quot;Building a Resilient Real-Time Data Sync Architecture&quot;</li>
+<li>Airbyte, &quot;What is Data Synchronization: Tools &amp; Examples&quot;</li>
+<li>Redis Blog, &quot;Diving into Conflict-Free Replicated Data Types (CRDTs)&quot;</li>
+<li>Ian Duncan, &quot;The CRDT Dictionary: A Field Guide&quot; (2025)</li>
+<li>DZone, &quot;Conflict Resolution: Using Last-Write-Wins vs. CRDTs&quot;</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-18</em>
+<em>研究類型：技術研究（tech_research）</em>
+<em>關聯專案：daily-digest-prompt — 知識庫增量同步、快取管理、研究去重機制</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="daily-digest-prompt-知識庫內容生命週期管-7f8fb29b.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Daily-Digest-Prompt 知識庫內容生命週期管理 — 從量變到質變的策略性治理方案（2026-02-19）</span></a><a href="ai-agent-開發框架與-tool-use-設計模式c-ac72c7bb.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">AI Agent 開發框架與 Tool Use 設計模式：Claude Agent SDK、Multi-Agent 協作與工具整合最佳實踐（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

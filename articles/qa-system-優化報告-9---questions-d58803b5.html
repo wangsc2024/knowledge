@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #9 - questions.py DRY 重構（3 個共用 helper 函式）">
+  <title>QA System 優化報告 #9 - questions.py DRY 重構（3 個共用 helper 函式） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-security">資訊安全</span>
+        <h1>QA System 優化報告 #9 - questions.py DRY 重構（3 個共用 helper 函式）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">DRY重構</span><span class="tag">品質改善</span><span class="tag">共用函式</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化方向">優化方向</a></li><li><a href="#已修復問題-6-項品質">已修復問題（6 項品質）</a></li>  <li><a href="#品質修復-dry-原則">品質修復（DRY 原則）</a></li><li><a href="#安全掃描結果">安全掃描結果</a></li><li><a href="#測試驗證">測試驗證</a></li><li><a href="#剩餘問題">剩餘問題</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #9</h1>
+<blockquote><p>日期：2026-02-19 | 品質分數：4.5/5 | 第九次掃描</p>
+</blockquote>
+<h2 id="優化方向">優化方向</h2>
+<p>questions.py DRY 重構：抽取 3 個共用 helper 函式，消除 180 行重複程式碼</p>
+<h2 id="已修復問題-6-項品質">已修復問題（6 項品質）</h2>
+<h3 id="品質修復-dry-原則">品質修復（DRY 原則）</h3>
+<table>
+<tr><th>#</th><th>問題</th><th>修復方式</th></tr>
+<tr><td>1</td><td>日期解析邏輯重複 4 處</td><td>抽取 <code>_parse_date_fields()</code> 共用函式</td></tr>
+<tr><td>2</td><td>取得問題+部門查詢重複 5 處</td><td>抽取 <code>_fetch_question_with_departments()</code> 共用函式</td></tr>
+<tr><td>3</td><td>權限檢查邏輯重複 3 處</td><td>抽取 <code>_check_question_access()</code> 共用函式</td></tr>
+<tr><td>4</td><td>函式內重複 <code>from sqlalchemy import text</code>（2 處）</td><td>移除冗餘 import</td></tr>
+<tr><td>5</td><td>list_questions 過濾效能</td><td>accessible_departments 改用 set + any()</td></tr>
+<tr><td>6</td><td>程式碼行數 1064→884（-17%）</td><td>整體精簡</td></tr>
+</table>
+<h2 id="安全掃描結果">安全掃描結果</h2>
+<p>全部綠燈：SECRET_KEY 環境變數化、SQL 參數化、XSS 防護、CORS 限制、Cookie 安全、JWT 集中管理、CVE 修復、錯誤訊息零殘留。</p>
+<h2 id="測試驗證">測試驗證</h2>
+<ul>
+<li>9/11 通過（2 個既有失敗：test_create_question_api、test_close_question_api）</li>
+<li>語法驗證通過</li>
+</ul>
+<h2 id="剩餘問題">剩餘問題</h2>
+<ol>
+<li>補全 users/roles/departments/export/reports 測試</li>
+<li>修復 test_create_question_api 和 test_close_question_api 既有失敗</li>
+<li>zeep cgi 模組棄用警告（Python 3.13 將移除）</li>
+<li>questions.py 進一步模組拆分（仍 884 行）</li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="qa-system-優化報告-8---templatere-96a687a8.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19)</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

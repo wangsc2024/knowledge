@@ -240,13 +240,25 @@ def generate_toc_html(headings):
         </ol>
       </details>'''
 
-def generate_article_html(note, category_name, category_slug):
-    """生成文章頁面 HTML（含閱讀進度條、TOC、回到頂部）。
+def estimate_reading_time(content_text):
+    """估算閱讀時間（中文 400 字/分鐘，英文 200 詞/分鐘）。"""
+    if not content_text:
+        return 1
+    cjk = len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', content_text))
+    words = len(re.findall(r'[a-zA-Z]+', content_text))
+    minutes = cjk / 400 + words / 200
+    return max(1, round(minutes))
+
+
+def generate_article_html(note, category_name, category_slug, prev_article=None, next_article=None):
+    """生成文章頁面 HTML（含閱讀進度條、TOC、上下篇導航、閱讀時間）。
 
     Args:
         note: 筆記資料字典
         category_name: 分類名稱
         category_slug: 分類 slug
+        prev_article: 上一篇文章 dict（含 slug, title）或 None
+        next_article: 下一篇文章 dict（含 slug, title）或 None
 
     Returns:
         完整的文章頁面 HTML
@@ -254,13 +266,26 @@ def generate_article_html(note, category_name, category_slug):
     title = note.get('title', 'Untitled')
     tags = note.get('tags', []) or []
     content = note.get('content')
+    content_text = note.get('contentText', '')
     updated = note.get('updatedAt', '')[:10]
+    reading_min = estimate_reading_time(content_text)
 
     article_html = tiptap_to_html(content)
     headings = extract_headings(article_html)
     article_html = inject_heading_ids(article_html, headings)
     toc_html = generate_toc_html(headings)
     tags_html = ''.join(f'<span class="tag">{escape(t)}</span>' for t in tags[:8])
+
+    # 上下篇導航
+    nav_prev = ''
+    nav_next = ''
+    if prev_article:
+        nav_prev = f'<a href="{prev_article["slug"]}.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">{escape(prev_article["title"])}</span></a>'
+    if next_article:
+        nav_next = f'<a href="{next_article["slug"]}.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">{escape(next_article["title"])}</span></a>'
+    article_nav = ''
+    if nav_prev or nav_next:
+        article_nav = f'<nav class="article-nav">{nav_prev}{nav_next}</nav>'
 
     return f'''<!DOCTYPE html>
 <html lang="zh-TW">
@@ -296,6 +321,7 @@ def generate_article_html(note, category_name, category_slug):
         <h1>{escape(title)}</h1>
         <div class="article-meta">
           <span class="date">{updated}</span>
+          <span class="reading-time">{reading_min} 分鐘閱讀</span>
           <div class="tags">{tags_html}</div>
         </div>
       </div>
@@ -305,6 +331,8 @@ def generate_article_html(note, category_name, category_slug):
       <div class="article-content">
         {article_html}
       </div>
+
+      {article_nav}
 
       <a href="../" class="back-link">&larr; 返回首頁</a>
     </article>
@@ -443,6 +471,38 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
             )
     filter_bar = '\n        '.join(filter_buttons)
 
+    # 分類統計長條圖
+    cat_colors = {
+        'buddhism': 'var(--accent-buddhism)', 'thinking': 'var(--accent-thinking)',
+        'ai': 'var(--accent-ai)', 'claude': 'var(--accent-claude)',
+        'game': 'var(--accent-game)', 'security': 'var(--accent-security)',
+        'opensource': 'var(--accent-opensource)', 'other': 'var(--text-light)'
+    }
+    max_count = max((len(articles_by_category.get(cn, [])) for cn, _ in category_order), default=1) or 1
+    chart_bars = []
+    for cat_name, cat_slug in category_order:
+        count = len(articles_by_category.get(cat_name, []))
+        if count == 0:
+            continue
+        pct = round(count / max_count * 100)
+        color = cat_colors.get(cat_slug, 'var(--text-light)')
+        display = cat_name.replace('_', ' ')
+        chart_bars.append(
+            f'<div class="chart-row">'
+            f'<span class="chart-label">{display}</span>'
+            f'<div class="chart-bar-bg"><div class="chart-bar-fill" style="width:{pct}%;background:{color}"></div></div>'
+            f'<span class="chart-count">{count}</span>'
+            f'</div>'
+        )
+    chart_html = f'''
+    <section class="chart-section container">
+      <h2>知識分佈</h2>
+      <div class="chart-container">
+{"".join(chart_bars)}
+      </div>
+    </section>
+''' if chart_bars else ''
+
     return f'''<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -484,6 +544,8 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
       <div class="search-count" id="searchCount"></div>
     </div>
   </section>
+
+{chart_html}
 
   <div class="filter-bar container">
     {filter_bar}
@@ -591,6 +653,8 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
 
+    force_rebuild = '--force' in sys.argv
+
     os.makedirs(ARTICLES_DIR, exist_ok=True)
 
     temp_notes_path = f'{OUTPUT_DIR}/temp_notes.json'
@@ -630,6 +694,8 @@ def main():
     updated_count = 0
     skipped_count = 0
 
+    # Pass 1: 收集所有文章的 metadata（不生成 HTML）
+    note_metadata = []  # (note, cat_name, cat_slug, slug, note_hash, need_update)
     for note in filtered_notes:
         note_id = note['id']
         title = note.get('title', 'Untitled')
@@ -638,30 +704,16 @@ def main():
 
         note_hash = content_hash(title, content_text)
         old_hash = synced_hashes.get(note_id, '')
-        need_update = (old_hash != note_hash)
+        need_update = force_rebuild or (old_hash != note_hash)
 
         cat_name, cat_slug = categorize(title, tags)
         slug = generate_slug(title, note_id)
 
-        if need_update:
-            html_content = generate_article_html(note, cat_name, cat_slug)
-            html_path = f'{ARTICLES_DIR}/{slug}.html'
-
-            with open(html_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-
-            if old_hash:
-                updated_count += 1
-            else:
-                new_count += 1
-                new_article_ids.add(note_id)
-        else:
-            skipped_count += 1
+        note_metadata.append((note, cat_name, cat_slug, slug, note_hash, need_update))
 
         if cat_name not in articles_by_category:
             articles_by_category[cat_name] = []
 
-        # 生成摘要（取 contentText 前 100 字）
         excerpt = ''
         if content_text:
             excerpt = re.sub(r'[#*\->\[\]`]', '', content_text)
@@ -683,6 +735,48 @@ def main():
             'category': cat_name,
             'hash': note_hash
         })
+
+    # Pass 1.5: 按分類排序文章（由新到舊），建立上下篇索引
+    cat_sorted = {}
+    for cat_name, arts in articles_by_category.items():
+        sorted_arts = sorted(arts, key=lambda x: x.get('updated', ''), reverse=True)
+        cat_sorted[cat_name] = sorted_arts
+
+    # 建立 note_id → (prev, next) 的映射
+    nav_map = {}  # note_id -> {'prev': {slug, title}, 'next': {slug, title}}
+    for cat_name, arts in cat_sorted.items():
+        for i, art in enumerate(arts):
+            prev_art = arts[i - 1] if i > 0 else None
+            next_art = arts[i + 1] if i < len(arts) - 1 else None
+            nav_map[art['id']] = {
+                'prev': {'slug': prev_art['slug'], 'title': prev_art['title']} if prev_art else None,
+                'next': {'slug': next_art['slug'], 'title': next_art['title']} if next_art else None
+            }
+
+    # Pass 2: 生成文章 HTML（含上下篇導航）
+    for note, cat_name, cat_slug, slug, note_hash, need_update in note_metadata:
+        note_id = note['id']
+        nav_info = nav_map.get(note_id, {})
+
+        if need_update:
+            html_content = generate_article_html(
+                note, cat_name, cat_slug,
+                prev_article=nav_info.get('prev'),
+                next_article=nav_info.get('next')
+            )
+            html_path = f'{ARTICLES_DIR}/{slug}.html'
+
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+
+            old_hash = synced_hashes.get(note_id, '')
+            if old_hash:
+                updated_count += 1
+            else:
+                new_count += 1
+                new_article_ids.add(note_id)
+        else:
+            skipped_count += 1
 
     # 生成首頁
     sync_time = datetime.now().strftime('%Y-%m-%d %H:%M')

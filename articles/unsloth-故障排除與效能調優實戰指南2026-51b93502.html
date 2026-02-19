@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 故障排除與效能調優實戰指南（2026）">
+  <title>Unsloth 故障排除與效能調優實戰指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 故障排除與效能調優實戰指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">故障排除</span><span class="tag">OOM</span><span class="tag">效能調優</span><span class="tag">Gradient Checkpointing</span><span class="tag">LoRA</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#一-oom-記憶體不足-問題完整解決方案">一、OOM（記憶體不足）問題完整解決方案</a></li>  <li><a href="#1-1-訓練階段-oom">1.1 訓練階段 OOM</a></li>  <li><a href="#1-2-評估階段-oom">1.2 評估階段 OOM</a></li>  <li><a href="#1-3-模型儲存階段-oom">1.3 模型儲存階段 OOM</a></li>  <li><a href="#1-4-推論階段-oom-2025-版本回歸">1.4 推論階段 OOM（2025+ 版本回歸）</a></li>  <li><a href="#1-5-grpo-訓練記憶體洩漏">1.5 GRPO 訓練記憶體洩漏</a></li><li><a href="#二-訓練品質問題排除">二、訓練品質問題排除</a></li>  <li><a href="#2-1-所有訓練標籤-100-空白-loss">2.1 所有訓練標籤 = -100（空白 loss）</a></li>  <li><a href="#2-2-匯出後推論品質下降">2.2 匯出後推論品質下降</a></li>  <li><a href="#2-3-過擬合與欠擬合診斷">2.3 過擬合與欠擬合診斷</a></li><li><a href="#三-lora-超參數最佳化矩陣">三、LoRA 超參數最佳化矩陣</a></li>  <li><a href="#3-1-推薦配置-按場景">3.1 推薦配置（按場景）</a></li>  <li><a href="#3-2-effective-batch-size-公式">3.2 Effective Batch Size 公式</a></li><li><a href="#四-gradient-checkpointing-深度解析">四、Gradient Checkpointing 深度解析</a></li>  <li><a href="#4-1-技術原理">4.1 技術原理</a></li>  <li><a href="#4-2-三種模式">4.2 三種模式</a></li>  <li><a href="#4-3-長上下文微調-500k-tokens">4.3 長上下文微調（500K tokens）</a></li><li><a href="#五-環境與依賴問題">五、環境與依賴問題</a></li>  <li><a href="#5-1-常見環境錯誤">5.1 常見環境錯誤</a></li>  <li><a href="#5-2-版本更新最佳實踐">5.2 版本更新最佳實踐</a></li>  <li><a href="#5-3-mac-特殊注意">5.3 Mac 特殊注意</a></li><li><a href="#六-效能監控與診斷程式碼">六、效能監控與診斷程式碼</a></li>  <li><a href="#6-1-vram-即時監控">6.1 VRAM 即時監控</a></li>  <li><a href="#6-2-訓練完整範例-含所有優化">6.2 訓練完整範例（含所有優化）</a></li><li><a href="#七-常見問題快速索引-faq">七、常見問題快速索引（FAQ）</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Unsloth 故障排除與效能調優實戰指南（2026）</h1>
+<h2 id="概述">概述</h2>
+<p>Unsloth 是一個 2-5x 更快的 LLM 微調框架，節省 70-80% 記憶體。然而在實際使用中，OOM（Out-of-Memory）錯誤、訓練不穩定、匯出品質下降等問題頻繁出現。本指南系統整理了 Unsloth 2025-2026 年版本中最常見的故障排除方案與效能調優策略，涵蓋記憶體管理、超參數最佳化、長上下文訓練、模型匯出等面向。</p>
+<hr>
+<h2 id="一-oom-記憶體不足-問題完整解決方案">一、OOM（記憶體不足）問題完整解決方案</h2>
+<h3 id="1-1-訓練階段-oom">1.1 訓練階段 OOM</h3>
+<p><strong>根因</strong>：Batch Size 設定過高、序列長度超出 GPU 承載能力。</p>
+<p><strong>解決步驟</strong>（按優先順序）：</p>
+<pre><code class="language-python"># 步驟 1：降低 batch size，用 gradient accumulation 補償
+training_args = TrainingArguments(
+    per_device_train_batch_size = 1,       # 最小值
+    gradient_accumulation_steps = 16,      # 有效 batch = 1 × 16 = 16
+    fp16 = not is_bfloat16_supported(),
+    bf16 = is_bfloat16_supported(),
+)
+
+# 步驟 2：啟用 Unsloth 專屬 gradient checkpointing
+model = FastLanguageModel.get_peft_model(
+    model,
+    use_gradient_checkpointing = &quot;unsloth&quot;,  # 比標準版省 30% VRAM
+)
+
+# 步驟 3：啟用 tiled MLP（上下文長度 &gt; hidden dimension 時有效）
+model = FastLanguageModel.get_peft_model(
+    model,
+    use_gradient_checkpointing = &quot;unsloth&quot;,
+    unsloth_tiled_mlp = True,  # 額外 VRAM 節省
+)</code></pre>
+<p><strong>各 GPU 最大上下文長度參考（Mistral 7B, 4bit QLoRA, batch=1）</strong>：</p>
+<table>
+<tr><th>GPU</th><th>Unsloth Gradient Checkpointing</th><th>HF + Flash Attention 2</th></tr>
+<tr><td>RTX 4090 (24GB)</td><td>56,420 tokens</td><td>14,099 tokens</td></tr>
+<tr><td>A100 (40GB)</td><td>105,500 tokens</td><td>26,502 tokens</td></tr>
+<tr><td>H100 (80GB)</td><td>228,199 tokens</td><td>57,510 tokens</td></tr>
+</table>
+<h3 id="1-2-評估階段-oom">1.2 評估階段 OOM</h3>
+<p><strong>根因</strong>：預設評估使用 float32 精度，記憶體需求翻倍。</p>
+<pre><code class="language-python">training_args = TrainingArguments(
+    fp16_full_eval = True,              # 使用半精度評估
+    per_device_eval_batch_size = 2,     # 降低評估 batch size
+    eval_accumulation_steps = 4,        # 分批累積
+    eval_strategy = &quot;steps&quot;,
+    eval_steps = 100,
+)</code></pre>
+<h3 id="1-3-模型儲存階段-oom">1.3 模型儲存階段 OOM</h3>
+<p><strong>根因</strong>：預設使用 75% GPU 記憶體合併模型。</p>
+<pre><code class="language-python"># 降低儲存時的記憶體使用上限
+model.save_pretrained(
+    &quot;output_dir&quot;,
+    maximum_memory_usage = 0.5,  # 從預設 0.75 降至 0.5
+)</code></pre>
+<h3 id="1-4-推論階段-oom-2025-版本回歸">1.4 推論階段 OOM（2025+ 版本回歸）</h3>
+<p><strong>症狀</strong>：v2025-01 起，推論時記憶體分配異常增加，彷彿模型被載入兩次。</p>
+<p><strong>解決方案</strong>：</p>
+<pre><code class="language-python"># 方案 1：關閉 Unsloth 編譯
+import os
+os.environ[&quot;UNSLOTH_COMPILE_DISABLE&quot;] = &quot;1&quot;
+os.environ[&quot;UNSLOTH_DISABLE_FAST_GENERATION&quot;] = &quot;1&quot;
+
+# 方案 2：升級到最新修復版
+# pip install --upgrade --force-reinstall --no-cache-dir --no-deps unsloth unsloth_zoo</code></pre>
+<h3 id="1-5-grpo-訓練記憶體洩漏">1.5 GRPO 訓練記憶體洩漏</h3>
+<p><strong>症狀</strong>：每個訓練步驟 VRAM 用量逐步增加，最終 OOM。</p>
+<p><strong>解決方案</strong>：</p>
+<pre><code class="language-python"># 確保使用最新版 Unsloth（已修復 GRPO 記憶體洩漏）
+# pip install --upgrade unsloth
+
+# 搭配較小的 num_generations 和 max_completion_length
+from trl import GRPOConfig
+config = GRPOConfig(
+    num_generations = 4,          # 預設 8，降低可省 VRAM
+    max_completion_length = 512,  # 控制生成長度
+    per_device_train_batch_size = 1,
+    gradient_accumulation_steps = 4,
+)</code></pre>
+<hr>
+<h2 id="二-訓練品質問題排除">二、訓練品質問題排除</h2>
+<h3 id="2-1-所有訓練標籤-100-空白-loss">2.1 所有訓練標籤 = -100（空白 loss）</h3>
+<p><strong>根因</strong>：<code>train_on_responses_only</code> 使用了錯誤的分隔符號。</p>
+<p><strong>修正</strong>：使用模型特定的 instruction/response 分隔符：</p>
+<pre><code class="language-python"># Llama 3 / Llama 3.1
+trainer = train_on_responses_only(
+    trainer,
+    instruction_part = &quot;&lt;|start_header_id|&gt;user&lt;|end_header_id|&gt;\n\n&quot;,
+    response_part    = &quot;&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;\n\n&quot;,
+)
+
+# ChatML 格式（Qwen, Phi）
+trainer = train_on_responses_only(
+    trainer,
+    instruction_part = &quot;&lt;|im_start|&gt;user\n&quot;,
+    response_part    = &quot;&lt;|im_start|&gt;assistant\n&quot;,
+)</code></pre>
+<h3 id="2-2-匯出後推論品質下降">2.2 匯出後推論品質下降</h3>
+<p><strong>根因</strong>：Chat template 不一致。</p>
+<p><strong>檢查清單</strong>：</p>
+<ol>
+<li>訓練時使用的 chat template 與推論平台（Ollama/vLLM/llama.cpp）必須完全一致</li>
+<li>檢查是否多餘的 BOS (Beginning of Sequence) token</li>
+<li>GGUF 匯出時確認 tokenizer 元數據正確</li>
+</ol>
+<h3 id="2-3-過擬合與欠擬合診斷">2.3 過擬合與欠擬合診斷</h3>
+<p><strong>過擬合信號</strong>：train loss 持續下降但 eval loss 上升。</p>
+<pre><code class="language-python"># 過擬合解決方案
+training_args = TrainingArguments(
+    num_train_epochs = 1,          # 減少到 1-2 epochs
+    weight_decay = 0.05,           # 增加正則化（0.01-0.1）
+    learning_rate = 1e-4,          # 降低學習率
+)
+# 搭配 early stopping
+from transformers import EarlyStoppingCallback
+trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=3))</code></pre>
+<p><strong>欠擬合信號</strong>：train loss 和 eval loss 都居高不下。</p>
+<pre><code class="language-python"># 欠擬合解決方案
+model = FastLanguageModel.get_peft_model(
+    model,
+    r = 64,                        # 增加 LoRA rank（從 16 → 64）
+    lora_alpha = 64,               # alpha = rank 或 2×rank
+    target_modules = [&quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+                      &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;],
+)</code></pre>
+<hr>
+<h2 id="三-lora-超參數最佳化矩陣">三、LoRA 超參數最佳化矩陣</h2>
+<h3 id="3-1-推薦配置-按場景">3.1 推薦配置（按場景）</h3>
+<table>
+<tr><th>場景</th><th>rank</th><th>alpha</th><th>lr</th><th>epochs</th><th>batch×accum</th></tr>
+<tr><td>快速原型</td><td>8</td><td>8</td><td>2e-4</td><td>1</td><td>2×4=8</td></tr>
+<tr><td>一般微調</td><td>16</td><td>16</td><td>2e-4</td><td>1-3</td><td>2×8=16</td></tr>
+<tr><td>高品質微調</td><td>32</td><td>64</td><td>1e-4</td><td>2-3</td><td>2×16=32</td></tr>
+<tr><td>RL（GRPO/DPO）</td><td>16</td><td>16</td><td>5e-6</td><td>1</td><td>1×4=4</td></tr>
+</table>
+<h3 id="3-2-effective-batch-size-公式">3.2 Effective Batch Size 公式</h3>
+<pre><code class="language-plaintext">Effective Batch Size = per_device_train_batch_size × gradient_accumulation_steps</code></pre>
+<p><strong>記憶體與效能權衡</strong>：</p>
+<table>
+<tr><th>配置</th><th>VRAM 需求</th><th>訓練速度</th></tr>
+<tr><td>batch=32, accum=1</td><td>最高</td><td>最快</td></tr>
+<tr><td>batch=8, accum=4</td><td>高</td><td>快</td></tr>
+<tr><td>batch=2, accum=16</td><td>低</td><td>中</td></tr>
+<tr><td>batch=1, accum=32</td><td>最低</td><td>最慢</td></tr>
+</table>
+<p><strong>黃金原則</strong>：優先降低 batch size + 提高 gradient accumulation steps，而非直接增大 batch size。</p>
+<hr>
+<h2 id="四-gradient-checkpointing-深度解析">四、Gradient Checkpointing 深度解析</h2>
+<h3 id="4-1-技術原理">4.1 技術原理</h3>
+<p>Unsloth 的 gradient checkpointing 僅用 20 行純 PyTorch 程式碼實現，核心原理：</p>
+<ol>
+<li><strong>異步卸載</strong>：將前向傳播的激活值（activations）異步卸載到系統 RAM</li>
+<li><strong>CUDA Streams</strong>：利用非阻塞的 GPU-to-CPU 傳輸，隱藏通訊開銷</li>
+<li><strong>線性 VRAM 縮放</strong>：避免原生實現的二次方記憶體增長</li>
+</ol>
+<h3 id="4-2-三種模式">4.2 三種模式</h3>
+<pre><code class="language-python"># 標準模式（Hugging Face）
+use_gradient_checkpointing = True
+
+# Unsloth 優化模式（推薦）
+use_gradient_checkpointing = &quot;unsloth&quot;  # 額外省 30% VRAM + 4x 長上下文
+
+# 禁用（僅短序列 + 充足 VRAM）
+use_gradient_checkpointing = False</code></pre>
+<h3 id="4-3-長上下文微調-500k-tokens">4.3 長上下文微調（500K tokens）</h3>
+<pre><code class="language-python">model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name = &quot;unsloth/Qwen2.5-7B-bnb-4bit&quot;,
+    max_seq_length = 500000,  # 500K tokens
+)
+
+model = FastLanguageModel.get_peft_model(
+    model,
+    use_gradient_checkpointing = &quot;unsloth&quot;,
+    unsloth_tiled_mlp = True,
+)</code></pre>
+<hr>
+<h2 id="五-環境與依賴問題">五、環境與依賴問題</h2>
+<h3 id="5-1-常見環境錯誤">5.1 常見環境錯誤</h3>
+<table>
+<tr><th>錯誤</th><th>原因</th><th>解決方案</th></tr>
+<tr><td><code>CUDA runtime error</code></td><td>Triton 編譯衝突</td><td><code>os.environ[&quot;UNSLOTH_COMPILE_DISABLE&quot;] = &quot;1&quot;</code></td></tr>
+<tr><td>下載卡在 90-95%</td><td>網路不穩</td><td><code>os.environ[&quot;UNSLOTH_STABLE_DOWNLOADS&quot;] = &quot;1&quot;</code></td></tr>
+<tr><td>UTF-8 locale error</td><td>系統編碼問題</td><td><code>locale.getpreferredencoding = lambda: &quot;UTF-8&quot;</code></td></tr>
+<tr><td><code>trust_remote_code</code> 錯誤</td><td>新模型未內建支援</td><td>加入 <code>trust_remote_code=True</code></td></tr>
+<tr><td><code>torch.compile</code> 慢</td><td>初始化開銷</td><td>等待 5+ 分鐘預熱後測速</td></tr>
+</table>
+<h3 id="5-2-版本更新最佳實踐">5.2 版本更新最佳實踐</h3>
+<pre><code class="language-bash"># 強制重裝（解決大多數依賴衝突）
+pip install --upgrade --force-reinstall --no-cache-dir --no-deps unsloth unsloth_zoo
+
+# Docker 環境（最穩定）
+# 使用官方 Docker image 避免依賴地獄</code></pre>
+<h3 id="5-3-mac-特殊注意">5.3 Mac 特殊注意</h3>
+<ul>
+<li>Q8_K_XL 量化在 Mac 上會自動提升至 BF16，導致速度變慢</li>
+<li>建議改用 F16 量化或 Q4_K_M</li>
+</ul>
+<hr>
+<h2 id="六-效能監控與診斷程式碼">六、效能監控與診斷程式碼</h2>
+<h3 id="6-1-vram-即時監控">6.1 VRAM 即時監控</h3>
+<pre><code class="language-python">import torch
+
+def print_gpu_utilization():
+    &quot;&quot;&quot;即時顯示 GPU 記憶體使用量&quot;&quot;&quot;
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved  = torch.cuda.memory_reserved() / 1024**3
+        total     = torch.cuda.get_device_properties(0).total_mem / 1024**3
+        print(f&quot;Allocated: {allocated:.2f} GB&quot;)
+        print(f&quot;Reserved:  {reserved:.2f} GB&quot;)
+        print(f&quot;Total:     {total:.2f} GB&quot;)
+        print(f&quot;Free:      {total - reserved:.2f} GB&quot;)
+
+# 在訓練前後呼叫
+print_gpu_utilization()</code></pre>
+<h3 id="6-2-訓練完整範例-含所有優化">6.2 訓練完整範例（含所有優化）</h3>
+<pre><code class="language-python">import os
+os.environ[&quot;UNSLOTH_COMPILE_DISABLE&quot;] = &quot;1&quot;  # 避免 CUDA 編譯問題
+
+from unsloth import FastLanguageModel, is_bfloat16_supported
+
+# 載入模型
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name = &quot;unsloth/Llama-3.3-70B-Instruct-bnb-4bit&quot;,
+    max_seq_length = 8192,
+    load_in_4bit = True,
+)
+
+# 配置 LoRA（記憶體友好設定）
+model = FastLanguageModel.get_peft_model(
+    model,
+    r = 16,
+    lora_alpha = 16,
+    target_modules = [&quot;q_proj&quot;, &quot;k_proj&quot;, &quot;v_proj&quot;, &quot;o_proj&quot;,
+                      &quot;gate_proj&quot;, &quot;up_proj&quot;, &quot;down_proj&quot;],
+    lora_dropout = 0,
+    bias = &quot;none&quot;,
+    use_gradient_checkpointing = &quot;unsloth&quot;,
+    random_state = 3407,
+)
+
+# 訓練配置（OOM 安全）
+from trl import SFTTrainer
+from transformers import TrainingArguments
+
+trainer = SFTTrainer(
+    model = model,
+    tokenizer = tokenizer,
+    train_dataset = dataset,
+    args = TrainingArguments(
+        per_device_train_batch_size = 2,
+        gradient_accumulation_steps = 8,  # 有效 batch = 16
+        warmup_steps = 50,
+        num_train_epochs = 1,
+        learning_rate = 2e-4,
+        fp16 = not is_bfloat16_supported(),
+        bf16 = is_bfloat16_supported(),
+        weight_decay = 0.01,
+        lr_scheduler_type = &quot;linear&quot;,
+        output_dir = &quot;outputs&quot;,
+        logging_steps = 10,
+        seed = 3407,
+    ),
+)
+
+trainer.train()
+
+# 安全儲存（避免 OOM）
+model.save_pretrained(&quot;output_model&quot;, maximum_memory_usage=0.5)</code></pre>
+<hr>
+<h2 id="七-常見問題快速索引-faq">七、常見問題快速索引（FAQ）</h2>
+<table>
+<tr><th>#</th><th>問題</th><th>解決方案</th></tr>
+<tr><td>1</td><td>OOM during training</td><td>降 batch size → 啟用 <code>&quot;unsloth&quot;</code> checkpointing → 開 tiled MLP</td></tr>
+<tr><td>2</td><td>OOM during eval</td><td><code>fp16_full_eval=True</code> + 降低 eval batch size</td></tr>
+<tr><td>3</td><td>OOM during save</td><td><code>maximum_memory_usage=0.5</code></td></tr>
+<tr><td>4</td><td>OOM during inference</td><td>設定 <code>UNSLOTH_COMPILE_DISABLE=1</code> + 升級版本</td></tr>
+<tr><td>5</td><td>Labels all -100</td><td>修正 <code>train_on_responses_only</code> 的分隔符號</td></tr>
+<tr><td>6</td><td>匯出品質差</td><td>確認 chat template 一致</td></tr>
+<tr><td>7</td><td>訓練過慢</td><td>等待 torch.compile 預熱 5 分鐘</td></tr>
+<tr><td>8</td><td>GRPO VRAM 增長</td><td>升級 Unsloth + 降低 num_generations</td></tr>
+<tr><td>9</td><td>過擬合</td><td>減 epochs → 加 weight_decay → early stopping</td></tr>
+<tr><td>10</td><td>欠擬合</td><td>增 rank → 加 epochs → 提高 lr</td></tr>
+</table>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://unsloth.ai/docs/basics/troubleshooting-and-faqs">Unsloth Troubleshooting &amp; FAQs</a> — 官方故障排除文件</li>
+<li><a href="https://unsloth.ai/docs/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide">LoRA Hyperparameters Guide</a> — 官方超參數調優指南</li>
+<li><a href="https://unsloth.ai/blog/long-context">Unsloth Gradient Checkpointing</a> — 4x 長上下文記憶體優化</li>
+<li><a href="https://huggingface.co/blog/unsloth-trl">Hugging Face + Unsloth TRL Blog</a> — 2.7x 加速基準測試</li>
+<li><a href="https://github.com/unslothai/unsloth/issues/3864">GitHub Issues: OOM Reports</a> — GRPO VRAM 洩漏回報</li>
+<li><a href="https://unsloth.ai/docs/blog/500k-context-length-fine-tuning">500K Context Fine-tuning</a> — 超長上下文訓練</li>
+<li><a href="https://huggingface.co/blog/mlabonne/sft-llama3">Fine-tune Llama 3.1 with Unsloth</a> — 實戰教學</li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="ai-驅動的-devops-智能化aiops-日誌分析自-cf03d8f4.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">AI 驅動的 DevOps 智能化：AIOps 日誌分析、自動 Incident Response 與智能監控告警（2026）</span></a><a href="2025-2026-年-chat-對話系統主流架構模式完整研-26b9306c.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">2025-2026 年 Chat 對話系統主流架構模式完整研究：傳輸層、Streaming、前後端分離與工具系統設計</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="JavaScript 觸控事件處理與手勢辨識完整指南：Touch Events、Pointer Events 與遊戲應用（2026）">
+  <title>JavaScript 觸控事件處理與手勢辨識完整指南：Touch Events、Pointer Events 與遊戲應用（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>JavaScript 觸控事件處理與手勢辨識完整指南：Touch Events、Pointer Events 與遊戲應用（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Touch Events</span><span class="tag">Pointer Events</span><span class="tag">手勢辨識</span><span class="tag">HTML5遊戲</span><span class="tag">Canvas</span><span class="tag">行動開發</span><span class="tag">JavaScript</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#一-touch-events-api-底層觸控事件">一、Touch Events API（底層觸控事件）</a></li>  <li><a href="#二-pointer-events-api-統一輸入模型-推薦">二、Pointer Events API（統一輸入模型，推薦）</a></li>  <li><a href="#三-touch-action-css-屬性-必知">三、touch-action CSS 屬性（必知）</a></li><li><a href="#最佳實踐與常見陷阱">最佳實踐與常見陷阱</a></li>  <li><a href="#最佳實踐">最佳實踐</a></li>  <li><a href="#常見陷阱">常見陷阱</a></li><li><a href="#自定義手勢辨識演算法">自定義手勢辨識演算法</a></li>  <li><a href="#滑動-swipe-偵測">滑動（Swipe）偵測</a></li>  <li><a href="#捏合縮放-pinch-zoom-偵測">捏合縮放（Pinch Zoom）偵測</a></li>  <li><a href="#長按-long-press-偵測">長按（Long Press）偵測</a></li>  <li><a href="#旋轉-rotation-偵測">旋轉（Rotation）偵測</a></li><li><a href="#html5-canvas-遊戲中的觸控實踐">HTML5 Canvas 遊戲中的觸控實踐</a></li>  <li><a href="#canvas-座標轉換">Canvas 座標轉換</a></li>  <li><a href="#虛擬搖桿實作">虛擬搖桿實作</a></li>  <li><a href="#多指觸控分區-遊戲常用模式">多指觸控分區（遊戲常用模式）</a></li><li><a href="#手勢辨識函式庫">手勢辨識函式庫</a></li><li><a href="#與本專案的關聯">與本專案的關聯</a></li>  <li><a href="#daily-digest-prompt-遊戲專案">daily-digest-prompt 遊戲專案</a></li><li><a href="#效能優化技巧">效能優化技巧</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>JavaScript 觸控事件處理與手勢辨識完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>觸控事件處理（Touch Events）與手勢辨識（Gesture Recognition）是現代行動裝置 Web 開發的核心技術。隨著 HTML5 遊戲與 PWA 的普及，開發者需要精確掌握觸控互動的底層機制，以構建流暢的行動體驗。本文涵蓋 Touch Events API、Pointer Events API、自定義手勢辨識演算法，以及在 HTML5 Canvas 遊戲中的實戰應用。</p>
+<hr>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="一-touch-events-api-底層觸控事件">一、Touch Events API（底層觸控事件）</h3>
+<p>Touch Events 提供低階觸控互動介面，支援單指與多指操作。</p>
+<p>#### 三大核心介面</p>
+<table>
+<tr><th>介面</th><th>說明</th></tr>
+<tr><td><code>Touch</code></td><td>代表觸控表面上的單一接觸點，包含座標、面積、壓力、旋轉角度</td></tr>
+<tr><td><code>TouchList</code></td><td>接觸點列表，長度等於同時觸碰的手指數</td></tr>
+<tr><td><code>TouchEvent</code></td><td>觸控狀態變化時發送的事件物件</td></tr>
+</table>
+<p>#### 四種事件類型</p>
+<pre><code class="language-javascript">// 手指觸碰螢幕
+element.addEventListener(&#x27;touchstart&#x27;, handler);
+// 手指在螢幕上移動
+element.addEventListener(&#x27;touchmove&#x27;, handler);
+// 手指離開螢幕
+element.addEventListener(&#x27;touchend&#x27;, handler);
+// 觸碰被系統中斷（如來電、彈出視窗）
+element.addEventListener(&#x27;touchcancel&#x27;, handler);</code></pre>
+<p>#### 三個 TouchList 屬性（關鍵區分）</p>
+<pre><code class="language-javascript">event.touches        // 目前螢幕上「所有」觸碰點
+event.targetTouches  // 目前在「目標元素」上的觸碰點
+event.changedTouches // 「狀態發生變化」的觸碰點
+  // touchstart: 新增的觸碰點
+  // touchmove: 移動了的觸碰點
+  // touchend: 離開螢幕的觸碰點</code></pre>
+<p>#### Touch 物件屬性</p>
+<pre><code class="language-javascript">touch.identifier  // 唯一識別碼（追蹤同一手指的連續事件）
+touch.target      // 觸碰的 DOM 元素
+touch.clientX/Y   // 相對於 viewport 的座標
+touch.pageX/Y     // 相對於頁面的座標（含捲動偏移）
+touch.screenX/Y   // 相對於螢幕的座標
+touch.radiusX/Y   // 接觸橢圓的 X/Y 半徑
+touch.rotationAngle // 接觸橢圓的旋轉角度
+touch.force        // 按壓力道（0.0 ~ 1.0）</code></pre>
+<h3 id="二-pointer-events-api-統一輸入模型-推薦">二、Pointer Events API（統一輸入模型，推薦）</h3>
+<p>Pointer Events 將滑鼠、觸控、觸控筆統一為單一抽象層，是 W3C 推薦標準。</p>
+<p>#### 相較 Touch Events 的優勢</p>
+<table>
+<tr><th>面向</th><th>Touch Events</th><th>Pointer Events</th></tr>
+<tr><td>輸入來源</td><td>僅觸控</td><td>滑鼠 + 觸控 + 觸控筆</td></tr>
+<tr><td>API 複雜度</td><td>需另寫 mouse 事件</td><td>單一 API 全覆蓋</td></tr>
+<tr><td>多指支援</td><td>透過 TouchList</td><td>透過 pointerId 追蹤</td></tr>
+<tr><td>瀏覽器支援</td><td>行動端完整</td><td>全平台完整（含 IE11+）</td></tr>
+<tr><td>推薦場景</td><td>僅觸控裝置</td><td>跨平台應用（推薦）</td></tr>
+</table>
+<p>#### 核心事件對應</p>
+<pre><code class="language-javascript">// Pointer Events 對應 Touch Events
+pointerdown   ↔ touchstart
+pointermove   ↔ touchmove
+pointerup     ↔ touchend
+pointercancel ↔ touchcancel
+// 額外事件（Touch 沒有）
+pointerover / pointerout / pointerenter / pointerleave</code></pre>
+<p>#### 關鍵差異：pointerId</p>
+<pre><code class="language-javascript">// 每個指標都有唯一 pointerId，方便追蹤多指
+element.addEventListener(&#x27;pointerdown&#x27;, (ev) =&gt; {
+  console.log(`Pointer ${ev.pointerId} down at (${ev.clientX}, ${ev.clientY})`);
+});</code></pre>
+<h3 id="三-touch-action-css-屬性-必知">三、touch-action CSS 屬性（必知）</h3>
+<pre><code class="language-css">/* 禁用瀏覽器預設觸控行為（捲動、縮放） */
+.game-canvas {
+  touch-action: none;  /* 完全由 JS 控制 */
+}
+
+/* 僅允許垂直捲動 */
+.vertical-scroll {
+  touch-action: pan-y;
+}
+
+/* 僅允許水平捲動 */
+.horizontal-scroll {
+  touch-action: pan-x;
+}</code></pre>
+<hr>
+<h2 id="最佳實踐與常見陷阱">最佳實踐與常見陷阱</h2>
+<h3 id="最佳實踐">最佳實踐</h3>
+<ol>
+<li><strong>優先使用 Pointer Events</strong>：跨平台相容性最佳，單一 API 處理所有輸入</li>
+<li><strong>最小化事件處理器中的運算</strong>：<code>touchmove</code>/<code>pointermove</code> 每秒觸發數十次，避免昂貴運算</li>
+<li><strong>使用 `requestAnimationFrame` 節流</strong>：將視覺更新延遲到下一幀</li>
+<li><strong>在 touchstart 中註冊 touchmove/touchend</strong>：減少不必要的事件監聽</li>
+<li><strong>確保觸碰目標夠大</strong>：建議至少 44×44px（Apple HIG 標準）</li>
+<li><strong>處理 touchcancel</strong>：來電、通知等中斷都會觸發，須清理狀態</li>
+</ol>
+<h3 id="常見陷阱">常見陷阱</h3>
+<ol>
+<li><strong>忘記 `preventDefault()`</strong>：未阻止會導致瀏覽器捲動、拖曳、模擬滑鼠事件</li>
+<li><strong>忽略 300ms 延遲</strong>：現代瀏覽器已移除，但舊版需 <code>&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width&quot;&gt;</code></li>
+<li><strong>混用 Touch + Mouse 事件</strong>：會導致事件觸發兩次，應統一用 Pointer Events</li>
+<li><strong>Canvas 座標轉換遺漏</strong>：觸控座標是頁面座標，需減去 canvas offset</li>
+<li><strong>多指狀態管理不當</strong>：每根手指的 identifier/pointerId 必須獨立追蹤</li>
+</ol>
+<hr>
+<h2 id="自定義手勢辨識演算法">自定義手勢辨識演算法</h2>
+<h3 id="滑動-swipe-偵測">滑動（Swipe）偵測</h3>
+<pre><code class="language-javascript">let startX, startY, startTime;
+const SWIPE_THRESHOLD = 50;  // 最小移動距離（px）
+const SWIPE_TIME_LIMIT = 300; // 最大時間（ms）
+
+element.addEventListener(&#x27;pointerdown&#x27;, (e) =&gt; {
+  startX = e.clientX;
+  startY = e.clientY;
+  startTime = Date.now();
+});
+
+element.addEventListener(&#x27;pointerup&#x27;, (e) =&gt; {
+  const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
+  const dt = Date.now() - startTime;
+  
+  if (dt &gt; SWIPE_TIME_LIMIT) return; // 太慢不算滑動
+  
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  
+  if (absDx &gt; SWIPE_THRESHOLD &amp;&amp; absDx &gt; absDy) {
+    // 水平滑動
+    const direction = dx &gt; 0 ? &#x27;right&#x27; : &#x27;left&#x27;;
+    onSwipe(direction);
+  } else if (absDy &gt; SWIPE_THRESHOLD &amp;&amp; absDy &gt; absDx) {
+    // 垂直滑動
+    const direction = dy &gt; 0 ? &#x27;down&#x27; : &#x27;up&#x27;;
+    onSwipe(direction);
+  }
+});</code></pre>
+<h3 id="捏合縮放-pinch-zoom-偵測">捏合縮放（Pinch Zoom）偵測</h3>
+<pre><code class="language-javascript">const evCache = [];
+let prevDiff = -1;
+
+element.addEventListener(&#x27;pointerdown&#x27;, (ev) =&gt; {
+  evCache.push(ev);
+});
+
+element.addEventListener(&#x27;pointermove&#x27;, (ev) =&gt; {
+  // 更新快取中的事件
+  const idx = evCache.findIndex(e =&gt; e.pointerId === ev.pointerId);
+  if (idx &gt;= 0) evCache[idx] = ev;
+  
+  // 偵測雙指手勢
+  if (evCache.length === 2) {
+    const curDiff = Math.hypot(
+      evCache[0].clientX - evCache[1].clientX,
+      evCache[0].clientY - evCache[1].clientY
+    );
+    
+    if (prevDiff &gt; 0) {
+      if (curDiff &gt; prevDiff) {
+        // 雙指張開 → 放大
+        onPinchZoom(&#x27;in&#x27;, curDiff / prevDiff);
+      } else if (curDiff &lt; prevDiff) {
+        // 雙指收合 → 縮小
+        onPinchZoom(&#x27;out&#x27;, curDiff / prevDiff);
+      }
+    }
+    prevDiff = curDiff;
+  }
+});
+
+element.addEventListener(&#x27;pointerup&#x27;, (ev) =&gt; {
+  const idx = evCache.findIndex(e =&gt; e.pointerId === ev.pointerId);
+  if (idx &gt;= 0) evCache.splice(idx, 1);
+  if (evCache.length &lt; 2) prevDiff = -1;
+});</code></pre>
+<h3 id="長按-long-press-偵測">長按（Long Press）偵測</h3>
+<pre><code class="language-javascript">let longPressTimer = null;
+const LONG_PRESS_DURATION = 500; // ms
+
+element.addEventListener(&#x27;pointerdown&#x27;, (e) =&gt; {
+  longPressTimer = setTimeout(() =&gt; {
+    onLongPress(e.clientX, e.clientY);
+  }, LONG_PRESS_DURATION);
+});
+
+element.addEventListener(&#x27;pointermove&#x27;, () =&gt; {
+  clearTimeout(longPressTimer); // 移動則取消
+});
+
+element.addEventListener(&#x27;pointerup&#x27;, () =&gt; {
+  clearTimeout(longPressTimer);
+});</code></pre>
+<h3 id="旋轉-rotation-偵測">旋轉（Rotation）偵測</h3>
+<pre><code class="language-javascript">function getAngle(p1, p2) {
+  return Math.atan2(p2.clientY - p1.clientY, p2.clientX - p1.clientX);
+}
+
+let prevAngle = null;
+
+// 在 pointermove 中（需兩指）
+if (evCache.length === 2) {
+  const curAngle = getAngle(evCache[0], evCache[1]);
+  if (prevAngle !== null) {
+    const rotation = curAngle - prevAngle;
+    onRotate(rotation * (180 / Math.PI)); // 轉為角度
+  }
+  prevAngle = curAngle;
+}</code></pre>
+<hr>
+<h2 id="html5-canvas-遊戲中的觸控實踐">HTML5 Canvas 遊戲中的觸控實踐</h2>
+<h3 id="canvas-座標轉換">Canvas 座標轉換</h3>
+<pre><code class="language-javascript">function getCanvasPosition(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY
+  };
+}</code></pre>
+<h3 id="虛擬搖桿實作">虛擬搖桿實作</h3>
+<pre><code class="language-javascript">class VirtualJoystick {
+  constructor(canvas, x, y, radius) {
+    this.canvas = canvas;
+    this.baseX = x;
+    this.baseY = y;
+    this.radius = radius;
+    this.knobX = x;
+    this.knobY = y;
+    this.active = false;
+    this.pointerId = null;
+    this.dx = 0; // -1 ~ 1
+    this.dy = 0; // -1 ~ 1
+  }
+  
+  handleDown(pos, pointerId) {
+    const dist = Math.hypot(pos.x - this.baseX, pos.y - this.baseY);
+    if (dist &lt;= this.radius * 1.5) {
+      this.active = true;
+      this.pointerId = pointerId;
+      this.updateKnob(pos);
+    }
+  }
+  
+  handleMove(pos, pointerId) {
+    if (!this.active || this.pointerId !== pointerId) return;
+    this.updateKnob(pos);
+  }
+  
+  handleUp(pointerId) {
+    if (this.pointerId !== pointerId) return;
+    this.active = false;
+    this.pointerId = null;
+    this.knobX = this.baseX;
+    this.knobY = this.baseY;
+    this.dx = 0;
+    this.dy = 0;
+  }
+  
+  updateKnob(pos) {
+    let dx = pos.x - this.baseX;
+    let dy = pos.y - this.baseY;
+    const dist = Math.hypot(dx, dy);
+    if (dist &gt; this.radius) {
+      dx = (dx / dist) * this.radius;
+      dy = (dy / dist) * this.radius;
+    }
+    this.knobX = this.baseX + dx;
+    this.knobY = this.baseY + dy;
+    this.dx = dx / this.radius; // 標準化 -1 ~ 1
+    this.dy = dy / this.radius;
+  }
+}</code></pre>
+<h3 id="多指觸控分區-遊戲常用模式">多指觸控分區（遊戲常用模式）</h3>
+<pre><code class="language-javascript">// 左半螢幕：移動，右半螢幕：射擊
+canvas.addEventListener(&#x27;pointerdown&#x27;, (e) =&gt; {
+  const pos = getCanvasPosition(canvas, e);
+  if (pos.x &lt; canvas.width / 2) {
+    joystick.handleDown(pos, e.pointerId);
+  } else {
+    fireWeapon(pos);
+  }
+});</code></pre>
+<hr>
+<h2 id="手勢辨識函式庫">手勢辨識函式庫</h2>
+<table>
+<tr><th>函式庫</th><th>特色</th><th>Stars</th><th>大小</th></tr>
+<tr><td>Hammer.js</td><td>最知名，支援 tap/pan/swipe/pinch/rotate</td><td>24K+</td><td>~7KB</td></tr>
+<tr><td>ZingTouch</td><td>現代 API，可自定義手勢</td><td>1K+</td><td>~5KB</td></tr>
+<tr><td>The Finger</td><td>輕量級，基於 Pointer Events</td><td>較新</td><td>~3KB</td></tr>
+<tr><td>use-gesture (React)</td><td>React Hooks 封裝</td><td>9K+</td><td>~10KB</td></tr>
+</table>
+<hr>
+<h2 id="與本專案的關聯">與本專案的關聯</h2>
+<h3 id="daily-digest-prompt-遊戲專案">daily-digest-prompt 遊戲專案</h3>
+<p>本專案的 <code>D:\Source\game</code> 目錄下有多款 HTML5 Canvas 遊戲（六根淨化、禪音節奏、貪吃蛇、小蜜蜂、打磚塊等），觸控事件處理直接影響行動端的遊玩體驗。</p>
+<p><strong>應用場景</strong>：</p>
+<ol>
+<li><strong>六根淨化遊戲</strong>：今日已完成觸控優化，使用 Pointer Events 統一滑鼠/觸控輸入</li>
+<li><strong>禪音節奏</strong>：節拍敲擊需要精確的 tap 偵測與時間判定</li>
+<li><strong>貪吃蛇</strong>：方向滑動偵測（swipe），觸控友善的方向控制</li>
+<li><strong>小蜜蜂/打磚塊</strong>：觸控拖曳控制太空船/擋板位置</li>
+<li><strong>念珠冥想</strong>：長按與拖曳手勢操作</li>
+</ol>
+<p><strong>建議改進</strong>：</p>
+<ul>
+<li>所有遊戲統一使用 Pointer Events（取代 Touch + Mouse 雙重監聽）</li>
+<li>加入 <code>touch-action: none</code> CSS 防止瀏覽器攔截</li>
+<li>使用 <code>requestAnimationFrame</code> 節流 pointermove 更新</li>
+<li>觸控目標區域至少 44×44px</li>
+</ul>
+<hr>
+<h2 id="效能優化技巧">效能優化技巧</h2>
+<ol>
+<li><strong>被動事件監聽</strong>：<code>{ passive: true }</code> 讓瀏覽器預知不會 preventDefault</li>
+</ol>
+<p>   ``<code>javascript
+   // 僅在不需要 preventDefault 時使用
+   element.addEventListener(&#x27;touchmove&#x27;, handler, { passive: true });
+   </code>``</p>
+<ol>
+<li><strong>事件委派</strong>：多個觸控目標時，在父元素上監聽一次</li>
+<li><strong>物件池</strong>：頻繁建立 touch state 物件會觸發 GC，預先分配</li>
+<li><strong>Web Worker</strong>：複雜手勢計算（如 DTW 動態時間規整）可放到 Worker</li>
+</ol>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Touch_events/Using_Touch_Events">MDN: Using Touch Events</a></li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Games/Techniques/Control_mechanisms/Mobile_touch">MDN: Mobile Touch Controls for Games</a></li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events/Pinch_zoom_gestures">MDN: Pinch Zoom Gestures (Pointer Events)</a></li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Touch_events">MDN: Touch Events API</a></li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Touch_events/Multi-touch_interaction">MDN: Multi-touch Interaction</a></li>
+<li><a href="https://www.sitepoint.com/pointer-events-will-make-cross-browsers-touch-support-easy/">SitePoint: Pointer Events for Cross-Browser Touch Support</a></li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="pong-乒乓-v10-創建心得-霓虹視覺-8-d1a711a9.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Pong (乒乓) v1.0 創建心得 — 霓虹視覺 + 8-bit 音效合成</span></a><a href="ai-世界模型world-models完整指南從-je-2e2513be.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">AI 世界模型（World Models）完整指南：從 JEPA 到 Genie 的架構演進、訓練方法與應用前景（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

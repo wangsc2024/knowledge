@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-02-19">
+  <title>系統 Log 審查報告 - 2026-02-19 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>系統 Log 審查報告 - 2026-02-19</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">creative_game修正</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#審查範圍">審查範圍</a></li><li><a href="#系統概況">系統概況</a></li><li><a href="#發現問題">發現問題</a></li>  <li><a href="#嚴重-creative_game-映射-key-不一致-已修正">🔴 嚴重：creative_game 映射 key 不一致（已修正）</a></li>  <li><a href="#偶發問題-無需程式碼修正">🟡 偶發問題（無需程式碼修正）</a></li><li><a href="#修正記錄">修正記錄</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 - 2026-02-19</h1>
+<h2 id="審查範圍">審查範圍</h2>
+<ul>
+<li>scheduler-state.json 最近 200 筆執行記錄</li>
+<li>digest-memory.json 記憶狀態</li>
+<li>近 7 天 Log 檔案（2/13-2/19）</li>
+</ul>
+<h2 id="系統概況">系統概況</h2>
+<ul>
+<li>連續報到：第 30 天</li>
+<li>近 7 天成功率：98%+（200 筆記錄中僅 3 筆失敗）</li>
+<li>Circuit Breaker：全部 CLOSED</li>
+<li>KB 總筆記：355 筆</li>
+</ul>
+<h2 id="發現問題">發現問題</h2>
+<h3 id="嚴重-creative_game-映射-key-不一致-已修正">🔴 嚴重：creative_game 映射 key 不一致（已修正）</h3>
+<ul>
+<li><strong>根因</strong>：<code>frequency-limits.yaml</code> 定義 key 為 <code>creative_game_optimize</code>，但 <code>run-todoist-agent-team.ps1</code> 的 <code>dedicatedPrompts</code> 映射 key 僅有 <code>creative_game</code></li>
+<li><strong>影響</strong>：Phase 1 Agent 回傳 YAML 中的全名時，PS1 找不到映射，自動任務被 skip</li>
+<li><strong>證據</strong>：2/18 19:30 (<code>creative_game</code> skip)、2/19 05:30 (<code>creative_game_optimize</code> skip)</li>
+<li><strong>修正</strong>：在 PS1 映射中同時加入 <code>creative_game_optimize</code> key，指向相同的 prompt 檔案</li>
+</ul>
+<h3 id="偶發問題-無需程式碼修正">🟡 偶發問題（無需程式碼修正）</h3>
+<ol>
+<li><strong>Phase 2 task-2 TIMEOUT</strong>（2/19 02:30）— Chat 系統任務超時 1020s，已自動降級重新排程</li>
+<li><strong>Phase 1 API 500 Error</strong>（2/18 23:30）— Claude API 暫時性內部錯誤</li>
+<li><strong>Gmail Phase 1 結果缺失</strong>（2/18 08:00）— 偶發，後續恢復</li>
+<li><strong>system_insight 結果檔案不存在</strong>（2/17 07:30）— Phase 2 產出但 Phase 3 讀取失敗</li>
+<li><strong>audit-phase1 log 內容異常</strong> — 日誌為描述性文字而非執行結果</li>
+</ol>
+<h2 id="修正記錄">修正記錄</h2>
+<ul>
+<li>修改檔案：<code>run-todoist-agent-team.ps1</code>（第 398-399 行，新增 <code>creative_game_optimize</code> 映射）</li>
+<li>語法驗證：通過（2706 tokens）</li>
+<li>備份已清理</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="輪迴塔-v20-品質優化心得留存率導向的-rogueli-b4652f5c.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">輪迴塔 v2.0 品質優化心得：留存率導向的 Roguelike 設計模式</span></a><a href="roguelike-程序化內容生成pcg完整指南地牢生-5e191585.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Roguelike 程序化內容生成（PCG）完整指南：地牢生成演算法、物品平衡與 HTML5 實作（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Knowledge 靜態知識庫專案程式碼品質優化（2026-02-19）">
+  <title>Knowledge 靜態知識庫專案程式碼品質優化（2026-02-19） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Knowledge 靜態知識庫專案程式碼品質優化（2026-02-19）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">2 分鐘閱讀</span>
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">knowledge</span><span class="tag">程式碼品質</span><span class="tag">Python</span><span class="tag">JavaScript</span><span class="tag">SHA-256</span><span class="tag">靜態網站</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案概述">專案概述</a></li><li><a href="#優化項目">優化項目</a></li>  <li><a href="#sync_knowledge-py-已-commit-push">sync_knowledge.py（已 commit + push）</a></li>  <li><a href="#shurangama-web-scripts-generate-js-本地優化-">shurangama-web/scripts/generate.js（本地優化，未追蹤於 git）</a></li>  <li><a href="#shurangama-web-scripts-migrate-js-本地優化-未">shurangama-web/scripts/migrate.js（本地優化，未追蹤於 git）</a></li>  <li><a href="#shurangama-web-js-main-js-本地優化-未追蹤於-git">shurangama-web/js/main.js（本地優化，未追蹤於 git）</a></li><li><a href="#技術決策">技術決策</a></li><li><a href="#注意事項">注意事項</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h2 id="專案概述">專案概述</h2>
+<p>knowledge 專案是一個靜態知識庫網站，從 RAG API (localhost:3000) 同步筆記轉換為靜態 HTML，部署至 Cloudflare Pages。包含兩個子系統：</p>
+<ol>
+<li><strong>根目錄</strong>：<code>sync_knowledge.py</code> — 從知識庫 API 同步筆記到靜態 HTML</li>
+<li><strong>shurangama-web/</strong>：基於 Vite 的獨立知識探索網站（.gitignore 排除，獨立維護）</li>
+</ol>
+<h2 id="優化項目">優化項目</h2>
+<h3 id="sync_knowledge-py-已-commit-push">sync_knowledge.py（已 commit + push）</h3>
+<ol>
+<li><strong>安全性提升</strong>：<code>content_hash</code> 從 MD5 改為 SHA-256，並加長至 12 字元，降低碰撞風險</li>
+<li><strong>錯誤處理改善</strong>：bare <code>except:</code> 改為明確的 <code>except (json.JSONDecodeError, TypeError):</code>，避免隱匿非預期錯誤</li>
+<li><strong>模組結構優化</strong>：<code>import sys</code> 從 <code>main()</code> 移至模組頂部，符合 PEP 8 慣例</li>
+<li><strong>死碼移除</strong>：移除 <code>inject_heading_ids</code> 中未使用的 <code>old</code> 和 <code>pattern</code> 變數，以及 <code>generate_index_html</code> 中未使用的 <code>cat_slug_map</code></li>
+<li><strong>防禦性程式設計</strong>：新增 <code>temp_notes.json</code> 不存在時的明確錯誤提示與 <code>sys.exit(1)</code></li>
+<li><strong>可讀性提升</strong>：所有函式新增完整 docstring（含 Args/Returns）</li>
+</ol>
+<h3 id="shurangama-web-scripts-generate-js-本地優化-">shurangama-web/scripts/generate.js（本地優化，未追蹤於 git）</h3>
+<ol>
+<li>新增 <code>articles.json</code> 檔案存在性檢查</li>
+<li>新增 JSON 解析錯誤處理</li>
+<li>新增文章陣列空值檢查</li>
+<li>文章生成加入 try-catch 錯誤計數</li>
+<li>所有函式新增 JSDoc 註釋</li>
+</ol>
+<h3 id="shurangama-web-scripts-migrate-js-本地優化-未">shurangama-web/scripts/migrate.js（本地優化，未追蹤於 git）</h3>
+<ol>
+<li><code>DUPLICATE_TITLES</code> 從 Array 改為 Set，查找複雜度從 O(n) 降至 O(1)</li>
+<li>移除未使用的 <code>existingTitles</code> 參數</li>
+<li>新增目錄不存在的防禦性檢查</li>
+<li>所有函式新增 JSDoc 註釋</li>
+</ol>
+<h3 id="shurangama-web-js-main-js-本地優化-未追蹤於-git">shurangama-web/js/main.js（本地優化，未追蹤於 git）</h3>
+<ol>
+<li><code>var</code> 全面改為 <code>const</code>/<code>let</code>，避免變數提升問題</li>
+</ol>
+<h2 id="技術決策">技術決策</h2>
+<table>
+<tr><th>決策</th><th>理由</th></tr>
+<tr><td>SHA-256 取代 MD5</td><td>MD5 碰撞風險較高，SHA-256 更安全；加長至 12 字元進一步降低碰撞機率</td></tr>
+<tr><td>明確 except 類型</td><td>bare except 會隱匿 KeyError、AttributeError 等程式邏輯錯誤</td></tr>
+<tr><td>Set 取代 Array 查找</td><td>DUPLICATE_TITLES 用於 <code>.has()</code> 查找，Set 的 O(1) 比 Array 的 O(n) 更高效</td></tr>
+<tr><td>const/let 取代 var</td><td>避免 JavaScript 變數提升（hoisting）引起的非預期行為</td></tr>
+</table>
+<h2 id="注意事項">注意事項</h2>
+<ul>
+<li>shurangama-web 在根目錄 <code>.gitignore</code> 中被排除，其修改不會被 git 追蹤</li>
+<li><code>content_hash</code> 演算法變更會導致下次同步時所有文章被視為「已更新」（hash 值不同），這是預期行為</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="skill-品質審查報告2026-02-19todoi-1e3d8dfa.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Skill 品質審查報告（2026-02-19）：todoist-task-creator + web-research 深度審查</span></a><a href="skill-品質審查報告2026-02-19todoi-30a8e9cd.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Skill 品質審查報告（2026-02-19）：todoist-task-creator + web-research 深度審查</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

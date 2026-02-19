@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="DeerFlow -- ByteDance 開源 SuperAgent Harness 深度研究（20K Stars, 2026）">
+  <title>DeerFlow -- ByteDance 開源 SuperAgent Harness 深度研究（20K Stars, 2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>DeerFlow -- ByteDance 開源 SuperAgent Harness 深度研究（20K Stars, 2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">DeerFlow</span><span class="tag">SuperAgent</span><span class="tag">Agent Harness</span><span class="tag">LangGraph</span><span class="tag">LangChain</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案概述">專案概述</a></li><li><a href="#核心問題-為什麼需要-superagent-harness">核心問題：為什麼需要 SuperAgent Harness？</a></li><li><a href="#技術架構">技術架構</a></li>  <li><a href="#整體架構-四層服務">整體架構（四層服務）</a></li>  <li><a href="#後端架構深度分析">後端架構深度分析</a></li><li><a href="#功能特色">功能特色</a></li>  <li><a href="#1-skill-系統-漸進式載入">1. Skill 系統（漸進式載入）</a></li>  <li><a href="#2-沙箱執行環境">2. 沙箱執行環境</a></li>  <li><a href="#3-長期記憶系統">3. 長期記憶系統</a></li>  <li><a href="#4-context-engineering">4. Context Engineering</a></li>  <li><a href="#5-mcp-整合">5. MCP 整合</a></li><li><a href="#使用方式-快速上手">使用方式（快速上手）</a></li>  <li><a href="#docker-方式-推薦">Docker 方式（推薦）</a></li>  <li><a href="#本地開發方式">本地開發方式</a></li>  <li><a href="#模型配置範例-config-yaml">模型配置範例（config.yaml）</a></li><li><a href="#社群活躍度">社群活躍度</a></li><li><a href="#與-daily-digest-prompt-專案的潛在應用">與 Daily-Digest-Prompt 專案的潛在應用</a></li>  <li><a href="#直接借鑑的設計模式">直接借鑑的設計模式</a></li>  <li><a href="#可能的整合方式">可能的整合方式</a></li><li><a href="#優缺點評估">優缺點評估</a></li>  <li><a href="#優點">優點</a></li>  <li><a href="#缺點">缺點</a></li><li><a href="#與同類工具比較">與同類工具比較</a></li><li><a href="#關鍵技術決策分析">關鍵技術決策分析</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>DeerFlow -- ByteDance 開源 SuperAgent Harness 深度研究</h1>
+<h2 id="專案概述">專案概述</h2>
+<p><strong>DeerFlow</strong>（Deep Exploration and Efficient Research Flow）是由字節跳動（ByteDance）開源的 SuperAgent Harness，專為處理需要數分鐘到數小時的複雜多步驟任務而設計。它不僅僅是一個 AI 框架，而是一個完整的 Agent 執行環境（Harness），內建沙箱、記憶系統、技能體系與子 Agent 編排能力。</p>
+<ul>
+<li><strong>GitHub</strong>: bytedance/deer-flow</li>
+<li><strong>Stars</strong>: 19,995（截至 2026-02-19）</li>
+<li><strong>Forks</strong>: 2,510</li>
+<li><strong>授權</strong>: MIT License</li>
+<li><strong>主要語言</strong>: TypeScript（前端）+ Python（後端）</li>
+<li><strong>建立日期</strong>: 2025-05-07</li>
+<li><strong>最近推送</strong>: 2026-02-18</li>
+<li><strong>官方網站</strong>: https://deerflow.tech</li>
+</ul>
+<hr>
+<h2 id="核心問題-為什麼需要-superagent-harness">核心問題：為什麼需要 SuperAgent Harness？</h2>
+<p>傳統的 AI Agent 框架通常只提供工具呼叫（Tool Use）和對話管理，但面對複雜任務時存在以下限制：</p>
+<ol>
+<li><strong>無執行環境</strong>: Agent 只能「說」不能「做」，缺乏真正的程式碼執行和檔案操作能力</li>
+<li><strong>Context Window 爆炸</strong>: 長任務容易超出模型的上下文限制</li>
+<li><strong>無跨 Session 記憶</strong>: 每次對話都從零開始，無法累積用戶偏好</li>
+<li><strong>單一 Agent 瓶頸</strong>: 複雜任務由單一 Agent 串行處理，效率低下</li>
+<li><strong>技能不可擴展</strong>: 內建能力固定，無法隨需擴展</li>
+</ol>
+<p>DeerFlow 的 Harness 概念正是為解決這些問題而生。</p>
+<hr>
+<h2 id="技術架構">技術架構</h2>
+<h3 id="整體架構-四層服務">整體架構（四層服務）</h3>
+<pre><code class="language-plaintext">+------------------+
+|   Nginx (2026)   |  統一反向代理入口
++--------+---------+
+         |
+    +----+----+
+    |         |
++---v---+ +---v--------+
+|Frontend| |Gateway API |
+|(3000)  | |(8001)      |
++--------+ +---+--------+
+               |
+         +-----v-------+
+         |LangGraph    |
+         |Server(2024) |
+         +-------------+</code></pre>
+<ul>
+<li><strong>Nginx (port 2026)</strong>: 統一入口，路由分發</li>
+<li><strong>Frontend (port 3000)</strong>: Next.js Web 介面</li>
+<li><strong>Gateway API (port 8001)</strong>: FastAPI REST API（模型管理、MCP、技能、記憶、上傳、Artifacts）</li>
+<li><strong>LangGraph Server (port 2024)</strong>: Agent Runtime，核心工作流執行</li>
+</ul>
+<h3 id="後端架構深度分析">後端架構深度分析</h3>
+<p>後端基於 <strong>LangGraph</strong> 和 <strong>LangChain</strong> 構建，採用模組化設計：</p>
+<p>#### Lead Agent 系統</p>
+<ul>
+<li>入口函數 <code>make_lead_agent(config)</code> 註冊在 <code>langgraph.json</code></li>
+<li>動態模型選擇（支援 thinking/vision 模式切換）</li>
+<li>工具透過 <code>get_available_tools()</code> 動態組裝（沙箱 + 內建 + MCP + 社群 + 子 Agent 工具）</li>
+<li>System Prompt 透過 <code>apply_prompt_template()</code> 動態注入技能、記憶、子 Agent 指令</li>
+</ul>
+<p>#### 11 層 Middleware Chain（嚴格順序）</p>
+<p>這是 DeerFlow 最精緻的設計之一，每個 Middleware 各司其職：</p>
+<ol>
+<li><strong>ThreadDataMiddleware</strong> -- 建立每個 Thread 的隔離目錄</li>
+<li><strong>UploadsMiddleware</strong> -- 追蹤新上傳的檔案</li>
+<li><strong>SandboxMiddleware</strong> -- 取得沙箱執行環境</li>
+<li><strong>DanglingToolCallMiddleware</strong> -- 處理中斷的工具呼叫</li>
+<li><strong>SummarizationMiddleware</strong> -- 接近 Token 上限時壓縮上下文</li>
+<li><strong>TodoListMiddleware</strong> -- 任務追蹤（Plan Mode）</li>
+<li><strong>TitleMiddleware</strong> -- 自動生成對話標題</li>
+<li><strong>MemoryMiddleware</strong> -- 非同步記憶更新佇列</li>
+<li><strong>ViewImageMiddleware</strong> -- 注入 base64 圖片（需 Vision 支援）</li>
+<li><strong>SubagentLimitMiddleware</strong> -- 限制並行子 Agent 數量</li>
+<li><strong>ClarificationMiddleware</strong> -- 攔截需要用戶確認的操作</li>
+</ol>
+<p>#### 子 Agent 系統</p>
+<ul>
+<li><strong>內建 Agent</strong>: <code>general-purpose</code>（完整工具）、<code>bash</code>（命令專家）</li>
+<li><strong>執行引擎</strong>: 雙執行緒池 -- scheduler pool（3 workers）+ execution pool（3 workers）</li>
+<li><strong>並行上限</strong>: MAX_CONCURRENT_SUBAGENTS = 3，由 Middleware 強制執行</li>
+<li><strong>逾時</strong>: 15 分鐘自動終止</li>
+<li><strong>事件流</strong>: task_started -&gt; task_running -&gt; task_completed/failed/timed_out</li>
+</ul>
+<hr>
+<h2 id="功能特色">功能特色</h2>
+<h3 id="1-skill-系統-漸進式載入">1. Skill 系統（漸進式載入）</h3>
+<p>技能是結構化的 Markdown 工作流定義，DeerFlow 內建 15 個公開技能：</p>
+<ul>
+<li>deep-research（深度研究）</li>
+<li>chart-visualization（圖表視覺化）</li>
+<li>consulting-analysis（顧問分析）</li>
+<li>data-analysis（資料分析）</li>
+<li>frontend-design（前端設計）</li>
+<li>github-deep-research（GitHub 深度研究）</li>
+<li>image-generation（圖片生成）</li>
+<li>podcast-generation（播客生成）</li>
+<li>ppt-generation（簡報生成）</li>
+<li>skill-creator（技能建立器）</li>
+<li>surprise-me（驚喜模式）</li>
+<li>video-generation（影片生成）</li>
+<li>web-design-guidelines（Web 設計指南）</li>
+<li>vercel-deploy-claimable（Vercel 部署）</li>
+<li>find-skills（技能搜尋）</li>
+</ul>
+<p><strong>關鍵設計</strong>: 技能按需載入（Progressive Loading），只在任務需要時才注入 Context，保持 Context Window 精簡。支援自定義技能目錄 <code>/mnt/skills/custom/</code>。</p>
+<h3 id="2-沙箱執行環境">2. 沙箱執行環境</h3>
+<p>三種執行模式：</p>
+<ul>
+<li><strong>Local</strong>: 直接在主機執行（開發用）</li>
+<li><strong>Docker</strong>: 隔離容器執行（推薦）</li>
+<li><strong>Kubernetes</strong>: Pod 級隔離（企業級）</li>
+</ul>
+<p>虛擬路徑系統：</p>
+<ul>
+<li>Agent 看到: <code>/mnt/user-data/{workspace,uploads,outputs}</code>, <code>/mnt/skills</code></li>
+<li>物理路徑: <code>backend/.deer-flow/threads/{thread_id}/user-data/...</code></li>
+<li>自動雙向轉譯</li>
+</ul>
+<p>沙箱工具: bash, ls, read_file, write_file, str_replace</p>
+<h3 id="3-長期記憶系統">3. 長期記憶系統</h3>
+<p>跨 Session 持久化記憶：</p>
+<ul>
+<li>自動提取用戶偏好、技術棧、寫作風格</li>
+<li>本地儲存，完全控制在用戶端</li>
+<li>越使用越了解用戶</li>
+</ul>
+<h3 id="4-context-engineering">4. Context Engineering</h3>
+<ul>
+<li>子 Agent 上下文完全隔離，避免互相干擾</li>
+<li>主動上下文壓縮：完成的子任務摘要化</li>
+<li>中間結果卸載到檔案系統</li>
+</ul>
+<h3 id="5-mcp-整合">5. MCP 整合</h3>
+<p>支援 MCP（Model Context Protocol）伺服器的工具擴展，透過 <code>extensions_config.json</code> 配置。</p>
+<hr>
+<h2 id="使用方式-快速上手">使用方式（快速上手）</h2>
+<h3 id="docker-方式-推薦">Docker 方式（推薦）</h3>
+<pre><code class="language-bash">git clone https://github.com/bytedance/deer-flow.git &amp;&amp; cd deer-flow
+cp config.example.yaml config.yaml
+cp .env.example .env
+# 編輯 config.yaml 和 .env 設定 API Key
+make docker-init    # 拉取沙箱映像（首次）
+make docker-start   # 啟動所有服務
+# 訪問 http://localhost:2026</code></pre>
+<h3 id="本地開發方式">本地開發方式</h3>
+<pre><code class="language-bash">make check    # 檢查先決條件（Node.js 22+, pnpm, uv, nginx）
+make install  # 安裝依賴
+make dev      # 啟動所有服務
+# 訪問 http://localhost:2026</code></pre>
+<h3 id="模型配置範例-config-yaml">模型配置範例（config.yaml）</h3>
+<pre><code class="language-yaml">models:
+  - name: gpt-4
+    display_name: GPT-4
+    use: langchain_openai:ChatOpenAI
+    model: gpt-4
+    api_key: $OPENAI_API_KEY
+    supports_vision: true
+
+sandbox:
+  use: src.community.aio_sandbox:AioSandboxProvider  # Docker 模式</code></pre>
+<hr>
+<h2 id="社群活躍度">社群活躍度</h2>
+<ul>
+<li><strong>Stars</strong>: 19,995（2026-02-19）</li>
+<li><strong>Forks</strong>: 2,510</li>
+<li><strong>Open Issues</strong>: 203</li>
+<li><strong>主要貢獻者</strong>: MagicCube (602), henry-byted (203), hetaoBackend (201), WillemJiang (140)</li>
+<li><strong>Topics</strong>: agent, agentic-framework, langgraph, langchain, multi-agent, superagent, deep-research, typescript, python</li>
+<li><strong>更新頻率</strong>: 極活躍，2026-02-18 仍有推送</li>
+<li><strong>版本</strong>: 2.0（完全重寫，與 v1 無共享程式碼）</li>
+</ul>
+<hr>
+<h2 id="與-daily-digest-prompt-專案的潛在應用">與 Daily-Digest-Prompt 專案的潛在應用</h2>
+<h3 id="直接借鑑的設計模式">直接借鑑的設計模式</h3>
+<ol>
+<li><strong>Middleware Chain 模式</strong>: DeerFlow 的 11 層 Middleware 與本專案的 Hooks 機制異曲同工，但更結構化。可考慮：</li>
+</ol>
+<p>   - 將 pre_bash_guard、pre_write_guard 等 hooks 重構為 Middleware Chain
+   - 新增 SummarizationMiddleware 概念，自動壓縮長 session 的 context</p>
+<ol>
+<li><strong>漸進式 Skill 載入</strong>: DeerFlow 的技能系統與本專案的 SKILL_INDEX.md 理念一致，但 DeerFlow 更進一步：</li>
+</ol>
+<p>   - 每個 Skill 只在觸發時注入 context（本專案已採用類似做法）
+   - 技能可被安裝/卸載/替換（本專案是靜態配置）
+   - 內建 <code>skill-creator</code> 可自動生成新技能</p>
+<ol>
+<li><strong>沙箱隔離</strong>: 本專案的子 Agent 在主機直接執行，DeerFlow 的 Docker 沙箱提供更好的安全性。</li>
+</ol>
+<ol>
+<li><strong>子 Agent 並行控制</strong>: DeerFlow 的 MAX_CONCURRENT_SUBAGENTS=3 加上 SubagentLimitMiddleware 的做法值得參考，可加入 <code>run-todoist-agent-team.ps1</code> 的並行控制中。</li>
+</ol>
+<h3 id="可能的整合方式">可能的整合方式</h3>
+<ul>
+<li>將 DeerFlow 作為「重量級任務」的執行後端，本專案負責排程與輕量任務</li>
+<li>借用 DeerFlow 的 Context Engineering 策略優化本專案的長時間 session</li>
+<li>參考其 Memory System 改進 <code>digest-memory.json</code> 的記憶提取機制</li>
+</ul>
+<hr>
+<h2 id="優缺點評估">優缺點評估</h2>
+<h3 id="優點">優點</h3>
+<ol>
+<li><strong>完整的執行環境</strong>: 不只是框架，是真正的 Agent 作業系統，含沙箱、檔案系統、記憶</li>
+<li><strong>架構精緻</strong>: 11 層 Middleware Chain 設計清晰，職責分離徹底</li>
+<li><strong>模型無關</strong>: 支援任何 OpenAI-compatible API（GPT、Claude、DeepSeek、Kimi 等）</li>
+<li><strong>技能可擴展</strong>: Skill 系統設計優秀，支援自定義和漸進式載入</li>
+<li><strong>MIT 授權</strong>: 完全開放，可商用</li>
+<li><strong>Docker 一鍵部署</strong>: <code>make docker-start</code> 即可啟動完整環境</li>
+<li><strong>2.0 完全重寫</strong>: 吸取 v1 經驗，架構更乾淨</li>
+<li><strong>跨 Session 記憶</strong>: 用戶偏好和知識的持久化</li>
+</ol>
+<h3 id="缺點">缺點</h3>
+<ol>
+<li><strong>資源需求高</strong>: 需要 Docker + Node.js 22+ + Python + Nginx，部署門檻較高</li>
+<li><strong>仍在快速迭代</strong>: 203 個 Open Issues，2.0 版仍有不少未完善之處</li>
+<li><strong>文件分散</strong>: 架構文件分布在多處（README、CLAUDE.md、CONTRIBUTING.md、backend docs）</li>
+<li><strong>子 Agent 並行上限低</strong>: MAX_CONCURRENT_SUBAGENTS=3 對複雜任務可能不夠</li>
+<li><strong>本地沙箱安全性不足</strong>: Local 模式直接在主機執行，安全隱患</li>
+<li><strong>前端綁定 Next.js</strong>: 不易與其他前端框架整合</li>
+<li><strong>無內建認證系統</strong>: 多用戶場景需自行實作</li>
+</ol>
+<hr>
+<h2 id="與同類工具比較">與同類工具比較</h2>
+<table>
+<tr><th>特性</th><th>DeerFlow</th><th>AutoGPT</th><th>CrewAI</th><th>OpenClaw</th></tr>
+<tr><td>Agent 類型</td><td>SuperAgent Harness</td><td>Autonomous Agent</td><td>Multi-Agent</td><td>Agent Harness</td></tr>
+<tr><td>沙箱執行</td><td>Docker/K8s</td><td>有限</td><td>無</td><td>有</td></tr>
+<tr><td>技能系統</td><td>Markdown Skill</td><td>Plugin</td><td>Tool</td><td>Skill</td></tr>
+<tr><td>記憶系統</td><td>長期記憶</td><td>短期</td><td>短期</td><td>有</td></tr>
+<tr><td>MCP 支援</td><td>有</td><td>無</td><td>無</td><td>有</td></tr>
+<tr><td>子 Agent</td><td>並行（3）</td><td>單一</td><td>多 Agent</td><td>並行</td></tr>
+<tr><td>部署方式</td><td>Docker/Local</td><td>Docker</td><td>pip</td><td>Docker</td></tr>
+<tr><td>Stars</td><td>~20K</td><td>~182K</td><td>~25K</td><td>~3K</td></tr>
+</table>
+<hr>
+<h2 id="關鍵技術決策分析">關鍵技術決策分析</h2>
+<ol>
+<li><strong>選擇 LangGraph 而非自建</strong>: 站在成熟框架肩膀上，獲得狀態管理、checkpointing、streaming 等能力</li>
+<li><strong>Middleware 而非 Plugin</strong>: Middleware 是同步的、有序的、可預測的；Plugin 是非同步的、無序的。DeerFlow 選擇可控性</li>
+<li><strong>虛擬路徑系統</strong>: Agent 看到的路徑與物理路徑分離，實現沙箱透明切換</li>
+<li><strong>Gateway + LangGraph 雙服務</strong>: 分離關注點 -- Gateway 處理 REST/CRUD，LangGraph 專注 Agent 執行</li>
+<li><strong>2.0 完全重寫</strong>: 勇於拋棄技術債，從 Deep Research 框架演進為通用 Harness</li>
+</ol>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li>GitHub: bytedance/deer-flow -- 官方倉庫與 README</li>
+<li>DeerFlow 官方網站: https://deerflow.tech</li>
+<li>backend/CLAUDE.md -- 後端架構文件（完整的 Middleware、工具、子 Agent 系統說明）</li>
+<li>config.example.yaml -- 配置系統與模型設定</li>
+<li>GitHub API -- 貢獻者、Issues、Release 統計資料</li>
+<li>LangGraph 文件 -- 底層框架參考</li>
+</ol>
+<hr>
+<p><em>研究日期: 2026-02-19</em>
+<em>研究者: AI GitHub Research Agent</em>
+<em>任務類型: ai_github_research（AI 開源專案研究）</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="cline-開源-ai-coding-agent-深度洞-530963eb.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Cline — 開源 AI Coding Agent 深度洞察報告：架構設計、Memory Bank 與可借鏡技術（58K Stars, 2026）</span></a><a href="hn-熱門致-llm-請讀這篇-llmstxt-標準-cb3c8973.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">HN 熱門：致 LLM 請讀這篇 — llms.txt 標準與 AI 資料存取議題（692 分）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19)">
+  <title>QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-security">資訊安全</span>
+        <h1>QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19)</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">TemplateResponse</span><span class="tag">棄用語法遷移</span><span class="tag">品質改善</span><span class="tag">Starlette</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化方向">優化方向</a></li><li><a href="#已修復問題-2-項品質-1-項確認">已修復問題（2 項品質 + 1 項確認）</a></li>  <li><a href="#品質修復-starlette-棄用語法遷移">品質修復（Starlette 棄用語法遷移）</a></li><li><a href="#累計遷移統計">累計遷移統計</a></li><li><a href="#安全掃描結果-無新問題">安全掃描結果（無新問題）</a></li><li><a href="#測試結果">測試結果</a></li><li><a href="#品質趨勢">品質趨勢</a></li><li><a href="#待處理事項">待處理事項</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #8</h1>
+<blockquote><p>日期：2026-02-19 | 品質分數：4.5/5 | 第八次掃描</p>
+</blockquote>
+<h2 id="優化方向">優化方向</h2>
+<p>TemplateResponse 棄用語法遷移完成（users.py 8 處 + questions.py 9 處，全專案零殘留）</p>
+<h2 id="已修復問題-2-項品質-1-項確認">已修復問題（2 項品質 + 1 項確認）</h2>
+<h3 id="品質修復-starlette-棄用語法遷移">品質修復（Starlette 棄用語法遷移）</h3>
+<ol>
+<li><strong>users.py 8 處遷移</strong></li>
+</ol>
+<p>   - <code>TemplateResponse(&quot;name&quot;, {&quot;request&quot;: request, ...})</code> -&gt; <code>TemplateResponse(request, &quot;name&quot;, {...})</code>
+   - 涵蓋：list_users、create_user_page、create_user(2處)、edit_user_page、update_user(2處)、delete_user</p>
+<ol>
+<li><strong>questions.py 9 處遷移</strong></li>
+</ol>
+<p>   - 同上遷移模式
+   - 涵蓋：list_questions(3處)、create_question_page、get_question、edit_question(2處)、edit_question_page、create_question POST</p>
+<ol>
+<li><strong>全專案零殘留確認</strong></li>
+</ol>
+<p>   - <code>grep &#x27;&quot;request&quot;: request&#x27;</code> 確認無舊語法殘留
+   - 7 個 router 檔案 + main.py 全部已使用新語法</p>
+<h2 id="累計遷移統計">累計遷移統計</h2>
+<table>
+<tr><th>檔案</th><th>遷移處數</th><th>完成版本</th></tr>
+<tr><td>main.py</td><td>3 處</td><td>#7</td></tr>
+<tr><td>auth.py</td><td>8 處</td><td>#7</td></tr>
+<tr><td>roles.py</td><td>原已新語法</td><td>-</td></tr>
+<tr><td>departments.py</td><td>原已新語法</td><td>-</td></tr>
+<tr><td>export.py</td><td>原已新語法</td><td>-</td></tr>
+<tr><td>users.py</td><td>8 處</td><td>#8（本次）</td></tr>
+<tr><td>questions.py</td><td>9 處</td><td>#8（本次）</td></tr>
+<tr><td><strong>合計</strong></td><td><strong>28 處</strong></td><td><strong>全部完成</strong></td></tr>
+</table>
+<h2 id="安全掃描結果-無新問題">安全掃描結果（無新問題）</h2>
+<p>全部 8 項安全措施仍有效：SECRET_KEY 環境變數化、SQL 參數化、無 XSS、CORS 限制、Cookie 安全、JWT 集中/30 分鐘、python-jose CVE 修復、錯誤訊息零洩漏</p>
+<h2 id="測試結果">測試結果</h2>
+<ul>
+<li>9/11 通過（2 個既有失敗：test_create_question_api + test_close_question_api，非本次引入）</li>
+<li>py_compile 驗證通過</li>
+</ul>
+<h2 id="品質趨勢">品質趨勢</h2>
+<table>
+<tr><th>版本</th><th>分數</th><th>重點</th></tr>
+<tr><td>#1</td><td>2.0</td><td>SQL 注入 + 硬編碼密碼 + Cookie</td></tr>
+<tr><td>#2</td><td>3.0</td><td>SECRET_KEY + CORS + 錯誤洩漏</td></tr>
+<tr><td>#3</td><td>3.5</td><td>print-&gt;logger + JWT + 依賴鎖定</td></tr>
+<tr><td>#4</td><td>4.0</td><td>重複函式 + SSO URL + Token 遮蔽</td></tr>
+<tr><td>#5</td><td>4.5</td><td>JWT DRY + datetime + 錯誤洩漏</td></tr>
+<tr><td>#6</td><td>4.5</td><td>roles/dept/users 錯誤洩漏</td></tr>
+<tr><td>#7</td><td>4.5</td><td>CVE 修復 + TemplateResponse 開始</td></tr>
+<tr><td>#8</td><td>4.5</td><td>TemplateResponse 完成（零殘留）</td></tr>
+</table>
+<h2 id="待處理事項">待處理事項</h2>
+<ol>
+<li>questions.py 拆分（&gt;1000 行）</li>
+<li>補全 users/roles/departments/export/reports 測試</li>
+<li>修復既有失敗測試</li>
+<li>zeep cgi 棄用（Python 3.13）</li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="qa-system-優化報告-9---questions-d58803b5.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">QA System 優化報告 #9 - questions.py DRY 重構（3 個共用 helper 函式）</span></a><a href="qa-system-優化報告-7---python-jos-91a29fbe.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">QA System 優化報告 #7 - python-jose CVE 修復 + TemplateResponse 棄用遷移 (2026-02-18)</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

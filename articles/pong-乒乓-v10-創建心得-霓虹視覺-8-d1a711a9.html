@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pong (乒乓) v1.0 創建心得 — 霓虹視覺 + 8-bit 音效合成">
+  <title>Pong (乒乓) v1.0 創建心得 — 霓虹視覺 + 8-bit 音效合成 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Pong (乒乓) v1.0 創建心得 — 霓虹視覺 + 8-bit 音效合成</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <div class="tags"><span class="tag">遊戲</span><span class="tag">復古遊戲</span><span class="tag">pong</span><span class="tag">v1.0</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">Web Audio API</span><span class="tag">霓虹主題</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術架構">技術架構</a></li><li><a href="#遊戲迴圈">遊戲迴圈</a></li><li><a href="#碰撞偵測">碰撞偵測</a></li><li><a href="#ai-設計">AI 設計</a></li><li><a href="#狀態機">狀態機</a></li><li><a href="#web-audio-api-音效合成">Web Audio API 音效合成</a></li><li><a href="#霓虹視覺效果">霓虹視覺效果</a></li><li><a href="#輸入系統">輸入系統</a></li><li><a href="#響應式設計">響應式設計</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h2 id="技術架構">技術架構</h2>
+<p>單一 HTML 檔案（801 行），內嵌 CSS + JavaScript，Canvas 2D 渲染。</p>
+<h2 id="遊戲迴圈">遊戲迴圈</h2>
+<p>採用 Fixed Timestep 模式：<code>requestAnimationFrame</code> 驅動，累加器（accumulator）搭配 <code>FIXED_DT = 1000/60</code> 確保物理更新與畫面重新整理解耦。Delta time 上限 50ms 防止大跳幀。</p>
+<h2 id="碰撞偵測">碰撞偵測</h2>
+<p>AABB（Axis-Aligned Bounding Box）矩形碰撞，球視為正方形包圍盒與球板矩形交叉判定。碰撞後依擊球位置計算反射角度：<code>relHit = ((ball.y - paddle.y) / PADDLE_H) * 2 - 1</code>，角度範圍 -45 到 +45 度。每次擊球球速遞增 0.3，上限 10。</p>
+<h2 id="ai-設計">AI 設計</h2>
+<p>簡單追蹤型 AI：每幀計算目標 Y = ball.y + 隨機誤差（-20 到 +20），移動速度上限 4.2px/frame。隨機誤差讓 AI 不完美但有挑戰性。</p>
+<h2 id="狀態機">狀態機</h2>
+<p>5 狀態：MENU → PLAYING → PAUSED → GOAL → GAMEOVER。GOAL 為得分後短暫停頓（60 幀），讓玩家有喘息時間。</p>
+<h2 id="web-audio-api-音效合成">Web Audio API 音效合成</h2>
+<p>不使用音檔，完全用 OscillatorNode 合成 8-bit 風格音效：</p>
+<ul>
+<li><strong>擊球音</strong>：440Hz square wave, 80ms</li>
+<li><strong>牆壁反彈</strong>：220Hz triangle wave, 60ms</li>
+<li><strong>得分音</strong>：三連音 C5→E5→G5（523/659/784Hz），各 100ms，square wave</li>
+<li><strong>遊戲結束</strong>：下行 G5→E5→C5→G4（784→392Hz），sawtooth wave</li>
+</ul>
+<p>關鍵：AudioContext 需在使用者互動後才能建立（瀏覽器自動播放政策），用 <code>ensureAudio()</code> 延遲初始化。</p>
+<h2 id="霓虹視覺效果">霓虹視覺效果</h2>
+<ol>
+<li><strong>Canvas shadowBlur</strong>：球板和球使用 <code>shadowColor</code> + <code>shadowBlur</code> 產生發光效果</li>
+<li><strong>球拖尾</strong>：保留最近 12 幀位置，由舊到新漸變透明度（0→0.4）和尺寸（30%→100%）</li>
+<li><strong>擊球閃光</strong>：碰撞瞬間在接觸點產生白色圓形閃光，10 幀淡出</li>
+<li><strong>粒子系統</strong>：碰撞和得分時噴射彩色粒子，帶衰減生命值</li>
+<li><strong>背景</strong>：深色底 + 微弱青色網格 + 中線虛線，營造復古感</li>
+</ol>
+<h2 id="輸入系統">輸入系統</h2>
+<p>三種輸入並存：鍵盤（W/S 或方向鍵）、觸控（左半螢幕滑動控制球板）、滑鼠點擊（選單互動）。觸控用 <code>getCanvasX/Y</code> 座標轉換，<code>passive: false</code> 防止頁面滾動。</p>
+<h2 id="響應式設計">響應式設計</h2>
+<p>Canvas 邏輯解析度固定 800x600，CSS 用 <code>width: 100%; max-width: 900px; aspect-ratio: 4/3</code> 自適應螢幕。觸控暫停按鈕僅在 <code>@media (pointer: coarse)</code> 顯示。</p>
+
+      </div>
+
+      <nav class="article-nav"><a href="web-workers-與-offscreencanvas--cb7cf5a2.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Web Workers 與 OffscreenCanvas — 瀏覽器多執行緒遊戲運算完整指南（2026）</span></a><a href="javascript-觸控事件處理與手勢辨識完整指南tou-2ae33326.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">JavaScript 觸控事件處理與手勢辨識完整指南：Touch Events、Pointer Events 與遊戲應用（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

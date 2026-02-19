@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Tetris (俄羅斯方塊) v1.0 創建心得 — SRS 旋轉 + CRT 復古視覺 + 8-bit BGM">
+  <title>Tetris (俄羅斯方塊) v1.0 創建心得 — SRS 旋轉 + CRT 復古視覺 + 8-bit BGM | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Tetris (俄羅斯方塊) v1.0 創建心得 — SRS 旋轉 + CRT 復古視覺 + 8-bit BGM</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">俄羅斯方塊</span><span class="tag">Tetris</span><span class="tag">SRS</span><span class="tag">Web Audio API</span><span class="tag">CRT濾鏡</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#核心技術實作">核心技術實作</a></li>  <li><a href="#srs-旋轉系統-super-rotation-system">SRS 旋轉系統 (Super Rotation System)</a></li>  <li><a href="#7-bag-隨機器">7-Bag 隨機器</a></li>  <li><a href="#lock-delay-機制">Lock Delay 機制</a></li>  <li><a href="#das-delayed-auto-shift">DAS (Delayed Auto Shift)</a></li><li><a href="#創意改良">創意改良</a></li>  <li><a href="#crt-復古視覺">CRT 復古視覺</a></li>  <li><a href="#8-bit-音效系統">8-bit 音效系統</a></li>  <li><a href="#粒子系統-螢幕震動">粒子系統 + 螢幕震動</a></li><li><a href="#踩坑紀錄">踩坑紀錄</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Tetris (俄羅斯方塊) v1.0 創建心得</h1>
+<h2 id="核心技術實作">核心技術實作</h2>
+<h3 id="srs-旋轉系統-super-rotation-system">SRS 旋轉系統 (Super Rotation System)</h3>
+<ul>
+<li>標準 SRS wall kick data 實作，I 方塊與 JLSTZ 方塊使用不同的 kick table</li>
+<li>旋轉矩陣用順時針轉置：<code>result[c][n-1-r] = matrix[r][c]</code></li>
+<li>嘗試 5 組 wall kick 偏移，第一組成功即採用</li>
+<li>O 方塊不旋轉（特殊處理）</li>
+</ul>
+<h3 id="7-bag-隨機器">7-Bag 隨機器</h3>
+<ul>
+<li>將 7 種方塊放入一個 bag 隨機排列</li>
+<li>每次取出一個，空了再補充</li>
+<li>保證每 7 個方塊中每種恰好出現一次</li>
+</ul>
+<h3 id="lock-delay-機制">Lock Delay 機制</h3>
+<ul>
+<li>方塊觸地後有 500ms 的鎖定延遲</li>
+<li>移動/旋轉可重置鎖定計時器（最多 15 次）</li>
+<li>只在方塊無法繼續下移時累加 lock timer</li>
+</ul>
+<h3 id="das-delayed-auto-shift">DAS (Delayed Auto Shift)</h3>
+<ul>
+<li>首次按下方向鍵：立即移動一格</li>
+<li>持續按住 170ms 後進入自動重複模式（50ms/格）</li>
+</ul>
+<h2 id="創意改良">創意改良</h2>
+<h3 id="crt-復古視覺">CRT 復古視覺</h3>
+<ul>
+<li>CSS repeating-linear-gradient 模擬掃描線</li>
+<li>radial-gradient 模擬 CRT 邊緣暗角</li>
+<li>方塊帶磷光殘影（shadowBlur + drop-shadow）</li>
+<li>綠色主色調 #33ff33 模擬老式綠色螢光顯示器</li>
+</ul>
+<h3 id="8-bit-音效系統">8-bit 音效系統</h3>
+<ul>
+<li>Web Audio API 合成所有音效</li>
+<li>Korobeiniki 旋律作為 BGM（公版俄國民謠）</li>
+<li>BGM 速度隨等級遞增（140→200 BPM）</li>
+<li>ADSR 包絡自然衰減</li>
+</ul>
+<h3 id="粒子系統-螢幕震動">粒子系統 + 螢幕震動</h3>
+<ul>
+<li>消行時每格噴射 4 個粒子（顏色繼承方塊色）</li>
+<li>硬降 150ms 螢幕震動，Tetris 300ms 強震</li>
+</ul>
+<h2 id="踩坑紀錄">踩坑紀錄</h2>
+<ol>
+<li>Lock delay 雙重計算：應只在一處累加</li>
+<li>SRS kick Y 偏移需反轉（Canvas Y 軸向下）</li>
+<li>消行 board.splice 需從上到下</li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="pac-man-html5-canvas-遊戲開發心得gh-99a5eeeb.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Pac-Man HTML5 Canvas 遊戲開發心得：Ghost AI、粒子系統與 8-bit 音效實作</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

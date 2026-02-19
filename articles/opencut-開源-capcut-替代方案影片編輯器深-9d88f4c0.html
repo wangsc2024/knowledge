@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenCut — 開源 CapCut 替代方案影片編輯器深度研究（45.9K Stars, 2026）">
+  <title>OpenCut — 開源 CapCut 替代方案影片編輯器深度研究（45.9K Stars, 2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-opensource">開源生態</span>
+        <h1>OpenCut — 開源 CapCut 替代方案影片編輯器深度研究（45.9K Stars, 2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">5 分鐘閱讀</span>
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">開源專案</span><span class="tag">OpenCut</span><span class="tag">影片編輯器</span><span class="tag">CapCut替代</span><span class="tag">TypeScript</span><span class="tag">FFmpeg WASM</span><span class="tag">Next.js</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案概述">專案概述</a></li>  <li><a href="#核心價值主張">核心價值主張</a></li><li><a href="#技術架構">技術架構</a></li>  <li><a href="#monorepo-結構-turborepo">Monorepo 結構（Turborepo）</a></li>  <li><a href="#技術棧">技術棧</a></li>  <li><a href="#核心架構特色">核心架構特色</a></li><li><a href="#功能特色">功能特色</a></li>  <li><a href="#已實現功能">已實現功能</a></li>  <li><a href="#重構中功能">重構中功能</a></li>  <li><a href="#與-capcut-的差異化">與 CapCut 的差異化</a></li><li><a href="#社群活躍度">社群活躍度</a></li>  <li><a href="#開發活動">開發活動</a></li>  <li><a href="#增長趨勢">增長趨勢</a></li><li><a href="#使用方式">使用方式</a></li>  <li><a href="#快速開始">快速開始</a></li>  <li><a href="#關鍵環境變數">關鍵環境變數</a></li><li><a href="#潛在應用">潛在應用</a></li>  <li><a href="#對本專案-daily-digest-prompt-的啟發">對本專案（Daily-Digest-Prompt）的啟發</a></li>  <li><a href="#一般應用場景">一般應用場景</a></li><li><a href="#優缺點評估">優缺點評估</a></li>  <li><a href="#優點">優點</a></li>  <li><a href="#缺點">缺點</a></li><li><a href="#架構亮點與設計決策">架構亮點與設計決策</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>OpenCut — 開源 CapCut 替代方案影片編輯器深度研究</h1>
+<h2 id="專案概述">專案概述</h2>
+<p><strong>OpenCut</strong> 是一款免費、開源的影片編輯器，定位為 CapCut 的開源替代方案，支援 Web、桌面與行動平台。專案於 2025 年 6 月創建，短短 8 個月內突破 45,000 Stars，成為 2025-2026 年增長最快的開源專案之一。</p>
+<ul>
+<li><strong>GitHub</strong>: OpenCut-app/OpenCut</li>
+<li><strong>Stars</strong>: 45,892（截至 2026-02-18）</li>
+<li><strong>Forks</strong>: 4,689</li>
+<li><strong>授權</strong>: MIT License</li>
+<li><strong>語言</strong>: TypeScript (99.2%)、CSS (0.8%)</li>
+<li><strong>創建日期</strong>: 2025-06-22</li>
+<li><strong>官網</strong>: https://opencut.app</li>
+</ul>
+<h3 id="核心價值主張">核心價值主張</h3>
+<ol>
+<li><strong>隱私優先</strong>：影片處理完全在本地裝置執行，不上傳雲端</li>
+<li><strong>免費功能</strong>：CapCut 逐漸將基本功能付費化，OpenCut 提供免費替代</li>
+<li><strong>簡單易用</strong>：延續 CapCut 證明的「簡單好用」哲學</li>
+<li><strong>無浮水印</strong>：不強制添加品牌浮水印</li>
+<li><strong>無訂閱制</strong>：完全免費使用</li>
+</ol>
+<h2 id="技術架構">技術架構</h2>
+<h3 id="monorepo-結構-turborepo">Monorepo 結構（Turborepo）</h3>
+<pre><code class="language-plaintext">OpenCut/
+├── apps/
+│   └── web/              # 主要 Next.js 應用
+│       └── src/
+│           ├── app/       # Next.js App Router 頁面
+│           ├── components/ # UI + 編輯器元件
+│           │   ├── editor/  # 核心編輯器元件
+│           │   ├── landing/ # 首頁
+│           │   └── ui/      # 通用 UI 元件
+│           ├── core/       # 核心引擎（managers/）
+│           ├── hooks/      # React Hooks
+│           ├── stores/     # Zustand 狀態管理
+│           ├── services/   # 服務層
+│           ├── types/      # TypeScript 型別
+│           └── utils/      # 工具函式
+├── packages/
+│   ├── env/              # 環境變數管理
+│   └── ui/               # 共用 UI 套件
+├── turbo.json            # Turborepo 配置
+└── biome.json            # Biome linter/formatter</code></pre>
+<h3 id="技術棧">技術棧</h3>
+<table>
+<tr><th>層級</th><th>技術</th><th>用途</th></tr>
+<tr><td><strong>框架</strong></td><td>Next.js + React 19</td><td>SSR/SPA 混合渲染</td></tr>
+<tr><td><strong>語言</strong></td><td>TypeScript 5.8</td><td>全棧型別安全</td></tr>
+<tr><td><strong>影片處理</strong></td><td>@ffmpeg/ffmpeg (WASM)</td><td>瀏覽器端影片編解碼</td></tr>
+<tr><td><strong>AI 功能</strong></td><td>@huggingface/transformers</td><td>客戶端 AI 推論（如自動字幕）</td></tr>
+<tr><td><strong>狀態管理</strong></td><td>Zustand</td><td>輕量級響應式狀態</td></tr>
+<tr><td><strong>UI 系統</strong></td><td>Radix UI + Tailwind CSS 4</td><td>無障礙元件 + 原子化 CSS</td></tr>
+<tr><td><strong>拖放</strong></td><td>@hello-pangea/dnd</td><td>Timeline 拖放操作</td></tr>
+<tr><td><strong>資料庫</strong></td><td>PostgreSQL + Drizzle ORM</td><td>用戶資料/專案管理</td></tr>
+<tr><td><strong>認證</strong></td><td>Better Auth</td><td>身份驗證</td></tr>
+<tr><td><strong>快取</strong></td><td>Upstash Redis</td><td>速率限制/Session</td></tr>
+<tr><td><strong>部署</strong></td><td>Vercel</td><td>自動部署</td></tr>
+<tr><td><strong>包管理</strong></td><td>Bun</td><td>極速安裝/執行</td></tr>
+<tr><td><strong>Monorepo</strong></td><td>Turborepo</td><td>多套件管理</td></tr>
+<tr><td><strong>Linter</strong></td><td>Biome</td><td>替代 ESLint + Prettier</td></tr>
+</table>
+<h3 id="核心架構特色">核心架構特色</h3>
+<p><strong>1. 瀏覽器端影片處理（FFmpeg WASM）</strong></p>
+<ul>
+<li>使用 <code>@ffmpeg/ffmpeg</code> 在瀏覽器中執行 FFmpeg，無需伺服器端處理</li>
+<li>影片編碼、轉檔、合併全部在客戶端完成</li>
+<li>零隱私風險：影片資料永不離開用戶裝置</li>
+</ul>
+<p><strong>2. Zustand 狀態管理架構</strong></p>
+<ul>
+<li><code>timeline-store.ts</code>：時間軸狀態（多軌道、播放頭位置、縮放）</li>
+<li><code>editor-store.ts</code>：編輯器全局狀態</li>
+<li><code>panel-store.ts</code>：面板佈局管理</li>
+<li><code>assets-panel-store.tsx</code>：素材面板狀態</li>
+<li><code>keybindings-store.ts</code>：快捷鍵配置</li>
+</ul>
+<p><strong>3. 核心引擎（core/managers/）</strong></p>
+<ul>
+<li>Manager 模式封裝複雜邏輯，與 UI 解耦</li>
+<li>渲染管線正在重構為「binary rendering approach」（二進制渲染）</li>
+</ul>
+<p><strong>4. 客戶端 AI（Hugging Face Transformers.js）</strong></p>
+<ul>
+<li>使用 <code>@huggingface/transformers</code> 在瀏覽器端執行 AI 模型</li>
+<li>可能用於自動字幕生成、語音識別等功能</li>
+<li>完全客戶端推論，不需 API 呼叫</li>
+</ul>
+<h2 id="功能特色">功能特色</h2>
+<h3 id="已實現功能">已實現功能</h3>
+<ul>
+<li><strong>Timeline 編輯</strong>：多軌道時間軸、拖放操作、縮放</li>
+<li><strong>即時預覽</strong>：編輯時即時預覽效果</li>
+<li><strong>多軌道支援</strong>：影片、音訊、字幕等獨立軌道</li>
+<li><strong>文字特效</strong>：文字疊加、字幕編輯</li>
+<li><strong>音效管理</strong>：<code>sounds-store.ts</code> 管理音效資源</li>
+<li><strong>貼紙系統</strong>：<code>stickers-store.ts</code> 貼紙面板</li>
+<li><strong>鍵盤快捷鍵</strong>：完整的快捷鍵系統 + 自訂配置</li>
+</ul>
+<h3 id="重構中功能">重構中功能</h3>
+<ul>
+<li><strong>預覽面板</strong>：字體、貼紙、特效正在以新的二進制渲染方式重構</li>
+<li><strong>匯出功能</strong>：匯出管線重構中</li>
+</ul>
+<h3 id="與-capcut-的差異化">與 CapCut 的差異化</h3>
+<table>
+<tr><th>特性</th><th>CapCut</th><th>OpenCut</th></tr>
+<tr><td><strong>隱私</strong></td><td>雲端處理</td><td>本地處理</td></tr>
+<tr><td><strong>價格</strong></td><td>基本功能逐漸付費化</td><td>完全免費</td></tr>
+<tr><td><strong>浮水印</strong></td><td>免費版有浮水印</td><td>無浮水印</td></tr>
+<tr><td><strong>開源</strong></td><td>閉源</td><td>MIT 開源</td></tr>
+<tr><td><strong>平台</strong></td><td>iOS/Android/Web/Desktop</td><td>Web（桌面/行動端開發中）</td></tr>
+<tr><td><strong>AI 功能</strong></td><td>雲端 AI</td><td>客戶端 AI（WASM）</td></tr>
+</table>
+<h2 id="社群活躍度">社群活躍度</h2>
+<h3 id="開發活動">開發活動</h3>
+<ul>
+<li><strong>主要維護者</strong>: mazeincoding（749 commits，佔 77%）</li>
+<li><strong>活躍貢獻者</strong>: 5+ 位核心貢獻者</li>
+<li><strong>最近更新</strong>: 2026-02-10（持續活躍開發）</li>
+<li><strong>Issue 數</strong>: 261 個（高活躍度標誌）</li>
+<li><strong>開發節奏</strong>: 近期聚焦重構（Timeline、渲染引擎）</li>
+</ul>
+<h3 id="增長趨勢">增長趨勢</h3>
+<ul>
+<li>2025-06 創建 → 2026-02 達 45.9K Stars</li>
+<li>平均每月增長 ~5,700 Stars</li>
+<li>由 Vercel 和 fal.ai 贊助，代表業界認可</li>
+</ul>
+<h2 id="使用方式">使用方式</h2>
+<h3 id="快速開始">快速開始</h3>
+<pre><code class="language-bash"># 1. Fork + Clone
+git clone https://github.com/YOUR_USERNAME/OpenCut.git
+cd OpenCut
+
+# 2. 啟動資料庫（可選，僅後端功能需要）
+docker-compose up -d
+
+# 3. 安裝依賴
+cd apps/web
+bun install
+
+# 4. 環境變數
+cp .env.example .env.local
+
+# 5. 資料庫遷移（若使用 Docker）
+bun run db:migrate
+
+# 6. 啟動開發伺服器
+bun run dev
+# → http://localhost:3000</code></pre>
+<h3 id="關鍵環境變數">關鍵環境變數</h3>
+<ul>
+<li><code>DATABASE_URL</code>: PostgreSQL 連接字串</li>
+<li><code>BETTER_AUTH_SECRET</code>: 認證密鑰</li>
+<li><code>UPSTASH_REDIS_REST_URL</code>: Redis 端點</li>
+</ul>
+<h2 id="潛在應用">潛在應用</h2>
+<h3 id="對本專案-daily-digest-prompt-的啟發">對本專案（Daily-Digest-Prompt）的啟發</h3>
+<ol>
+<li><strong>Monorepo 架構參考</strong>：Turborepo + packages/ 的組織方式值得借鑒，若未來擴展 daily-digest 為多套件結構</li>
+<li><strong>Zustand 狀態管理</strong>：輕量級狀態管理模式，可用於未來的 Web Dashboard</li>
+<li><strong>WASM 本地處理</strong>：FFmpeg WASM 的模式展示了「隱私優先」的工程實踐，可應用於本地 AI 推論</li>
+<li><strong>Biome 替代 ESLint</strong>：Biome 作為 Linter/Formatter 的全合一方案，大幅簡化工具鏈</li>
+<li><strong>客戶端 AI（Transformers.js）</strong>：瀏覽器端執行 AI 模型的模式，可能適用於知識庫的本地語義搜尋</li>
+</ol>
+<h3 id="一般應用場景">一般應用場景</h3>
+<ul>
+<li><strong>內容創作者</strong>：免費替代 CapCut/Premiere 進行短影片製作</li>
+<li><strong>教育</strong>：開放源碼的影片編輯工具用於教學</li>
+<li><strong>企業</strong>：自架部署確保影片資料不外洩</li>
+<li><strong>開發者</strong>：基於 OpenCut 構建客製化影片處理工具</li>
+</ul>
+<h2 id="優缺點評估">優缺點評估</h2>
+<h3 id="優點">優點</h3>
+<ul>
+<li><strong>隱私保護卓越</strong>：FFmpeg WASM 確保影片永不上傳</li>
+<li><strong>技術棧現代</strong>：Next.js 15 + React 19 + TypeScript 5.8，走在前沿</li>
+<li><strong>社群增長驚人</strong>：8 個月 45K Stars，證明市場需求</li>
+<li><strong>MIT 授權</strong>：完全自由使用和修改</li>
+<li><strong>Vercel 贊助</strong>：基礎設施穩定</li>
+<li><strong>Bun + Biome</strong>：開發體驗極佳，工具鏈精簡</li>
+</ul>
+<h3 id="缺點">缺點</h3>
+<ul>
+<li><strong>渲染引擎重構中</strong>：預覽面板和匯出功能尚在重構，功能不完整</li>
+<li><strong>單人主導</strong>：77% commits 來自一位開發者，Bus Factor 風險</li>
+<li><strong>僅 Web 平台</strong>：桌面和行動原生版尚未推出</li>
+<li><strong>瀏覽器性能限制</strong>：WASM FFmpeg 相比原生 FFmpeg 仍有性能差距</li>
+<li><strong>功能豐富度不足</strong>：相比 CapCut 的豐富特效庫，OpenCut 仍在早期</li>
+<li><strong>文件較少</strong>：架構文件不夠詳細（AGENTS.md 存在但 README 較簡略）</li>
+</ul>
+<h2 id="架構亮點與設計決策">架構亮點與設計決策</h2>
+<ol>
+<li><strong>Manager 模式</strong>（<code>core/managers/</code>）：將複雜業務邏輯封裝在 Manager 類中，與 React 元件解耦，提高可測試性</li>
+<li><strong>Store 層分離</strong>（Zustand）：每個功能域獨立 Store（timeline、editor、panel、keybindings），避免單一大 Store</li>
+<li><strong>二進制渲染重構</strong>：從 Canvas/DOM 渲染轉向二進制渲染管線，目標是接近原生性能</li>
+<li><strong>Monorepo 共享套件</strong>：<code>packages/ui</code> 和 <code>packages/env</code> 支援未來多平台擴展</li>
+</ol>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li>GitHub Repository: https://github.com/OpenCut-app/OpenCut</li>
+<li>官方網站: https://opencut.app</li>
+<li>GitHub API（倉庫資訊、commits、languages、contributors）</li>
+<li>README.md 原始內容</li>
+<li>package.json 依賴分析</li>
+</ul>
+<hr>
+<p><em>研究日期：2026-02-18 | 研究類型：GitHub 開源專案深度分析 | 非 AI 框架類</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="zvecalibabazvec-向量資料庫的-sql-40a9a1b2.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Zvec（alibaba/zvec）— 向量資料庫的 SQLite：嵌入式、高效能、零依賴的邊緣向量搜尋引擎（4.4K Stars）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

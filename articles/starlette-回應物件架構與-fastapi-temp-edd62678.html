@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Starlette 回應物件架構與 FastAPI TemplateResponse 設計模式完整指南（2026）">
+  <title>Starlette 回應物件架構與 FastAPI TemplateResponse 設計模式完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Starlette 回應物件架構與 FastAPI TemplateResponse 設計模式完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Starlette</span><span class="tag">FastAPI</span><span class="tag">TemplateResponse</span><span class="tag">Jinja2</span><span class="tag">ASGI</span><span class="tag">中間件</span><span class="tag">回應物件</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#概述">概述</a></li><li><a href="#一-starlette-回應物件架構">一、Starlette 回應物件架構</a></li>  <li><a href="#1-1-回應類別繼承體系">1.1 回應類別繼承體系</a></li>  <li><a href="#1-2-基礎-response-類別">1.2 基礎 Response 類別</a></li>  <li><a href="#1-3-jsonresponse-自訂序列化">1.3 JSONResponse 自訂序列化</a></li>  <li><a href="#1-4-streamingresponse-與-fileresponse">1.4 StreamingResponse 與 FileResponse</a></li><li><a href="#二-templateresponse-遷移指南-重點">二、TemplateResponse 遷移指南（重點）</a></li>  <li><a href="#2-1-api-簽名變更歷程">2.1 API 簽名變更歷程</a></li>  <li><a href="#2-2-舊語法-vs-新語法">2.2 舊語法 vs 新語法</a></li>  <li><a href="#2-3-遷移實戰經驗-daily-digest-prompt-專案-qa-系統">2.3 遷移實戰經驗（daily-digest-prompt 專案 QA 系統）</a></li>  <li><a href="#2-4-向下相容策略">2.4 向下相容策略</a></li><li><a href="#三-jinja2templates-進階配置">三、Jinja2Templates 進階配置</a></li>  <li><a href="#3-1-基本設定">3.1 基本設定</a></li>  <li><a href="#3-2-context-processors-全域上下文">3.2 Context Processors（全域上下文）</a></li>  <li><a href="#3-3-自訂-jinja2-environment">3.3 自訂 Jinja2 Environment</a></li>  <li><a href="#3-4-自訂過濾器與全域函式">3.4 自訂過濾器與全域函式</a></li><li><a href="#四-asgi-中間件中的回應攔截模式">四、ASGI 中間件中的回應攔截模式</a></li>  <li><a href="#4-1-asgi-三參數模型">4.1 ASGI 三參數模型</a></li>  <li><a href="#4-2-回應標頭注入">4.2 回應標頭注入</a></li>  <li><a href="#4-3-回應體修改-需更新-content-length">4.3 回應體修改（需更新 Content-Length）</a></li>  <li><a href="#4-4-關鍵原則">4.4 關鍵原則</a></li><li><a href="#五-jinja2-模板引擎核心架構">五、Jinja2 模板引擎核心架構</a></li>  <li><a href="#5-1-三階段渲染管線">5.1 三階段渲染管線</a></li>  <li><a href="#5-2-模板繼承模式">5.2 模板繼承模式</a></li>  <li><a href="#5-3-macros-可重用元件">5.3 Macros（可重用元件）</a></li>  <li><a href="#5-4-安全性考量">5.4 安全性考量</a></li><li><a href="#六-效能最佳實踐">六、效能最佳實踐</a></li>  <li><a href="#6-1-模板快取">6.1 模板快取</a></li>  <li><a href="#6-2-回應效能指標">6.2 回應效能指標</a></li>  <li><a href="#6-3-模板設計原則">6.3 模板設計原則</a></li><li><a href="#七-與-daily-digest-prompt-專案的關聯">七、與 daily-digest-prompt 專案的關聯</a></li>  <li><a href="#7-1-直接應用">7.1 直接應用</a></li>  <li><a href="#7-2-架構啟發">7.2 架構啟發</a></li><li><a href="#八-常見陷阱與除錯技巧">八、常見陷阱與除錯技巧</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Starlette 回應物件架構與 FastAPI TemplateResponse 設計模式完整指南</h1>
+<h2 id="概述">概述</h2>
+<p>Starlette 是 FastAPI 的底層 ASGI 框架，提供了一套完整的 HTTP 回應物件體系。理解 Starlette 的回應架構對於使用 FastAPI 開發 Web 應用至關重要，尤其是 TemplateResponse 在 v0.28.0 後經歷了重要的 API 簽名變更。本文涵蓋 Starlette 回應物件的完整架構、TemplateResponse 遷移指南、ASGI 中間件中的回應攔截模式，以及 Jinja2 模板引擎的進階實踐。</p>
+<hr>
+<h2 id="一-starlette-回應物件架構">一、Starlette 回應物件架構</h2>
+<h3 id="1-1-回應類別繼承體系">1.1 回應類別繼承體系</h3>
+<pre><code class="language-plaintext">Response（基礎類別）
+├── HTMLResponse        # HTML 回應（text/html）
+│   └── _TemplateResponse  # 模板回應（v0.32.0 起繼承 HTMLResponse）
+├── PlainTextResponse   # 純文字回應
+├── JSONResponse        # JSON 回應（application/json）
+├── RedirectResponse    # 重導向（預設 307）
+├── StreamingResponse   # 串流回應（支援 async generator）
+└── FileResponse        # 檔案回應（非同步串流 + Range 請求）</code></pre>
+<h3 id="1-2-基礎-response-類別">1.2 基礎 Response 類別</h3>
+<pre><code class="language-python">from starlette.responses import Response
+
+# 建構參數
+Response(
+    content=None,        # 回應內容（str 或 bytes）
+    status_code=200,     # HTTP 狀態碼
+    headers=None,        # 自訂標頭字典
+    media_type=None      # MIME 類型
+)</code></pre>
+<p>自動行為：</p>
+<ul>
+<li>根據 <code>content</code> 類型自動設定 <code>Content-Length</code></li>
+<li>text 類型自動附加 <code>charset</code> 到 <code>Content-Type</code></li>
+</ul>
+<h3 id="1-3-jsonresponse-自訂序列化">1.3 JSONResponse 自訂序列化</h3>
+<pre><code class="language-python">import orjson
+from starlette.responses import JSONResponse
+
+class OrjsonResponse(JSONResponse):
+    def render(self, content) -&gt; bytes:
+        return orjson.dumps(content, option=orjson.OPT_INDENT_2)</code></pre>
+<h3 id="1-4-streamingresponse-與-fileresponse">1.4 StreamingResponse 與 FileResponse</h3>
+<pre><code class="language-python"># 串流回應（async generator）
+async def slow_numbers():
+    for i in range(10):
+        yield f&quot;data: {i}\n\n&quot;
+        await asyncio.sleep(0.5)
+
+return StreamingResponse(slow_numbers(), media_type=&quot;text/event-stream&quot;)
+
+# 檔案回應（v0.39.0 支援 HTTP Range）
+return FileResponse(
+    path=&quot;report.pdf&quot;,
+    filename=&quot;report.pdf&quot;,
+    media_type=&quot;application/pdf&quot;
+)</code></pre>
+<p>FileResponse 自動處理：Content-Length、Last-Modified、ETag、206 Partial Content（Range 請求）。</p>
+<hr>
+<h2 id="二-templateresponse-遷移指南-重點">二、TemplateResponse 遷移指南（重點）</h2>
+<h3 id="2-1-api-簽名變更歷程">2.1 API 簽名變更歷程</h3>
+<table>
+<tr><th>版本</th><th>變更</th><th>影響</th></tr>
+<tr><td>v0.28.0（2023-06）</td><td>新增 <code>request</code> 參數到 TemplateResponse</td><td>新舊語法並存</td></tr>
+<tr><td>v0.32.0（2023-11）</td><td><code>_TemplateResponse</code> 改為繼承 <code>HTMLResponse</code></td><td>回應型別語義更正確</td></tr>
+<tr><td>v0.40.0+（2024+）</td><td>FastAPI 最低要求 <code>starlette&gt;=0.40.0</code></td><td>舊語法進入棄用期</td></tr>
+</table>
+<h3 id="2-2-舊語法-vs-新語法">2.2 舊語法 vs 新語法</h3>
+<pre><code class="language-python"># ❌ 舊語法（棄用）— request 放在 context 字典中
+templates.TemplateResponse(
+    &quot;index.html&quot;,
+    {&quot;request&quot;: request, &quot;items&quot;: items}
+)
+
+# ✅ 新語法（推薦）— request 作為獨立第一參數
+templates.TemplateResponse(
+    request,
+    &quot;index.html&quot;,
+    {&quot;items&quot;: items}  # context 不再需要 request
+)</code></pre>
+<h3 id="2-3-遷移實戰經驗-daily-digest-prompt-專案-qa-系統">2.3 遷移實戰經驗（daily-digest-prompt 專案 QA 系統）</h3>
+<p>在 2026-02-19 的 QA 系統優化中，我們完成了 17 處 TemplateResponse 棄用語法遷移（users.py 8 處 + questions.py 9 處）。遷移的關鍵模式：</p>
+<pre><code class="language-python"># 遷移前
+return templates.TemplateResponse(&quot;users/list.html&quot;, {
+    &quot;request&quot;: request,
+    &quot;users&quot;: users,
+    &quot;message&quot;: message
+})
+
+# 遷移後
+return templates.TemplateResponse(request, &quot;users/list.html&quot;, {
+    &quot;users&quot;: users,
+    &quot;message&quot;: message
+})</code></pre>
+<p><strong>遷移注意事項：</strong></p>
+<ol>
+<li>新語法中 <code>context</code> 字典不應包含 <code>request</code> 鍵（框架自動注入）</li>
+<li>如果同時傳遞 <code>request</code> 參數和 context 中的 <code>request</code>，可能導致不一致行為（Issue #2531）</li>
+<li>批量遷移建議用正規表達式輔助：<code>TemplateResponse\(&quot;(.*?)&quot;\s*,\s*\{&quot;request&quot;:\s*request</code> → 重構為新格式</li>
+</ol>
+<h3 id="2-4-向下相容策略">2.4 向下相容策略</h3>
+<p>Starlette 實作了向下相容邏輯：新版本仍接受舊語法，但會在內部偵測並轉換。然而依賴此行為有風險，因為未來版本可能移除相容層。建議：</p>
+<ul>
+<li>新專案一律使用新語法</li>
+<li>既有專案排定技術債遷移</li>
+<li>CI 中加入 deprecation warning 檢查</li>
+</ul>
+<hr>
+<h2 id="三-jinja2templates-進階配置">三、Jinja2Templates 進階配置</h2>
+<h3 id="3-1-基本設定">3.1 基本設定</h3>
+<pre><code class="language-python">from starlette.templating import Jinja2Templates
+
+templates = Jinja2Templates(
+    directory=&quot;templates&quot;,
+    autoescape=True,      # XSS 防護（預設 True for HTML）
+    auto_reload=True,     # 開發時自動重載模板
+    context_processors=[app_context]  # 全域 context
+)</code></pre>
+<h3 id="3-2-context-processors-全域上下文">3.2 Context Processors（全域上下文）</h3>
+<pre><code class="language-python">def app_context(request: Request) -&gt; dict:
+    return {
+        &quot;app_name&quot;: &quot;My App&quot;,
+        &quot;current_user&quot;: getattr(request.state, &quot;user&quot;, None)
+    }
+
+# 所有模板自動取得 app_name 和 current_user
+templates = Jinja2Templates(
+    directory=&quot;templates&quot;,
+    context_processors=[app_context]
+)</code></pre>
+<p><strong>限制</strong>：Context processors 必須是同步函式，不支援 async。</p>
+<h3 id="3-3-自訂-jinja2-environment">3.3 自訂 Jinja2 Environment</h3>
+<pre><code class="language-python">import jinja2
+
+# 方式 1：傳遞 env_options
+templates = Jinja2Templates(
+    directory=&quot;templates&quot;,
+    extensions=[&quot;jinja2.ext.debug&quot;],
+    trim_blocks=True,
+    lstrip_blocks=True
+)
+
+# 方式 2：完全自訂 Environment
+env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(&quot;templates&quot;),
+    autoescape=jinja2.select_autoescape([&quot;html&quot;, &quot;xml&quot;]),
+    enable_async=True  # 啟用非同步渲染
+)
+templates = Jinja2Templates(env=env)</code></pre>
+<h3 id="3-4-自訂過濾器與全域函式">3.4 自訂過濾器與全域函式</h3>
+<pre><code class="language-python"># 自訂過濾器
+def format_datetime(value, fmt=&quot;%Y-%m-%d %H:%M&quot;):
+    return value.strftime(fmt)
+
+templates.env.filters[&quot;datetime&quot;] = format_datetime
+
+# 模板中使用
+# {{ created_at | datetime(&quot;%m/%d&quot;) }}
+
+# 全域函式
+templates.env.globals[&quot;static_url&quot;] = lambda path: f&quot;/static/{path}&quot;</code></pre>
+<hr>
+<h2 id="四-asgi-中間件中的回應攔截模式">四、ASGI 中間件中的回應攔截模式</h2>
+<h3 id="4-1-asgi-三參數模型">4.1 ASGI 三參數模型</h3>
+<pre><code class="language-python">class ASGIMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        # scope: 連線元資料（type, path, headers）
+        # receive: 接收請求事件的 callable
+        # send: 發送回應事件的 callable
+        await self.app(scope, receive, send)</code></pre>
+<h3 id="4-2-回應標頭注入">4.2 回應標頭注入</h3>
+<pre><code class="language-python">from starlette.datastructures import MutableHeaders
+
+class SecurityHeadersMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope[&quot;type&quot;] != &quot;http&quot;:
+            return await self.app(scope, receive, send)
+
+        async def send_with_headers(message):
+            if message[&quot;type&quot;] == &quot;http.response.start&quot;:
+                headers = MutableHeaders(scope=message)
+                headers.append(&quot;X-Content-Type-Options&quot;, &quot;nosniff&quot;)
+                headers.append(&quot;X-Frame-Options&quot;, &quot;DENY&quot;)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)</code></pre>
+<h3 id="4-3-回應體修改-需更新-content-length">4.3 回應體修改（需更新 Content-Length）</h3>
+<pre><code class="language-python">class ResponseBodyMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        response_started = False
+        initial_message = None
+
+        async def capture_send(message):
+            nonlocal response_started, initial_message
+            if message[&quot;type&quot;] == &quot;http.response.start&quot;:
+                initial_message = message
+                response_started = True
+            elif message[&quot;type&quot;] == &quot;http.response.body&quot;:
+                body = message.get(&quot;body&quot;, b&quot;&quot;)
+                # 修改 body
+                modified_body = body.replace(b&quot;old&quot;, b&quot;new&quot;)
+                # 更新 Content-Length
+                headers = MutableHeaders(scope=initial_message)
+                headers[&quot;content-length&quot;] = str(len(modified_body))
+                await send(initial_message)
+                message[&quot;body&quot;] = modified_body
+                await send(message)
+                return
+            await send(message)
+
+        await self.app(scope, receive, capture_send)</code></pre>
+<h3 id="4-4-關鍵原則">4.4 關鍵原則</h3>
+<ul>
+<li><strong>ASGI 中間件必須無狀態</strong>：連線相關狀態只能用 <code>__call__</code> 內的局部變數或 <code>nonlocal</code>，禁止用實例屬性</li>
+<li><strong>內建中間件堆疊</strong>：<code>ServerErrorMiddleware</code>（最外層）→ 自訂中間件 → <code>ExceptionMiddleware</code>（最內層）</li>
+<li><strong>BaseHTTPMiddleware vs Pure ASGI</strong>：BaseHTTPMiddleware 方便但有效能開銷，高吞吐場景用 Pure ASGI</li>
+</ul>
+<hr>
+<h2 id="五-jinja2-模板引擎核心架構">五、Jinja2 模板引擎核心架構</h2>
+<h3 id="5-1-三階段渲染管線">5.1 三階段渲染管線</h3>
+<ol>
+<li><strong>載入（Loading）</strong>：FileSystemLoader 讀取原始檔，轉為 AST</li>
+<li><strong>解析（Parsing）</strong>：處理控制結構（{% %}）和變數引用（{{ }}）</li>
+<li><strong>渲染（Rendering）</strong>：注入動態資料，生成最終 HTML</li>
+</ol>
+<h3 id="5-2-模板繼承模式">5.2 模板繼承模式</h3>
+<pre><code class="language-html">{# base.html #}
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+    &lt;title&gt;{% block title %}Default{% endblock %}&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    {% block content %}{% endblock %}
+&lt;/body&gt;
+&lt;/html&gt;
+
+{# page.html #}
+{% extends &quot;base.html&quot; %}
+{% block title %}My Page{% endblock %}
+{% block content %}
+    &lt;h1&gt;Hello&lt;/h1&gt;
+{% endblock %}</code></pre>
+<h3 id="5-3-macros-可重用元件">5.3 Macros（可重用元件）</h3>
+<pre><code class="language-html">{# macros/forms.html #}
+{% macro input(name, type=&quot;text&quot;, label=&quot;&quot;) %}
+&lt;div class=&quot;form-group&quot;&gt;
+    {% if label %}&lt;label for=&quot;{{ name }}&quot;&gt;{{ label }}&lt;/label&gt;{% endif %}
+    &lt;input type=&quot;{{ type }}&quot; name=&quot;{{ name }}&quot; id=&quot;{{ name }}&quot;&gt;
+&lt;/div&gt;
+{% endmacro %}
+
+{# 使用 #}
+{% from &quot;macros/forms.html&quot; import input %}
+{{ input(&quot;email&quot;, type=&quot;email&quot;, label=&quot;Email&quot;) }}</code></pre>
+<h3 id="5-4-安全性考量">5.4 安全性考量</h3>
+<ul>
+<li><strong>自動轉義（autoescape）</strong>：HTML 模板預設啟用，防止 XSS</li>
+<li><strong>安全標記</strong>：<code>{{ content | safe }}</code> 標記為可信內容（慎用）</li>
+<li><strong>SandboxedEnvironment</strong>：限制模板可存取的物件和方法（適用 UGC 場景）</li>
+</ul>
+<hr>
+<h2 id="六-效能最佳實踐">六、效能最佳實踐</h2>
+<h3 id="6-1-模板快取">6.1 模板快取</h3>
+<pre><code class="language-python"># 生產環境關閉 auto_reload
+templates = Jinja2Templates(
+    directory=&quot;templates&quot;,
+    auto_reload=False  # 生產環境
+)
+
+# 或使用 BytecodeCache 持久化編譯結果
+from jinja2 import FileSystemBytecodeCache
+env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(&quot;templates&quot;),
+    bytecode_cache=FileSystemBytecodeCache(&quot;cache/jinja2&quot;)
+)</code></pre>
+<h3 id="6-2-回應效能指標">6.2 回應效能指標</h3>
+<p>Starlette 小型端點的典型伺服器處理延遲：3-15ms（不含網路開銷）。框架本身很少成為效能瓶頸。</p>
+<h3 id="6-3-模板設計原則">6.3 模板設計原則</h3>
+<ul>
+<li><strong>保持模板無邏輯</strong>：所有 I/O 和資料庫查詢在 view 層完成，模板只負責渲染</li>
+<li><strong>endpoint 中評估所有查詢</strong>：避免在模板中觸發延遲載入</li>
+<li><strong>使用 `include` 和 macros 保持 DRY</strong></li>
+</ul>
+<hr>
+<h2 id="七-與-daily-digest-prompt-專案的關聯">七、與 daily-digest-prompt 專案的關聯</h2>
+<h3 id="7-1-直接應用">7.1 直接應用</h3>
+<ol>
+<li><strong>QA 系統維護</strong>：knowledge 專案使用 FastAPI + Jinja2 渲染前端頁面，TemplateResponse 遷移確保與最新 Starlette 版本相容</li>
+<li><strong>知識庫前端</strong>：localhost:3000 知識庫前端可採用 context processors 統一注入導航資料</li>
+<li><strong>中間件安全加固</strong>：SecurityHeadersMiddleware 模式可應用於知識庫 API，加入 CORS、CSP 等安全標頭</li>
+</ol>
+<h3 id="7-2-架構啟發">7.2 架構啟發</h3>
+<ul>
+<li><strong>ASGI 中間件無狀態原則</strong>：與本專案 Hooks 的無狀態設計理念一致（pre_bash_guard.py 等每次呼叫獨立）</li>
+<li><strong>回應攔截模式</strong>：類似本專案 post_tool_logger.py 的攔截/增強模式</li>
+<li><strong>BytecodeCache</strong>：可借鏡用於模板密集型應用的生產環境優化</li>
+</ul>
+<hr>
+<h2 id="八-常見陷阱與除錯技巧">八、常見陷阱與除錯技巧</h2>
+<ol>
+<li><strong>TemplateResponse 雙重 request</strong>：同時傳遞 request 參數和 context 中的 request 可能導致不一致</li>
+<li><strong>Context Processor 不支援 async</strong>：需要非同步資料時，在 endpoint 中預先取得</li>
+<li><strong>BaseHTTPMiddleware 效能陷阱</strong>：高並發場景改用 Pure ASGI 中間件</li>
+<li><strong>auto_reload 生產洩漏</strong>：生產環境忘記關閉 auto_reload 會造成不必要的檔案系統檢查</li>
+<li><strong>Content-Length 不一致</strong>：中間件修改 body 後必須更新 Content-Length</li>
+</ol>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li>Starlette 官方文件 Templates：https://starlette.dev/templates/</li>
+<li>Starlette 官方文件 Responses：https://www.starlette.io/responses/</li>
+<li>Starlette 官方文件 Middleware：https://www.starlette.io/middleware/</li>
+<li>Starlette Release Notes：https://starlette.dev/release-notes/</li>
+<li>FastAPI 官方文件 Templates：https://fastapi.tiangolo.com/advanced/templates/</li>
+<li>Python Starlette in 2026（TheLinuxCode）</li>
+<li>Oreate AI Blog: Jinja2 Template Engine in FastAPI</li>
+<li>Real Python: FastAPI with Jinja2</li>
+</ul>
+<hr>
+<p><em>研究日期：2026-02-19</em>
+<em>研究者：Claude Code Agent</em>
+<em>任務類型：tech_research（每日任務技術研究）</em>
+<em>觸發任務：QA 系統 TemplateResponse 棄用語法遷移（17 處）</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="github-洞察報告gemini-cli-googl-7f06170d.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">GitHub 洞察報告：Gemini CLI — Google 開源終端 AI Agent 深度架構分析（94.8K Stars, 2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

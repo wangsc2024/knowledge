@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-02-19">
+  <title>系統 Log 審查報告 - 2026-02-19 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 審查報告 - 2026-02-19</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">loop-state</span><span class="tag">stderr</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#審查範圍">審查範圍</a></li><li><a href="#發現問題">發現問題</a></li>  <li><a href="#嚴重問題">🔴 嚴重問題</a></li>  <li><a href="#改善建議">🟡 改善建議</a></li><li><a href="#修正內容">修正內容</a></li><li><a href="#系統健康度">系統健康度</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 - 2026-02-19</h1>
+<h2 id="審查範圍">審查範圍</h2>
+<ul>
+<li>scheduler-state.json 最近 200 筆執行記錄</li>
+<li>最近 7 天 Log 檔案（2026-02-14 ~ 2026-02-19）</li>
+<li>結構化 JSONL 日誌（17,842 行）</li>
+<li>loop-state 檔案</li>
+<li>stderr 日誌</li>
+</ul>
+<h2 id="發現問題">發現問題</h2>
+<h3 id="嚴重問題">🔴 嚴重問題</h3>
+<ol>
+<li><strong>loop-state 檔案無清理機制（已修正）</strong></li>
+</ol>
+<p>   - 根因：post_tool_logger.py 每個 session 建立 loop-state-{sid}.json，但沒有對應的清理邏輯
+   - 影響：累積 126 個檔案占 126KB，持續增長
+   - 修正：清理 74 個過期檔案 + check-health.ps1 加入自動清理（&gt;6 小時自動刪除）</p>
+<ol>
+<li><strong>Phase 2 TIMEOUT（需觀察）</strong></li>
+</ol>
+<p>   - task-2（Chat 對話系統規劃）在 02:30 TIMEOUT（1020s 不夠）
+   - auto-jiaoguangzong 在 06:30 TIMEOUT（720s 不夠）
+   - 根因：任務複雜度超過 timeout 設定，但屬偶發</p>
+<ol>
+<li><strong>Phase 1 API 500 錯誤（外部因素）</strong></li>
+</ol>
+<p>   - 2026-02-18 23:30 Claude API Internal Server Error
+   - 根因：Anthropic API 端暫時性錯誤，無法本地修正</p>
+<h3 id="改善建議">🟡 改善建議</h3>
+<ol>
+<li><strong>Gmail Agent OOM Crash</strong></li>
+</ol>
+<p>   - 2026-02-18 08:00 Gmail agent 遇到 V8 Fatal process out of memory
+   - 影響：該次每日摘要 Gmail 區塊失敗
+   - 建議：監控 Gmail agent 記憶體使用</p>
+<ol>
+<li><strong>空 stderr log 殘留（已修正）</strong></li>
+</ol>
+<p>   - 根因：timeout 中斷的 Job 產生空 stderr 檔案，清理邏輯在 Job 內部無法執行
+   - 修正：check-health.ps1 新增空 stderr 清理</p>
+<h2 id="修正內容">修正內容</h2>
+<ol>
+<li>清理 74 個過期 loop-state 檔案（&gt;6 小時）</li>
+<li>清理 5 個空 stderr 日誌</li>
+<li>check-health.ps1 新增 [Loop State 清理] 區塊 + 空 stderr 清理</li>
+</ol>
+<h2 id="系統健康度">系統健康度</h2>
+<ul>
+<li>連續 31 天運行</li>
+<li>成功率 &gt;97%（200 筆中 3 筆失敗：2 次 Phase 1 失敗 + 1 次 daily-digest 失敗）</li>
+<li>Circuit Breaker 全部 CLOSED</li>
+<li>KB 377 筆持續增長</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="chat-對話系統規劃報告含-function-calli-495a6732.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Chat 對話系統規劃報告（含 Function Calling）- 2026-02-19</span></a><a href="skill-品質審查報告2026-02-19todoi-1e3d8dfa.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Skill 品質審查報告（2026-02-19）：todoist-task-creator + web-research 深度審查</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

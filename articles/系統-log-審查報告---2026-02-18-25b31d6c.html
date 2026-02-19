@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-02-18">
+  <title>系統 Log 審查報告 - 2026-02-18 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 審查報告 - 2026-02-18</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">2 分鐘閱讀</span>
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">2026-02-18</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#審查範圍">審查範圍</a></li><li><a href="#系統健康度摘要">系統健康度摘要</a></li><li><a href="#發現問題">發現問題</a></li>  <li><a href="#gmail-oom-嚴重度-中">🔴 Gmail OOM（嚴重度：中）</a></li>  <li><a href="#審查日誌編碼亂碼-嚴重度-低">🔴 審查日誌編碼亂碼（嚴重度：低）</a></li>  <li><a href="#巢狀-session-錯誤-嚴重度-低">🔴 巢狀 Session 錯誤（嚴重度：低）</a></li>  <li><a href="#system_insight-結果檔案遺失">🟡 system_insight 結果檔案遺失</a></li>  <li><a href="#2-15-連續-11-次失敗-已恢復">🟡 2/15 連續 11 次失敗（已恢復）</a></li><li><a href="#修正執行">修正執行</a></li><li><a href="#建議追蹤">建議追蹤</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 - 2026-02-18</h1>
+<h2 id="審查範圍">審查範圍</h2>
+<ul>
+<li>scheduler-state.json 近 200 筆執行記錄</li>
+<li>digest-memory.json 記憶狀態</li>
+<li>近 7 天（2/12-2/18）所有 log 檔案</li>
+</ul>
+<h2 id="系統健康度摘要">系統健康度摘要</h2>
+<ul>
+<li>連續報到：第 30 天（里程碑）</li>
+<li>近 7 天成功率：&gt;95%（失敗集中在 2/15 凌晨 API rate limit）</li>
+<li>KB 筆記：332 筆（+27 週增長）</li>
+<li>自動任務輪轉：所有 18 個任務類型均有正常執行</li>
+</ul>
+<h2 id="發現問題">發現問題</h2>
+<h3 id="gmail-oom-嚴重度-中">🔴 Gmail OOM（嚴重度：中）</h3>
+<ul>
+<li>時間：2026-02-18 08:00</li>
+<li>現象：gmail-stderr 記錄 Fatal process out of memory: Zone</li>
+<li>根因：Node.js 程序記憶體耗盡（可能是 Gmail API 回傳資料量過大）</li>
+<li>影響：Gmail 區塊失敗但整體摘要仍完成</li>
+<li>狀態：偶發，持續觀察</li>
+</ul>
+<h3 id="審查日誌編碼亂碼-嚴重度-低">🔴 審查日誌編碼亂碼（嚴重度：低）</h3>
+<ul>
+<li>時間：2026-02-17 00:40</li>
+<li>現象：audit-phase1 日誌全為亂碼</li>
+<li>根因：Start-Job 的 Receive-Job 返回 hashtable（含 Write-Host 色碼），Out-File 無法正確處理</li>
+<li>影響：Log 審查無法讀取系統審查日誌</li>
+<li>狀態：規律性問題，建議後續修正日誌寫入邏輯</li>
+</ul>
+<h3 id="巢狀-session-錯誤-嚴重度-低">🔴 巢狀 Session 錯誤（嚴重度：低）</h3>
+<ul>
+<li>時間：2026-02-17 17:43</li>
+<li>現象：Claude Code cannot be launched inside another session，連續 4 次重試失敗</li>
+<li>根因：使用者在 Claude Code 互動 Session 中手動觸發排程腳本</li>
+<li>影響：僅影響手動執行</li>
+<li>狀態：使用者操作問題，非程式碼缺陷</li>
+</ul>
+<h3 id="system_insight-結果檔案遺失">🟡 system_insight 結果檔案遺失</h3>
+<ul>
+<li>時間：2026-02-17 07:30</li>
+<li>現象：Phase 2 完成但 Phase 3 找不到結果檔案</li>
+<li>根因：Agent 執行完畢但未將結果寫入 results/ 目錄</li>
+<li>影響：該次自動任務標記失敗，ntfy 發送 warning</li>
+<li>狀態：偶發，Phase 3 已有容錯機制</li>
+</ul>
+<h3 id="2-15-連續-11-次失敗-已恢復">🟡 2/15 連續 11 次失敗（已恢復）</h3>
+<ul>
+<li>時間：2026-02-15 02:00-07:00</li>
+<li>現象：todoist-team Phase 1 連續 failed</li>
+<li>根因：Claude API rate limit 或服務暫時不可用</li>
+<li>影響：已自行恢復，07:30 起恢復正常</li>
+</ul>
+<h2 id="修正執行">修正執行</h2>
+<p>本次無需修正：所有問題均為偶發性或外部因素，不存在需立即修正的程式碼缺陷。</p>
+<h2 id="建議追蹤">建議追蹤</h2>
+<ol>
+<li>Gmail OOM：若持續發生，考慮增加 Node.js --max-old-space-size 或限制 Gmail 回傳量</li>
+<li>審查日誌亂碼：建議修改 run-system-audit-team.ps1 L212 的日誌寫入邏輯</li>
+<li>快取命中率持續偏低，可考慮延長快取 TTL 或調整查詢間隔</li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="skill-品質審查報告2026-02-18syste-332495c6.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Skill 品質審查報告（2026-02-18）：system-audit + kb-curator 深度審查</span></a><a href="skill-品質審查報告-2026-02-18digest-c8f2c93a.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Skill 品質審查報告 2026-02-18（digest-memory + api-cache 深度審查）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

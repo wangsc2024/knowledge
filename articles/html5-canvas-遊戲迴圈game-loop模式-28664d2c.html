@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 Canvas 遊戲迴圈（Game Loop）模式與幀率控制完整指南（2026）">
+  <title>HTML5 Canvas 遊戲迴圈（Game Loop）模式與幀率控制完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>HTML5 Canvas 遊戲迴圈（Game Loop）模式與幀率控制完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-17</span>
+          <span class="reading-time">6 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Canvas遊戲迴圈</span><span class="tag">Game Loop</span><span class="tag">requestAnimationFrame</span><span class="tag">Fixed Timestep</span><span class="tag">OffscreenCanvas</span><span class="tag">幀率控制</span><span class="tag">HTML5遊戲</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#1-遊戲迴圈的五步驟模型-mdn">1. 遊戲迴圈的五步驟模型（MDN）</a></li>  <li><a href="#2-為何不用-setinterval-settimeout">2. 為何不用 setInterval / setTimeout</a></li>  <li><a href="#3-delta-time-差量時間">3. Delta Time（差量時間）</a></li><li><a href="#三種遊戲迴圈模式">三種遊戲迴圈模式</a></li>  <li><a href="#模式-a-基礎-raf-迴圈-不推薦用於正式遊戲">模式 A：基礎 rAF 迴圈（不推薦用於正式遊戲）</a></li>  <li><a href="#模式-b-固定時間步長迴圈-推薦">模式 B：固定時間步長迴圈（推薦）</a></li>  <li><a href="#模式-c-累加器模式-插值渲染-最佳實踐">模式 C：累加器模式 + 插值渲染（最佳實踐）</a></li><li><a href="#螺旋死亡-spiral-of-death">螺旋死亡（Spiral of Death）</a></li><li><a href="#輸入處理最佳實踐">輸入處理最佳實踐</a></li><li><a href="#offscreencanvas-與-web-worker">OffscreenCanvas 與 Web Worker</a></li>  <li><a href="#原理">原理</a></li>  <li><a href="#基本用法">基本用法</a></li>  <li><a href="#效能優勢">效能優勢</a></li>  <li><a href="#限制">限制</a></li><li><a href="#canvas-效能優化清單">Canvas 效能優化清單</a></li><li><a href="#與本專案的關聯">與本專案的關聯</a></li>  <li><a href="#daily-digest-prompt-遊戲開發">Daily-Digest-Prompt 遊戲開發</a></li>  <li><a href="#效能基準">效能基準</a></li><li><a href="#程式碼範例-完整的產品級遊戲迴圈">程式碼範例：完整的產品級遊戲迴圈</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>HTML5 Canvas 遊戲迴圈（Game Loop）模式與幀率控制完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>遊戲迴圈（Game Loop）是所有即時遊戲的心臟，負責驅動 <strong>輸入處理 → 遊戲狀態更新 → 畫面渲染</strong> 的持續循環。在 HTML5 Canvas 遊戲中，正確的迴圈設計直接決定了跨裝置的穩定性、效能和玩家體驗。</p>
+<p>現代瀏覽器提供 <code>requestAnimationFrame</code> (rAF) API 作為遊戲迴圈的基礎，它與顯示器的垂直同步（VSync）對齊，在 60Hz 顯示器上每 ~16.67ms 觸發一次。但僅使用 rAF 並不足夠——必須搭配固定時間步長（Fixed Timestep）和插值渲染才能確保遊戲在 60Hz、120Hz、144Hz 等不同刷新率的裝置上行為一致。</p>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="1-遊戲迴圈的五步驟模型-mdn">1. 遊戲迴圈的五步驟模型（MDN）</h3>
+<pre><code class="language-plaintext">Present → Accept → Interpret → Calculate → Repeat
+呈現畫面 → 接收輸入 → 解釋輸入 → 計算狀態 → 重複</code></pre>
+<p>根據遊戲類型，迴圈可由玩家輸入驅動（回合制）或時間驅動（即時遊戲）。</p>
+<h3 id="2-為何不用-setinterval-settimeout">2. 為何不用 setInterval / setTimeout</h3>
+<table>
+<tr><th>特性</th><th>setInterval/setTimeout</th><th>requestAnimationFrame</th></tr>
+<tr><td>同步 VSync</td><td>否</td><td>是</td></tr>
+<tr><td>標籤頁失焦</td><td>繼續消耗 CPU</td><td>自動降頻/暫停</td></tr>
+<tr><td>時間精度</td><td>受任務佇列影響</td><td>DOMHighResTimeStamp</td></tr>
+<tr><td>動畫平滑度</td><td>不一致</td><td>最佳</td></tr>
+</table>
+<h3 id="3-delta-time-差量時間">3. Delta Time（差量時間）</h3>
+<p><code>deltaTime = currentTime - previousTime</code></p>
+<p>將所有速度乘以 deltaTime 可使移動量與幀率無關，確保不同硬體上的遊戲速度一致。但純 variable delta time 在延遲峰值時會導致物理不穩定。</p>
+<h2 id="三種遊戲迴圈模式">三種遊戲迴圈模式</h2>
+<h3 id="模式-a-基礎-raf-迴圈-不推薦用於正式遊戲">模式 A：基礎 rAF 迴圈（不推薦用於正式遊戲）</h3>
+<pre><code class="language-javascript">function gameLoop() {
+  requestAnimationFrame(gameLoop);
+  update();
+  render();
+}
+gameLoop();</code></pre>
+<p><strong>問題</strong>：在 120Hz 顯示器上物理更新速度加倍，遊戲行為不一致。</p>
+<h3 id="模式-b-固定時間步長迴圈-推薦">模式 B：固定時間步長迴圈（推薦）</h3>
+<pre><code class="language-javascript">const TICK_RATE = 60;
+const TICK_INTERVAL = 1000 / TICK_RATE;
+let previousTime = 0;
+
+function gameLoop(currentTime) {
+  requestAnimationFrame(gameLoop);
+  const deltaTime = currentTime - previousTime;
+  
+  if (deltaTime &gt;= TICK_INTERVAL) {
+    update();  // 固定頻率更新
+    // 模運算校準時鐘，避免時間漂移
+    previousTime = currentTime - (deltaTime % TICK_INTERVAL);
+  }
+  
+  render();  // 每幀都渲染（可達原生刷新率）
+}
+requestAnimationFrame(gameLoop);</code></pre>
+<p><strong>關鍵技巧</strong>：<code>previousTime = currentTime - (deltaTime % TICK_INTERVAL)</code> 用模運算重新校準時鐘，確保下一幀按原定時間到達，避免因超出預算的幀造成整個時程偏移。</p>
+<h3 id="模式-c-累加器模式-插值渲染-最佳實踐">模式 C：累加器模式 + 插值渲染（最佳實踐）</h3>
+<pre><code class="language-javascript">const TICK_LENGTH = 50;  // 20Hz 物理更新
+let lastTick = performance.now();
+let lastRender = lastTick;
+
+function gameLoop(tFrame) {
+  const stopMain = requestAnimationFrame(gameLoop);
+  const nextTick = lastTick + TICK_LENGTH;
+  let numTicks = 0;
+  
+  if (tFrame &gt; nextTick) {
+    const timeSinceTick = tFrame - lastTick;
+    numTicks = Math.floor(timeSinceTick / TICK_LENGTH);
+  }
+  
+  // 防止螺旋死亡
+  if (numTicks &gt; 5) {
+    lastTick = tFrame;  // 跳過落後時間
+    numTicks = 1;
+  }
+  
+  // 固定步長更新
+  for (let i = 0; i &lt; numTicks; i++) {
+    lastTick += TICK_LENGTH;
+    update(lastTick);
+  }
+  
+  // 插值渲染（alpha = 當前幀在兩個物理步之間的位置）
+  const alpha = (tFrame - lastTick) / TICK_LENGTH;
+  render(alpha);
+  lastRender = tFrame;
+}
+requestAnimationFrame(gameLoop);</code></pre>
+<p><strong>累加器原理</strong>：</p>
+<ul>
+<li>物理以固定 20Hz（50ms）更新，確保確定性（Deterministic）</li>
+<li>渲染以原生刷新率執行，利用 alpha 在兩個物理狀態間線性插值</li>
+<li><code>numTicks &gt; 5</code> 的安全閥防止「螺旋死亡」</li>
+</ul>
+<h2 id="螺旋死亡-spiral-of-death">螺旋死亡（Spiral of Death）</h2>
+<p>當單幀需要追趕的更新次數過多時（如標籤頁長時間失焦），遊戲陷入「越追越趕」的死循環。</p>
+<p><strong>防護策略</strong>：</p>
+<ol>
+<li>限制單幀最大更新次數（如 <code>numTicks &gt; 5</code> 就跳過）</li>
+<li>標籤頁失焦時重置時間基準</li>
+<li>動態品質伸縮（降低解析度、減少粒子數）</li>
+</ol>
+<h2 id="輸入處理最佳實踐">輸入處理最佳實踐</h2>
+<pre><code class="language-javascript">const pressedKeys = new Set();
+document.addEventListener(&#x27;keydown&#x27;, (e) =&gt; pressedKeys.add(e.key));
+document.addEventListener(&#x27;keyup&#x27;, (e) =&gt; pressedKeys.delete(e.key));
+
+function update() {
+  if (pressedKeys.has(&#x27;ArrowLeft&#x27;)) player.moveLeft();
+  if (pressedKeys.has(&#x27;ArrowRight&#x27;)) player.moveRight();
+}</code></pre>
+<p>用 <code>Set</code> 追蹤按鍵狀態比在事件處理器中直接更新遊戲更可靠，避免事件佇列延遲和按鍵重複問題。</p>
+<h2 id="offscreencanvas-與-web-worker">OffscreenCanvas 與 Web Worker</h2>
+<h3 id="原理">原理</h3>
+<p>OffscreenCanvas 將 Canvas API 從 DOM 解耦，可在 Web Worker 中渲染，釋放主執行緒。</p>
+<h3 id="基本用法">基本用法</h3>
+<pre><code class="language-javascript">// 主執行緒
+const offscreen = document.querySelector(&#x27;canvas&#x27;)
+  .transferControlToOffscreen();
+const worker = new Worker(&#x27;render-worker.js&#x27;);
+worker.postMessage({ canvas: offscreen }, [offscreen]);
+
+// render-worker.js
+self.onmessage = (e) =&gt; {
+  const canvas = e.data.canvas;
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  
+  function renderLoop() {
+    // 在 Worker 中渲染，不阻塞主執行緒
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawScene(ctx);
+    requestAnimationFrame(renderLoop);
+  }
+  renderLoop();
+};</code></pre>
+<h3 id="效能優勢">效能優勢</h3>
+<ul>
+<li>主執行緒繁忙時，Worker 中的動畫仍然平滑</li>
+<li>適合 CPU 密集型渲染（大量粒子、複雜場景）</li>
+<li>所有主流瀏覽器已支援（Chrome 69+、Firefox 105+、Safari 16.4+）</li>
+</ul>
+<h3 id="限制">限制</h3>
+<ul>
+<li>OffscreenCanvas 缺少 DOM <code>style</code> 屬性</li>
+<li>紋理和影像載入需額外處理</li>
+<li>除錯較困難（Worker 環境限制）</li>
+</ul>
+<h2 id="canvas-效能優化清單">Canvas 效能優化清單</h2>
+<ol>
+<li><strong>避免浮點座標</strong>：<code>Math.round()</code> 或 <code>|0</code> 取整，避免子像素渲染</li>
+<li><strong>分層 Canvas</strong>：靜態背景一層、動態物件一層，只重繪變動部分</li>
+<li><strong>離屏預渲染</strong>：複雜圖形先畫到隱藏 Canvas，再 <code>drawImage</code> 到主畫布</li>
+<li><strong>批次繪製</strong>：合併相同樣式的 <code>fillRect</code> 呼叫，減少狀態切換</li>
+<li><strong>`willReadFrequently` 選項</strong>：頻繁 <code>getImageData</code> 時啟用，強制軟體渲染</li>
+<li><strong>CSS 縮放技巧</strong>：用小 Canvas + CSS 放大，降低實際像素數</li>
+<li><strong>關閉透明度</strong>：<code>{ alpha: false }</code> 省去合成步驟</li>
+</ol>
+<h2 id="與本專案的關聯">與本專案的關聯</h2>
+<h3 id="daily-digest-prompt-遊戲開發">Daily-Digest-Prompt 遊戲開發</h3>
+<p>本專案維護多款 HTML5 Canvas 遊戲（Space Invaders、Zen Rhythm、六根淨化、貪吃蛇等），全部部署在 Cloudflare Pages。</p>
+<p><strong>直接應用</strong>：</p>
+<ul>
+<li><strong>模式 B（固定時間步長）</strong> 適合大多數遊戲：物理 60Hz + 渲染跟隨顯示器</li>
+<li><strong>模式 C（累加器+插值）</strong> 適合 Zen Rhythm 等需要精確節拍同步的遊戲</li>
+<li><strong>輸入處理的 Set 模式</strong> 可統一應用到所有鍵盤/觸控遊戲</li>
+<li><strong>分層 Canvas</strong> 對六根淨化等有靜態背景的遊戲特別有效</li>
+<li><strong>OffscreenCanvas</strong> 可考慮用於粒子系統密集的場景（念珠冥想的漣漪效果）</li>
+</ul>
+<h3 id="效能基準">效能基準</h3>
+<ul>
+<li>目標：60fps 穩定，16.67ms 幀預算</li>
+<li>粒子系統：控制在 200-500 個活躍粒子以內（配合物件池）</li>
+<li>螺旋死亡保護：任何遊戲都應加入 <code>numTicks</code> 上限</li>
+</ul>
+<h2 id="程式碼範例-完整的產品級遊戲迴圈">程式碼範例：完整的產品級遊戲迴圈</h2>
+<pre><code class="language-javascript">class GameEngine {
+  constructor(canvas, options = {}) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext(&#x27;2d&#x27;, { alpha: false });
+    this.tickRate = options.tickRate || 60;
+    this.tickInterval = 1000 / this.tickRate;
+    this.maxTicksPerFrame = options.maxTicksPerFrame || 5;
+    this.previousTime = 0;
+    this.accumulator = 0;
+    this.running = false;
+    this.pressedKeys = new Set();
+    
+    this._bindInput();
+  }
+  
+  _bindInput() {
+    document.addEventListener(&#x27;keydown&#x27;, (e) =&gt; this.pressedKeys.add(e.key));
+    document.addEventListener(&#x27;keyup&#x27;, (e) =&gt; this.pressedKeys.delete(e.key));
+  }
+  
+  start() {
+    this.running = true;
+    this.previousTime = performance.now();
+    this.accumulator = 0;
+    requestAnimationFrame((t) =&gt; this._loop(t));
+  }
+  
+  stop() {
+    this.running = false;
+  }
+  
+  _loop(currentTime) {
+    if (!this.running) return;
+    requestAnimationFrame((t) =&gt; this._loop(t));
+    
+    let deltaTime = currentTime - this.previousTime;
+    this.previousTime = currentTime;
+    
+    // 防止標籤頁失焦造成巨大 deltaTime
+    if (deltaTime &gt; 1000) deltaTime = this.tickInterval;
+    
+    this.accumulator += deltaTime;
+    let ticks = 0;
+    
+    while (this.accumulator &gt;= this.tickInterval &amp;&amp; ticks &lt; this.maxTicksPerFrame) {
+      this.update(this.tickInterval / 1000);  // 傳入秒為單位的 dt
+      this.accumulator -= this.tickInterval;
+      ticks++;
+    }
+    
+    // 計算插值 alpha
+    const alpha = this.accumulator / this.tickInterval;
+    this.render(alpha);
+  }
+  
+  // 子類覆寫
+  update(dt) { /* 物理、AI、遊戲邏輯 */ }
+  render(alpha) { /* 繪製畫面，用 alpha 插值 */ }
+}</code></pre>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li><a href="https://www.aleksandrhovhannisyan.com/blog/javascript-game-loop/">Performant Game Loops in JavaScript - Aleksandr Hovhannisyan</a></li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Games/Anatomy">Anatomy of a video game - MDN Web Docs</a></li>
+<li><a href="https://web.dev/articles/offscreen-canvas">OffscreenCanvas — web.dev</a></li>
+<li><a href="https://gafferongames.com/post/fix_your_timestep/">Fix Your Timestep! - Gaffer On Games</a></li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas">Optimizing canvas - MDN Web Docs</a></li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="breakout-打磚塊-v10-創建心得-粒子爆-40a4e9a5.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Breakout (打磚塊) v1.0 創建心得 — 粒子爆炸 + 8-bit 音效 + 道具系統</span></a><a href="六根淨化遊戲-v20-深度品質優化2026-02-18-54a458e6.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">六根淨化遊戲 v2.0 深度品質優化（2026-02-18）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

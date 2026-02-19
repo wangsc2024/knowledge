@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #7 - python-jose CVE 修復 + TemplateResponse 棄用遷移 (2026-02-18)">
+  <title>QA System 優化報告 #7 - python-jose CVE 修復 + TemplateResponse 棄用遷移 (2026-02-18) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-security">資訊安全</span>
+        <h1>QA System 優化報告 #7 - python-jose CVE 修復 + TemplateResponse 棄用遷移 (2026-02-18)</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">CVE修復</span><span class="tag">python-jose</span><span class="tag">TemplateResponse</span><span class="tag">品質改善</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化方向">優化方向</a></li><li><a href="#已修復問題-3-項安全-1-項品質">已修復問題（3 項安全 + 1 項品質）</a></li>  <li><a href="#安全修復">安全修復</a></li>  <li><a href="#品質修復">品質修復</a></li><li><a href="#安全掃描結果">安全掃描結果</a></li><li><a href="#待辦事項">待辦事項</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #7</h1>
+<blockquote><p>日期：2026-02-18 | 品質分數：4.5/5 | 第七次掃描</p>
+</blockquote>
+<h2 id="優化方向">優化方向</h2>
+<p>python-jose CVE 安全升級（CVE-2025-61152 + CVE-2024-33664）+ TemplateResponse 棄用語法遷移（main.py + auth.py）</p>
+<h2 id="已修復問題-3-項安全-1-項品質">已修復問題（3 項安全 + 1 項品質）</h2>
+<h3 id="安全修復">安全修復</h3>
+<ol>
+<li><strong>CVE-2025-61152（嚴重）</strong>：python-jose 3.3.0 允許 JWT <code>alg=none</code> 繞過簽名驗證，攻擊者可偽造 Token 繞過認證</li>
+</ol>
+<p>   - 修復：requirements.txt 版本下限從 <code>&gt;=3.3.0</code> 提升至 <code>&gt;=3.5.0</code></p>
+<ol>
+<li><strong>CVE-2024-33664（中等）</strong>：python-jose 3.3.0 存在 JWE 壓縮炸彈 DoS 漏洞</li>
+</ol>
+<p>   - 修復：同上版本升級</p>
+<h3 id="品質修復">品質修復</h3>
+<ol>
+<li><strong>TemplateResponse 棄用語法遷移</strong>：11 處（main.py 3 + auth.py 8）</li>
+</ol>
+<p>   - 舊：<code>TemplateResponse(name, {&quot;request&quot;: request, ...})</code>
+   - 新：<code>TemplateResponse(request, name, {...})</code>
+   - 消除 Starlette DeprecationWarning</p>
+<h2 id="安全掃描結果">安全掃描結果</h2>
+<table>
+<tr><th>項目</th><th>等級</th><th>狀態</th></tr>
+<tr><td>python-jose CVE-2025-61152</td><td>嚴重</td><td>已修</td></tr>
+<tr><td>python-jose CVE-2024-33664</td><td>中等</td><td>已修</td></tr>
+<tr><td>SQL 注入</td><td>安全</td><td>參數化查詢</td></tr>
+<tr><td>XSS</td><td>安全</td><td>無風險點</td></tr>
+<tr><td>CORS/Cookie</td><td>安全</td><td>前次修復有效</td></tr>
+<tr><td>錯誤訊息洩漏</td><td>安全</td><td>零殘留</td></tr>
+</table>
+<h2 id="待辦事項">待辦事項</h2>
+<ul>
+<li>TemplateResponse 遷移剩餘 37 處（roles/departments/users/questions/export）</li>
+<li>questions.py 拆分（&gt;1000 行）</li>
+<li>測試覆蓋率提升</li>
+<li>zeep cgi 模組棄用處理</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="qa-system-優化報告-8---templatere-96a687a8.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19)</span></a><a href="qa-system-優化報告-6---rolesdepa-1875e3fa.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">QA System 優化報告 #6 - roles/departments/users 錯誤訊息洩漏修復 (2026-02-18)</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

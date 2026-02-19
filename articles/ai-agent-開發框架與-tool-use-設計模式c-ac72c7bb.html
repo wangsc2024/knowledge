@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Agent 開發框架與 Tool Use 設計模式：Claude Agent SDK、Multi-Agent 協作與工具整合最佳實踐（2026）">
+  <title>AI Agent 開發框架與 Tool Use 設計模式：Claude Agent SDK、Multi-Agent 協作與工具整合最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>AI Agent 開發框架與 Tool Use 設計模式：Claude Agent SDK、Multi-Agent 協作與工具整合最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-18</span>
+          <span class="reading-time">8 分鐘閱讀</span>
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">Agent SDK</span><span class="tag">Tool Use</span><span class="tag">Multi-Agent</span><span class="tag">Claude</span><span class="tag">OpenAI</span><span class="tag">LangGraph</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心框架比較">核心框架比較</a></li>  <li><a href="#1-anthropic-claude-code-agent-sdk">1. Anthropic Claude Code / Agent SDK</a></li>  <li><a href="#2-openai-agents-sdk">2. OpenAI Agents SDK</a></li>  <li><a href="#3-langgraph">3. LangGraph</a></li>  <li><a href="#4-microsoft-autogen">4. Microsoft AutoGen</a></li><li><a href="#tool-use-設計模式">Tool Use 設計模式</a></li>  <li><a href="#工具定義最佳實踐">工具定義最佳實踐</a></li>  <li><a href="#錯誤處理模式">錯誤處理模式</a></li>  <li><a href="#工具組合模式">工具組合模式</a></li><li><a href="#multi-agent-協作架構">Multi-Agent 協作架構</a></li>  <li><a href="#主要協作模式">主要協作模式</a></li>  <li><a href="#mcp-model-context-protocol-作為工具整合標準">MCP（Model Context Protocol）作為工具整合標準</a></li><li><a href="#與-daily-digest-prompt-專案的對照">與 daily-digest-prompt 專案的對照</a></li><li><a href="#風險與注意事項">風險與注意事項</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>AI Agent 開發框架與 Tool Use 設計模式（2026）</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>2026 年 AI Agent 開發已從單一 LLM 呼叫演進為成熟的多 Agent 協作框架生態系統。四大主流框架——Anthropic Claude Code/Agent SDK、OpenAI Agents SDK、LangGraph、Microsoft AutoGen——各自提供差異化的 Tool Use 設計模式與 Multi-Agent 編排能力。核心趨勢包括：Handoff 機制取代硬編碼路由、狀態圖（StateGraph）實現持久化工作流、MCP（Model Context Protocol）成為工具整合標準協議、以及 Guardrails 從 Prompt 自律升級到機器強制層。</p>
+<hr>
+<h2 id="核心框架比較">核心框架比較</h2>
+<h3 id="1-anthropic-claude-code-agent-sdk">1. Anthropic Claude Code / Agent SDK</h3>
+<p><strong>定位</strong>：終端原生 Agentic Coding 工具，直接理解 codebase 並執行任務。</p>
+<p><strong>核心架構</strong>：</p>
+<ul>
+<li><strong>Tool Use 協議</strong>：透過 JSON Schema 定義工具（name、description、input_schema），Claude 回傳 <code>tool_use</code> content block，開發者執行後回傳 <code>tool_result</code></li>
+<li><strong>Agentic Loop</strong>：<code>claude -p</code> 啟動 Agent 迴圈，自動進行「推理 → 工具呼叫 → 結果處理 → 再推理」循環</li>
+<li><strong>Hooks 機器強制層</strong>：PreToolUse / PostToolUse / Stop hooks，在 runtime 攔截工具呼叫（非 Prompt 自律）</li>
+<li><strong>MCP 整合</strong>：原生支援 Model Context Protocol，可掛載外部工具伺服器</li>
+</ul>
+<p><strong>設計模式</strong>（來自 Anthropic 官方 Cookbook）：</p>
+<ul>
+<li><strong>Prompt Chaining</strong>：將任務拆為順序子任務，每步建構在前一步結果上</li>
+<li><strong>Routing</strong>：依輸入特徵動態選擇專門的 LLM 處理路徑</li>
+<li><strong>Multi-LLM Parallelization</strong>：將獨立子任務分發到多個 LLM 並行處理</li>
+<li><strong>Orchestrator-Workers</strong>：中央 LLM 分析任務、動態產生子任務、委派 Worker 執行</li>
+<li><strong>Evaluator-Optimizer</strong>：一個 LLM 生成、另一個評估品質，迭代改善</li>
+</ul>
+<p><strong>程式碼範例</strong>（Orchestrator-Workers）：</p>
+<pre><code class="language-python"># Anthropic Cookbook 的 FlexibleOrchestrator 模式
+class FlexibleOrchestrator:
+    def process(self, task, context):
+        # Phase 1: Orchestrator 分析任務並產生子任務（XML 格式）
+        plan = llm_call(orchestrator_prompt.format(task=task))
+        subtasks = parse_tasks(plan)  # 解析 XML 為結構化任務
+        
+        # Phase 2: 各 Worker 並行執行各自的子任務
+        results = []
+        for subtask in subtasks:
+            worker_result = llm_call(
+                worker_prompt.format(
+                    original_task=task,
+                    subtask_type=subtask[&#x27;type&#x27;],
+                    subtask_description=subtask[&#x27;description&#x27;]
+                )
+            )
+            results.append(worker_result)
+        return results</code></pre>
+<h3 id="2-openai-agents-sdk">2. OpenAI Agents SDK</h3>
+<p><strong>定位</strong>：輕量但強大的 Multi-Agent 工作流框架，Provider-agnostic（支援 100+ LLM）。</p>
+<p><strong>核心概念</strong>：</p>
+<ul>
+<li><strong>Agent</strong>：LLM + instructions + tools + guardrails + handoffs</li>
+<li><strong>Handoff</strong>：Agent 間的控制權轉移（專門的 tool call 類型）</li>
+<li><strong>Guardrails</strong>：輸入/輸出驗證的安全檢查</li>
+<li><strong>Sessions</strong>：自動跨次對話歷史管理（SQLite / Redis）</li>
+<li><strong>Tracing</strong>：內建執行追蹤，支援 Logfire、AgentOps 等外部追蹤器</li>
+</ul>
+<p><strong>Agent Loop 機制</strong>：</p>
+<ol>
+<li>呼叫 LLM（使用 Agent 的 model、settings、message history）</li>
+<li>LLM 回傳回應（可能包含 tool calls）</li>
+<li>若有 final output → 回傳並結束</li>
+<li>若有 handoff → 切換到新 Agent，回到步驟 1</li>
+<li>處理 tool calls → 附加 tool response → 回到步驟 1</li>
+</ol>
+<p><strong>程式碼範例</strong>（Handoff 模式）：</p>
+<pre><code class="language-python">from agents import Agent, Runner
+
+spanish_agent = Agent(name=&quot;Spanish agent&quot;, instructions=&quot;You only speak Spanish.&quot;)
+english_agent = Agent(name=&quot;English agent&quot;, instructions=&quot;You only speak English&quot;)
+
+triage_agent = Agent(
+    name=&quot;Triage agent&quot;,
+    instructions=&quot;Handoff to the appropriate agent based on language.&quot;,
+    handoffs=[spanish_agent, english_agent],  # 宣告式 Handoff
+)
+
+result = await Runner.run(triage_agent, input=&quot;Hola, como estas?&quot;)
+# 自動 handoff 到 spanish_agent</code></pre>
+<p><strong>程式碼範例</strong>（Tool 定義）：</p>
+<pre><code class="language-python">from agents import Agent, Runner, function_tool
+
+@function_tool
+def get_weather(city: str) -&gt; str:
+    return f&quot;The weather in {city} is sunny.&quot;
+
+agent = Agent(
+    name=&quot;Weather assistant&quot;,
+    instructions=&quot;You are a helpful agent.&quot;,
+    tools=[get_weather],  # 用裝飾器定義，自動推斷 schema
+)</code></pre>
+<h3 id="3-langgraph">3. LangGraph</h3>
+<p><strong>定位</strong>：低階狀態圖編排框架，專為長執行、有狀態的 Agent 工作流設計。</p>
+<p><strong>核心特色</strong>：</p>
+<ul>
+<li><strong>StateGraph</strong>：以有向圖定義工作流，節點為處理函式，邊定義控制流</li>
+<li><strong>Durable Execution</strong>：持久化執行，故障後從斷點恢復</li>
+<li><strong>Human-in-the-Loop</strong>：任意節點可中斷等待人類審查</li>
+<li><strong>Checkpointing</strong>：自動狀態快照，支援回溯</li>
+<li><strong>Comprehensive Memory</strong>：短期工作記憶 + 跨 Session 長期記憶</li>
+</ul>
+<p><strong>程式碼範例</strong>：</p>
+<pre><code class="language-python">from langgraph.graph import START, StateGraph
+from typing_extensions import TypedDict
+
+class State(TypedDict):
+    text: str
+
+def node_a(state: State) -&gt; dict:
+    return {&quot;text&quot;: state[&quot;text&quot;] + &quot;a&quot;}
+
+def node_b(state: State) -&gt; dict:
+    return {&quot;text&quot;: state[&quot;text&quot;] + &quot;b&quot;}
+
+graph = StateGraph(State)
+graph.add_node(&quot;node_a&quot;, node_a)
+graph.add_node(&quot;node_b&quot;, node_b)
+graph.add_edge(START, &quot;node_a&quot;)
+graph.add_edge(&quot;node_a&quot;, &quot;node_b&quot;)
+
+result = graph.compile().invoke({&quot;text&quot;: &quot;&quot;})
+# {&#x27;text&#x27;: &#x27;ab&#x27;}</code></pre>
+<p><strong>Multi-Agent 架構模式</strong>：</p>
+<ul>
+<li><strong>Supervisor</strong>：一個 Agent 統籌調度，決定下一步由哪個 Worker 執行</li>
+<li><strong>Swarm / Handoff</strong>：Agent 間直接交接控制權，類似 OpenAI Agents SDK 的 handoff</li>
+<li><strong>Hierarchical</strong>：多層級 Supervisor 管理子團隊</li>
+<li><strong>Map-Reduce</strong>：並行分發子任務，最後匯整結果</li>
+</ul>
+<h3 id="4-microsoft-autogen">4. Microsoft AutoGen</h3>
+<p><strong>定位</strong>：全功能 Multi-Agent AI 應用框架，支援自主運行或人機協作。</p>
+<p><strong>分層架構</strong>：</p>
+<ul>
+<li><strong>Core API</strong>：訊息傳遞、事件驅動、本地/分散式 Runtime</li>
+<li><strong>AgentChat API</strong>：高階快速原型（Two-Agent Chat、Group Chat）</li>
+<li><strong>Extensions API</strong>：LLM 客戶端、MCP 整合、程式碼執行</li>
+</ul>
+<p><strong>程式碼範例</strong>（Multi-Agent Orchestration via AgentTool）：</p>
+<pre><code class="language-python">from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.tools import AgentTool
+
+math_agent = AssistantAgent(&quot;math_expert&quot;, model_client=client,
+    system_message=&quot;You are a math expert.&quot;,
+    description=&quot;A math expert assistant.&quot;)
+math_tool = AgentTool(math_agent, return_value_as_last_message=True)
+
+chemistry_agent = AssistantAgent(&quot;chemistry_expert&quot;, model_client=client,
+    system_message=&quot;You are a chemistry expert.&quot;)
+chem_tool = AgentTool(chemistry_agent, return_value_as_last_message=True)
+
+# 主 Agent 將子 Agent 包裝為 Tool
+orchestrator = AssistantAgent(&quot;assistant&quot;, model_client=client,
+    system_message=&quot;Use expert tools when needed.&quot;,
+    tools=[math_tool, chem_tool])</code></pre>
+<hr>
+<h2 id="tool-use-設計模式">Tool Use 設計模式</h2>
+<h3 id="工具定義最佳實踐">工具定義最佳實踐</h3>
+<table>
+<tr><th>原則</th><th>說明</th></tr>
+<tr><td><strong>Schema 精確</strong></td><td>JSON Schema 定義明確的 type、description、required，減少 LLM 幻覺</td></tr>
+<tr><td><strong>描述即文件</strong></td><td>tool description 是 LLM 判斷何時使用的唯一依據，需清晰且具體</td></tr>
+<tr><td><strong>錯誤回傳</strong></td><td>tool_result 應包含結構化錯誤訊息，而非讓 LLM 猜測失敗原因</td></tr>
+<tr><td><strong>冪等設計</strong></td><td>工具應支援重試而不產生副作用，尤其在 Agent Loop 可能重複呼叫時</td></tr>
+<tr><td><strong>最小權限</strong></td><td>每個工具只暴露必要的能力，用 Guardrails 限制危險操作</td></tr>
+</table>
+<h3 id="錯誤處理模式">錯誤處理模式</h3>
+<ol>
+<li><strong>Retry with Backoff</strong>：API 失敗時指數退避重試</li>
+<li><strong>Graceful Degradation</strong>：快取降級（本專案的 api-cache Skill 模式）</li>
+<li><strong>Circuit Breaker</strong>：連續失敗達閾值後熔斷，避免持續消耗 tokens</li>
+<li><strong>Tool Result Validation</strong>：驗證工具回傳格式，格式錯誤時回傳清晰的錯誤提示</li>
+</ol>
+<h3 id="工具組合模式">工具組合模式</h3>
+<ol>
+<li><strong>Sequential Composition</strong>：工具 A 的輸出作為工具 B 的輸入（Prompt Chaining）</li>
+<li><strong>Parallel Fan-out</strong>：同時呼叫多個獨立工具，匯整結果</li>
+<li><strong>Conditional Routing</strong>：依上下文動態選擇要呼叫的工具子集</li>
+<li><strong>Tool as Agent</strong>：將子 Agent 包裝成 Tool（AutoGen 的 AgentTool 模式）</li>
+</ol>
+<hr>
+<h2 id="multi-agent-協作架構">Multi-Agent 協作架構</h2>
+<h3 id="主要協作模式">主要協作模式</h3>
+<table>
+<tr><th>模式</th><th>特點</th><th>適用場景</th></tr>
+<tr><td><strong>Orchestrator-Worker</strong></td><td>中央調度器動態分配任務</td><td>任務拆解不可預測</td></tr>
+<tr><td><strong>Handoff</strong></td><td>Agent 間直接交接控制權</td><td>語言路由、專家切換</td></tr>
+<tr><td><strong>Swarm</strong></td><td>去中心化，Agent 自主決定協作</td><td>探索性任務</td></tr>
+<tr><td><strong>Supervisor</strong></td><td>有狀態的監督者管理工作流</td><td>長執行多步驟任務</td></tr>
+<tr><td><strong>Map-Reduce</strong></td><td>並行處理 + 匯整</td><td>大規模資料處理</td></tr>
+<tr><td><strong>Evaluator-Optimizer</strong></td><td>生成 + 評估迭代</td><td>品質敏感的內容生成</td></tr>
+</table>
+<h3 id="mcp-model-context-protocol-作為工具整合標準">MCP（Model Context Protocol）作為工具整合標準</h3>
+<p>2025-2026 年 MCP 已成為 Agent 工具整合的事實標準：</p>
+<ul>
+<li><strong>Anthropic Claude Code</strong> 原生支援 MCP Server 掛載</li>
+<li><strong>AutoGen</strong> 提供 <code>McpWorkbench</code> 整合 MCP 工具</li>
+<li><strong>LangGraph</strong> 透過 LangChain Extensions 支援 MCP</li>
+<li><strong>OpenAI Agents SDK</strong> 社區驅動的 MCP 適配器</li>
+</ul>
+<hr>
+<h2 id="與-daily-digest-prompt-專案的對照">與 daily-digest-prompt 專案的對照</h2>
+<table>
+<tr><th>框架模式</th><th>本專案實踐</th></tr>
+<tr><td>Orchestrator-Workers</td><td><code>run-todoist-agent-team.ps1</code> Phase 1 查詢 → Phase 2 N 路並行執行 → Phase 3 組裝</td></tr>
+<tr><td>Parallelization</td><td><code>run-agent-team.ps1</code> Phase 1 五路並行（Todoist + 新聞 + HN + Gmail + 安全審查）</td></tr>
+<tr><td>Routing</td><td><code>config/routing.yaml</code> 三層路由規則（標籤映射 → 關鍵字映射 → 排除清單）</td></tr>
+<tr><td>Guardrails (Hook)</td><td><code>hooks/pre_bash_guard.py</code> + <code>pre_write_guard.py</code> 機器強制攔截</td></tr>
+<tr><td>Circuit Breaker</td><td><code>state/api-health.json</code> + <code>circuit-breaker-utils.ps1</code> Phase 0 預檢查</td></tr>
+<tr><td>Tool as Agent</td><td>子 Agent 模板（<code>templates/sub-agent/</code>），每個 Todoist 任務委派獨立子 Agent</td></tr>
+<tr><td>Evaluator-Optimizer</td><td><code>templates/shared/quality-gate.md</code> 品質閘門 + <code>refinement.md</code> 精修迴圈</td></tr>
+<tr><td>Durable Execution</td><td><code>context/digest-memory.json</code> 跨次記憶 + <code>state/scheduler-state.json</code> 狀態追蹤</td></tr>
+</table>
+<p><strong>本專案的獨特設計</strong>：</p>
+<ul>
+<li><strong>Skill-First 策略</strong>：行為指引不硬寫在 prompt，而是透過 <code>SKILL_INDEX.md</code> 路由到各 <code>SKILL.md</code></li>
+<li><strong>文件驅動架構</strong>：Prompt 是薄層調度器，邏輯外部化到 YAML 配置</li>
+<li><strong>LoopDetector + CircuitBreaker</strong>：agent_guardian.py 三層守護，跨進程持久化偵測迴圈行為</li>
+</ul>
+<hr>
+<h2 id="風險與注意事項">風險與注意事項</h2>
+<ol>
+<li><strong>Token 消耗</strong>：Multi-Agent 架構的 N+1 LLM 呼叫成本不容忽視，需設計 <code>max_turns</code> 上限</li>
+<li><strong>級聯失敗</strong>：一個 Agent 失敗可能導致整個工作流崩潰，需要 Circuit Breaker 和 Graceful Degradation</li>
+<li><strong>Context Window 汙染</strong>：子 Agent 應隔離 context，避免無關資訊污染主 Agent 的推理</li>
+<li><strong>工具幻覺</strong>：LLM 可能產生不存在的工具呼叫或錯誤參數，需嚴格的 schema 驗證</li>
+<li><strong>狀態一致性</strong>：分散式 Multi-Agent 系統的狀態同步是核心難題，LangGraph 的 Checkpointing 和 OpenAI 的 Sessions 提供了不同的解決方案</li>
+<li><strong>安全邊界</strong>：Tool Use 是 Agent 與外部世界的介面，必須實施最小權限原則和 Guardrails</li>
+</ol>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://anthropic.com/research/building-effective-agents">Anthropic - Building Effective Agents（官方研究文章）</a></li>
+<li><a href="https://github.com/anthropics/anthropic-cookbook/tree/main/patterns/agents">Anthropic Cookbook - Agent Patterns（GitHub）</a></li>
+<li><a href="https://github.com/anthropics/claude-code">Claude Code - 官方 GitHub 倉庫</a></li>
+<li><a href="https://github.com/openai/openai-agents-python">OpenAI Agents SDK - 官方 GitHub 倉庫</a></li>
+<li><a href="https://github.com/langchain-ai/langgraph">LangGraph - 官方 GitHub 倉庫</a></li>
+<li><a href="https://github.com/microsoft/autogen">Microsoft AutoGen - 官方 GitHub 倉庫</a></li>
+<li><a href="https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview">Anthropic - Tool Use 文件</a></li>
+<li><a href="https://modelcontextprotocol.io/">Model Context Protocol（MCP）規範</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-18</em>
+<em>研究者：Claude Code Agent</em>
+<em>任務類型：ai_sysdev（AI 應用於系統開發 — Agent 框架與 Tool Use 設計模式）</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="增量同步incremental-sync架構模式完整指南-3d312964.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">增量同步（Incremental Sync）架構模式完整指南：差異偵測、衝突解決與大規模資料同步策略（2026）</span></a><a href="claude-sonnet-46-發布anthropic-bc05be3d.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Claude Sonnet 4.6 發布：Anthropic 最新模型（HN 熱度 778）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

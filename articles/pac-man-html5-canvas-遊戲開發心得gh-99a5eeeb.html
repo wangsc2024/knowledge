@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pac-Man HTML5 Canvas 遊戲開發心得：Ghost AI、粒子系統與 8-bit 音效實作">
+  <title>Pac-Man HTML5 Canvas 遊戲開發心得：Ghost AI、粒子系統與 8-bit 音效實作 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Pac-Man HTML5 Canvas 遊戲開發心得：Ghost AI、粒子系統與 8-bit 音效實作</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">3 分鐘閱讀</span>
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">Pac-Man</span><span class="tag">Ghost AI</span><span class="tag">Web Audio API</span><span class="tag">粒子系統</span><span class="tag">JavaScript</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案概述">專案概述</a></li><li><a href="#核心技術">核心技術</a></li>  <li><a href="#1-grid-based-移動系統">1. Grid-Based 移動系統</a></li>  <li><a href="#2-ghost-ai-四種性格-忠於原作">2. Ghost AI 四種性格（忠於原作）</a></li>  <li><a href="#3-ghost-釋放機制">3. Ghost 釋放機制</a></li>  <li><a href="#4-frightened-模式">4. Frightened 模式</a></li>  <li><a href="#5-粒子系統">5. 粒子系統</a></li>  <li><a href="#6-web-audio-api-8-bit-音效">6. Web Audio API 8-bit 音效</a></li>  <li><a href="#7-迷宮設計">7. 迷宮設計</a></li>  <li><a href="#8-狀態機">8. 狀態機</a></li>  <li><a href="#9-響應式設計">9. 響應式設計</a></li><li><a href="#踩坑記錄">踩坑記錄</a></li><li><a href="#效能注意">效能注意</a></li><li><a href="#檔案結構">檔案結構</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Pac-Man HTML5 Canvas 遊戲開發心得</h1>
+<h2 id="專案概述">專案概述</h2>
+<p>使用純 HTML5/JS/CSS 單檔實作完整的 Pac-Man 經典遊戲，含 Canvas 程式化繪製、Web Audio API 8-bit 音效、粒子效果系統。</p>
+<h2 id="核心技術">核心技術</h2>
+<h3 id="1-grid-based-移動系統">1. Grid-Based 移動系統</h3>
+<ul>
+<li>Pac-Man 和 Ghost 都採用 grid-based 移動，以 tile center 為決策點</li>
+<li>轉彎判定：當角色接近 tile center（距離 &lt; 4px）時檢查下一方向是否可行</li>
+<li>關鍵技巧：移動使用 pixel 座標（smooth），決策使用 tile 座標（discrete）</li>
+<li>牆壁碰撞：移動方向上的下一個 tile 為牆壁時，snap 到當前 tile center</li>
+</ul>
+<h3 id="2-ghost-ai-四種性格-忠於原作">2. Ghost AI 四種性格（忠於原作）</h3>
+<ul>
+<li><strong>Blinky（紅）</strong>：直接追蹤 Pac-Man 當前位置，最具威脅性</li>
+<li><strong>Pinky（粉）</strong>：瞄準 Pac-Man 前方 4 格，含原作 UP 方向的溢位 bug（向上時同時偏左 4 格）</li>
+<li><strong>Inky（青）</strong>：以 Pac-Man 前方 2 格為軸心，取 Blinky 的對稱點作為目標，行為最不可預測</li>
+<li><strong>Clyde（橘）</strong>：距離 Pac-Man &gt; 8 格時直接追蹤，&lt; 8 格時退回自己的 scatter corner</li>
+<li>共用的 scatter/chase 模式循環：7s scatter -&gt; 20s chase -&gt; 7s scatter -&gt; ... -&gt; 永久 chase</li>
+</ul>
+<h3 id="3-ghost-釋放機制">3. Ghost 釋放機制</h3>
+<ul>
+<li>Blinky 遊戲開始即在外面</li>
+<li>Pinky 2 秒後釋放</li>
+<li>Inky 8 秒或吃 30 顆豆後釋放</li>
+<li>Clyde 15 秒或吃 60 顆豆後釋放</li>
+<li>在 ghost house 內的鬼用 sin 函數做上下浮動動畫</li>
+</ul>
+<h3 id="4-frightened-模式">4. Frightened 模式</h3>
+<ul>
+<li>吃能量豆後觸發，所有非 EATEN 狀態的 ghost 反轉方向</li>
+<li>驚嚇時間隨關卡遞減（7s -&gt; 6.5s -&gt; ...，最低 2s）</li>
+<li>最後 2 秒閃爍提示（白色/藍色交替）</li>
+<li>得分遞增：200 -&gt; 400 -&gt; 800 -&gt; 1600</li>
+</ul>
+<h3 id="5-粒子系統">5. 粒子系統</h3>
+<ul>
+<li>兩種效果：emit（放射狀爆發，用於能量豆和死亡）和 emitDissolve（隨機方向上飄，用於 ghost 被吃）</li>
+<li>每個粒子有 position、velocity、life、maxLife、size、color</li>
+<li>帶重力效果（vy += 50 * dt），alpha 隨 life 衰減</li>
+</ul>
+<h3 id="6-web-audio-api-8-bit-音效">6. Web Audio API 8-bit 音效</h3>
+<ul>
+<li>AudioEngine 類封裝，master gain 控制總音量</li>
+<li>各種音效：square wave 為主，sawtooth 用於 ghost eaten 的下降掃頻</li>
+<li>waka-waka：交替 440Hz/520Hz 的短音</li>
+<li>能量豆：200Hz -&gt; 600Hz -&gt; 300Hz 掃頻</li>
+<li>死亡：8 個遞減頻率的短音序列（600Hz -&gt; 120Hz）</li>
+<li>開始/通關：音階序列</li>
+</ul>
+<h3 id="7-迷宮設計">7. 迷宮設計</h3>
+<ul>
+<li>28x31 的 2D 陣列，忠實還原原作迷宮布局</li>
+<li>6 種 tile type：EMPTY(0)、WALL(1)、DOT(2)、POWER(3)、GHOST_HOUSE(4)、GHOST_DOOR(5)、TUNNEL(6)</li>
+<li>牆壁繪製帶邊框效果（檢查鄰居 tile 決定哪些邊需要畫線）</li>
+<li>Tunnel 在 row 14 左右兩端，穿越時座標環繞</li>
+</ul>
+<h3 id="8-狀態機">8. 狀態機</h3>
+<p>START -&gt; READY(倒計時) -&gt; PLAYING -&gt; DYING/LEVEL_COMPLETE/PAUSED -&gt; GAME_OVER</p>
+<ul>
+<li>Dying 用 dyingTimer 控制動畫（先顯示正常 0.3s，再播放收縮動畫 0.7s）</li>
+<li>Level Complete 用 mazeFlashCount 閃爍白色覆蓋</li>
+</ul>
+<h3 id="9-響應式設計">9. 響應式設計</h3>
+<ul>
+<li>Canvas 按比例縮放（max 1.5x），CSS <code>image-rendering: pixelated</code></li>
+<li>觸控支援：D-pad 按鈕 + canvas swipe 手勢</li>
+<li><code>@media (hover: none) and (pointer: coarse)</code> 偵測觸控裝置顯示 D-pad</li>
+</ul>
+<h2 id="踩坑記錄">踩坑記錄</h2>
+<ol>
+<li><strong>Ghost 可穿牆 bug</strong>：isWalkable 沒排除 GHOST_DOOR，Pac-Man 能進 ghost house。修正：加 <code>tile !== GHOST_DOOR</code></li>
+<li><strong>dyingTimer 未在 update 遞減</strong>：導致死亡動畫卡住。修正：在 update 中 STATE_DYING 時遞減 dyingTimer</li>
+<li><strong>Ghost house 浮動動畫用 Date.now()</strong>：導致位置漂移。修正：用 gameTime-based 動畫 + homeY 基準點</li>
+<li><strong>loseLife 後 ghost 狀態殘留</strong>：死亡後重生，ghost 還在 frightened。修正：loseLife 時 reinitialize ghosts</li>
+<li><strong>drawMap 用 this.map 判斷邊框</strong>：吃掉豆子後邊框會變化。修正：改用 BASE_MAP 判斷（不受遊戲狀態影響）</li>
+</ol>
+<h2 id="效能注意">效能注意</h2>
+<ul>
+<li>dt cap 在 0.05s（20FPS 最低），避免大 delta 導致穿牆</li>
+<li>粒子用 splice 從後往前刪除 dead particles</li>
+<li>Canvas shadow 只用在 power pellet glow，用完立即 restore</li>
+</ul>
+<h2 id="檔案結構">檔案結構</h2>
+<p>單一 index.html（~1700 行，~52KB），含 CSS + JS，無外部依賴。適合 Cloudflare Pages 部署。</p>
+
+      </div>
+
+      <nav class="article-nav"><a href="tetris-俄羅斯方塊-v10-創建心得-srs-ebda3536.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Tetris (俄羅斯方塊) v1.0 創建心得 — SRS 旋轉 + CRT 復古視覺 + 8-bit BGM</span></a><a href="html5-遊戲存檔系統設計完整指南localstorag-cba377cc.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">HTML5 遊戲存檔系統設計完整指南：LocalStorage、IndexedDB、狀態序列化與雲端同步（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

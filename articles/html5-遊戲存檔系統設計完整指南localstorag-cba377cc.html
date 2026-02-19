@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 遊戲存檔系統設計完整指南：LocalStorage、IndexedDB、狀態序列化與雲端同步（2026）">
+  <title>HTML5 遊戲存檔系統設計完整指南：LocalStorage、IndexedDB、狀態序列化與雲端同步（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>HTML5 遊戲存檔系統設計完整指南：LocalStorage、IndexedDB、狀態序列化與雲端同步（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">11 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">遊戲存檔系統</span><span class="tag">LocalStorage</span><span class="tag">IndexedDB</span><span class="tag">狀態序列化</span><span class="tag">雲端同步</span><span class="tag">HTML5遊戲</span><span class="tag">遊戲開發</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#一-儲存引擎比較與選型">一、儲存引擎比較與選型</a></li>  <li><a href="#1-1-三大客戶端儲存方案">1.1 三大客戶端儲存方案</a></li>  <li><a href="#1-2-選型決策樹">1.2 選型決策樹</a></li>  <li><a href="#1-3-混合策略-推薦">1.3 混合策略（推薦）</a></li><li><a href="#二-遊戲狀態序列化設計">二、遊戲狀態序列化設計</a></li>  <li><a href="#2-1-存檔資料結構設計">2.1 存檔資料結構設計</a></li>  <li><a href="#2-2-序列化與反序列化">2.2 序列化與反序列化</a></li><li><a href="#三-自動存檔策略">三、自動存檔策略</a></li>  <li><a href="#3-1-觸發時機設計">3.1 觸發時機設計</a></li>  <li><a href="#3-2-自動存檔實作">3.2 自動存檔實作</a></li><li><a href="#四-存檔版本遷移">四、存檔版本遷移</a></li><li><a href="#五-資料完整性與防竄改">五、資料完整性與防竄改</a></li>  <li><a href="#5-1-校驗和驗證">5.1 校驗和驗證</a></li>  <li><a href="#5-2-備份與恢復">5.2 備份與恢復</a></li><li><a href="#六-雲端同步設計">六、雲端同步設計</a></li>  <li><a href="#6-1-同步架構">6.1 同步架構</a></li>  <li><a href="#6-2-衝突解決策略">6.2 衝突解決策略</a></li>  <li><a href="#6-3-離線優先同步模式">6.3 離線優先同步模式</a></li><li><a href="#七-效能最佳化">七、效能最佳化</a></li>  <li><a href="#7-1-差分存檔-delta-save">7.1 差分存檔（Delta Save）</a></li>  <li><a href="#7-2-壓縮存檔">7.2 壓縮存檔</a></li>  <li><a href="#7-3-避免遊戲迴圈中的同步-i-o">7.3 避免遊戲迴圈中的同步 I/O</a></li><li><a href="#八-儲存配額與容錯">八、儲存配額與容錯</a></li>  <li><a href="#8-1-配額管理">8.1 配額管理</a></li>  <li><a href="#8-2-驅逐策略與防護">8.2 驅逐策略與防護</a></li><li><a href="#九-存檔槽管理-ui-設計">九、存檔槽管理 UI 設計</a></li>  <li><a href="#9-1-存檔槽資訊顯示">9.1 存檔槽資訊顯示</a></li>  <li><a href="#9-2-操作流程">9.2 操作流程</a></li><li><a href="#十-應用到-daily-digest-prompt-專案遊戲">十、應用到 daily-digest-prompt 專案遊戲</a></li>  <li><a href="#直接適用的模式">直接適用的模式</a></li>  <li><a href="#統一存檔介面">統一存檔介面</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>HTML5 遊戲存檔系統設計完整指南（2026）</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>遊戲存檔系統是 HTML5 遊戲開發中常被忽視卻至關重要的基礎設施。良好的存檔系統需要兼顧持久性、效能、容錯性與擴展性。Web 平台提供了多種客戶端儲存方案（LocalStorage、IndexedDB、OPFS），各有優劣。本指南系統整理存檔架構設計模式、狀態序列化策略、儲存引擎選型與雲端同步方案，特別著重 HTML5 Canvas 遊戲的實際應用。</p>
+<hr>
+<h2 id="一-儲存引擎比較與選型">一、儲存引擎比較與選型</h2>
+<h3 id="1-1-三大客戶端儲存方案">1.1 三大客戶端儲存方案</h3>
+<table>
+<tr><th>特性</th><th>LocalStorage</th><th>IndexedDB</th><th>OPFS (Origin Private File System)</th></tr>
+<tr><td><strong>API 風格</strong></td><td>同步（阻塞）</td><td>非同步（Promise/事件）</td><td>非同步（Promise）</td></tr>
+<tr><td><strong>容量上限</strong></td><td>5 MiB / origin</td><td>Chrome: 60% 磁碟; Firefox: 10% 磁碟 (max 10 GiB)</td><td>同 IndexedDB</td></tr>
+<tr><td><strong>資料型別</strong></td><td>僅字串（UTF-16）</td><td>結構化物件、Blob、ArrayBuffer</td><td>檔案（二進位）</td></tr>
+<tr><td><strong>索引查詢</strong></td><td>無（僅 key-value）</td><td>支援多重索引、範圍查詢、游標遍歷</td><td>無（檔案系統語義）</td></tr>
+<tr><td><strong>交易支援</strong></td><td>無</td><td>完整 ACID 交易（readonly / readwrite）</td><td>無</td></tr>
+<tr><td><strong>適用場景</strong></td><td>簡單設定、高分紀錄、小型存檔 (&lt;100KB)</td><td>複雜存檔、多存檔槽、大量結構化資料</td><td>大型二進位資源、離線快取</td></tr>
+<tr><td><strong>瀏覽器支援</strong></td><td>全部</td><td>全部（IE10+）</td><td>Chrome 86+, Firefox 111+, Safari 15.2+</td></tr>
+</table>
+<h3 id="1-2-選型決策樹">1.2 選型決策樹</h3>
+<pre><code class="language-plaintext">存檔資料 &lt; 100KB 且結構簡單？
+  ├─ 是 → LocalStorage（最簡方案）
+  └─ 否 → 需要索引查詢或多存檔槽？
+        ├─ 是 → IndexedDB（推薦方案）
+        └─ 否 → 大型二進位資源？
+              ├─ 是 → OPFS
+              └─ 否 → IndexedDB（通用方案）</code></pre>
+<h3 id="1-3-混合策略-推薦">1.3 混合策略（推薦）</h3>
+<p>實務上最佳方案是<strong>分層儲存</strong>：</p>
+<ul>
+<li><strong>LocalStorage</strong>：遊戲設定（音量、語言、控制鍵位）、最後使用的存檔槽 ID</li>
+<li><strong>IndexedDB</strong>：完整遊戲狀態（角色、關卡、物品）、存檔中繼資料</li>
+<li><strong>伺服器端</strong>：雲端備份、跨裝置同步、排行榜</li>
+</ul>
+<hr>
+<h2 id="二-遊戲狀態序列化設計">二、遊戲狀態序列化設計</h2>
+<h3 id="2-1-存檔資料結構設計">2.1 存檔資料結構設計</h3>
+<p>良好的存檔結構應包含：</p>
+<pre><code class="language-javascript">const saveData = {
+  // 中繼資料（meta）
+  meta: {
+    version: &#x27;1.2.0&#x27;,        // 存檔格式版本（遷移用）
+    saveSlot: 1,             // 存檔槽編號
+    timestamp: Date.now(),   // 存檔時間戳
+    playTime: 3600,          // 累計遊玩秒數
+    checksum: &#x27;sha256-hash&#x27;  // 資料完整性校驗
+  },
+  // 玩家狀態
+  player: {
+    name: &#x27;Alice&#x27;,
+    level: 5,
+    hp: 80,
+    maxHp: 100,
+    position: { x: 120, y: 450 },
+    stats: { str: 12, dex: 15, int: 10 }
+  },
+  // 遊戲進度
+  progress: {
+    currentStage: &#x27;forest-3&#x27;,
+    completedStages: [&#x27;tutorial&#x27;, &#x27;forest-1&#x27;, &#x27;forest-2&#x27;],
+    score: 25000,
+    achievements: [&#x27;first-kill&#x27;, &#x27;no-damage-clear&#x27;]
+  },
+  // 物品欄
+  inventory: [
+    { id: &#x27;sword-001&#x27;, type: &#x27;weapon&#x27;, quantity: 1 },
+    { id: &#x27;potion-hp&#x27;, type: &#x27;consumable&#x27;, quantity: 5 }
+  ],
+  // 遊戲世界狀態
+  world: {
+    npcStates: { merchant: &#x27;friendly&#x27;, guard: &#x27;neutral&#x27; },
+    doorStates: { &#x27;door-A&#x27;: &#x27;unlocked&#x27;, &#x27;door-B&#x27;: &#x27;locked&#x27; },
+    collectibles: [&#x27;coin-1&#x27;, &#x27;coin-3&#x27;] // 已收集的項目
+  }
+};</code></pre>
+<h3 id="2-2-序列化與反序列化">2.2 序列化與反序列化</h3>
+<p>#### LocalStorage 方案（簡單遊戲）</p>
+<pre><code class="language-javascript">class SimpleSaveManager {
+  static SAVE_KEY = &#x27;game-save&#x27;;
+
+  static save(gameState) {
+    try {
+      const data = JSON.stringify(gameState);
+      localStorage.setItem(this.SAVE_KEY, data);
+      return true;
+    } catch (e) {
+      if (e.name === &#x27;QuotaExceededError&#x27;) {
+        console.warn(&#x27;儲存空間已滿，嘗試清理舊資料&#x27;);
+        this.cleanupOldData();
+        return false;
+      }
+      throw e;
+    }
+  }
+
+  static load() {
+    const raw = localStorage.getItem(this.SAVE_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error(&#x27;存檔損壞，重置為預設值&#x27;);
+      localStorage.removeItem(this.SAVE_KEY);
+      return null;
+    }
+  }
+
+  static cleanupOldData() {
+    // 移除非關鍵資料
+    const keysToKeep = [this.SAVE_KEY, &#x27;game-settings&#x27;];
+    for (let i = localStorage.length - 1; i &gt;= 0; i--) {
+      const key = localStorage.key(i);
+      if (!keysToKeep.includes(key)) {
+        localStorage.removeItem(key);
+      }
+    }
+  }
+}</code></pre>
+<p>#### IndexedDB 方案（複雜遊戲）</p>
+<pre><code class="language-javascript">class IndexedDBSaveManager {
+  constructor(dbName = &#x27;GameSaves&#x27;, version = 1) {
+    this.dbName = dbName;
+    this.version = version;
+    this.db = null;
+  }
+
+  async init() {
+    return new Promise((resolve, reject) =&gt; {
+      const request = indexedDB.open(this.dbName, this.version);
+
+      request.onupgradeneeded = (event) =&gt; {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(&#x27;saves&#x27;)) {
+          const store = db.createObjectStore(&#x27;saves&#x27;, { keyPath: &#x27;slotId&#x27; });
+          store.createIndex(&#x27;timestamp&#x27;, &#x27;meta.timestamp&#x27;, { unique: false });
+          store.createIndex(&#x27;playerName&#x27;, &#x27;player.name&#x27;, { unique: false });
+        }
+        if (!db.objectStoreNames.contains(&#x27;settings&#x27;)) {
+          db.createObjectStore(&#x27;settings&#x27;, { keyPath: &#x27;key&#x27; });
+        }
+      };
+
+      request.onsuccess = (event) =&gt; {
+        this.db = event.target.result;
+        // 監聽其他分頁的版本變更
+        this.db.onversionchange = () =&gt; {
+          this.db.close();
+          alert(&#x27;遊戲資料庫已更新，請重新整理頁面&#x27;);
+        };
+        resolve(this.db);
+      };
+
+      request.onerror = (event) =&gt; reject(event.target.error);
+    });
+  }
+
+  async save(slotId, gameState) {
+    const data = { slotId, ...gameState, meta: { ...gameState.meta, timestamp: Date.now() } };
+    return new Promise((resolve, reject) =&gt; {
+      const tx = this.db.transaction([&#x27;saves&#x27;], &#x27;readwrite&#x27;);
+      tx.objectStore(&#x27;saves&#x27;).put(data);
+      tx.oncomplete = () =&gt; resolve(true);
+      tx.onerror = (event) =&gt; reject(event.target.error);
+    });
+  }
+
+  async load(slotId) {
+    return new Promise((resolve, reject) =&gt; {
+      const tx = this.db.transaction([&#x27;saves&#x27;], &#x27;readonly&#x27;);
+      const request = tx.objectStore(&#x27;saves&#x27;).get(slotId);
+      request.onsuccess = () =&gt; resolve(request.result || null);
+      request.onerror = (event) =&gt; reject(event.target.error);
+    });
+  }
+
+  async listSaves() {
+    return new Promise((resolve, reject) =&gt; {
+      const tx = this.db.transaction([&#x27;saves&#x27;], &#x27;readonly&#x27;);
+      const request = tx.objectStore(&#x27;saves&#x27;).getAll();
+      request.onsuccess = () =&gt; {
+        const saves = request.result.map(s =&gt; ({
+          slotId: s.slotId,
+          playerName: s.player?.name,
+          level: s.player?.level,
+          timestamp: s.meta?.timestamp,
+          playTime: s.meta?.playTime
+        }));
+        resolve(saves.sort((a, b) =&gt; b.timestamp - a.timestamp));
+      };
+      request.onerror = (event) =&gt; reject(event.target.error);
+    });
+  }
+
+  async deleteSave(slotId) {
+    return new Promise((resolve, reject) =&gt; {
+      const tx = this.db.transaction([&#x27;saves&#x27;], &#x27;readwrite&#x27;);
+      tx.objectStore(&#x27;saves&#x27;).delete(slotId);
+      tx.oncomplete = () =&gt; resolve(true);
+      tx.onerror = (event) =&gt; reject(event.target.error);
+    });
+  }
+}</code></pre>
+<hr>
+<h2 id="三-自動存檔策略">三、自動存檔策略</h2>
+<h3 id="3-1-觸發時機設計">3.1 觸發時機設計</h3>
+<table>
+<tr><th>觸發點</th><th>適用場景</th><th>注意事項</th></tr>
+<tr><td><strong>定時自動存檔</strong></td><td>所有遊戲</td><td>每 30-60 秒，避免在戰鬥/過場動畫中觸發</td></tr>
+<tr><td><strong>檢查點存檔</strong></td><td>關卡制遊戲</td><td>過關、到達安全區時自動存檔</td></tr>
+<tr><td><strong>事件驅動存檔</strong></td><td>RPG/策略遊戲</td><td>重要決策後、獲得道具後、對話結束後</td></tr>
+<tr><td><strong>頁面可見性變更</strong></td><td>行動裝置遊戲</td><td><code>visibilitychange</code> 事件，切換應用程式時存檔</td></tr>
+<tr><td><strong>手動存檔</strong></td><td>所有遊戲</td><td>玩家主動按存檔按鈕</td></tr>
+</table>
+<h3 id="3-2-自動存檔實作">3.2 自動存檔實作</h3>
+<pre><code class="language-javascript">class AutoSaveSystem {
+  constructor(saveManager, intervalMs = 30000) {
+    this.saveManager = saveManager;
+    this.intervalMs = intervalMs;
+    this.timerId = null;
+    this.isDirty = false;  // 狀態是否有變更
+    this.isSaving = false; // 防止並發存檔
+  }
+
+  start(getStateFn) {
+    // 定時存檔
+    this.timerId = setInterval(() =&gt; {
+      if (this.isDirty &amp;&amp; !this.isSaving) {
+        this.performSave(getStateFn());
+      }
+    }, this.intervalMs);
+
+    // 頁面隱藏時存檔（行動裝置切換 App）
+    document.addEventListener(&#x27;visibilitychange&#x27;, () =&gt; {
+      if (document.hidden &amp;&amp; this.isDirty) {
+        this.performSave(getStateFn());
+      }
+    });
+
+    // 頁面關閉前存檔（不保證成功）
+    window.addEventListener(&#x27;beforeunload&#x27;, () =&gt; {
+      if (this.isDirty) {
+        // 使用 sendBeacon 或同步 localStorage 作為最後手段
+        const data = JSON.stringify(getStateFn());
+        localStorage.setItem(&#x27;emergency-save&#x27;, data);
+      }
+    });
+  }
+
+  async performSave(state) {
+    this.isSaving = true;
+    try {
+      await this.saveManager.save(&#x27;auto&#x27;, state);
+      this.isDirty = false;
+      console.log(&#x27;自動存檔完成&#x27;);
+    } catch (e) {
+      console.error(&#x27;自動存檔失敗:&#x27;, e);
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+  markDirty() {
+    this.isDirty = true;
+  }
+
+  stop() {
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+  }
+}</code></pre>
+<hr>
+<h2 id="四-存檔版本遷移">四、存檔版本遷移</h2>
+<p>遊戲更新後存檔格式可能改變，需要遷移機制：</p>
+<pre><code class="language-javascript">class SaveMigrator {
+  static CURRENT_VERSION = &#x27;1.2.0&#x27;;
+
+  // 遷移函數註冊表
+  static migrations = {
+    &#x27;1.0.0_to_1.1.0&#x27;: (data) =&gt; {
+      // v1.1.0 新增 stats 欄位
+      data.player.stats = data.player.stats || { str: 10, dex: 10, int: 10 };
+      data.meta.version = &#x27;1.1.0&#x27;;
+      return data;
+    },
+    &#x27;1.1.0_to_1.2.0&#x27;: (data) =&gt; {
+      // v1.2.0 重構 inventory 格式
+      if (Array.isArray(data.inventory)) {
+        data.inventory = data.inventory.map(item =&gt; ({
+          ...item,
+          durability: item.durability ?? 100
+        }));
+      }
+      data.meta.version = &#x27;1.2.0&#x27;;
+      return data;
+    }
+  };
+
+  static MIGRATION_ORDER = [&#x27;1.0.0&#x27;, &#x27;1.1.0&#x27;, &#x27;1.2.0&#x27;];
+
+  static migrate(saveData) {
+    let currentVersion = saveData.meta?.version || &#x27;1.0.0&#x27;;
+
+    if (currentVersion === this.CURRENT_VERSION) {
+      return saveData; // 已是最新版本
+    }
+
+    const startIdx = this.MIGRATION_ORDER.indexOf(currentVersion);
+    if (startIdx === -1) {
+      console.error(&#x27;未知的存檔版本:&#x27;, currentVersion);
+      return null; // 無法遷移
+    }
+
+    for (let i = startIdx; i &lt; this.MIGRATION_ORDER.length - 1; i++) {
+      const from = this.MIGRATION_ORDER[i];
+      const to = this.MIGRATION_ORDER[i + 1];
+      const migrationKey = `${from}_to_${to}`;
+
+      if (this.migrations[migrationKey]) {
+        console.log(`遷移存檔: ${from} -&gt; ${to}`);
+        saveData = this.migrations[migrationKey](saveData);
+      }
+    }
+
+    return saveData;
+  }
+}</code></pre>
+<hr>
+<h2 id="五-資料完整性與防竄改">五、資料完整性與防竄改</h2>
+<h3 id="5-1-校驗和驗證">5.1 校驗和驗證</h3>
+<pre><code class="language-javascript">class SaveIntegrity {
+  // 簡易校驗和（非加密級，防意外損壞）
+  static generateChecksum(data) {
+    const str = JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i &lt; str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash &lt;&lt; 5) - hash) + char;
+      hash = hash &amp; hash; // 轉為 32 位元整數
+    }
+    return hash.toString(16);
+  }
+
+  // Web Crypto API 校驗和（更安全）
+  static async generateSecureChecksum(data) {
+    const str = JSON.stringify(data);
+    const encoder = new TextEncoder();
+    const buffer = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest(&#x27;SHA-256&#x27;, buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b =&gt; b.toString(16).padStart(2, &#x27;0&#x27;)).join(&#x27;&#x27;);
+  }
+
+  static validateSave(saveData) {
+    if (!saveData || !saveData.meta) return false;
+    if (!saveData.meta.version) return false;
+    if (!saveData.meta.timestamp) return false;
+    if (saveData.meta.timestamp &gt; Date.now()) return false; // 未來時間戳
+    // 校驗和驗證
+    const stored = saveData.meta.checksum;
+    const dataCopy = { ...saveData, meta: { ...saveData.meta, checksum: undefined } };
+    const computed = this.generateChecksum(dataCopy);
+    return stored === computed;
+  }
+}</code></pre>
+<h3 id="5-2-備份與恢復">5.2 備份與恢復</h3>
+<pre><code class="language-javascript">class SaveBackupManager {
+  static MAX_BACKUPS = 3;
+
+  // 存檔前自動建立備份
+  static async createBackup(saveManager, slotId) {
+    const current = await saveManager.load(slotId);
+    if (current) {
+      const backupId = `${slotId}-backup-${Date.now()}`;
+      await saveManager.save(backupId, current);
+      // 清理舊備份（保留最近 3 個）
+      await this.pruneBackups(saveManager, slotId);
+    }
+  }
+
+  static async pruneBackups(saveManager, slotId) {
+    const saves = await saveManager.listSaves();
+    const backups = saves
+      .filter(s =&gt; s.slotId.startsWith(`${slotId}-backup-`))
+      .sort((a, b) =&gt; b.timestamp - a.timestamp);
+
+    for (let i = this.MAX_BACKUPS; i &lt; backups.length; i++) {
+      await saveManager.deleteSave(backups[i].slotId);
+    }
+  }
+}</code></pre>
+<hr>
+<h2 id="六-雲端同步設計">六、雲端同步設計</h2>
+<h3 id="6-1-同步架構">6.1 同步架構</h3>
+<pre><code class="language-plaintext">[本地存檔] &lt;---&gt; [同步引擎] &lt;---&gt; [雲端 API]
+    |                |                  |
+  IndexedDB    衝突解決策略      REST/WebSocket
+    |                |                  |
+  自動存檔      版本向量         伺服器端存檔</code></pre>
+<h3 id="6-2-衝突解決策略">6.2 衝突解決策略</h3>
+<table>
+<tr><th>策略</th><th>說明</th><th>適用場景</th></tr>
+<tr><td><strong>Last-Write-Wins</strong></td><td>以最新時間戳為準</td><td>單人遊戲、簡單進度</td></tr>
+<tr><td><strong>Server-Wins</strong></td><td>永遠以伺服器版本為準</td><td>防作弊優先的遊戲</td></tr>
+<tr><td><strong>Client-Wins</strong></td><td>永遠以本地版本為準</td><td>離線優先的遊戲</td></tr>
+<tr><td><strong>合併策略</strong></td><td>欄位級合併（取各欄位最大值）</td><td>RPG（分數取高、道具取聯集）</td></tr>
+<tr><td><strong>玩家選擇</strong></td><td>顯示兩個版本讓玩家選</td><td>複雜的劇情分支遊戲</td></tr>
+</table>
+<h3 id="6-3-離線優先同步模式">6.3 離線優先同步模式</h3>
+<pre><code class="language-javascript">class CloudSyncManager {
+  constructor(saveManager, apiEndpoint) {
+    this.saveManager = saveManager;
+    this.apiEndpoint = apiEndpoint;
+    this.syncQueue = [];  // 待同步操作佇列
+  }
+
+  async sync(slotId) {
+    if (!navigator.onLine) {
+      this.syncQueue.push({ action: &#x27;sync&#x27;, slotId, timestamp: Date.now() });
+      return { status: &#x27;queued&#x27; };
+    }
+
+    const local = await this.saveManager.load(slotId);
+    const remote = await this.fetchRemoteSave(slotId);
+
+    if (!remote) {
+      // 伺服器無存檔，上傳本地
+      await this.uploadSave(slotId, local);
+      return { status: &#x27;uploaded&#x27; };
+    }
+
+    if (!local) {
+      // 本地無存檔，下載雲端
+      await this.saveManager.save(slotId, remote);
+      return { status: &#x27;downloaded&#x27; };
+    }
+
+    // 衝突解決：比較時間戳
+    if (local.meta.timestamp &gt; remote.meta.timestamp) {
+      await this.uploadSave(slotId, local);
+      return { status: &#x27;uploaded&#x27; };
+    } else if (remote.meta.timestamp &gt; local.meta.timestamp) {
+      await this.saveManager.save(slotId, remote);
+      return { status: &#x27;downloaded&#x27; };
+    }
+
+    return { status: &#x27;in-sync&#x27; };
+  }
+
+  // 網路恢復時處理佇列
+  async processSyncQueue() {
+    while (this.syncQueue.length &gt; 0 &amp;&amp; navigator.onLine) {
+      const task = this.syncQueue.shift();
+      await this.sync(task.slotId);
+    }
+  }
+}
+
+// 監聽網路恢復事件
+window.addEventListener(&#x27;online&#x27;, () =&gt; {
+  cloudSync.processSyncQueue();
+});</code></pre>
+<hr>
+<h2 id="七-效能最佳化">七、效能最佳化</h2>
+<h3 id="7-1-差分存檔-delta-save">7.1 差分存檔（Delta Save）</h3>
+<p>只儲存與上次存檔不同的部分，減少 I/O：</p>
+<pre><code class="language-javascript">function createDelta(prev, current) {
+  const delta = {};
+  for (const key of Object.keys(current)) {
+    if (JSON.stringify(prev[key]) !== JSON.stringify(current[key])) {
+      delta[key] = current[key];
+    }
+  }
+  return delta;
+}</code></pre>
+<h3 id="7-2-壓縮存檔">7.2 壓縮存檔</h3>
+<p>使用 Compression Streams API（Chrome 80+）：</p>
+<pre><code class="language-javascript">async function compressSaveData(data) {
+  const json = JSON.stringify(data);
+  const blob = new Blob([json]);
+  const cs = new CompressionStream(&#x27;gzip&#x27;);
+  const compressedStream = blob.stream().pipeThrough(cs);
+  return new Response(compressedStream).blob();
+}
+
+async function decompressSaveData(compressedBlob) {
+  const ds = new DecompressionStream(&#x27;gzip&#x27;);
+  const decompressedStream = compressedBlob.stream().pipeThrough(ds);
+  const text = await new Response(decompressedStream).text();
+  return JSON.parse(text);
+}</code></pre>
+<h3 id="7-3-避免遊戲迴圈中的同步-i-o">7.3 避免遊戲迴圈中的同步 I/O</h3>
+<pre><code class="language-javascript">// 錯誤：在遊戲迴圈中直接存檔
+function gameLoop() {
+  update();
+  render();
+  localStorage.setItem(&#x27;save&#x27;, JSON.stringify(state)); // 每幀阻塞！
+  requestAnimationFrame(gameLoop);
+}
+
+// 正確：標記為 dirty，定時非同步存檔
+let isDirty = false;
+function gameLoop() {
+  update();
+  if (stateChanged) isDirty = true;
+  render();
+  requestAnimationFrame(gameLoop);
+}
+// 自動存檔系統在背景處理 isDirty 標記</code></pre>
+<hr>
+<h2 id="八-儲存配額與容錯">八、儲存配額與容錯</h2>
+<h3 id="8-1-配額管理">8.1 配額管理</h3>
+<pre><code class="language-javascript">async function checkStorageQuota() {
+  if (navigator.storage &amp;&amp; navigator.storage.estimate) {
+    const { usage, quota } = await navigator.storage.estimate();
+    const percentUsed = ((usage / quota) * 100).toFixed(2);
+    console.log(`已用 ${percentUsed}%（${(usage/1024/1024).toFixed(1)} MB / ${(quota/1024/1024).toFixed(0)} MB）`);
+    return { usage, quota, percentUsed };
+  }
+  return null;
+}
+
+// 申請持久化儲存（防止瀏覽器自動清理）
+async function requestPersistentStorage() {
+  if (navigator.storage &amp;&amp; navigator.storage.persist) {
+    const isPersistent = await navigator.storage.persist();
+    console.log(`持久化儲存: ${isPersistent ? &#x27;已啟用&#x27; : &#x27;被拒絕&#x27;}`);
+    return isPersistent;
+  }
+  return false;
+}</code></pre>
+<h3 id="8-2-驅逐策略與防護">8.2 驅逐策略與防護</h3>
+<p>瀏覽器在儲存壓力下會自動驅逐 best-effort 模式的資料（LRU 策略）。防護措施：</p>
+<ol>
+<li><strong>申請持久化儲存</strong>：<code>navigator.storage.persist()</code> 防止自動驅逐</li>
+<li><strong>定期備份</strong>：在 IndexedDB 和 LocalStorage 雙寫關鍵資料</li>
+<li><strong>匯出功能</strong>：提供手動匯出 JSON 存檔的功能</li>
+<li><strong>雲端同步</strong>：作為最後防線的備份</li>
+</ol>
+<hr>
+<h2 id="九-存檔槽管理-ui-設計">九、存檔槽管理 UI 設計</h2>
+<h3 id="9-1-存檔槽資訊顯示">9.1 存檔槽資訊顯示</h3>
+<p>每個存檔槽應顯示以下資訊：</p>
+<ul>
+<li>玩家名稱 / 角色等級</li>
+<li>當前關卡 / 遊戲進度百分比</li>
+<li>遊玩時間</li>
+<li>最後存檔時間（相對時間：「2 小時前」）</li>
+<li>存檔縮圖（可選，用 Canvas.toDataURL() 截圖）</li>
+</ul>
+<h3 id="9-2-操作流程">9.2 操作流程</h3>
+<pre><code class="language-plaintext">[存檔選單]
+  ├─ 槽位 1: Alice Lv.5 - 森林第三章 (2h前) [載入] [刪除]
+  ├─ 槽位 2: Bob Lv.12 - 火山要塞 (昨天)   [載入] [刪除]
+  ├─ 槽位 3: (空槽位)                        [新遊戲]
+  ├─ 自動存檔: Alice Lv.5 - 森林第三章 (5分前) [載入]
+  └─ [匯入存檔] [匯出存檔] [雲端同步]</code></pre>
+<hr>
+<h2 id="十-應用到-daily-digest-prompt-專案遊戲">十、應用到 daily-digest-prompt 專案遊戲</h2>
+<h3 id="直接適用的模式">直接適用的模式</h3>
+<table>
+<tr><th>遊戲</th><th>推薦方案</th><th>存檔內容</th></tr>
+<tr><td>輪迴塔 (Roguelike)</td><td>LocalStorage（高分）+ IndexedDB（進度/成就）</td><td>最高分、最高層、解鎖的六道場景、禪字收集</td></tr>
+<tr><td>Pong / Breakout</td><td>LocalStorage</td><td>高分紀錄、難度設定</td></tr>
+<tr><td>念珠冥想</td><td>LocalStorage</td><td>冥想次數統計、連續天數</td></tr>
+<tr><td>六根淨化</td><td>IndexedDB</td><td>關卡進度、淨化紀錄</td></tr>
+</table>
+<h3 id="統一存檔介面">統一存檔介面</h3>
+<p>建議所有遊戲共用一個 <code>SaveManager</code> 介面，內部依遊戲複雜度自動選擇 LocalStorage 或 IndexedDB，確保 API 一致性。</p>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li>MDN Web Docs: <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB">Using IndexedDB</a> -- 完整 IndexedDB API 指南</li>
+<li>MDN Web Docs: <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage">Window.localStorage</a> -- localStorage API 參考</li>
+<li>MDN Web Docs: <a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria">Storage quotas and eviction criteria</a> -- 儲存配額與驅逐策略</li>
+<li>Game Programming Patterns by Robert Nystrom -- 遊戲設計模式經典參考</li>
+<li>daily-digest-prompt 專案遊戲（輪迴塔、Pong、Breakout、念珠冥想）-- 實際應用場景</li>
+</ul>
+<hr>
+<p><em>研究日期：2026-02-19</em>
+<em>適用範圍：HTML5/JavaScript Canvas 遊戲開發</em>
+<em>相關知識庫筆記：遊戲狀態機 FSM、Canvas 粒子系統/物件池、ECS 架構、Game Loop 模式</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="pac-man-html5-canvas-遊戲開發心得gh-99a5eeeb.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Pac-Man HTML5 Canvas 遊戲開發心得：Ghost AI、粒子系統與 8-bit 音效實作</span></a><a href="輪迴塔-v20-品質優化心得留存率導向的-rogueli-b4652f5c.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">輪迴塔 v2.0 品質優化心得：留存率導向的 Roguelike 設計模式</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>
