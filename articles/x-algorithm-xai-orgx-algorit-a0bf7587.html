@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="X Algorithm (xai-org/x-algorithm) — X/Twitter For You 推薦演算法開源深度研究（15.5K Stars, 2026）">
+  <title>X Algorithm (xai-org/x-algorithm) — X/Twitter For You 推薦演算法開源深度研究（15.5K Stars, 2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>X Algorithm (xai-org/x-algorithm) — X/Twitter For You 推薦演算法開源深度研究（15.5K Stars, 2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">4 分鐘閱讀</span>
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">開源專案</span><span class="tag">推薦系統</span><span class="tag">X Algorithm</span><span class="tag">Rust</span><span class="tag">Grok</span><span class="tag">Transformer</span><span class="tag">xAI</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案概述">專案概述</a></li><li><a href="#系統架構-四大核心模組">系統架構（四大核心模組）</a></li>  <li><a href="#1-home-mixer-編排層">1. Home Mixer（編排層）</a></li>  <li><a href="#2-thunder-即時貼文儲存">2. Thunder（即時貼文儲存）</a></li>  <li><a href="#3-phoenix-ml-模型層">3. Phoenix（ML 模型層）</a></li>  <li><a href="#4-candidate-pipeline-可組合管線框架">4. Candidate Pipeline（可組合管線框架）</a></li><li><a href="#五大關鍵設計決策">五大關鍵設計決策</a></li><li><a href="#技術棧">技術棧</a></li><li><a href="#與-2023-年舊版-twitter-演算法比較">與 2023 年舊版 Twitter 演算法比較</a></li><li><a href="#對開發者的啟示">對開發者的啟示</a></li><li><a href="#同場加映-2026-年-2-月-github-非-ai-類熱門專案">同場加映：2026 年 2 月 GitHub 非 AI 類熱門專案</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>X Algorithm — X/Twitter For You 推薦演算法開源深度研究</h1>
+<h2 id="專案概述">專案概述</h2>
+<p>xai-org/x-algorithm 是 xAI（Elon Musk 旗下 AI 公司）於 2026 年 1 月開源的 X（前 Twitter）&quot;For You&quot; 動態推薦演算法完整實作。以 Apache 2.0 授權釋出，目前已累積 15,559 顆星與 2,722 個 Fork。主要語言為 Rust（63%）與 Python（37%），採用 Grok-1 Transformer 架構作為推薦排序核心模型。</p>
+<p>這是繼 2023 年 Twitter 開源舊版推薦演算法後的第二次開源，但本次版本徹底採用了基於 Grok 的 Transformer 架構，消除了所有手工特徵工程（hand-engineered features），完全依賴深度學習模型自動學習內容相關性。</p>
+<hr>
+<h2 id="系統架構-四大核心模組">系統架構（四大核心模組）</h2>
+<h3 id="1-home-mixer-編排層">1. Home Mixer（編排層）</h3>
+<p><strong>角色</strong>：gRPC 服務端，接收使用者請求，編排整個推薦管線。</p>
+<p><strong>管線階段</strong>：</p>
+<table>
+<tr><th>階段</th><th>說明</th></tr>
+<tr><td>Query Hydrators</td><td>取得使用者上下文（互動歷史、追蹤清單）</td></tr>
+<tr><td>Sources</td><td>從 Thunder + Phoenix 取得候選貼文</td></tr>
+<tr><td>Hydrators</td><td>補充貼文元資料（作者、媒體、影片時長）</td></tr>
+<tr><td>Filters</td><td>移除不合格候選（重複、封鎖、靜音等）</td></tr>
+<tr><td>Scorers</td><td>ML 預測 + 加權計分 + 多樣性調整</td></tr>
+<tr><td>Selector</td><td>依分數排序，選出 Top K</td></tr>
+<tr><td>Post-Selection</td><td>最終可見性檢查（刪除/垃圾/暴力內容）</td></tr>
+<tr><td>Side Effects</td><td>快取請求資訊供未來使用</td></tr>
+</table>
+<h3 id="2-thunder-即時貼文儲存">2. Thunder（即時貼文儲存）</h3>
+<p><strong>角色</strong>：In-Network 候選源。</p>
+<p><strong>技術特點</strong>：</p>
+<ul>
+<li>從 Kafka 消費貼文建立/刪除事件</li>
+<li>維護每位使用者的記憶體貼文儲存（原創、回覆/轉發、影片分類）</li>
+<li>亞毫秒級查詢（sub-millisecond lookups），無需外部資料庫</li>
+<li>自動修剪超過保留期限的舊貼文</li>
+</ul>
+<h3 id="3-phoenix-ml-模型層">3. Phoenix（ML 模型層）</h3>
+<p><strong>角色</strong>：同時負責檢索（Retrieval）與排序（Ranking）兩大任務。</p>
+<p>#### 3a. 檢索：Two-Tower 模型</p>
+<ul>
+<li><strong>User Tower</strong>：將使用者特徵與互動歷史編碼為向量 [B, D]</li>
+<li><strong>Candidate Tower</strong>：將所有貼文編碼為向量 [N, D]</li>
+<li><strong>相似度搜尋</strong>：透過 dot product 取回 Top-K 候選（從數百萬篇 → 數千篇）</li>
+</ul>
+<p>#### 3b. 排序：Grok-based Transformer + 候選隔離</p>
+<ul>
+<li>基於 Grok-1 開源模型適配的 Transformer 架構</li>
+<li><strong>候選隔離（Candidate Isolation）</strong>：推論時候選貼文之間無法相互注意（attention mask），確保每篇貼文的分數獨立於同批次其他貼文，使分數可一致且可快取</li>
+<li>預測 15 種互動類型的機率（P(like)、P(reply)、P(repost)、P(click)、P(block)、P(report) 等）</li>
+</ul>
+<p>#### 加權計分公式</p>
+<pre><code class="language-plaintext">Final Score = SUM(weight_i * P(action_i))</code></pre>
+<ul>
+<li>正面動作（按讚、轉發、分享）→ 正權重</li>
+<li>負面動作（封鎖、靜音、檢舉）→ 負權重，壓低使用者可能不喜歡的內容</li>
+</ul>
+<h3 id="4-candidate-pipeline-可組合管線框架">4. Candidate Pipeline（可組合管線框架）</h3>
+<p><strong>角色</strong>：通用推薦管線框架，提供可重用的 Trait：</p>
+<table>
+<tr><th>Trait</th><th>用途</th></tr>
+<tr><td>Source</td><td>從資料來源取得候選</td></tr>
+<tr><td>Hydrator</td><td>補充候選特徵</td></tr>
+<tr><td>Filter</td><td>移除不應顯示的候選</td></tr>
+<tr><td>Scorer</td><td>計算排序分數</td></tr>
+<tr><td>Selector</td><td>排序並選出 Top 候選</td></tr>
+<tr><td>SideEffect</td><td>執行非同步副作用（快取、日誌）</td></tr>
+</table>
+<p>支援平行執行獨立階段，具可配置的錯誤處理與日誌記錄。</p>
+<hr>
+<h2 id="五大關鍵設計決策">五大關鍵設計決策</h2>
+<ol>
+<li><strong>零手工特徵</strong>：完全依賴 Grok Transformer 從使用者互動序列學習，大幅降低資料管線與服務基礎設施複雜度</li>
+<li><strong>候選隔離</strong>：Transformer 推論時候選之間互不可見，分數獨立且可快取</li>
+<li><strong>Hash-Based Embeddings</strong>：檢索與排序均使用多重雜湊函數進行嵌入查找</li>
+<li><strong>多動作預測</strong>：非單一「相關性」分數，而是預測 15 種動作機率的加權組合</li>
+<li><strong>可組合管線架構</strong>：業務邏輯與管線執行/監控分離，易於新增來源、過濾器、計分器</li>
+</ol>
+<hr>
+<h2 id="技術棧">技術棧</h2>
+<table>
+<tr><th>技術</th><th>用途</th></tr>
+<tr><td>Rust</td><td>服務端核心（Home Mixer、Thunder、Candidate Pipeline），占 63% 程式碼</td></tr>
+<tr><td>Python + JAX</td><td>Phoenix ML 模型（Retrieval + Ranking），占 37%</td></tr>
+<tr><td>Kafka</td><td>即時貼文事件串流</td></tr>
+<tr><td>gRPC</td><td>服務端 API 介面</td></tr>
+<tr><td>Grok-1</td><td>Transformer 基礎架構（推薦排序）</td></tr>
+</table>
+<hr>
+<h2 id="與-2023-年舊版-twitter-演算法比較">與 2023 年舊版 Twitter 演算法比較</h2>
+<table>
+<tr><th>面向</th><th>2023 版（twitter/the-algorithm）</th><th>2026 版（xai-org/x-algorithm）</th></tr>
+<tr><td>語言</td><td>Scala/Java 為主</td><td>Rust + Python（JAX）</td></tr>
+<tr><td>ML 架構</td><td>混合模型 + 大量手工特徵</td><td>純 Grok Transformer，零手工特徵</td></tr>
+<tr><td>檢索</td><td>SimClusters + TwHIN + Graph</td><td>Two-Tower（User/Candidate）ANN</td></tr>
+<tr><td>排序</td><td>多模型級聯</td><td>單一 Transformer + 候選隔離</td></tr>
+<tr><td>星數</td><td>62K（已歸檔）</td><td>15.5K（持續成長中）</td></tr>
+</table>
+<hr>
+<h2 id="對開發者的啟示">對開發者的啟示</h2>
+<ol>
+<li><strong>Rust 在推薦系統的崛起</strong>：亞毫秒級效能需求驅動從 JVM 生態遷移到 Rust，Thunder 的 in-memory 儲存展現 Rust 在高效能系統的優勢</li>
+<li><strong>Transformer 通吃推薦系統</strong>：從搜尋、NLP 到推薦，Transformer 架構正統一所有序列建模任務</li>
+<li><strong>候選隔離模式</strong>：確保批次推論中分數一致性的精妙設計，值得所有推薦系統借鏡</li>
+<li><strong>可組合管線設計</strong>：Trait-based 的管線框架設計模式，適用於任何多階段資料處理系統</li>
+</ol>
+<hr>
+<h2 id="同場加映-2026-年-2-月-github-非-ai-類熱門專案">同場加映：2026 年 2 月 GitHub 非 AI 類熱門專案</h2>
+<table>
+<tr><th>專案</th><th>星數</th><th>語言</th><th>說明</th></tr>
+<tr><td>xai-org/x-algorithm</td><td>15.5K</td><td>Rust/Python</td><td>X For You 推薦演算法</td></tr>
+<tr><td>pranshuparmar/witr</td><td>13.3K</td><td>Go</td><td>「Why Is This Running?」— 進程因果鏈追蹤工具</td></tr>
+<tr><td>originalankur/maptoposter</td><td>10.8K</td><td>Python</td><td>城市地圖轉藝術海報生成器</td></tr>
+</table>
+<p><strong>witr</strong> 值得一提：一個 Go 語言寫的系統診斷工具，回答「為什麼這個東西在執行？」。不同於 <code>ps</code>/<code>top</code>/<code>lsof</code> 只顯示狀態，witr 追蹤進程的完整因果鏈（supervisor → container → service → shell），以人類可讀的方式呈現。支援 Linux/macOS/Windows/FreeBSD，透過 brew/conda/winget 等 10+ 套件管理器安裝。</p>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://github.com/xai-org/x-algorithm">GitHub — xai-org/x-algorithm</a> — 品質等級 A | 2026-01-19</li>
+<li><a href="https://github.com/xai-org/x-algorithm/tree/main/phoenix">Phoenix README — xai-org/x-algorithm/phoenix</a> — 品質等級 A | 2026-01-20</li>
+<li><a href="https://api.github.com/search/repositories">GitHub API — Search Repositories</a> — 品質等級 A | 2026-02-19 查詢</li>
+<li><a href="https://github.com/pranshuparmar/witr">GitHub — pranshuparmar/witr</a> — 品質等級 A | 2025-12-20</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-19</em>
+<em>研究者：Claude Code Agent</em>
+<em>研究動機：GitHub 熱門專案追蹤，聚焦非 AI 類開源專案以平衡知識庫 AI 主題飽和。本文深入分析 X 推薦演算法的 Rust + Grok Transformer 架構，填補推薦系統與高效能系統設計的知識缺口。</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="元認知metacognition-思考如何思考的科-7e0ca9c1.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">元認知（Metacognition）— 「思考如何思考」的科學與實踐方法論</span></a><a href="unsloth-多模態-vlm-微調與-vision-rl--3500e941.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Unsloth 多模態 VLM 微調與 Vision RL 完整指南（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

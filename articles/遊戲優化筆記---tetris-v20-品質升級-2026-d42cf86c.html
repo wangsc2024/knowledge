@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="遊戲優化筆記 - Tetris v2.0 品質升級 2026-02-19">
+  <title>遊戲優化筆記 - Tetris v2.0 品質升級 2026-02-19 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>遊戲優化筆記 - Tetris v2.0 品質升級 2026-02-19</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">2 分鐘閱讀</span>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">遊戲優化</span><span class="tag">Tetris</span><span class="tag">Object Pool</span><span class="tag">requestAnimationFrame</span><span class="tag">效能優化</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化目標">優化目標</a></li><li><a href="#修改清單與效果">修改清單與效果</a></li>  <li><a href="#1-粒子系統改為物件池-high-效能">1. 粒子系統改為物件池（HIGH - 效能）</a></li>  <li><a href="#2-觸控-das-改為-raf-驅動-high-操控品質">2. 觸控 DAS 改為 rAF 驅動（HIGH - 操控品質）</a></li>  <li><a href="#3-消行動畫整合遊戲迴圈-medium-確定性">3. 消行動畫整合遊戲迴圈（MEDIUM - 確定性）</a></li>  <li><a href="#4-高分持久化-medium-玩家黏著度">4. 高分持久化（MEDIUM - 玩家黏著度）</a></li>  <li><a href="#5-響應式畫布-high-行動裝置">5. 響應式畫布（HIGH - 行動裝置）</a></li>  <li><a href="#6-導航與-ui-medium-ux">6. 導航與 UI（MEDIUM - UX）</a></li><li><a href="#技術決策">技術決策</a></li><li><a href="#品質審查通過項目">品質審查通過項目</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Tetris v2.0 品質升級筆記</h1>
+<h2 id="優化目標">優化目標</h2>
+<p>俄羅斯方塊（Tetris）遊戲從 v1.0 升級到 v2.0，針對 SKILL.md 品質標準逐項改善。</p>
+<h2 id="修改清單與效果">修改清單與效果</h2>
+<h3 id="1-粒子系統改為物件池-high-效能">1. 粒子系統改為物件池（HIGH - 效能）</h3>
+<ul>
+<li><strong>問題</strong>：原版使用 <code>Array.push()</code> + <code>Array.splice()</code> 管理粒子，每次消行產生 GC 壓力</li>
+<li><strong>修正</strong>：改用 120 容量的物件池（Object Pool），透過 <code>active</code> 旗標切換，零記憶體配置</li>
+<li><strong>效果</strong>：消除 GC stutter，維持 60FPS 穩定</li>
+</ul>
+<h3 id="2-觸控-das-改為-raf-驅動-high-操控品質">2. 觸控 DAS 改為 rAF 驅動（HIGH - 操控品質）</h3>
+<ul>
+<li><strong>問題</strong>：觸控按鈕自動重複使用 <code>setInterval</code>，與遊戲迴圈不同步，違反品質標準</li>
+<li><strong>修正</strong>：改用 <code>requestAnimationFrame</code> 驅動的計時器，DAS 延遲 170ms + 重複率 50ms</li>
+<li><strong>效果</strong>：觸控操控與遊戲迴圈完全同步，無計時器漂移</li>
+</ul>
+<h3 id="3-消行動畫整合遊戲迴圈-medium-確定性">3. 消行動畫整合遊戲迴圈（MEDIUM - 確定性）</h3>
+<ul>
+<li><strong>問題</strong>：消行後用 <code>setTimeout(300ms)</code> 移除行，與遊戲迴圈不同步，可能導致競態條件</li>
+<li><strong>修正</strong>：<code>lineClearAnim</code> 計時器完全由 <code>gameLoop()</code> 的 <code>dt</code> 驅動，300ms 後呼叫 <code>finishLineClear()</code></li>
+<li><strong>效果</strong>：確定性動畫，消除競態條件</li>
+</ul>
+<h3 id="4-高分持久化-medium-玩家黏著度">4. 高分持久化（MEDIUM - 玩家黏著度）</h3>
+<ul>
+<li><strong>問題</strong>：其他遊戲（Breakout、Space Invaders、Pong）都有 localStorage 高分，Tetris 缺失</li>
+<li><strong>修正</strong>：<code>localStorage.setItem(&#x27;tetris_hi&#x27;, score)</code>，UI 側邊欄顯示 HI-SCORE，遊戲結束顯示 NEW RECORD</li>
+<li><strong>效果</strong>：激勵重複遊玩</li>
+</ul>
+<h3 id="5-響應式畫布-high-行動裝置">5. 響應式畫布（HIGH - 行動裝置）</h3>
+<ul>
+<li><strong>問題</strong>：固定 300x600px 畫布，行動裝置過小或溢出</li>
+<li><strong>修正</strong>：<code>computeCellSize()</code> 根據視窗高度和寬度動態計算 CELL 大小（16-30px），<code>resize</code> 事件監聽</li>
+<li><strong>效果</strong>：桌面和行動裝置均可正常顯示</li>
+</ul>
+<h3 id="6-導航與-ui-medium-ux">6. 導航與 UI（MEDIUM - UX）</h3>
+<ul>
+<li>新增返回首頁連結（← 返回）</li>
+<li>新增靜音切換按鈕（右上角 ♫/✖，支援點擊和 M 鍵）</li>
+<li>新增 Combo 連擊顯示（2 連擊以上顯示 COMBO xN）</li>
+<li><code>touch-action: none</code> 防止行動裝置滾動</li>
+<li><code>@media (pointer: coarse)</code> 自動顯示觸控按鈕</li>
+</ul>
+<h2 id="技術決策">技術決策</h2>
+<ul>
+<li>物件池大小 120：覆蓋最多同時 4 行消除 × 10 列 × 每格 4 粒子 = 160，但池滿時優雅降級</li>
+<li>消行期間禁止玩家輸入（<code>current = null</code>）：防止動畫中移動造成邏輯錯誤</li>
+<li><code>dt</code> 上限 100ms：防止切換分頁回來後的時間螺旋</li>
+</ul>
+<h2 id="品質審查通過項目">品質審查通過項目</h2>
+<ul>
+<li>[x] 遊戲迴圈使用 requestAnimationFrame</li>
+<li>[x] 粒子無 GC 壓力（Object Pool）</li>
+<li>[x] 觸控 + 鍵盤操控皆可用</li>
+<li>[x] 完整狀態機（start/playing/paused/gameover）</li>
+<li>[x] 暫停功能（Esc/P 鍵）</li>
+<li>[x] 高分 localStorage 持久化</li>
+<li>[x] 響應式設計（行動裝置支援）</li>
+<li>[x] CRT 復古視覺效果保留</li>
+<li>[x] SRS 旋轉系統 + 7-bag 隨機</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="game-watch-ball1980-掌上型電-4a7348dd.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Game &amp; Watch: Ball（1980）— 掌上型電子遊戲始祖的極簡設計哲學與「枯れた技術の水平思考」深度研究</span></a><a href="矮人礦坑saboteur-隱藏身份桌遊的機制設計與社交-339a72cd.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">矮人礦坑（Saboteur）— 隱藏身份桌遊的機制設計與社交推理心理學深度研究</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

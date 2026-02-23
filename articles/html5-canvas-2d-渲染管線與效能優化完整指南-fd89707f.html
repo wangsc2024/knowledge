@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 Canvas 2D 渲染管線與效能優化完整指南：OffscreenCanvas、圖層策略與 60FPS 保證（2026）">
+  <title>HTML5 Canvas 2D 渲染管線與效能優化完整指南：OffscreenCanvas、圖層策略與 60FPS 保證（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>HTML5 Canvas 2D 渲染管線與效能優化完整指南：OffscreenCanvas、圖層策略與 60FPS 保證（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">8 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">HTML5 Canvas</span><span class="tag">渲染效能</span><span class="tag">OffscreenCanvas</span><span class="tag">圖層策略</span><span class="tag">Game Loop</span><span class="tag">效能優化</span><span class="tag">遊戲開發</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#一-context-建立選項-最容易忽略的效能槓桿">一、Context 建立選項（最容易忽略的效能槓桿）</a></li>  <li><a href="#1-1-alpha-false-關閉透明通道">1.1 alpha: false（關閉透明通道）</a></li>  <li><a href="#1-2-willreadfrequently-true-false-gpu-vs">1.2 willReadFrequently: true/false（GPU vs 軟體渲染）</a></li>  <li><a href="#1-3-desynchronized-true-低延遲渲染">1.3 desynchronized: true（低延遲渲染）</a></li>  <li><a href="#1-4-colorspace-色彩空間">1.4 colorSpace（色彩空間）</a></li><li><a href="#二-圖層策略-layering-最高-roi-的優化">二、圖層策略（Layering）— 最高 ROI 的優化</a></li>  <li><a href="#2-1-核心原則">2.1 核心原則</a></li>  <li><a href="#2-2-記憶體代價">2.2 記憶體代價</a></li>  <li><a href="#2-3-css-背景替代">2.3 CSS 背景替代</a></li><li><a href="#三-離屏-canvas-預渲染">三、離屏 Canvas 預渲染</a></li>  <li><a href="#3-1-傳統離屏-canvas">3.1 傳統離屏 Canvas</a></li>  <li><a href="#3-2-offscreencanvas-web-worker">3.2 OffscreenCanvas + Web Worker</a></li><li><a href="#四-dirty-rectangle-局部重繪">四、Dirty Rectangle（局部重繪）</a></li>  <li><a href="#4-1-單一物件追蹤">4.1 單一物件追蹤</a></li>  <li><a href="#4-2-聯合-dirty-rect-管理器">4.2 聯合 Dirty Rect 管理器</a></li><li><a href="#五-繪製呼叫優化">五、繪製呼叫優化</a></li>  <li><a href="#5-1-整數座標">5.1 整數座標</a></li>  <li><a href="#5-2-批次繪製">5.2 批次繪製</a></li>  <li><a href="#5-3-減少狀態切換">5.3 減少狀態切換</a></li>  <li><a href="#5-4-避免昂貴操作">5.4 避免昂貴操作</a></li><li><a href="#六-game-loop-最佳實踐">六、Game Loop 最佳實踐</a></li>  <li><a href="#6-1-fixed-timestep">6.1 Fixed Timestep</a></li>  <li><a href="#6-2-效能監控">6.2 效能監控</a></li><li><a href="#七-high-dpi-顯示器適配">七、High DPI 顯示器適配</a></li><li><a href="#八-css-transform-硬體加速縮放">八、CSS Transform 硬體加速縮放</a></li><li><a href="#九-物件池與-gc-壓力">九、物件池與 GC 壓力</a></li><li><a href="#十-與本專案的關聯">十、與本專案的關聯</a></li>  <li><a href="#daily-digest-prompt-遊戲開發實務">daily-digest-prompt 遊戲開發實務</a></li>  <li><a href="#技術棧整合建議">技術棧整合建議</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>HTML5 Canvas 2D 渲染管線與效能優化完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>HTML5 Canvas 2D 是瀏覽器遊戲與資料視覺化的核心渲染技術。隨著 OffscreenCanvas API 全面普及（Chrome 69+、Firefox 105+、Safari 16.4+），以及 GPU 加速 2D context 的成熟，Canvas 2D 在 2026 年已能穩定實現 60FPS 的遊戲渲染。本文系統性整理渲染管線的 10 大效能優化策略，從 context 建立選項到圖層架構，涵蓋遊戲開發的完整最佳實踐。</p>
+<hr>
+<h2 id="一-context-建立選項-最容易忽略的效能槓桿">一、Context 建立選項（最容易忽略的效能槓桿）</h2>
+<p>Canvas 2D 的 <code>getContext(&#x27;2d&#x27;, options)</code> 接受多個影響渲染管線的選項：</p>
+<h3 id="1-1-alpha-false-關閉透明通道">1.1 alpha: false（關閉透明通道）</h3>
+<pre><code class="language-javascript">const ctx = canvas.getContext(&#x27;2d&#x27;, { alpha: false });</code></pre>
+<ul>
+<li>告知瀏覽器此 canvas 不需要透明背景，跳過 compositing 步驟</li>
+<li>對全屏遊戲效果顯著（省去 alpha 混合計算）</li>
+<li><strong>適用場景</strong>：遊戲主畫面、非疊加型 canvas</li>
+</ul>
+<h3 id="1-2-willreadfrequently-true-false-gpu-vs">1.2 willReadFrequently: true/false（GPU vs 軟體渲染）</h3>
+<pre><code class="language-javascript">// 頻繁讀取像素（如 getImageData）：用 true
+const ctx = canvas.getContext(&#x27;2d&#x27;, { willReadFrequently: true });
+
+// 頻繁繪製（遊戲渲染）：用 false 或不設定（預設）
+const ctx = canvas.getContext(&#x27;2d&#x27;, { willReadFrequently: false });</code></pre>
+<p><strong>關鍵陷阱</strong>：</p>
+<ul>
+<li><code>willReadFrequently: true</code> 強制軟體渲染，<code>getImageData</code> 快 2ms（3ms→1ms）</li>
+<li>但 <code>drawImage</code> 慢 35+ ms — <strong>遊戲絕對不要開啟</strong></li>
+<li>現代 Chrome 的硬體加速 <code>drawImage</code> 效能已等同手動 WebGL 實作</li>
+</ul>
+<h3 id="1-3-desynchronized-true-低延遲渲染">1.3 desynchronized: true（低延遲渲染）</h3>
+<pre><code class="language-javascript">const ctx = canvas.getContext(&#x27;2d&#x27;, { desynchronized: true });</code></pre>
+<ul>
+<li>將 canvas 繪製週期與事件迴圈解耦，降低輸入延遲</li>
+<li>適合繪圖應用（如手寫筆記）和即時遊戲</li>
+<li>瀏覽器可能忽略此 hint，需用 <code>getContextAttributes()</code> 驗證</li>
+</ul>
+<h3 id="1-4-colorspace-色彩空間">1.4 colorSpace（色彩空間）</h3>
+<pre><code class="language-javascript">const ctx = canvas.getContext(&#x27;2d&#x27;, { colorSpace: &#x27;display-p3&#x27; });</code></pre>
+<ul>
+<li>預設 <code>srgb</code>，遊戲通常無需更改</li>
+<li>Display P3 提供更廣色域，但有轉換開銷</li>
+</ul>
+<hr>
+<h2 id="二-圖層策略-layering-最高-roi-的優化">二、圖層策略（Layering）— 最高 ROI 的優化</h2>
+<h3 id="2-1-核心原則">2.1 核心原則</h3>
+<p>將場景依更新頻率分為多個 canvas 層，避免每幀全畫面重繪：</p>
+<pre><code class="language-html">&lt;div id=&quot;stage&quot; style=&quot;position: relative;&quot;&gt;
+  &lt;canvas id=&quot;bg-layer&quot; style=&quot;position:absolute; z-index:1;&quot;&gt;&lt;/canvas&gt;
+  &lt;canvas id=&quot;game-layer&quot; style=&quot;position:absolute; z-index:2;&quot;&gt;&lt;/canvas&gt;
+  &lt;canvas id=&quot;ui-layer&quot; style=&quot;position:absolute; z-index:3;&quot;&gt;&lt;/canvas&gt;
+&lt;/div&gt;</code></pre>
+<table>
+<tr><th>層</th><th>更新頻率</th><th>內容</th><th>優化策略</th></tr>
+<tr><td>背景層</td><td>極少</td><td>靜態地圖/天空</td><td>初始化繪製一次，或用 CSS background 替代</td></tr>
+<tr><td>遊戲層</td><td>每幀</td><td>角色/敵人/粒子</td><td>dirty rect 局部清除</td></tr>
+<tr><td>UI 層</td><td>事件驅動</td><td>分數/血條/按鈕</td><td>僅在數值變化時重繪</td></tr>
+</table>
+<h3 id="2-2-記憶體代價">2.2 記憶體代價</h3>
+<p>每個 canvas 層佔用額外 GPU 記憶體（1600×900 實測）：</p>
+<table>
+<tr><th>層數</th><th>RAM (MB)</th><th>GPU (MB)</th></tr>
+<tr><td>1</td><td>37.6</td><td>28.9</td></tr>
+<tr><td>2</td><td>49.0</td><td>46.6</td></tr>
+<tr><td>8</td><td>58.4</td><td>98.0</td></tr>
+<tr><td>16</td><td>65.0</td><td>130</td></tr>
+</table>
+<p><strong>建議</strong>：遊戲用 3-4 層即可，超過 8 層記憶體開銷不划算。</p>
+<h3 id="2-3-css-背景替代">2.3 CSS 背景替代</h3>
+<p>靜態背景不需要 canvas 渲染：</p>
+<pre><code class="language-css">#stage {
+  background: url(&#x27;background.jpg&#x27;) no-repeat center;
+  background-size: cover;
+}</code></pre>
+<hr>
+<h2 id="三-離屏-canvas-預渲染">三、離屏 Canvas 預渲染</h2>
+<h3 id="3-1-傳統離屏-canvas">3.1 傳統離屏 Canvas</h3>
+<pre><code class="language-javascript">// 建立離屏 canvas 預渲染複雜圖形
+const offscreen = document.createElement(&#x27;canvas&#x27;);
+offscreen.width = spriteWidth;
+offscreen.height = spriteHeight;
+const offCtx = offscreen.getContext(&#x27;2d&#x27;);
+
+// 一次性繪製複雜圖形
+offCtx.beginPath();
+offCtx.arc(50, 50, 40, 0, Math.PI * 2);
+offCtx.fill();
+// ... 更多複雜操作
+
+// 每幀只需 drawImage（極快）
+function render() {
+  ctx.drawImage(offscreen, x, y);
+}</code></pre>
+<p><strong>適用場景</strong>：複雜 sprite、重複圖案、漸層背景、文字渲染結果快取</p>
+<h3 id="3-2-offscreencanvas-web-worker">3.2 OffscreenCanvas + Web Worker</h3>
+<pre><code class="language-javascript">// 主線程
+const canvas = document.getElementById(&#x27;game&#x27;);
+const offscreen = canvas.transferControlToOffscreen();
+
+const worker = new Worker(&#x27;render-worker.js&#x27;);
+worker.postMessage({ canvas: offscreen }, [offscreen]);
+
+// render-worker.js
+self.onmessage = function(e) {
+  const canvas = e.data.canvas;
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // ... 渲染邏輯
+    requestAnimationFrame(gameLoop);
+  }
+  gameLoop();
+};</code></pre>
+<p><strong>關鍵優勢</strong>：</p>
+<ul>
+<li>渲染完全不阻塞主線程（UI 事件、DOM 操作）</li>
+<li>多核心並行，主線程處理輸入，Worker 處理渲染</li>
+<li><code>requestAnimationFrame</code> 在 Worker 中可用</li>
+</ul>
+<p><strong>注意事項</strong>：</p>
+<ul>
+<li><code>transferControlToOffscreen()</code> 後主線程不可再操作該 canvas</li>
+<li>瀏覽器支援：Chrome 69+、Firefox 105+、Safari 16.4+</li>
+<li>不要建立過多 Worker（通常 1-2 個渲染 Worker 即可）</li>
+</ul>
+<hr>
+<h2 id="四-dirty-rectangle-局部重繪">四、Dirty Rectangle（局部重繪）</h2>
+<h3 id="4-1-單一物件追蹤">4.1 單一物件追蹤</h3>
+<pre><code class="language-javascript">class Sprite {
+  constructor() {
+    this.prevX = 0;
+    this.prevY = 0;
+  }
+  render(ctx) {
+    // 清除上一幀位置
+    ctx.clearRect(this.prevX, this.prevY, this.width, this.height);
+    // 繪製新位置
+    ctx.drawImage(this.image, this.x, this.y);
+    this.prevX = this.x;
+    this.prevY = this.y;
+  }
+}</code></pre>
+<h3 id="4-2-聯合-dirty-rect-管理器">4.2 聯合 Dirty Rect 管理器</h3>
+<pre><code class="language-javascript">class DirtyRectManager {
+  constructor(canvasWidth, canvasHeight) {
+    this.reset(canvasWidth, canvasHeight);
+  }
+  reset(w, h) {
+    this.left = w;
+    this.top = h;
+    this.right = 0;
+    this.bottom = 0;
+  }
+  add(x, y, width, height) {
+    this.left = Math.min(this.left, x);
+    this.right = Math.max(this.right, x + width);
+    this.top = Math.min(this.top, y);
+    this.bottom = Math.max(this.bottom, y + height);
+  }
+  clear(ctx) {
+    if (this.right &gt; this.left &amp;&amp; this.bottom &gt; this.top) {
+      ctx.clearRect(
+        this.left, this.top,
+        this.right - this.left,
+        this.bottom - this.top
+      );
+    }
+  }
+}</code></pre>
+<p>適用於粒子系統、多敵人場景等密集重繪情境。</p>
+<hr>
+<h2 id="五-繪製呼叫優化">五、繪製呼叫優化</h2>
+<h3 id="5-1-整數座標">5.1 整數座標</h3>
+<pre><code class="language-javascript">// 壞：觸發子像素抗鋸齒
+ctx.drawImage(img, 10.3, 20.7);
+
+// 好：整數座標，跳過抗鋸齒
+ctx.drawImage(img, Math.floor(10.3), Math.floor(20.7));
+
+// 更好：用位元運算（最快）
+ctx.drawImage(img, x | 0, y | 0);</code></pre>
+<h3 id="5-2-批次繪製">5.2 批次繪製</h3>
+<pre><code class="language-javascript">// 壞：每個點一次 stroke
+points.forEach(p =&gt; {
+  ctx.beginPath();
+  ctx.moveTo(p.x1, p.y1);
+  ctx.lineTo(p.x2, p.y2);
+  ctx.stroke();
+});
+
+// 好：合併路徑，一次 stroke
+ctx.beginPath();
+points.forEach(p =&gt; {
+  ctx.moveTo(p.x1, p.y1);
+  ctx.lineTo(p.x2, p.y2);
+});
+ctx.stroke();</code></pre>
+<h3 id="5-3-減少狀態切換">5.3 減少狀態切換</h3>
+<pre><code class="language-javascript">// 壞：每個物件都設定顏色
+objects.forEach(obj =&gt; {
+  ctx.fillStyle = obj.color;
+  ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
+});
+
+// 好：按顏色分組，減少 fillStyle 切換
+const groups = groupBy(objects, &#x27;color&#x27;);
+for (const [color, items] of groups) {
+  ctx.fillStyle = color;
+  items.forEach(obj =&gt; ctx.fillRect(obj.x, obj.y, obj.w, obj.h));
+}</code></pre>
+<h3 id="5-4-避免昂貴操作">5.4 避免昂貴操作</h3>
+<table>
+<tr><th>操作</th><th>效能影響</th><th>替代方案</th></tr>
+<tr><td><code>shadowBlur</code></td><td>極高</td><td>預渲染陰影到離屏 canvas</td></tr>
+<tr><td><code>ctx.font</code> + <code>fillText</code></td><td>高</td><td>預渲染文字到離屏 canvas、用 sprite font</td></tr>
+<tr><td><code>drawImage</code> 縮放</td><td>中</td><td>預先快取各尺寸到離屏 canvas</td></tr>
+<tr><td><code>save()</code>/<code>restore()</code></td><td>低-中</td><td>手動恢復需要的屬性</td></tr>
+<tr><td><code>globalCompositeOperation</code></td><td>中</td><td>用圖層分離替代</td></tr>
+</table>
+<hr>
+<h2 id="六-game-loop-最佳實踐">六、Game Loop 最佳實踐</h2>
+<h3 id="6-1-fixed-timestep">6.1 Fixed Timestep</h3>
+<pre><code class="language-javascript">const TICK_RATE = 1000 / 60; // 60 FPS
+let lastTime = 0;
+let accumulator = 0;
+
+function gameLoop(timestamp) {
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+  accumulator += dt;
+  
+  // 固定步長更新（物理/邏輯）
+  while (accumulator &gt;= TICK_RATE) {
+    update(TICK_RATE / 1000);
+    accumulator -= TICK_RATE;
+  }
+  
+  // 可變步長渲染（視覺插值）
+  const alpha = accumulator / TICK_RATE;
+  render(alpha);
+  
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);</code></pre>
+<p><strong>為何要 Fixed Timestep</strong>：</p>
+<ul>
+<li>物理模擬需要確定性（碰撞偵測、移動距離一致）</li>
+<li>分離邏輯與渲染，允許跳幀不影響遊戲狀態</li>
+<li>插值渲染確保視覺平滑（即使邏輯更新跟不上）</li>
+</ul>
+<h3 id="6-2-效能監控">6.2 效能監控</h3>
+<pre><code class="language-javascript">let frameCount = 0;
+let fpsDisplay = 0;
+let fpsTimer = 0;
+
+function render(alpha) {
+  frameCount++;
+  fpsTimer += performance.now() - lastRenderTime;
+  
+  if (fpsTimer &gt;= 1000) {
+    fpsDisplay = frameCount;
+    frameCount = 0;
+    fpsTimer = 0;
+  }
+  
+  // 畫 FPS
+  ctx.fillText(`FPS: ${fpsDisplay}`, 10, 20);
+}</code></pre>
+<hr>
+<h2 id="七-high-dpi-顯示器適配">七、High DPI 顯示器適配</h2>
+<pre><code class="language-javascript">function setupHiDPI(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  
+  // 設定實際像素大小
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  
+  // CSS 維持邏輯大小
+  canvas.style.width = `${rect.width}px`;
+  canvas.style.height = `${rect.height}px`;
+  
+  // 縮放 context
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  ctx.scale(dpr, dpr);
+  
+  return ctx;
+}</code></pre>
+<p><strong>注意</strong>：DPR=2 時像素量是 4 倍，DPR=3 時是 9 倍 — 直接影響 <code>clearRect</code> 和 <code>drawImage</code> 效能。</p>
+<hr>
+<h2 id="八-css-transform-硬體加速縮放">八、CSS Transform 硬體加速縮放</h2>
+<pre><code class="language-javascript">function scaleToFit(canvas) {
+  const scaleX = window.innerWidth / canvas.width;
+  const scaleY = window.innerHeight / canvas.height;
+  const scale = Math.min(scaleX, scaleY);
+  
+  canvas.style.transformOrigin = &#x27;0 0&#x27;;
+  canvas.style.transform = `scale(${scale})`;
+}</code></pre>
+<ul>
+<li>用 CSS transform 縮放 canvas，由 GPU compositing 處理</li>
+<li>比在 <code>drawImage</code> 中縮放快得多</li>
+<li>搭配 <code>image-rendering: pixelated</code> 適合像素風遊戲</li>
+</ul>
+<hr>
+<h2 id="九-物件池與-gc-壓力">九、物件池與 GC 壓力</h2>
+<pre><code class="language-javascript">class ObjectPool {
+  constructor(factory, initialSize = 100) {
+    this.pool = Array.from({ length: initialSize }, factory);
+    this.active = [];
+    this.factory = factory;
+  }
+  acquire() {
+    const obj = this.pool.pop() || this.factory();
+    this.active.push(obj);
+    return obj;
+  }
+  release(obj) {
+    const idx = this.active.indexOf(obj);
+    if (idx !== -1) {
+      this.active.splice(idx, 1);
+      obj.reset();
+      this.pool.push(obj);
+    }
+  }
+}
+
+// 使用
+const particlePool = new ObjectPool(() =&gt; new Particle(), 200);</code></pre>
+<p>粒子系統、子彈、敵人等頻繁建立/銷毀的物件，用物件池避免 GC pause 導致掉幀。</p>
+<hr>
+<h2 id="十-與本專案的關聯">十、與本專案的關聯</h2>
+<h3 id="daily-digest-prompt-遊戲開發實務">daily-digest-prompt 遊戲開發實務</h3>
+<p>本專案（daily-digest-prompt）透過 creative-game-optimize 自動任務，持續開發 HTML5 Canvas 遊戲（Pac-Man、Tetris、Tower of Samsara 等）。以下優化策略直接適用：</p>
+<ol>
+<li><strong>Pac-Man</strong>：Ghost AI 每幀需更新 4 個敵人 + 粒子系統 → 用圖層策略分離迷宮（靜態）與角色（動態），dirty rect 清除 ghost 舊位置</li>
+<li><strong>Tetris</strong>：方塊鎖定後成為靜態 → 用離屏 canvas 快取已鎖定的方塊，每幀只重繪活動方塊 + 預覽</li>
+<li><strong>Tower of Samsara</strong>：無限攀塔粒子密集 → 物件池管理粒子（200+），Fixed Timestep 分離物理與渲染</li>
+<li><strong>通用</strong>：所有遊戲用 <code>{ alpha: false }</code> 建立 context，整數座標避免子像素渲染，CSS transform 處理響應式縮放</li>
+</ol>
+<h3 id="技術棧整合建議">技術棧整合建議</h3>
+<ul>
+<li><code>creative-game-optimize</code> 自動任務可加入 Canvas 效能審查步驟</li>
+<li><code>game-design</code> Skill 可引用本指南的優化 checklist</li>
+<li>新遊戲一律採用三層架構（背景/遊戲/UI）+ Fixed Timestep 模板</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas">MDN - Optimizing canvas</a></li>
+<li><a href="https://web.dev/articles/offscreen-canvas">web.dev - OffscreenCanvas: Speed up your canvas operations with a web worker</a></li>
+<li><a href="https://developer.ibm.com/tutorials/wa-canvashtml5layering/">IBM Developer - Optimize HTML5 canvas rendering with layering</a></li>
+<li><a href="https://web.dev/canvas-performance/">web.dev - Improving HTML5 Canvas performance</a></li>
+<li><a href="https://stuff.tamius.net/sacred-texts/2025/04/27/browser-lied-performance-died-a-bit-about-html-canvas-2d-context-and-why-you-should-read-the-docs/">Tamius - Browser lied, performance died: Canvas 2D context willReadFrequently</a></li>
+<li><a href="https://developer.chrome.com/blog/canvas2d">Chrome Blog - It&#x27;s always been you, Canvas2D</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-19</em>
+<em>研究動機：今日完成 Pac-Man、Tetris、Tower of Samsara 三款 HTML5 Canvas 遊戲，知識庫僅有零散效能提示，缺乏系統性渲染管線優化指南</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="矮人礦坑saboteur-隱藏身份桌遊的機制設計與社交-339a72cd.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">矮人礦坑（Saboteur）— 隱藏身份桌遊的機制設計與社交推理心理學深度研究</span></a><a href="tetris-俄羅斯方塊-v10-創建心得-srs-ebda3536.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Tetris (俄羅斯方塊) v1.0 創建心得 — SRS 旋轉 + CRT 復古視覺 + 8-bit BGM</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>

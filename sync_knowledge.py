@@ -437,6 +437,7 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
             date_str = art.get('updated', '')
             new_badge = '<span class="new-badge">NEW</span>' if art.get('id') in new_article_ids else ''
             excerpt_html = f'<p class="card-excerpt">{escape(art.get("excerpt", ""))}</p>' if art.get('excerpt') else ''
+            reading_html = f'<span class="reading-time">{art.get("reading_min", 1)} 分鐘</span>'
             cards.append(f'''
         <article class="article-card" data-title="{escape(art['title'].lower())}" data-tags="{escape(','.join(art.get('tags') or []).lower())}" data-category="{cat_slug}">
           <span class="category-badge category-{cat_slug}">{display_name}</span>
@@ -444,6 +445,7 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
           {excerpt_html}
           <div class="card-footer">
             <span class="date">{date_str}</span>
+            {reading_html}
             <div class="tags">{tags_html}</div>
           </div>
         </article>
@@ -611,6 +613,17 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
         const show=catMatch&&textMatch;
         c.style.display=show?'':'none';
         if(show)visible++;
+        // Highlight matching text in title
+        const titleEl=c.querySelector('h3 a');
+        if(titleEl){{
+          const orig=titleEl.textContent;
+          if(query&&show){{
+            const re=new RegExp('('+query.replace(/[.*+?^${{}}()|[\\]\\\\]/g,'\\\\$&')+')','gi');
+            titleEl.innerHTML=orig.replace(re,'<mark>$1</mark>');
+          }}else{{
+            titleEl.textContent=orig;
+          }}
+        }}
       }});
       sections.forEach(s=>{{
         const vis=s.querySelectorAll('.article-card:not([style*="none"])');
@@ -719,13 +732,15 @@ def main():
             excerpt = re.sub(r'[#*\->\[\]`]', '', content_text)
             excerpt = re.sub(r'\s+', ' ', excerpt).strip()[:100]
 
+        reading_min = estimate_reading_time(content_text)
         articles_by_category[cat_name].append({
             'id': note_id,
             'title': title,
             'slug': slug,
             'tags': tags,
             'updated': note.get('updatedAt', '')[:10],
-            'excerpt': excerpt
+            'excerpt': excerpt,
+            'reading_min': reading_min
         })
 
         synced_notes.append({

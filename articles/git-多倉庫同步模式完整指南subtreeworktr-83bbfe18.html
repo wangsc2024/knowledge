@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Git 多倉庫同步模式完整指南：Subtree、Worktree、Submodule 與 PowerShell 自動化工作流（2026）">
+  <title>Git 多倉庫同步模式完整指南：Subtree、Worktree、Submodule 與 PowerShell 自動化工作流（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Git 多倉庫同步模式完整指南：Subtree、Worktree、Submodule 與 PowerShell 自動化工作流（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-19</span>
+          <span class="reading-time">6 分鐘閱讀</span>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Git</span><span class="tag">多倉庫同步</span><span class="tag">Subtree</span><span class="tag">Worktree</span><span class="tag">Submodule</span><span class="tag">Monorepo</span><span class="tag">PowerShell</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#研究背景">研究背景</a></li><li><a href="#一-三種模式比較">一、三種模式比較</a></li>  <li><a href="#1-1-git-submodule-子模組">1.1 Git Submodule（子模組）</a></li>  <li><a href="#1-2-git-subtree-子樹">1.2 Git Subtree（子樹）</a></li>  <li><a href="#1-3-git-worktree-工作樹">1.3 Git Worktree（工作樹）</a></li><li><a href="#二-選擇決策矩陣">二、選擇決策矩陣</a></li><li><a href="#三-monorepo-vs-polyrepo-架構選擇">三、Monorepo vs Polyrepo 架構選擇</a></li>  <li><a href="#3-1-monorepo-單一倉庫">3.1 Monorepo（單一倉庫）</a></li>  <li><a href="#3-2-polyrepo-多倉庫">3.2 Polyrepo（多倉庫）</a></li>  <li><a href="#3-3-混合模式">3.3 混合模式</a></li><li><a href="#四-powershell-自動化多倉庫同步">四、PowerShell 自動化多倉庫同步</a></li>  <li><a href="#4-1-批次更新所有本地倉庫">4.1 批次更新所有本地倉庫</a></li>  <li><a href="#4-2-遊戲專案多倉庫同步腳本">4.2 遊戲專案多倉庫同步腳本</a></li>  <li><a href="#4-3-robocopy-增量同步參數說明">4.3 Robocopy 增量同步參數說明</a></li><li><a href="#五-常見陷阱與最佳實踐">五、常見陷阱與最佳實踐</a></li>  <li><a href="#5-1-常見陷阱">5.1 常見陷阱</a></li>  <li><a href="#5-2-最佳實踐">5.2 最佳實踐</a></li><li><a href="#六-與本專案的關聯">六、與本專案的關聯</a></li>  <li><a href="#daily-digest-prompt-的多倉庫場景">daily-digest-prompt 的多倉庫場景</a></li>  <li><a href="#最佳化建議">最佳化建議</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Git 多倉庫同步模式完整指南</h1>
+<h2 id="研究背景">研究背景</h2>
+<p>在多專案開發中（如 game → game_web → GitHub 部署），經常需要在多個 Git 倉庫之間同步程式碼。本研究比較三種 Git 原生的多倉庫管理方案——Subtree、Worktree、Submodule，並提供 PowerShell 自動化腳本實踐。</p>
+<hr>
+<h2 id="一-三種模式比較">一、三種模式比較</h2>
+<h3 id="1-1-git-submodule-子模組">1.1 Git Submodule（子模組）</h3>
+<p>將外部倉庫作為子目錄嵌入，維持獨立的版本控制。</p>
+<p><strong>核心指令：</strong></p>
+<pre><code class="language-bash"># 新增子模組
+git submodule add https://github.com/user/lib.git lib/external
+
+# 初始化（clone 後必須）
+git submodule init
+git submodule update --recursive
+
+# 更新到最新
+git submodule update --remote --merge</code></pre>
+<p><strong>優點：</strong></p>
+<ul>
+<li>子倉庫完全獨立，可推送變更回上游</li>
+<li>精確鎖定版本（commit hash），可重現性高</li>
+<li>適合「共用元件庫」場景</li>
+</ul>
+<p><strong>缺點：</strong></p>
+<ul>
+<li>clone 後需額外 <code>submodule init/update</code> 步驟</li>
+<li>團隊成員容易忘記更新子模組</li>
+<li><code>.gitmodules</code> 管理增加複雜度</li>
+<li>CI/CD 管線需額外配置</li>
+</ul>
+<h3 id="1-2-git-subtree-子樹">1.2 Git Subtree（子樹）</h3>
+<p>將外部倉庫的程式碼直接合併進主倉庫的子目錄。</p>
+<p><strong>核心指令：</strong></p>
+<pre><code class="language-bash"># 新增子樹
+git subtree add --prefix=lib/external \
+  https://github.com/user/lib.git main --squash
+
+# 拉取更新
+git subtree pull --prefix=lib/external \
+  https://github.com/user/lib.git main --squash
+
+# 推送變更回上游
+git subtree push --prefix=lib/external \
+  https://github.com/user/lib.git main
+
+# 分割子樹為獨立分支（Mono-as-Poly 模式）
+git subtree split --prefix=lib/external -b lib-external-release</code></pre>
+<p><strong>優點：</strong></p>
+<ul>
+<li>clone 後即可使用，無額外步驟</li>
+<li>所有程式碼在同一倉庫，搜尋與重構方便</li>
+<li>不需要團隊學習額外工具</li>
+<li><code>--squash</code> 可壓縮外部歷史，保持主倉庫整潔</li>
+</ul>
+<p><strong>缺點：</strong></p>
+<ul>
+<li>倉庫體積較大（含外部程式碼完整歷史）</li>
+<li>推送回上游操作較複雜</li>
+<li>不適合需要獨立版本號的元件</li>
+</ul>
+<h3 id="1-3-git-worktree-工作樹">1.3 Git Worktree（工作樹）</h3>
+<p>從同一個倉庫建立多個工作目錄，同時操作不同分支。</p>
+<p><strong>核心指令：</strong></p>
+<pre><code class="language-bash"># 建立工作樹（已有分支）
+git worktree add ../project-feature feature-branch
+
+# 建立工作樹（新分支）
+git worktree add ../project-hotfix -b hotfix/urgent
+
+# 列出所有工作樹
+git worktree list
+
+# 移除工作樹
+git worktree remove ../project-feature
+
+# 清理已失效的工作樹
+git worktree prune</code></pre>
+<p><strong>優點：</strong></p>
+<ul>
+<li>無需多次 clone，共享 <code>.git</code> 物件庫</li>
+<li>可同時在多個分支上工作（如：main + feature + hotfix）</li>
+<li>fetch/pull 自動同步到所有工作樹</li>
+<li>適合「並行開發 + 快速切換」場景</li>
+</ul>
+<p><strong>缺點：</strong></p>
+<ul>
+<li>佔用額外磁碟空間（每個工作樹一份檔案副本）</li>
+<li>子模組支援仍不完整</li>
+<li>不適合跨倉庫場景（僅限同一倉庫的不同分支）</li>
+</ul>
+<hr>
+<h2 id="二-選擇決策矩陣">二、選擇決策矩陣</h2>
+<table>
+<tr><th>場景</th><th>推薦方案</th><th>原因</th></tr>
+<tr><td>共用元件庫（需推送回上游）</td><td>Submodule</td><td>版本鎖定精確、推送便利</td></tr>
+<tr><td>引入第三方程式碼（只拉不推）</td><td>Subtree</td><td>簡單、不影響團隊工作流</td></tr>
+<tr><td>同一專案多分支並行開發</td><td>Worktree</td><td>共享物件庫、零額外 clone</td></tr>
+<tr><td>遊戲開發 → 網頁部署 → GitHub</td><td>Subtree 或腳本同步</td><td>程式碼需轉換/篩選</td></tr>
+<tr><td>微服務拆分部署</td><td>Multi-repo + 自動化</td><td>獨立 CI/CD、獨立版本</td></tr>
+<tr><td>大型組織統一管理</td><td>Monorepo + 工具鏈</td><td>Nx/Turborepo/Bazel 支援</td></tr>
+</table>
+<hr>
+<h2 id="三-monorepo-vs-polyrepo-架構選擇">三、Monorepo vs Polyrepo 架構選擇</h2>
+<h3 id="3-1-monorepo-單一倉庫">3.1 Monorepo（單一倉庫）</h3>
+<p>所有專案放在同一個倉庫中。</p>
+<p><strong>適用場景：</strong></p>
+<ul>
+<li>專案間緊密耦合，經常需要跨專案修改</li>
+<li>團隊規模較小（&lt; 50人）</li>
+<li>需要原子提交（一個 PR 修改多個套件）</li>
+</ul>
+<p><strong>知名使用者：</strong> Google、Facebook、Twitter、Uber、Microsoft</p>
+<p><strong>工具支援：</strong> Nx、Turborepo、Bazel、Lerna、pnpm workspace</p>
+<h3 id="3-2-polyrepo-多倉庫">3.2 Polyrepo（多倉庫）</h3>
+<p>每個專案/服務獨立一個倉庫。</p>
+<p><strong>適用場景：</strong></p>
+<ul>
+<li>團隊自治性高，各自負責獨立服務</li>
+<li>需要精細的存取權限控制</li>
+<li>獨立部署週期</li>
+</ul>
+<p><strong>知名使用者：</strong> Netflix、Amazon、Lyft</p>
+<h3 id="3-3-混合模式">3.3 混合模式</h3>
+<ul>
+<li><strong>Poly-as-Mono</strong>：多個倉庫用 Meta 等工具統一管理，像 Monorepo 一樣操作</li>
+<li><strong>Mono-as-Poly</strong>：Monorepo 開發，用 <code>git subtree split</code> 分割為獨立倉庫發布</li>
+</ul>
+<hr>
+<h2 id="四-powershell-自動化多倉庫同步">四、PowerShell 自動化多倉庫同步</h2>
+<h3 id="4-1-批次更新所有本地倉庫">4.1 批次更新所有本地倉庫</h3>
+<pre><code class="language-powershell"># sync-all-repos.ps1
+param(
+    [string]$RootPath = &quot;D:\Source&quot;,
+    [string[]]$ExcludeRepos = @()
+)
+
+Get-ChildItem -Path $RootPath -Directory | Where-Object {
+    (Test-Path (Join-Path $_.FullName &quot;.git&quot;)) -and
+    $_.Name -notin $ExcludeRepos
+} | ForEach-Object -Parallel {
+    $repo = $_.FullName
+    $name = $_.Name
+    try {
+        Push-Location $repo
+        $branch = git branch --show-current
+        git fetch --all --prune 2&gt;&amp;1 | Out-Null
+        $behind = (git rev-list --count &quot;HEAD..origin/$branch&quot; 2&gt;$null)
+        if ($behind -gt 0) {
+            git pull --rebase 2&gt;&amp;1 | Out-Null
+            Write-Output &quot;[UPDATED] $name ($branch, $behind commits)&quot;
+        } else {
+            Write-Output &quot;[OK] $name ($branch, up to date)&quot;
+        }
+    } catch {
+        Write-Output &quot;[ERROR] $name: $_&quot;
+    } finally {
+        Pop-Location
+    }
+} -ThrottleLimit 4</code></pre>
+<h3 id="4-2-遊戲專案多倉庫同步腳本">4.2 遊戲專案多倉庫同步腳本</h3>
+<pre><code class="language-powershell"># sync-game-repos.ps1
+# 場景：game（開發）→ game_web（部署構建）→ GitHub（發布）
+param(
+    [string]$GameDir = &quot;D:\Source\game&quot;,
+    [string]$WebDir = &quot;D:\Source\game_web&quot;,
+    [string]$GameName = &quot;samsara-tower&quot;
+)
+
+# 步驟 1：複製遊戲檔案到 web 部署目錄
+$srcPath = Join-Path $GameDir $GameName
+$destPath = Join-Path $WebDir $GameName
+
+if (-not (Test-Path $destPath)) {
+    New-Item -ItemType Directory -Path $destPath -Force | Out-Null
+}
+
+# 使用 robocopy 增量同步（僅複製變更檔案）
+robocopy $srcPath $destPath /MIR /XD .git node_modules /XF .gitignore /NFL /NDL /NP
+
+# 步驟 2：在 web 目錄提交並推送
+Push-Location $WebDir
+try {
+    git add $GameName
+    $status = git status --porcelain
+    if ($status) {
+        git commit -m &quot;sync: update $GameName from game repo&quot;
+        git push origin main
+        Write-Output &quot;[SUCCESS] $GameName synced to game_web and pushed&quot;
+    } else {
+        Write-Output &quot;[SKIP] $GameName: no changes to sync&quot;
+    }
+} finally {
+    Pop-Location
+}</code></pre>
+<h3 id="4-3-robocopy-增量同步參數說明">4.3 Robocopy 增量同步參數說明</h3>
+<pre><code class="language-powershell"># /MIR  - 鏡像同步（新增+更新+刪除多餘檔案）
+# /XD   - 排除目錄（.git, node_modules）
+# /XF   - 排除檔案（.gitignore）
+# /NFL  - 不列出檔案名（安靜模式）
+# /NDL  - 不列出目錄名
+# /NP   - 不顯示進度百分比
+# /LOG  - 輸出日誌到檔案</code></pre>
+<hr>
+<h2 id="五-常見陷阱與最佳實踐">五、常見陷阱與最佳實踐</h2>
+<h3 id="5-1-常見陷阱">5.1 常見陷阱</h3>
+<ol>
+<li><strong>Submodule 版本漂移</strong>：團隊成員忘記 <code>git submodule update</code>，導致使用過時版本</li>
+</ol>
+<p>   - <strong>解法</strong>：CI 管線加入 <code>git submodule status --recursive</code> 檢查</p>
+<ol>
+<li><strong>Subtree 合併衝突</strong>：<code>git subtree pull</code> 遇到衝突時難以解決</li>
+</ol>
+<p>   - <strong>解法</strong>：使用 <code>--squash</code> 壓縮外部歷史，減少衝突機會</p>
+<ol>
+<li><strong>Worktree 殘留</strong>：工作樹刪除目錄後忘記 <code>git worktree prune</code></li>
+</ol>
+<p>   - <strong>解法</strong>：定期執行清理，或在 CI 中加入 <code>worktree prune</code></p>
+<ol>
+<li><strong>跨倉庫提交不同步</strong>：多倉庫修改忘記全部推送</li>
+</ol>
+<p>   - <strong>解法</strong>：用自動化腳本確保原子性同步</p>
+<h3 id="5-2-最佳實踐">5.2 最佳實踐</h3>
+<ol>
+<li><strong>選擇最簡單的方案</strong>：如果手動複製 + 腳本能滿足需求，不必引入 Subtree/Submodule</li>
+<li><strong>文件化同步流程</strong>：在 README 或 CLAUDE.md 中記錄多倉庫關係與同步方式</li>
+<li><strong>CI/CD 整合</strong>：自動化測試必須覆蓋跨倉庫的整合場景</li>
+<li><strong>版本標籤策略</strong>：多倉庫使用相同版本標籤（如 <code>v2.0.0</code>）確保一致性</li>
+<li><strong>權限分離</strong>：不同倉庫可設定不同的 collaborator 權限</li>
+</ol>
+<hr>
+<h2 id="六-與本專案的關聯">六、與本專案的關聯</h2>
+<h3 id="daily-digest-prompt-的多倉庫場景">daily-digest-prompt 的多倉庫場景</h3>
+<p>本專案（daily-digest-prompt）在自動任務中涉及多倉庫操作：</p>
+<ol>
+<li><strong>遊戲同步</strong>：<code>D:\Source\game</code>（開發倉庫）→ <code>D:\Source\game_web</code>（部署倉庫）→ GitHub Pages</li>
+</ol>
+<p>   - 採用「腳本同步 + robocopy 增量複製」模式
+   - 自動任務 <code>git-push.md</code> 負責定時推送</p>
+<ol>
+<li><strong>知識庫同步</strong>：<code>knowledge</code> 專案推送至 GitHub</li>
+</ol>
+<p>   - 直接 <code>git push</code>，無跨倉庫需求</p>
+<ol>
+<li><strong>Skills 複製</strong>：<code>D:\Source\skills</code> → <code>daily-digest-prompt/skills/</code></li>
+</ol>
+<p>   - 手動或腳本複製，確保自包含</p>
+<h3 id="最佳化建議">最佳化建議</h3>
+<ul>
+<li>遊戲同步可考慮用 <strong>Git Subtree</strong> 取代 robocopy，獲得更好的歷史追蹤</li>
+<li>PowerShell <code>-Parallel</code> 可加速多倉庫操作</li>
+<li>建立統一的 <code>sync-all.ps1</code> 腳本覆蓋所有同步需求</li>
+</ul>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://tiendu.github.io/2025/03/01/git-worktree-subtree-eng.html">Mastering Git Worktree &amp; Git Subtree</a></li>
+<li><a href="https://www.atlassian.com/git/tutorials/git-subtree">Git Subtree: Alternative to Git Submodule — Atlassian</a></li>
+<li><a href="https://kinsta.com/blog/monorepo-vs-multi-repo/">Monorepo vs Multi-Repo — Kinsta</a></li>
+<li><a href="https://raminmammadzada.medium.com/monorepo-vs-multirepo-vs-git-submodule-vs-git-subtree-3fde1af15b76">MonoRepo vs MultiRepo vs Submodule vs Subtree — Ramin Mammadzada</a></li>
+<li><a href="https://geoffhudik.com/tech/2019/05/11/git-multi-repository-scripts/">Git Multi-Repository Scripts — Geoff Hudik</a></li>
+<li><a href="https://graphite.com/guides/monorepo-vs-polyrepo-pros-cons-tools">Monorepo vs Polyrepo — Graphite</a></li>
+<li><a href="https://git-scm.com/docs/git-worktree">Git Worktree Documentation</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-19</em>
+<em>研究者：Claude Code Agent</em>
+<em>研究動機：今日完成「遊戲同步 game → game_web → GitHub」任務，發現知識庫缺乏 Git 多倉庫同步模式的深入研究。本文填補 Subtree/Worktree/Submodule 比較與 PowerShell 自動化工作流的知識缺口。</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="anthropic-正式禁止將訂閱認證用於第三方用途hn--71772919.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Anthropic 正式禁止將訂閱認證用於第三方用途（HN 熱度 309）</span></a><a href="starlette-回應物件架構與-fastapi-temp-edd62678.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Starlette 回應物件架構與 FastAPI TemplateResponse 設計模式完整指南（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+  </script>
+</body>
+</html>
