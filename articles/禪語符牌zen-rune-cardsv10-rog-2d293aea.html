@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="禪語符牌（Zen Rune Cards）v1.0 — Roguelike 卡牌遊戲開發心得與架構設計">
+  <title>禪語符牌（Zen Rune Cards）v1.0 — Roguelike 卡牌遊戲開發心得與架構設計 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-buddhism">佛學</span>
+        <h1>禪語符牌（Zen Rune Cards）v1.0 — Roguelike 卡牌遊戲開發心得與架構設計</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">1 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">Roguelike</span><span class="tag">卡牌遊戲</span><span class="tag">HTML5</span><span class="tag">Vite</span><span class="tag">Canvas</span><span class="tag">禪意遊戲</span><span class="tag">開發心得</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#遊戲概述">遊戲概述</a></li><li><a href="#技術架構">技術架構</a></li><li><a href="#核心系統">核心系統</a></li>  <li><a href="#1-卡牌系統">1. 卡牌系統</a></li>  <li><a href="#2-戰鬥系統">2. 戰鬥系統</a></li>  <li><a href="#3-roguelike-地圖">3. Roguelike 地圖</a></li>  <li><a href="#4-敵人系統">4. 敵人系統</a></li><li><a href="#品質要點">品質要點</a></li><li><a href="#設計啟發">設計啟發</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>禪語符牌 v1.0 開發心得</h1>
+<h2 id="遊戲概述">遊戲概述</h2>
+<p>融合禪意美學與 Roguelike 卡牌策略的 HTML5 遊戲，使用 Vite 框架，可部署於 Cloudflare Pages。</p>
+<h2 id="技術架構">技術架構</h2>
+<ul>
+<li><strong>框架</strong>：Vite 7.3 + 原生 ES Modules</li>
+<li><strong>渲染</strong>：Canvas 2D，設計解析度 420×720，HiDPI 適配</li>
+<li><strong>音效</strong>：Web Audio API 8-bit 合成（無外部音檔）</li>
+<li><strong>輸入</strong>：統一觸控/滑鼠/鍵盤抽象層</li>
+<li><strong>構建產物</strong>：30KB（gzip 11KB）</li>
+</ul>
+<h2 id="核心系統">核心系統</h2>
+<h3 id="1-卡牌系統">1. 卡牌系統</h3>
+<ul>
+<li>15 張不同卡牌：攻擊 5 + 防禦 4 + 禪定 6</li>
+<li>起始牌組 10 張（4 攻 + 4 防 + 2 禪定）</li>
+<li>戰後獎勵選牌（三選一或跳過）</li>
+<li>卡牌效果：傷害、護盾、回復、抽牌、能量、Buff/Debuff</li>
+</ul>
+<h3 id="2-戰鬥系統">2. 戰鬥系統</h3>
+<ul>
+<li>回合制：玩家出牌 → 結束回合 → 敵人行動</li>
+<li>能量系統：每回合 3 點，卡牌消耗 0-2 點</li>
+<li>護盾每回合重置</li>
+<li>敵人意圖透明可見（攻擊值、防禦、增強、弱化）</li>
+</ul>
+<h3 id="3-roguelike-地圖">3. Roguelike 地圖</h3>
+<ul>
+<li>10 層路徑圖（程序化生成）</li>
+<li>節點類型：戰鬥、休息、Boss</li>
+<li>每層 1-4 個節點，玩家選擇路徑</li>
+</ul>
+<h3 id="4-敵人系統">4. 敵人系統</h3>
+<ul>
+<li>五蘊煩惱：貪慾之蛇、瞋火之獸、愚癡之霧、傲慢之塔、疑惑之影</li>
+<li>Boss：三毒魔王</li>
+<li>HP 按樓層 ×1.12 縮放</li>
+<li>加權隨機意圖系統</li>
+</ul>
+<h2 id="品質要點">品質要點</h2>
+<ul>
+<li><strong>粒子物件池</strong>（200 個）避免 GC 壓力</li>
+<li><strong>Delta time cap</strong>（33ms）防止分頁回歸動畫爆衝</li>
+<li><strong>isInRect 邊界</strong>使用排他上界（&lt; 而非 &lt;=）</li>
+<li><strong>鍵盤也觸發 resumeAudio</strong> 確保所有平台音效可用</li>
+<li><strong>Esc 暫停</strong>功能</li>
+</ul>
+<h2 id="設計啟發">設計啟發</h2>
+<ul>
+<li>Slay the Spire 的卡牌策略深度</li>
+<li>橫井軍平「枯れた技術の水平思考」——用成熟技術創造新體驗</li>
+<li>KB 中 Game &amp; Watch Ball 研究的極簡設計哲學</li>
+<li>禪意主題與佛學三毒/五蘊概念的遊戲化</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="教觀綱宗研究四悉檀-天台宗判教的理論基礎與佛陀說法的四-9ef82b48.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">教觀綱宗研究：四悉檀 — 天台宗判教的理論基礎與佛陀說法的四種方便</span></a><a href="每日知識庫深度洞見報告-2026-02-24實踐智慧-95e111de.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">每日知識庫深度洞見報告 — 2026-02-24：「實踐智慧的三角形」— 遊戲設計工藝、AI 架構思維與佛學修行方法論的結構性同構</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

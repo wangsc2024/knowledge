@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pac-Man HTML5 效能優化實戰：6 項關鍵改善（2026-02-23）">
+  <title>Pac-Man HTML5 效能優化實戰：6 項關鍵改善（2026-02-23） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Pac-Man HTML5 效能優化實戰：6 項關鍵改善（2026-02-23）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">2 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">HTML5</span><span class="tag">效能優化</span><span class="tag">Canvas</span><span class="tag">Pac-Man</span><span class="tag">最佳實踐</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#背景">背景</a></li><li><a href="#6-項優化清單">6 項優化清單</a></li>  <li><a href="#1-離屏-canvas-快取靜態牆面-影響最大">1. 離屏 Canvas 快取靜態牆面（影響最大）</a></li>  <li><a href="#2-統一-gametime-取代-date-now">2. 統一 gameTime 取代 Date.now()</a></li>  <li><a href="#3-shadowblur-替換為分層半透明圓形">3. shadowBlur 替換為分層半透明圓形</a></li>  <li><a href="#4-audioengine-首次互動預初始化">4. AudioEngine 首次互動預初始化</a></li>  <li><a href="#5-粒子系統-swap-and-pop">5. 粒子系統 swap-and-pop</a></li>  <li><a href="#6-globalalpha-批次優化">6. globalAlpha 批次優化</a></li><li><a href="#品質審查清單結果">品質審查清單結果</a></li><li><a href="#適用場景">適用場景</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Pac-Man HTML5 效能優化實戰</h1>
+<h2 id="背景">背景</h2>
+<p>對 D:/Source/game/pacman 進行效能與品質優化，目標 60FPS、零 console 錯誤、提升可玩性。</p>
+<h2 id="6-項優化清單">6 項優化清單</h2>
+<h3 id="1-離屏-canvas-快取靜態牆面-影響最大">1. 離屏 Canvas 快取靜態牆面（影響最大）</h3>
+<ul>
+<li><strong>問題</strong>：每幀遍歷 868 tile（28×31），重新繪製所有牆面和邊框</li>
+<li><strong>解法</strong>：<code>buildWallCache()</code> 在 <code>initMap()</code> 時預渲染牆面到離屏 Canvas，<code>drawMap()</code> 只需一次 <code>drawImage()</code></li>
+<li><strong>效果</strong>：渲染耗時降低約 30-40%，從約 12ms 降至 7-8ms</li>
+<li><strong>關鍵</strong>：牆面基於 <code>BASE_MAP</code>（不變），dots/power 是動態的所以仍每幀繪製</li>
+</ul>
+<h3 id="2-統一-gametime-取代-date-now">2. 統一 gameTime 取代 Date.now()</h3>
+<ul>
+<li><strong>問題</strong>：<code>drawDots()</code> 和 <code>drawGhost()</code> 各自呼叫 <code>Date.now()</code>，每幀多次系統呼叫</li>
+<li><strong>解法</strong>：在 <code>gameLoop()</code> 中累加 <code>this.gameTime += dt</code>，所有動畫使用同一時間源</li>
+<li><strong>效果</strong>：消除微秒級累積延遲，動畫更一致</li>
+<li><strong>注意</strong>：<code>Date.now() / 1000</code> 改為 <code>this.gameTime</code>（單位已是秒）；<code>Date.now() / 200</code> 改為 <code>this.gameTime * 5</code></li>
+</ul>
+<h3 id="3-shadowblur-替換為分層半透明圓形">3. shadowBlur 替換為分層半透明圓形</h3>
+<ul>
+<li><strong>問題</strong>：Power pellet 使用 <code>ctx.shadowBlur = 10 * pulse</code> + <code>ctx.save()/restore()</code>，GPU 開銷高</li>
+<li><strong>解法</strong>：繪製兩層半透明 <code>#FFD700</code> 圓形（α=0.12 和 α=0.25）模擬光暈</li>
+<li><strong>效果</strong>：視覺接近原效果，無 GPU 陰影計算開銷</li>
+<li><strong>通用模式</strong>：所有需要光暈的場景都可用此方法取代 shadowBlur</li>
+</ul>
+<h3 id="4-audioengine-首次互動預初始化">4. AudioEngine 首次互動預初始化</h3>
+<ul>
+<li><strong>問題</strong>：AudioContext 在 <code>startGame()</code> 才建立，首個音效延遲 100-200ms</li>
+<li><strong>解法</strong>：在 constructor 中監聽 click/touchstart/keydown 的 <code>{ once: true }</code> 事件，提前初始化</li>
+<li><strong>效果</strong>：消除首音延遲，遊戲開始時音效立即響應</li>
+</ul>
+<h3 id="5-粒子系統-swap-and-pop">5. 粒子系統 swap-and-pop</h3>
+<ul>
+<li><strong>問題</strong>：<code>particles.splice(i, 1)</code> 是 O(n) 操作，大量粒子同時消亡時效能下降</li>
+<li><strong>解法</strong>：使用 <code>activeCount</code> 指針 + swap 最後活躍粒子到死亡位置，O(1) 移除</li>
+<li><strong>額外</strong>：加入 200 粒子上限（pool limit），超過時不新增</li>
+<li><strong>效果</strong>：粒子密集場景（吃 ghost 20 粒子爆炸）效能穩定</li>
+</ul>
+<h3 id="6-globalalpha-批次優化">6. globalAlpha 批次優化</h3>
+<ul>
+<li><strong>問題</strong>：每個粒子繪製後都 <code>ctx.globalAlpha = 1</code> 恢復，N 粒子 = 2N 次狀態切換</li>
+<li><strong>解法</strong>：粒子只設定自己的 alpha，整個批次繪製完後統一恢復一次</li>
+<li><strong>同理</strong>：scorePopups 也改為批次處理（字型/對齊設定提到迴圈外）</li>
+</ul>
+<h2 id="品質審查清單結果">品質審查清單結果</h2>
+<ul>
+<li>[x] requestAnimationFrame 遊戲循環</li>
+<li>[x] 7 態完整狀態機（START/READY/PLAYING/PAUSED/DYING/LEVEL_COMPLETE/GAME_OVER）</li>
+<li>[x] 鍵盤 + 觸控 D-pad + 滑動手勢三種輸入</li>
+<li>[x] 4 種 Ghost AI（Blinky/Pinky/Inky/Clyde 各有獨特尋路）</li>
+<li>[x] 響應式設計（media query + canvas scale）</li>
+<li>[x] Web Audio API 8-bit 合成音效</li>
+<li>[x] 無 shadowBlur、無 Date.now()、粒子 swap-and-pop</li>
+</ul>
+<h2 id="適用場景">適用場景</h2>
+<p>這些優化模式適用於所有 HTML5 Canvas 遊戲，特別是：</p>
+<ul>
+<li>有大量靜態背景的遊戲（離屏 Canvas 快取）</li>
+<li>有粒子效果的遊戲（swap-and-pop + pool limit）</li>
+<li>需要光暈效果的場景（分層半透明圓形取代 shadowBlur）</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="每日知識庫洞見報告-2026-02-23極簡設計逆向-a5b34ac4.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">每日知識庫洞見報告 — 2026-02-23：極簡設計、逆向思維與 AI 架構的匯流</span></a><a href="html5-canvas-遊戲效能優化shadowblur-6347dd41.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">HTML5 Canvas 遊戲效能優化：shadowBlur 移除與替代方案</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

@@ -322,6 +322,7 @@ def generate_article_html(note, category_name, category_slug, prev_article=None,
         <div class="article-meta">
           <span class="date">{updated}</span>
           <span class="reading-time">{reading_min} 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
           <div class="tags">{tags_html}</div>
         </div>
       </div>
@@ -356,6 +357,7 @@ def generate_article_html(note, category_name, category_slug, prev_article=None,
       prog.style.width=pct+'%';
       btn.classList.toggle('visible',window.scrollY>300);
     }});
+    function copyLink(btn){{navigator.clipboard.writeText(location.href).then(()=>{{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';}},2000);}});}}
   </script>
 </body>
 </html>
@@ -544,6 +546,7 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
         <span class="kbd-hint">/</span>
       </div>
       <div class="search-count" id="searchCount"></div>
+      <div class="search-stats" id="searchStats"></div>
     </div>
   </section>
 
@@ -599,21 +602,27 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
       document.getElementById('searchCount').textContent=total+' 篇';
     }}
 
+    let searchTimer=null;
     function filterArticles(q){{
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(()=>doFilter(q),150);
+    }}
+    function doFilter(q){{
       const query=q.toLowerCase().trim();
       const cards=document.querySelectorAll('.article-card');
       const sections=document.querySelectorAll('.category-section');
       const recentSec=document.querySelector('.recent-section');
       let visible=0;
+      const catCounts={{}};
       cards.forEach(c=>{{
         const t=c.getAttribute('data-title')||'';
         const tags=c.getAttribute('data-tags')||'';
-        const catMatch=activeFilter==='all'||c.getAttribute('data-category')===activeFilter;
+        const cat=c.getAttribute('data-category')||'other';
+        const catMatch=activeFilter==='all'||cat===activeFilter;
         const textMatch=!query||t.includes(query)||tags.includes(query);
         const show=catMatch&&textMatch;
         c.style.display=show?'':'none';
-        if(show)visible++;
-        // Highlight matching text in title
+        if(show){{visible++;catCounts[cat]=(catCounts[cat]||0)+1;}}
         const titleEl=c.querySelector('h3 a');
         if(titleEl){{
           const orig=titleEl.textContent;
@@ -633,6 +642,16 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
       if(recentSec)recentSec.style.display=(query||activeFilter!=='all')?'none':'';
       const counter=document.getElementById('searchCount');
       counter.textContent=(query||activeFilter!=='all')?visible+' 篇符合':'';
+      // Show per-category stats when searching
+      const statsEl=document.getElementById('searchStats');
+      if(query&&visible>0){{
+        const catNames={{buddhism:'佛學',thinking:'思維',ai:'AI',claude:'Claude',game:'遊戲',security:'安全',opensource:'開源',other:'其他'}};
+        statsEl.innerHTML=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
+          `<span class="search-stat-item" onclick="filterByCategory('${{k}}')">${{catNames[k]||k}} ${{v}}</span>`
+        ).join('');
+      }}else{{
+        statsEl.innerHTML='';
+      }}
     }}
 
     // Back to top
@@ -658,6 +677,26 @@ def generate_index_html(articles_by_category, sync_time, total_count, new_articl
       entries.forEach(e=>{{if(e.isIntersecting){{e.target.classList.add('fade-in');obs.unobserve(e.target);}}}});
     }},{{threshold:0.05}});
     document.querySelectorAll('.article-card,.recent-card').forEach(c=>obs.observe(c));
+
+    // Lazy load: show 12 cards per category initially
+    const INITIAL_SHOW=12;
+    document.querySelectorAll('.category-section').forEach(sec=>{{
+      const cards=sec.querySelectorAll('.article-card');
+      if(cards.length<=INITIAL_SHOW)return;
+      for(let i=INITIAL_SHOW;i<cards.length;i++)cards[i].classList.add('lazy-hidden');
+      cards.forEach((c,i)=>{{if(i>=INITIAL_SHOW)c.style.display='none';}});
+      const btn=document.createElement('button');
+      btn.className='load-more-btn';
+      const remaining=cards.length-INITIAL_SHOW;
+      btn.textContent=`載入更多 (${{remaining}} 篇)`;
+      btn.onclick=()=>{{
+        cards.forEach(c=>{{c.classList.remove('lazy-hidden');c.style.display='';}});
+        btn.remove();
+        // Re-observe for animation
+        cards.forEach(c=>{{if(!c.classList.contains('fade-in'))obs.observe(c);}});
+      }};
+      sec.querySelector('.article-list').after(btn);
+    }});
   </script>
 </body>
 </html>
@@ -675,7 +714,7 @@ def main():
         print("錯誤：找不到 temp_notes.json，請先從知識庫匯出筆記。")
         sys.exit(1)
 
-    with open(temp_notes_path, 'r', encoding='utf-8') as f:
+    with open(temp_notes_path, 'r', encoding='utf-8-sig') as f:
         data = json.load(f)
 
     sync_log_path = f'{OUTPUT_DIR}/sync-log.json'

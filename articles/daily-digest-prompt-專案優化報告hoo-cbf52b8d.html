@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily Digest Prompt 專案優化報告：Hooks 效能提升、測試覆蓋補齊與架構一致性修正（2026-02-23）">
+  <title>Daily Digest Prompt 專案優化報告：Hooks 效能提升、測試覆蓋補齊與架構一致性修正（2026-02-23） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Daily Digest Prompt 專案優化報告：Hooks 效能提升、測試覆蓋補齊與架構一致性修正（2026-02-23）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">3 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">Hooks系統</span><span class="tag">測試覆蓋</span><span class="tag">正則快取</span><span class="tag">CJK Guard</span><span class="tag">DRY原則</span><span class="tag">JSON Schema</span><span class="tag">daily-digest-prompt</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#優化背景">優化背景</a></li><li><a href="#優化項目">優化項目</a></li>  <li><a href="#1-routing-yaml-json-schema-驗證修正">1. routing.yaml JSON Schema 驗證修正</a></li>  <li><a href="#2-api_source_patterns-重複定義消除">2. API_SOURCE_PATTERNS 重複定義消除</a></li>  <li><a href="#3-正則快取機制-hot-path-效能提升">3. 正則快取機制（Hot Path 效能提升）</a></li>  <li><a href="#4-cjk-guard-測試套件新增">4. CJK Guard 測試套件新增</a></li><li><a href="#測試結果">測試結果</a></li><li><a href="#修改檔案清單">修改檔案清單</a></li><li><a href="#架構洞察">架構洞察</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Daily Digest Prompt 專案優化報告</h1>
+<h2 id="優化背景">優化背景</h2>
+<p>透過 4 路並行深度分析（Hooks 程式碼品質、配置檔一致性、測試覆蓋率缺口、PowerShell 腳本品質），識別 4 個高優先級優化項目並全數實施完成。</p>
+<h2 id="優化項目">優化項目</h2>
+<h3 id="1-routing-yaml-json-schema-驗證修正">1. routing.yaml JSON Schema 驗證修正</h3>
+<ul>
+<li><strong>問題</strong>：<code>config/schemas/routing.schema.json</code> 的 <code>labelMapping</code> 定義設了 <code>additionalProperties: false</code>，但 <code>^創意</code> 和 <code>^遊戲研究</code> 映射加了 <code>description</code> 欄位，導致 <code>test_all_configs_valid</code> 測試失敗</li>
+<li><strong>修正</strong>：在 <code>labelMapping</code> 的 <code>properties</code> 中新增 <code>description</code> 為可選屬性（type: string, minLength: 1）</li>
+<li><strong>影響</strong>：1 個測試從失敗轉為通過</li>
+</ul>
+<h3 id="2-api_source_patterns-重複定義消除">2. API_SOURCE_PATTERNS 重複定義消除</h3>
+<ul>
+<li><strong>問題</strong>：<code>hooks/post_tool_logger.py</code>（第 30-37 行）和 <code>hooks/agent_guardian.py</code>（第 174-181 行）各自定義了完全相同的 <code>API_SOURCE_PATTERNS</code> 字典（6 個 API 來源映射），違反 DRY 原則</li>
+<li><strong>修正</strong>：將 <code>API_SOURCE_PATTERNS</code> 移至 <code>hooks/hook_utils.py</code> 共用模組，兩個消費者改為 <code>from hook_utils import API_SOURCE_PATTERNS</code></li>
+<li><strong>防禦性設計</strong>：<code>agent_guardian.py</code> 使用 <code>try/except ImportError</code> 保留 fallback 定義，確保獨立執行時仍可運作</li>
+<li><strong>影響</strong>：未來只需在 <code>hook_utils.py</code> 一處更新 API 來源映射</li>
+</ul>
+<h3 id="3-正則快取機制-hot-path-效能提升">3. 正則快取機制（Hot Path 效能提升）</h3>
+<ul>
+<li><strong>問題</strong>：<code>pre_bash_guard.py</code> 和 <code>pre_read_guard.py</code> 在每次工具呼叫時重新編譯所有正則表達式。以 bash guard 為例，13 條規則每條含 1-7 個 pattern，每次呼叫最多編譯 40+ 個正則</li>
+<li><strong>修正</strong>：在 <code>hooks/hook_utils.py</code> 新增 <code>get_compiled_regex(pattern, flags)</code> 函數，使用模組層級 <code>_compiled_regex_cache</code> 字典快取已編譯的正則</li>
+<li><strong>整合</strong>：<code>pre_bash_guard.py</code> 和 <code>pre_read_guard.py</code> 的 hot path 改用 <code>get_compiled_regex(p, re_flags).search(command)</code> 替代原本的 <code>re.search(p, command, re_flags)</code></li>
+<li><strong>影響</strong>：首次呼叫時編譯並快取，後續呼叫直接使用快取，在高頻排程場景（每小時 2 次 Todoist + 3 次每日摘要）顯著減少 CPU 開銷</li>
+</ul>
+<h3 id="4-cjk-guard-測試套件新增">4. CJK Guard 測試套件新增</h3>
+<ul>
+<li><strong>問題</strong>：<code>hooks/cjk_guard.py</code>（273 行）是偵測日文漢字混入繁體中文的重要守護工具，但完全沒有測試覆蓋</li>
+<li><strong>修正</strong>：新增 <code>tests/hooks/test_cjk_guard.py</code>，包含 35 個測試案例，分 5 個類別</li>
+</ul>
+<p>  - <code>TestCJKCorrections</code>（7 個）：映射表完整性、CORRECTIONS 過濾邏輯、重複 key 合併
+  - <code>TestDetectIssues</code>（11 個）：偵測精確度、行/列定位、context 擷取
+  - <code>TestFixText</code>（7 個）：修正邏輯、計數正確性、混合文字處理
+  - <code>TestConstants</code>（2 個）：SCAN_EXTENSIONS、EXCLUDED_FILES 常量
+  - <code>TestPostFix</code>（8 個）：stdin JSON 處理、工具類型過濾、檔案類型過濾</p>
+<ul>
+<li><strong>發現</strong>：<code>CJK_CORRECTIONS</code> 中 <code>(0x8FBA, 0x908A)</code> 重複出現兩次（第 38、41 行），但因 dict 覆蓋不影響功能</li>
+</ul>
+<h2 id="測試結果">測試結果</h2>
+<ul>
+<li><strong>修改前</strong>：461 個測試，460 通過 / 1 失敗</li>
+<li><strong>修改後</strong>：496 個測試，496 通過 / 0 失敗（+35 新增，+1 修復）</li>
+</ul>
+<h2 id="修改檔案清單">修改檔案清單</h2>
+<table>
+<tr><th>檔案</th><th>變更類型</th><th>說明</th></tr>
+<tr><td><code>config/schemas/routing.schema.json</code></td><td>修改</td><td>labelMapping 新增 description 可選屬性</td></tr>
+<tr><td><code>hooks/hook_utils.py</code></td><td>修改</td><td>新增 API_SOURCE_PATTERNS 共用定義 + get_compiled_regex 快取函數</td></tr>
+<tr><td><code>hooks/post_tool_logger.py</code></td><td>修改</td><td>移除本地 API_SOURCE_PATTERNS，改用 hook_utils 共用匯入</td></tr>
+<tr><td><code>hooks/agent_guardian.py</code></td><td>修改</td><td>移除本地重複定義，改用 hook_utils 共用匯入（含 fallback）</td></tr>
+<tr><td><code>hooks/pre_bash_guard.py</code></td><td>修改</td><td>使用 get_compiled_regex 快取正則</td></tr>
+<tr><td><code>hooks/pre_read_guard.py</code></td><td>修改</td><td>使用 get_compiled_regex 快取正則</td></tr>
+<tr><td><code>tests/hooks/test_cjk_guard.py</code></td><td>新增</td><td>35 個 CJK Guard 測試案例</td></tr>
+</table>
+<h2 id="架構洞察">架構洞察</h2>
+<ul>
+<li><strong>正則快取適用場景</strong>：任何 PreToolUse hook 在每次工具呼叫時執行，高頻場景（每日 44 次 Agent 執行，每次 20-100 個工具呼叫）下快取效益明顯</li>
+<li><strong>共用模組模式</strong>：<code>hook_utils.py</code> 已從最初的 5 個函數（2026-02-15）成長為包含 INJECTION_PATTERNS、API_SOURCE_PATTERNS、正則快取的核心共用層</li>
+<li><strong>Schema 寬鬆原則</strong>：配置檔 Schema 應預留可選擴展欄位（如 description），避免對人類可讀性註釋過度限制</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="jsonl-結構化日誌與可觀測性工程完整指南schema--6afff580.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">JSONL 結構化日誌與可觀測性工程完整指南：Schema 設計、查詢模式與本地分析最佳實踐（2026）</span></a><a href="daily-digest-prompt-專案優化建議-自-b09f4204.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Daily-Digest-Prompt 專案優化建議 — 自動任務投資回報率與知識密度提升策略（2026-02-23）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

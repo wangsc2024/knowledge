@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Frogger (小精靈) v1.0 創建心得 — 粒子效果 + 螢幕震動 + 8-bit 音效合成">
+  <title>Frogger (小精靈) v1.0 創建心得 — 粒子效果 + 螢幕震動 + 8-bit 音效合成 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-game">遊戲開發</span>
+        <h1>Frogger (小精靈) v1.0 創建心得 — 粒子效果 + 螢幕震動 + 8-bit 音效合成</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">2 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">Frogger</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">碰撞偵測</span><span class="tag">粒子系統</span><span class="tag">Web Audio API</span><span class="tag">8-bit</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案背景">專案背景</a></li><li><a href="#核心技術實作">核心技術實作</a></li>  <li><a href="#1-雙區域碰撞設計">1. 雙區域碰撞設計</a></li>  <li><a href="#2-車道物件管理">2. 車道物件管理</a></li>  <li><a href="#3-歸巢系統">3. 歸巢系統</a></li>  <li><a href="#4-粒子效果">4. 粒子效果</a></li>  <li><a href="#5-8-bit-音效合成">5. 8-bit 音效合成</a></li><li><a href="#設計要點">設計要點</a></li>  <li><a href="#關卡難度設計">關卡難度設計</a></li>  <li><a href="#時間壓力">時間壓力</a></li><li><a href="#經驗教訓">經驗教訓</a></li><li><a href="#適用場景">適用場景</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Frogger (小精靈) v1.0 創建心得</h1>
+<h2 id="專案背景">專案背景</h2>
+<p>經典復古遊戲 Frogger 的 HTML5 Canvas 現代化重製。遊戲核心是引導青蛙穿越車流與河流到達對岸的 5 個歸巢點。</p>
+<h2 id="核心技術實作">核心技術實作</h2>
+<h3 id="1-雙區域碰撞設計">1. 雙區域碰撞設計</h3>
+<p>馬路區域和河流區域的碰撞邏輯完全不同：</p>
+<ul>
+<li><strong>馬路</strong>：碰到車輛 = 死亡（標準 AABB 碰撞）</li>
+<li><strong>河流</strong>：必須站在原木/烏龜上才能存活，否則落水死亡</li>
+<li><strong>河流平台移動</strong>：青蛙站在原木上時，需隨原木同步移動（每幀更新 frog.x += lane.dir <em> speed </em> dt）</li>
+</ul>
+<h3 id="2-車道物件管理">2. 車道物件管理</h3>
+<p>每條車道獨立管理物件（車輛/原木/烏龜）：</p>
+<ul>
+<li>方向（dir: 1/-1）控制移動方向</li>
+<li>速度隨關卡遞增（speedMult = 1 + (level-1) * 0.12）</li>
+<li>物件超出畫面後循環到另一端（wrap around）</li>
+</ul>
+<h3 id="3-歸巢系統">3. 歸巢系統</h3>
+<p>頂部 5 個歸巢點等距分布，青蛙到達後：</p>
+<ul>
+<li>標記為已佔據（occupied）</li>
+<li>獎勵分數 = 50 + 剩餘時間 * 10</li>
+<li>5 個全部到達 → 升級（+1000 分獎勵）</li>
+</ul>
+<h3 id="4-粒子效果">4. 粒子效果</h3>
+<p>三種死亡方式各有不同粒子效果：</p>
+<ul>
+<li>被車撞：紅色+橙色碎片 + 螢幕震動</li>
+<li>落水：藍色水花</li>
+<li>歸巢成功：綠色光效</li>
+<li>使用 swap-and-pop 回收，池上限 200</li>
+</ul>
+<h3 id="5-8-bit-音效合成">5. 8-bit 音效合成</h3>
+<p>使用 Web Audio API 即時合成 7 種音效：</p>
+<ul>
+<li>hop（跳躍）：方波 300→500Hz</li>
+<li>splash（落水）：鋸齒波 400→80Hz</li>
+<li>squash（被撞）：鋸齒波 200→50Hz</li>
+<li>home（歸巢）：C5→E5→G5 上行音</li>
+<li>levelup（升級）：四音上行</li>
+<li>gameover（結束）：下行悲傷音</li>
+<li>tick（倒數）：高頻短促</li>
+</ul>
+<h2 id="設計要點">設計要點</h2>
+<h3 id="關卡難度設計">關卡難度設計</h3>
+<p>5 種車道類型各有不同速度：</p>
+<ul>
+<li>慢車（speed 1.2）→ 卡車（0.8）→ 快車（1.8）→ 賽車（2.5）→ 卡車（1.0）</li>
+<li>河流：短原木、烏龜群、長原木各有不同寬度和速度</li>
+<li>賽車（row 8）是最大威脅：速度 2.5x，僅 1 輛但極快</li>
+</ul>
+<h3 id="時間壓力">時間壓力</h3>
+<p>30 秒時間限制：</p>
+<ul>
+<li>計時條在右下方，隨時間變色（綠→黃→紅）</li>
+<li>最後 5 秒有 tick 音效提示</li>
+<li>超時直接死亡</li>
+</ul>
+<h2 id="經驗教訓">經驗教訓</h2>
+<ol>
+<li><strong>河流碰撞比馬路複雜得多</strong>：需要處理「站在平台上」的持續判定，而非單次碰撞</li>
+<li><strong>物件循環 (wrap) 邊界</strong>：需要在物件完全離開畫面後才重置，否則會有閃爍</li>
+<li><strong>移動冷卻 (cooldown)</strong>：120ms 冷卻防止快速重複移動，讓操控更精準</li>
+<li><strong>smooth movement</strong>：青蛙移動用 lerp 而非瞬移，視覺更流暢</li>
+<li><strong>dt cap</strong>：限制 dt 最大 50ms，防止切換分頁後回來的巨大 dt 造成物件穿越</li>
+</ol>
+<h2 id="適用場景">適用場景</h2>
+<p>這些技術模式適用於：</p>
+<ul>
+<li>有多條車道/通道的遊戲（碰撞分區管理）</li>
+<li>需要「站在移動平台上」機制的遊戲</li>
+<li>時間壓力 + 分數獎勵設計</li>
+<li>物件循環出現的射擊/跑酷遊戲</li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="skill-品質審查報告2026-02-24todoi-e1e2f5ab.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Skill 品質審查報告（2026-02-24）：todoist-task-creator + game-design 深度審查</span></a><a href="墨陣棋局-ink-conquest-開發心得vite--40ec725e.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">墨陣棋局 Ink Conquest 開發心得：Vite + Canvas 2D 策略遊戲設計模式</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

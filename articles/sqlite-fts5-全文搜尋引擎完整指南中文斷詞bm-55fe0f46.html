@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SQLite FTS5 全文搜尋引擎完整指南：中文斷詞、BM25 排序與向量混合檢索架構（2026）">
+  <title>SQLite FTS5 全文搜尋引擎完整指南：中文斷詞、BM25 排序與向量混合檢索架構（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>SQLite FTS5 全文搜尋引擎完整指南：中文斷詞、BM25 排序與向量混合檢索架構（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">7 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">SQLite</span><span class="tag">FTS5</span><span class="tag">全文搜尋</span><span class="tag">BM25</span><span class="tag">向量搜尋</span><span class="tag">混合檢索</span><span class="tag">RAG</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#一-fts5-核心概念與建置">一、FTS5 核心概念與建置</a></li>  <li><a href="#1-1-建立-fts5-虛擬表">1.1 建立 FTS5 虛擬表</a></li>  <li><a href="#1-2-同步機制-trigger-based-synchronization">1.2 同步機制（Trigger-Based Synchronization）</a></li><li><a href="#二-bm25-排序機制">二、BM25 排序機制</a></li>  <li><a href="#2-1-內建-bm25-函數">2.1 內建 BM25 函數</a></li>  <li><a href="#2-2-欄位權重調整">2.2 欄位權重調整</a></li>  <li><a href="#2-3-查詢語法">2.3 查詢語法</a></li>  <li><a href="#2-4-結果高亮">2.4 結果高亮</a></li><li><a href="#三-中文-cjk-搜尋解決方案">三、中文（CJK）搜尋解決方案</a></li>  <li><a href="#3-1-問題根因">3.1 問題根因</a></li>  <li><a href="#3-2-解決方案對比">3.2 解決方案對比</a></li>  <li><a href="#3-3-trigram-分詞器-最簡方案">3.3 Trigram 分詞器（最簡方案）</a></li>  <li><a href="#3-4-預處理分詞-node-js-推薦方案">3.4 預處理分詞（Node.js 推薦方案）</a></li>  <li><a href="#3-5-simple-分詞器-c-擴充">3.5 Simple 分詞器（C++ 擴充）</a></li><li><a href="#四-向量混合檢索架構-hybrid-search">四、向量混合檢索架構（Hybrid Search）</a></li>  <li><a href="#4-1-架構概覽">4.1 架構概覽</a></li>  <li><a href="#4-2-向量表建立-sqlite-vec">4.2 向量表建立（sqlite-vec）</a></li>  <li><a href="#4-3-reciprocal-rank-fusion-rrf-演算法">4.3 Reciprocal Rank Fusion（RRF）演算法</a></li>  <li><a href="#4-4-完整-rrf-混合查詢">4.4 完整 RRF 混合查詢</a></li>  <li><a href="#4-5-三種混合策略">4.5 三種混合策略</a></li>  <li><a href="#4-6-權重調整建議">4.6 權重調整建議</a></li><li><a href="#五-效能最佳化">五、效能最佳化</a></li>  <li><a href="#5-1-索引最佳化">5.1 索引最佳化</a></li>  <li><a href="#5-2-前綴索引">5.2 前綴索引</a></li>  <li><a href="#5-3-效能數據">5.3 效能數據</a></li><li><a href="#六-常見陷阱">六、常見陷阱</a></li><li><a href="#七-與本專案-daily-digest-prompt-的關聯">七、與本專案（Daily-Digest-Prompt）的關聯</a></li>  <li><a href="#7-1-當前架構映射">7.1 當前架構映射</a></li>  <li><a href="#7-2-可改善方向">7.2 可改善方向</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>SQLite FTS5 全文搜尋引擎完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>SQLite FTS5（Full-Text Search 5）是 SQLite 內建的全文搜尋擴充模組，透過倒排索引（Inverted Index）實現高效的文字檢索。相較於 <code>LIKE &#x27;%term%&#x27;</code> 的全表掃描，FTS5 可在 50K+ 筆資料中實現毫秒級搜尋。搭配 sqlite-vec 向量擴充，可建構完整的混合檢索（Hybrid Search）RAG 架構，所有功能封裝在單一 SQLite 檔案中，無需外部服務。</p>
+<hr>
+<h2 id="一-fts5-核心概念與建置">一、FTS5 核心概念與建置</h2>
+<h3 id="1-1-建立-fts5-虛擬表">1.1 建立 FTS5 虛擬表</h3>
+<pre><code class="language-sql">-- 基本建立
+CREATE VIRTUAL TABLE docs USING fts5(
+  title,
+  content,
+  tokenize = &#x27;porter unicode61&#x27;
+);
+
+-- 外部內容表模式（推薦：節省儲存空間）
+CREATE VIRTUAL TABLE fts_docs USING fts5(
+  title,
+  content,
+  content=&#x27;documents&#x27;,
+  content_rowid=&#x27;id&#x27;
+);</code></pre>
+<p><strong>外部內容表</strong>是 FTS5 的重要最佳實踐：FTS5 只儲存倒排索引，實際文字從基底表讀取，避免資料重複儲存。</p>
+<h3 id="1-2-同步機制-trigger-based-synchronization">1.2 同步機制（Trigger-Based Synchronization）</h3>
+<p>外部內容表必須透過觸發器保持同步，否則會出現靜默腐壞（silent corruption）：</p>
+<pre><code class="language-sql">-- 插入觸發器
+CREATE TRIGGER docs_ai AFTER INSERT ON documents BEGIN
+  INSERT INTO fts_docs(rowid, title, content)
+  VALUES (new.id, new.title, new.content);
+END;
+
+-- 刪除觸發器
+CREATE TRIGGER docs_ad AFTER DELETE ON documents BEGIN
+  INSERT INTO fts_docs(fts_docs, rowid, title, content)
+  VALUES (&#x27;delete&#x27;, old.id, old.title, old.content);
+END;
+
+-- 更新觸發器
+CREATE TRIGGER docs_au AFTER UPDATE ON documents BEGIN
+  INSERT INTO fts_docs(fts_docs, rowid, title, content)
+  VALUES (&#x27;delete&#x27;, old.id, old.title, old.content);
+  INSERT INTO fts_docs(rowid, title, content)
+  VALUES (new.id, new.title, new.content);
+END;</code></pre>
+<p><strong>關鍵提醒</strong>：三個觸發器（INSERT、UPDATE、DELETE）必須在上線前全部建立，缺少任何一個都會導致索引漸進失準。</p>
+<hr>
+<h2 id="二-bm25-排序機制">二、BM25 排序機制</h2>
+<h3 id="2-1-內建-bm25-函數">2.1 內建 BM25 函數</h3>
+<p>FTS5 內建 BM25 排序演算法，參數 k1=1.2、b=0.75 為硬編碼值：</p>
+<pre><code class="language-sql">SELECT *, bm25(fts_docs) as score
+FROM fts_docs
+WHERE fts_docs MATCH &#x27;search query&#x27;
+ORDER BY score;  -- 注意：分數為負數，越小越相關</code></pre>
+<p><strong>重要行為</strong>：BM25 分數為負數，越小（越負）代表越相關。使用 <code>ORDER BY score</code>（升序）即可取得最佳結果。</p>
+<h3 id="2-2-欄位權重調整">2.2 欄位權重調整</h3>
+<p>透過 <code>bm25()</code> 函數的參數自訂各欄位權重：</p>
+<pre><code class="language-sql">-- 標題權重 10.0，內容權重 1.0
+SELECT *, bm25(fts_docs, 10.0, 1.0) as score
+FROM fts_docs
+WHERE fts_docs MATCH &#x27;query&#x27;
+ORDER BY score;</code></pre>
+<p><strong>調校建議</strong>：準備 20-50 組「黃金查詢」（golden queries），檢查 Top 3 結果是否符合人類預期，逐步調整權重。</p>
+<h3 id="2-3-查詢語法">2.3 查詢語法</h3>
+<pre><code class="language-sql">-- 布林運算
+WHERE fts_docs MATCH &#x27;term1 AND term2&#x27;
+WHERE fts_docs MATCH &#x27;term1 OR term2&#x27;
+WHERE fts_docs MATCH &#x27;term1 NOT term2&#x27;
+
+-- 片語搜尋
+WHERE fts_docs MATCH &#x27;&quot;exact phrase&quot;&#x27;
+
+-- 鄰近搜尋
+WHERE fts_docs MATCH &#x27;NEAR(term1 term2, 10)&#x27;
+
+-- 前綴搜尋
+WHERE fts_docs MATCH &#x27;pre*&#x27;
+
+-- 欄位限定
+WHERE fts_docs MATCH &#x27;title:query&#x27;</code></pre>
+<h3 id="2-4-結果高亮">2.4 結果高亮</h3>
+<pre><code class="language-sql">SELECT highlight(fts_docs, 0, &#x27;&lt;b&gt;&#x27;, &#x27;&lt;/b&gt;&#x27;) as highlighted_title,
+       snippet(fts_docs, 1, &#x27;&lt;b&gt;&#x27;, &#x27;&lt;/b&gt;&#x27;, &#x27;...&#x27;, 64) as content_snippet
+FROM fts_docs
+WHERE fts_docs MATCH &#x27;query&#x27;;</code></pre>
+<hr>
+<h2 id="三-中文-cjk-搜尋解決方案">三、中文（CJK）搜尋解決方案</h2>
+<h3 id="3-1-問題根因">3.1 問題根因</h3>
+<p>FTS5 內建的 <code>unicode61</code> 分詞器依賴空白字元分詞，而中文沒有詞間空白，導致整段中文被視為單一 token，無法搜尋。</p>
+<h3 id="3-2-解決方案對比">3.2 解決方案對比</h3>
+<table>
+<tr><th>方案</th><th>精確度</th><th>效能</th><th>部署難度</th><th>適用場景</th></tr>
+<tr><td><strong>Trigram 分詞器</strong></td><td>中</td><td>中</td><td>低（內建）</td><td>通用子字串匹配</td></tr>
+<tr><td><strong>Simple 分詞器（cppjieba）</strong></td><td>高</td><td>高</td><td>中（需編譯）</td><td>中文專業搜尋</td></tr>
+<tr><td><strong>預處理分詞</strong></td><td>高</td><td>高</td><td>中</td><td>Node.js/Python 應用</td></tr>
+<tr><td><strong>ICU 分詞器</strong></td><td>高</td><td>高</td><td>高（需 ICU 庫）</td><td>多語言專業搜尋</td></tr>
+</table>
+<h3 id="3-3-trigram-分詞器-最簡方案">3.3 Trigram 分詞器（最簡方案）</h3>
+<pre><code class="language-sql">CREATE VIRTUAL TABLE fts_docs USING fts5(
+  title,
+  content,
+  tokenize = &#x27;trigram&#x27;
+);</code></pre>
+<p>將文字切成重疊的三字元片段，支援子字串匹配。CJK 單字元即可構成完整詞，trigram 會產生冗餘索引但功能可用。</p>
+<h3 id="3-4-預處理分詞-node-js-推薦方案">3.4 預處理分詞（Node.js 推薦方案）</h3>
+<p>在應用層用 jieba 或 nodejieba 先斷詞，再存入 FTS5：</p>
+<pre><code class="language-javascript">// Node.js 預處理範例
+const nodejieba = require(&#x27;nodejieba&#x27;);
+
+function tokenizeForFTS(text) {
+  const words = nodejieba.cut(text);
+  return words.join(&#x27; &#x27;);  // 加空白分隔
+}
+
+// 寫入時
+const segmented = tokenizeForFTS(&#x27;台灣人工智慧發展趨勢&#x27;);
+// =&gt; &#x27;台灣 人工智慧 發展 趨勢&#x27;
+db.run(&#x27;INSERT INTO fts_docs(title) VALUES (?)&#x27;, [segmented]);
+
+// 查詢時也需要斷詞
+const query = tokenizeForFTS(&#x27;人工智慧&#x27;);
+db.all(&#x27;SELECT * FROM fts_docs WHERE fts_docs MATCH ?&#x27;, [query]);</code></pre>
+<h3 id="3-5-simple-分詞器-c-擴充">3.5 Simple 分詞器（C++ 擴充）</h3>
+<p>wangfenjin/simple 專案提供基於 cppjieba 的 FTS5 分詞器擴充，支援中文和拼音搜尋，有 Python、Go、Node.js 綁定。</p>
+<hr>
+<h2 id="四-向量混合檢索架構-hybrid-search">四、向量混合檢索架構（Hybrid Search）</h2>
+<h3 id="4-1-架構概覽">4.1 架構概覽</h3>
+<pre><code class="language-plaintext">文件 → FTS5 倒排索引（關鍵字匹配）
+    → sqlite-vec 向量索引（語義相似度）
+         ↓
+    Reciprocal Rank Fusion（RRF）合併
+         ↓
+    最終排序結果</code></pre>
+<h3 id="4-2-向量表建立-sqlite-vec">4.2 向量表建立（sqlite-vec）</h3>
+<pre><code class="language-sql">CREATE VIRTUAL TABLE vec_docs USING vec0(
+  doc_id INTEGER PRIMARY KEY,
+  embedding float[768]
+);
+
+-- 插入嵌入向量
+INSERT INTO vec_docs(doc_id, embedding)
+  SELECT id, generate_embedding(content) FROM documents;</code></pre>
+<h3 id="4-3-reciprocal-rank-fusion-rrf-演算法">4.3 Reciprocal Rank Fusion（RRF）演算法</h3>
+<p>RRF 是合併多個排序列表的標準演算法，公式：</p>
+<pre><code class="language-plaintext">RRF_score = Σ 1 / (k + rank_i)</code></pre>
+<p>其中 k 為常數（通常 60），防止排名第一的結果過度主導。</p>
+<h3 id="4-4-完整-rrf-混合查詢">4.4 完整 RRF 混合查詢</h3>
+<pre><code class="language-sql">WITH vec_matches AS (
+  SELECT doc_id,
+    row_number() OVER (ORDER BY distance) as rank_number
+  FROM vec_docs
+  WHERE embedding MATCH :query_embedding AND k = :top_k
+),
+fts_matches AS (
+  SELECT rowid,
+    row_number() OVER (ORDER BY rank) as rank_number
+  FROM fts_docs
+  WHERE fts_docs MATCH :query_text LIMIT :top_k
+)
+SELECT documents.*,
+  COALESCE(1.0 / (60 + fts_matches.rank_number), 0.0) * :weight_fts +
+  COALESCE(1.0 / (60 + vec_matches.rank_number), 0.0) * :weight_vec
+  AS combined_score
+FROM fts_matches
+FULL OUTER JOIN vec_matches
+  ON vec_matches.doc_id = fts_matches.rowid
+JOIN documents ON documents.id =
+  COALESCE(fts_matches.rowid, vec_matches.doc_id)
+ORDER BY combined_score DESC;</code></pre>
+<h3 id="4-5-三種混合策略">4.5 三種混合策略</h3>
+<table>
+<tr><th>策略</th><th>SQL 模式</th><th>適用場景</th></tr>
+<tr><td><strong>RRF 融合</strong></td><td>FULL OUTER JOIN + RRF 公式</td><td>通用 RAG 檢索</td></tr>
+<tr><td><strong>關鍵字優先</strong></td><td>FTS5 篩選 + 向量重排序</td><td>精確度優先（如郵件搜尋）</td></tr>
+<tr><td><strong>語義優先</strong></td><td>向量篩選 + BM25 重排序</td><td>語義理解優先（如問答系統）</td></tr>
+</table>
+<h3 id="4-6-權重調整建議">4.6 權重調整建議</h3>
+<ul>
+<li><code>weight_fts=1.0, weight_vec=1.0</code>：平衡（預設）</li>
+<li><code>weight_fts=1.5, weight_vec=1.0</code>：偏向精確匹配</li>
+<li><code>weight_fts=1.0, weight_vec=1.5</code>：偏向語義理解</li>
+<li>根據實際查詢結果反覆調整</li>
+</ul>
+<hr>
+<h2 id="五-效能最佳化">五、效能最佳化</h2>
+<h3 id="5-1-索引最佳化">5.1 索引最佳化</h3>
+<pre><code class="language-sql">-- 建立索引後執行優化
+INSERT INTO fts_docs(fts_docs) VALUES(&#x27;optimize&#x27;);
+
+-- 增量合併（大量插入後）
+INSERT INTO fts_docs(fts_docs, rank) VALUES(&#x27;merge&#x27;, 500);</code></pre>
+<h3 id="5-2-前綴索引">5.2 前綴索引</h3>
+<pre><code class="language-sql">CREATE VIRTUAL TABLE fts_docs USING fts5(
+  title, content,
+  prefix = &#x27;2 3&#x27;  -- 建立 2、3 字元前綴索引
+);</code></pre>
+<p>僅在需要自動完成功能時啟用，會增加索引大小。</p>
+<h3 id="5-3-效能數據">5.3 效能數據</h3>
+<ul>
+<li>FTS5 在 50K+ 筆資料中可實現毫秒級搜尋</li>
+<li>sqlite-vec 向量搜尋在數萬筆中約 100-500ms</li>
+<li>完整 RRF 混合查詢約 370ms（包含嵌入生成）</li>
+<li>單一 SQLite 檔案，約 100MB 記憶體即可運行</li>
+</ul>
+<hr>
+<h2 id="六-常見陷阱">六、常見陷阱</h2>
+<ol>
+<li><strong>靜默腐壞</strong>：外部內容表缺少同步觸發器，不會報錯但搜尋結果漸進失準</li>
+<li><strong>BM25 分數方向</strong>：分數為負數，<code>ORDER BY score</code>（升序）才是正確排序</li>
+<li><strong>中文分詞</strong>：<code>unicode61</code> 不支援 CJK，必須使用 trigram 或預處理分詞</li>
+<li><strong>Stop Words</strong>：過度索引停用詞會膨脹索引且降低搜尋品質</li>
+<li><strong>嵌入快取</strong>：混合查詢中每次呼叫 embedding 函數有成本，應快取常用查詢</li>
+<li><strong>FULL OUTER JOIN</strong>：SQLite 3.39.0+ 才支援，舊版需用 UNION ALL 模擬</li>
+</ol>
+<hr>
+<h2 id="七-與本專案-daily-digest-prompt-的關聯">七、與本專案（Daily-Digest-Prompt）的關聯</h2>
+<h3 id="7-1-當前架構映射">7.1 當前架構映射</h3>
+<p>本專案的 localhost:3000 知識庫即採用此架構：</p>
+<ul>
+<li><code>/api/search/hybrid</code>：FTS5 + 向量搜尋的 RRF 混合檢索</li>
+<li><code>/api/notes</code>：CRUD 操作觸發 FTS5 索引更新</li>
+<li><code>/api/import</code>：批量匯入 + 自動索引</li>
+</ul>
+<h3 id="7-2-可改善方向">7.2 可改善方向</h3>
+<ol>
+<li><strong>中文分詞優化</strong>：若搜尋品質不佳，可在匯入時加入 jieba 預處理</li>
+<li><strong>BM25 權重調校</strong>：為 <code>title</code> 欄位設定更高權重（如 5.0），提升標題匹配優先度</li>
+<li><strong>查詢擴展</strong>：將使用者查詢經 LLM 擴展為同義詞，提升召回率</li>
+<li><strong>RRF 權重調整</strong>：根據知識庫特性調整 FTS/向量權重比例</li>
+</ol>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ul>
+<li><a href="https://sqlite.org/fts5.html">SQLite FTS5 官方文件</a></li>
+<li><a href="https://alexgarcia.xyz/blog/2024/sqlite-vec-hybrid-search/index.html">Alex Garcia: Hybrid full-text search and vector search with SQLite</a></li>
+<li><a href="https://blog.sqlite.ai/building-a-rag-on-sqlite">Building a RAG on SQLite</a></li>
+<li><a href="https://github.com/wangfenjin/simple">wangfenjin/simple: 支援中文和拼音的 SQLite FTS5 分詞器</a></li>
+<li><a href="https://thelinuxcode.com/sqlite-full-text-search-fts5-in-practice-fast-search-ranking-and-real-world-patterns/">SQLite FTS5 in Practice: Fast Search, Ranking, and Real-World Patterns</a></li>
+<li><a href="https://github.com/sqliteai/sqlite-vector">sqlite-vec: SQLite 向量搜尋擴充</a></li>
+</ul>
+
+      </div>
+
+      <nav class="article-nav"><a href="claude-code-agent-teams-深度實踐指南-6d74015f.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Claude Code Agent Teams 深度實踐指南 — Swarm 協調模式、團隊拓撲設計與大型專案工作流最佳實踐（2026）</span></a><a href="daily-digest-hooks-系統優化報告-202-567dc03e.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Daily Digest Hooks 系統優化報告 (2026-02-24)</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

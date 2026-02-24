@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Letta（原 MemGPT）— 開源有狀態 AI Agent 平台深度研究：記憶優先架構、Agent File 開放格式與自編輯記憶機制（21.2K Stars, 2026）">
+  <title>Letta（原 MemGPT）— 開源有狀態 AI Agent 平台深度研究：記憶優先架構、Agent File 開放格式與自編輯記憶機制（21.2K Stars, 2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Letta（原 MemGPT）— 開源有狀態 AI Agent 平台深度研究：記憶優先架構、Agent File 開放格式與自編輯記憶機制（21.2K Stars, 2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">8 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">Letta</span><span class="tag">MemGPT</span><span class="tag">Agent記憶</span><span class="tag">有狀態Agent</span><span class="tag">自編輯記憶</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#專案概述">專案概述</a></li><li><a href="#核心問題與解決方案">核心問題與解決方案</a></li>  <li><a href="#問題-agent-的-金魚腦-困境">問題：Agent 的「金魚腦」困境</a></li>  <li><a href="#letta-的解決方案-三層記憶架構-自編輯機制">Letta 的解決方案：三層記憶架構 + 自編輯機制</a></li><li><a href="#技術架構-三層記憶模型">技術架構：三層記憶模型</a></li>  <li><a href="#第一層-核心記憶-core-memory-in-context-memory">第一層：核心記憶（Core Memory / In-Context Memory）</a></li>  <li><a href="#第二層-回憶記憶-recall-memory">第二層：回憶記憶（Recall Memory）</a></li>  <li><a href="#第三層-檔案記憶-archival-memory">第三層：檔案記憶（Archival Memory）</a></li><li><a href="#自編輯記憶機制-self-editing-memory">自編輯記憶機制（Self-Editing Memory）</a></li><li><a href="#agent-file-af-開放格式">Agent File（.af）開放格式</a></li>  <li><a href="#包含內容">包含內容</a></li>  <li><a href="#核心價值">核心價值</a></li><li><a href="#letta-code-記憶優先的程式開發-agent">Letta Code：記憶優先的程式開發 Agent</a></li>  <li><a href="#關鍵差異化">關鍵差異化</a></li><li><a href="#記憶基準測試-檔案系統就夠了">記憶基準測試：檔案系統就夠了？</a></li><li><a href="#與同類工具比較">與同類工具比較</a></li><li><a href="#潛在應用-與-daily-digest-prompt-專案的關聯">潛在應用：與 daily-digest-prompt 專案的關聯</a></li>  <li><a href="#1-記憶架構升級借鑑">1. 記憶架構升級借鑑</a></li>  <li><a href="#2-agent-file-格式的啟發">2. Agent File 格式的啟發</a></li>  <li><a href="#3-自編輯記憶的可行路徑">3. 自編輯記憶的可行路徑</a></li>  <li><a href="#4-遊戲開發-agent-的記憶">4. 遊戲開發 Agent 的記憶</a></li><li><a href="#優缺點評估">優缺點評估</a></li>  <li><a href="#優點">優點</a></li>  <li><a href="#缺點">缺點</a></li><li><a href="#安裝與快速上手">安裝與快速上手</a></li>  <li><a href="#cli-安裝">CLI 安裝</a></li>  <li><a href="#sdk-安裝">SDK 安裝</a></li>  <li><a href="#hello-world-範例-python">Hello World 範例（Python）</a></li><li><a href="#社群活躍度">社群活躍度</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Letta（原 MemGPT）— 開源有狀態 AI Agent 平台深度研究</h1>
+<h2 id="專案概述">專案概述</h2>
+<p><strong>Letta</strong>（前身為 MemGPT）是一個開源的有狀態 AI Agent 建構平台，專注於讓 AI Agent 具備<strong>持久記憶與自我學習能力</strong>。與傳統聊天機器人在每次對話後遺忘所有上下文不同，Letta Agent 能記住、學習並隨時間持續改進。</p>
+<ul>
+<li><strong>GitHub Stars</strong>：21.2K</li>
+<li><strong>Forks</strong>：2.2K</li>
+<li><strong>Contributors</strong>：158 人</li>
+<li><strong>Commits</strong>：7,043（主分支）</li>
+<li><strong>Releases</strong>：173 個（最新 v0.16.4，2026-01-29）</li>
+<li><strong>授權</strong>：Apache-2.0</li>
+<li><strong>主要語言</strong>：Python（99.5%）</li>
+<li><strong>官網</strong>：letta.com</li>
+</ul>
+<h2 id="核心問題與解決方案">核心問題與解決方案</h2>
+<h3 id="問題-agent-的-金魚腦-困境">問題：Agent 的「金魚腦」困境</h3>
+<p>當前大多數 AI Agent 框架面臨以下痛點：</p>
+<ol>
+<li><strong>無狀態對話</strong>：每次會話從零開始，喪失上下文</li>
+<li><strong>上下文窗口限制</strong>：即使模型支持長上下文，也無法無限記住所有歷史</li>
+<li><strong>知識不可累積</strong>：Agent 無法從過去的互動中學習與改進</li>
+<li><strong>記憶碎片化</strong>：不同會話間的記憶無法串聯</li>
+</ol>
+<h3 id="letta-的解決方案-三層記憶架構-自編輯機制">Letta 的解決方案：三層記憶架構 + 自編輯機制</h3>
+<p>Letta 借鑑了作業系統的虛擬記憶管理概念（源自 MemGPT 研究論文），實現了 AI Agent 的「虛擬無限記憶」。</p>
+<h2 id="技術架構-三層記憶模型">技術架構：三層記憶模型</h2>
+<p>Letta 的記憶系統分為三層，類比電腦的 RAM 與磁碟儲存：</p>
+<h3 id="第一層-核心記憶-core-memory-in-context-memory">第一層：核心記憶（Core Memory / In-Context Memory）</h3>
+<ul>
+<li><strong>類比</strong>：RAM（隨機存取記憶體）</li>
+<li><strong>特點</strong>：始終存在於 LLM 上下文窗口中，Agent 每次推理都能直接存取</li>
+<li><strong>實作</strong>：以可編輯的記憶區塊（Memory Blocks）形式存在，類似可寫入的系統提示</li>
+<li><strong>典型區塊</strong>：<code>human</code>（使用者偏好）、<code>persona</code>（Agent 人格）、<code>goals</code>（目標）、<code>preferences</code>（偏好）</li>
+<li><strong>關鍵特性</strong>：Agent 可透過工具呼叫自主編輯核心記憶內容</li>
+</ul>
+<pre><code class="language-python"># 核心記憶區塊範例
+memory_blocks = [
+    {&quot;label&quot;: &quot;human&quot;, &quot;value&quot;: &quot;使用者喜歡正體中文回覆，偏好技術深度分析&quot;},
+    {&quot;label&quot;: &quot;persona&quot;, &quot;value&quot;: &quot;我是一個專注於 AI 開源研究的助手&quot;}
+]</code></pre>
+<h3 id="第二層-回憶記憶-recall-memory">第二層：回憶記憶（Recall Memory）</h3>
+<ul>
+<li><strong>類比</strong>：磁碟上的交易日誌</li>
+<li><strong>特點</strong>：保存完整的對話歷史，自動持久化到磁碟</li>
+<li><strong>存取方式</strong>：透過搜尋工具（語意搜尋、全文搜尋、混合搜尋）按需檢索</li>
+<li><strong>用途</strong>：當 Agent 需要回顧過去的對話時，從回憶記憶中檢索相關片段</li>
+</ul>
+<h3 id="第三層-檔案記憶-archival-memory">第三層：檔案記憶（Archival Memory）</h3>
+<ul>
+<li><strong>類比</strong>：外部資料庫 / 長期儲存</li>
+<li><strong>特點</strong>：儲存經過處理的結構化知識，不同於原始對話歷史</li>
+<li><strong>儲存格式</strong>：支援向量資料庫、圖資料庫等多種後端</li>
+<li><strong>存取方式</strong>：Agent 透過專用工具查詢與寫入</li>
+<li><strong>用途</strong>：跨會話的長期知識積累</li>
+</ul>
+<h2 id="自編輯記憶機制-self-editing-memory">自編輯記憶機制（Self-Editing Memory）</h2>
+<p>這是 Letta 最具革命性的設計——<strong>Agent 自主管理自己的記憶</strong>：</p>
+<ol>
+<li><strong>主動寫入</strong>：Agent 判斷重要資訊時，自動寫入核心記憶或檔案記憶</li>
+<li><strong>主動搜尋</strong>：Agent 意識到需要額外資訊時，主動搜尋回憶或檔案記憶</li>
+<li><strong>主動更新</strong>：Agent 發現記憶過時或需要修正時，自主編輯核心記憶區塊</li>
+<li><strong>遞歸摘要</strong>：對話過長時，Agent 自動壓縮歷史對話為摘要，保留關鍵資訊</li>
+</ol>
+<p>這種設計讓 Agent 不再被動接收記憶管理，而是像人類一樣主動決定「記住什麼、忘記什麼、何時回想」。</p>
+<h2 id="agent-file-af-開放格式">Agent File（.af）開放格式</h2>
+<p>Letta 提出了 <strong>Agent File</strong>（.af），一種開放標準的 Agent 序列化格式：</p>
+<h3 id="包含內容">包含內容</h3>
+<table>
+<tr><th>組件</th><th>說明</th></tr>
+<tr><td>模型配置</td><td>上下文窗口限制、模型名稱、嵌入規格</td></tr>
+<tr><td>訊息歷史</td><td>完整對話記錄</td></tr>
+<tr><td>系統提示</td><td>核心行為指令</td></tr>
+<tr><td>記憶區塊</td><td>可編輯的人格與使用者資訊</td></tr>
+<tr><td>工具規則</td><td>工具排序與約束定義</td></tr>
+<tr><td>環境變數</td><td>工具執行配置</td></tr>
+<tr><td>工具定義</td><td>完整原始碼與 JSON Schema</td></tr>
+</table>
+<h3 id="核心價值">核心價值</h3>
+<ul>
+<li><strong>可攜性</strong>：在不同系統間遷移 Agent</li>
+<li><strong>版本控制</strong>：追蹤 Agent 配置隨時間的變化</li>
+<li><strong>安全性</strong>：匯出時自動將密鑰設為 null，防止憑證外洩</li>
+<li><strong>協作</strong>：團隊成員間共享訓練過的 Agent</li>
+</ul>
+<pre><code class="language-python"># Agent File 匯入範例
+from letta_client import Letta
+client = Letta(base_url=&quot;http://localhost:8283&quot;)
+agent_state = client.agents.import_file(
+    file=open(&quot;/path/to/agent.af&quot;, &quot;rb&quot;)
+)</code></pre>
+<h2 id="letta-code-記憶優先的程式開發-agent">Letta Code：記憶優先的程式開發 Agent</h2>
+<p><strong>Letta Code</strong> 是基於 Letta 平台的程式開發助手，在 <strong>TerminalBench</strong> 基準測試中排名 <strong>#1 模型無關開源編碼 Agent</strong>：</p>
+<h3 id="關鍵差異化">關鍵差異化</h3>
+<ul>
+<li><strong>持久 Agent</strong>：不同於傳統無狀態編碼助手，跨會話保持記憶</li>
+<li><strong>程式碼庫記憶化</strong>：<code>/init</code> 命令深度分析現有程式碼庫，形成記憶</li>
+<li><strong>技能學習</strong>：將重複任務模式轉化為可重用技能（Markdown 檔案）</li>
+<li><strong>跨會話搜尋</strong>：<code>/search</code> 命令支援向量、全文、混合搜尋歷史對話</li>
+<li><strong>模型無關</strong>：支援 Claude、GPT、Gemini 等多種模型後端</li>
+</ul>
+<h2 id="記憶基準測試-檔案系統就夠了">記憶基準測試：檔案系統就夠了？</h2>
+<p>Letta 團隊使用 <strong>LoCoMo 基準測試</strong>研究記憶效能：</p>
+<ul>
+<li><strong>測試結果</strong>：使用 GPT-4o mini + 檔案操作工具達到 <strong>74.0% 準確率</strong>，超越專門記憶工具</li>
+<li><strong>核心洞察</strong>：「記憶更多關乎 Agent 如何管理上下文，而非具體的檢索機制」</li>
+<li><strong>實務啟示</strong>：Agent 天生擅長檔案系統操作（grep、search_files），因為訓練資料中大量出現這類工具使用</li>
+<li><strong>結論</strong>：Agent 能力比特定工具更重要；專門的記憶解決方案若 Agent 不會用，反而表現更差</li>
+</ul>
+<h2 id="與同類工具比較">與同類工具比較</h2>
+<table>
+<tr><th>特性</th><th>Letta</th><th>LangChain/LangGraph</th><th>CrewAI</th><th>AutoGen</th></tr>
+<tr><td>記憶架構</td><td>三層自編輯記憶</td><td>靈活組件式</td><td>RAG 為主</td><td>對話歷史</td></tr>
+<tr><td>有狀態 Agent</td><td>原生支持</td><td>透過 LangGraph</td><td>有限</td><td>有限</td></tr>
+<tr><td>記憶持久化</td><td>內建自動持久化</td><td>需自行整合</td><td>ChromaDB + SQLite</td><td>需自行實作</td></tr>
+<tr><td>Agent 序列化</td><td>.af 開放格式</td><td>無標準格式</td><td>無標準格式</td><td>無標準格式</td></tr>
+<tr><td>記憶自管理</td><td>Agent 自主決策</td><td>程式碼控制</td><td>框架控制</td><td>程式碼控制</td></tr>
+<tr><td>開發環境</td><td>ADE 視覺化介面</td><td>API 為主</td><td>YAML 配置</td><td>API 為主</td></tr>
+<tr><td>模型支持</td><td>多模型（含排行榜）</td><td>多模型</td><td>多模型</td><td>多模型</td></tr>
+</table>
+<h2 id="潛在應用-與-daily-digest-prompt-專案的關聯">潛在應用：與 daily-digest-prompt 專案的關聯</h2>
+<h3 id="1-記憶架構升級借鑑">1. 記憶架構升級借鑑</h3>
+<p>目前 daily-digest-prompt 使用 <code>digest-memory.json</code> 作為跨次記憶，這是一種<strong>手動管理的扁平化記憶</strong>。Letta 的三層記憶模型提供了升級路徑：</p>
+<ul>
+<li><strong>核心記憶</strong> → 現有的 <code>digest-memory.json</code>（使用者偏好、連續天數等）</li>
+<li><strong>回憶記憶</strong> → 現有的 <code>state/scheduler-state.json</code>（執行歷史）</li>
+<li><strong>檔案記憶</strong> → 現有的知識庫（localhost:3000）</li>
+</ul>
+<p>差距在於：Letta 的 Agent 會<strong>自主決定</strong>何時讀寫記憶，而目前我們是<strong>Prompt 硬編碼</strong>讀寫時機。</p>
+<h3 id="2-agent-file-格式的啟發">2. Agent File 格式的啟發</h3>
+<p>.af 格式的「Agent 可攜性」概念，可以啟發：</p>
+<ul>
+<li>將 Skill + 記憶 + 配置打包為可分享的 Agent 定義檔</li>
+<li>支援 Agent 版本控制與回滾</li>
+<li>團隊成員間共享調試過的 Agent 配置</li>
+</ul>
+<h3 id="3-自編輯記憶的可行路徑">3. 自編輯記憶的可行路徑</h3>
+<p>在不引入 Letta 框架的前提下，可以借鑑其「Agent 自管理記憶」的概念：</p>
+<ul>
+<li>在 Skill 中增加「記憶更新建議」機制，讓 Agent 主動提議更新 digest-memory.json</li>
+<li>為研究任務增加「自動摘要」機制，對話結束前壓縮關鍵發現</li>
+</ul>
+<h3 id="4-遊戲開發-agent-的記憶">4. 遊戲開發 Agent 的記憶</h3>
+<p>遊戲設計任務（D:\Source\game）可以借鑑 Letta Code 的「技能學習」機制：</p>
+<ul>
+<li>Agent 在修改遊戲程式碼時累積「設計模式記憶」</li>
+<li>跨次遊戲優化保持風格一致性</li>
+</ul>
+<h2 id="優缺點評估">優缺點評估</h2>
+<h3 id="優點">優點</h3>
+<ol>
+<li><strong>記憶架構領先</strong>：三層記憶 + 自編輯是目前最完整的 Agent 記憶方案</li>
+<li><strong>學術根基紮實</strong>：源自 MemGPT 研究論文，不是純工程拼湊</li>
+<li><strong>Agent File 開放標準</strong>：.af 格式有潛力成為 Agent 生態的通用格式</li>
+<li><strong>Letta Code 表現優異</strong>：TerminalBench #1 模型無關開源 Agent</li>
+<li><strong>模型無關</strong>：不綁定特定 LLM 供應商</li>
+<li><strong>社群活躍</strong>：158 位貢獻者、173 個版本、Discord 活躍社群</li>
+<li><strong>視覺化開發環境</strong>：ADE 提供即時事件歷史、記憶區塊視覺化</li>
+</ol>
+<h3 id="缺點">缺點</h3>
+<ol>
+<li><strong>學習曲線陡峭</strong>：三層記憶模型需要理解新的心智模型</li>
+<li><strong>生態仍在早期</strong>：.af 格式目前僅 Letta 實作，跨框架支持有限</li>
+<li><strong>效能開銷</strong>：自編輯記憶需要額外的工具呼叫，增加延遲與成本</li>
+<li><strong>.af 限制</strong>：目前不支持檔案記憶段落、資料來源附件、MCP 配置、多 Agent 檔案</li>
+<li><strong>Python 為主</strong>：雖有 TypeScript SDK，但核心框架仍以 Python 為主</li>
+<li><strong>雲端依賴</strong>：Letta Cloud 功能需要 app.letta.com API Key</li>
+</ol>
+<h2 id="安裝與快速上手">安裝與快速上手</h2>
+<h3 id="cli-安裝">CLI 安裝</h3>
+<pre><code class="language-bash">npm install -g @letta-ai/letta-code</code></pre>
+<h3 id="sdk-安裝">SDK 安裝</h3>
+<pre><code class="language-bash"># Python
+pip install letta-client
+
+# TypeScript
+npm install @letta-ai/letta-client</code></pre>
+<h3 id="hello-world-範例-python">Hello World 範例（Python）</h3>
+<pre><code class="language-python">from letta_client import Letta
+
+client = Letta(token=&quot;your-api-key&quot;)
+
+agent = client.agents.create(
+    model=&quot;openai/gpt-4o&quot;,
+    memory_blocks=[
+        {&quot;label&quot;: &quot;human&quot;, &quot;value&quot;: &quot;使用者偏好與背景&quot;},
+        {&quot;label&quot;: &quot;persona&quot;, &quot;value&quot;: &quot;AI 研究助手人格&quot;}
+    ],
+    tools=[&quot;web_search&quot;, &quot;run_code&quot;]
+)
+
+response = client.agents.messages.create(
+    agent_id=agent.id,
+    messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;你好，記住我喜歡深度技術分析&quot;}]
+)</code></pre>
+<h2 id="社群活躍度">社群活躍度</h2>
+<ul>
+<li><strong>GitHub Stars</strong>：21.2K（穩定成長）</li>
+<li><strong>Forks</strong>：2.2K</li>
+<li><strong>Contributors</strong>：158</li>
+<li><strong>Discord</strong>：活躍開發者社群</li>
+<li><strong>Codecademy 課程</strong>：官方合作課程「Intro to AI Agents with Letta」</li>
+<li><strong>模型排行榜</strong>：leaderboard.letta.com（推薦 Claude Opus 4.5、GPT-5.2）</li>
+<li><strong>核心團隊</strong>：carenthomas、mattzh72、sarahwooders</li>
+</ul>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://github.com/letta-ai/letta">letta-ai/letta GitHub Repository</a> — 品質等級 A | 2026-02-24</li>
+<li><a href="https://github.com/letta-ai/agent-file">letta-ai/agent-file GitHub Repository</a> — 品質等級 A | 2026</li>
+<li><a href="https://docs.letta.com/">Letta Official Documentation</a> — 品質等級 A | 2026</li>
+<li><a href="https://www.letta.com/blog/benchmarking-ai-agent-memory">Benchmarking AI Agent Memory | Letta Blog</a> — 品質等級 A | 2026</li>
+<li><a href="https://www.letta.com/blog/letta-code">Letta Code: A Memory-First Coding Agent | Letta Blog</a> — 品質等級 A | 2026</li>
+<li><a href="https://www.graphlit.com/blog/survey-of-ai-agent-memory-frameworks">Survey of AI Agent Memory Frameworks | Graphlit Blog</a> — 品質等級 B | 2026</li>
+<li><a href="https://www.codecademy.com/article/top-ai-agent-frameworks-in-2025">Top AI Agent Frameworks in 2025 | Codecademy</a> — 品質等級 B | 2025</li>
+<li><a href="https://github.blog/open-source/maintainers/from-mcp-to-multi-agents-the-top-10-new-open-source-ai-projects-on-github-right-now-and-why-they-matter/">From MCP to multi-agents: GitHub Blog</a> — 品質等級 B | 2026</li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-24</em>
+<em>研究者：AI GitHub Research Agent</em>
+<em>任務類型：ai_github_research（AI 開源專案研究）</em>
+<em>品質自評：adequate — 包含架構深度分析（非 README 複述）、與自身專案的 4 點應用建議、8 個參考來源（5A + 3B）、內容超過 2000 字</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="unsloth-資料集準備與對齊訓練格式完整指南alpac-8add2a8e.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Unsloth 資料集準備與對齊訓練格式完整指南：Alpaca/ShareGPT/ChatML 格式化與 DPO/ORPO/GRPO 偏好學習實戰（2026）</span></a><a href="ai-驅動的需求工程ai-powered-requirem-95be9c27.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">AI 驅動的需求工程（AI-Powered Requirements Engineering）— 規格驅動開發、自動使用者故事生成與驗收條件自動化完整指南（2026）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="JSONL 結構化日誌與可觀測性工程完整指南：Schema 設計、查詢模式與本地分析最佳實踐（2026）">
+  <title>JSONL 結構化日誌與可觀測性工程完整指南：Schema 設計、查詢模式與本地分析最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>JSONL 結構化日誌與可觀測性工程完整指南：Schema 設計、查詢模式與本地分析最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">6 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">JSONL</span><span class="tag">結構化日誌</span><span class="tag">可觀測性</span><span class="tag">Observability</span><span class="tag">日誌分析</span><span class="tag">Python</span><span class="tag">Schema設計</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#結構化日誌的三大支柱">結構化日誌的三大支柱</a></li>  <li><a href="#jsonl-vs-其他日誌格式">JSONL vs 其他日誌格式</a></li><li><a href="#schema-設計最佳實踐">Schema 設計最佳實踐</a></li>  <li><a href="#必要欄位">必要欄位</a></li>  <li><a href="#擴展欄位設計原則">擴展欄位設計原則</a></li>  <li><a href="#錯誤日誌結構化">錯誤日誌結構化</a></li><li><a href="#查詢模式與分析技巧">查詢模式與分析技巧</a></li>  <li><a href="#命令列工具-本地分析">命令列工具（本地分析）</a></li>  <li><a href="#python-分析腳本">Python 分析腳本</a></li>  <li><a href="#powershell-分析-windows-環境">PowerShell 分析（Windows 環境）</a></li><li><a href="#日誌輪轉與保留策略">日誌輪轉與保留策略</a></li>  <li><a href="#分層保留-tiered-retention">分層保留（Tiered Retention）</a></li>  <li><a href="#大小觸發輪轉">大小觸發輪轉</a></li><li><a href="#可觀測性整合-三大支柱">可觀測性整合：三大支柱</a></li>  <li><a href="#1-日誌-logs">1. 日誌（Logs）</a></li>  <li><a href="#2-指標-metrics">2. 指標（Metrics）</a></li>  <li><a href="#3-追蹤-traces">3. 追蹤（Traces）</a></li>  <li><a href="#相關性-id-實踐">相關性 ID 實踐</a></li><li><a href="#安全與效能">安全與效能</a></li>  <li><a href="#敏感資料防護">敏感資料防護</a></li>  <li><a href="#效能優化">效能優化</a></li><li><a href="#與-daily-digest-prompt-專案的關聯">與 Daily-Digest-Prompt 專案的關聯</a></li>  <li><a href="#現有實作">現有實作</a></li>  <li><a href="#可優化方向">可優化方向</a></li>  <li><a href="#實際應用範例">實際應用範例</a></li><li><a href="#python-結構化日誌推薦庫">Python 結構化日誌推薦庫</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>JSONL 結構化日誌與可觀測性工程完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>JSONL（JSON Lines）是一種以行為單位的結構化日誌格式，每行為一個完整的 JSON 物件。相較於傳統純文字日誌，JSONL 同時提供機器可解析性與人類可讀性，已成為 2025-2026 年現代應用程式監控與可觀測性的產業標準。主要平台如 Elasticsearch、Splunk、Datadog、Fluentd、Logstash 均原生支援 JSONL 格式。其行分隔特性使其特別適合即時串流處理與分析，無需緩衝整個檔案即可逐行解析。</p>
+<hr>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="結構化日誌的三大支柱">結構化日誌的三大支柱</h3>
+<ol>
+<li><strong>機器可讀格式</strong>：JSON 的 key-value 結構使自動化處理成為可能，不再需要複雜的正則表達式解析</li>
+<li><strong>上下文豐富化（Contextual Enrichment）</strong>：每筆日誌攜帶足夠的上下文屬性，支援多維度切片分析</li>
+<li><strong>統一 Schema</strong>：跨服務維持一致的欄位命名與結構，避免查詢邏輯碎片化</li>
+</ol>
+<h3 id="jsonl-vs-其他日誌格式">JSONL vs 其他日誌格式</h3>
+<table>
+<tr><th>格式</th><th>機器解析</th><th>人類可讀</th><th>串流友善</th><th>多行安全</th><th>查詢效率</th></tr>
+<tr><td>純文字</td><td>差（需正則）</td><td>佳</td><td>佳</td><td>差</td><td>差</td></tr>
+<tr><td>JSON（整檔）</td><td>佳</td><td>中</td><td>差（需完整檔案）</td><td>佳</td><td>佳</td></tr>
+<tr><td><strong>JSONL</strong></td><td><strong>佳</strong></td><td><strong>中</strong></td><td><strong>佳</strong></td><td><strong>佳</strong></td><td><strong>佳</strong></td></tr>
+<tr><td>CSV</td><td>中</td><td>中</td><td>佳</td><td>差</td><td>中</td></tr>
+<tr><td>Syslog</td><td>中</td><td>差</td><td>佳</td><td>佳</td><td>中</td></tr>
+</table>
+<hr>
+<h2 id="schema-設計最佳實踐">Schema 設計最佳實踐</h2>
+<h3 id="必要欄位">必要欄位</h3>
+<pre><code class="language-json">{
+  &quot;ts&quot;: &quot;2026-02-23T10:30:45+08:00&quot;,
+  &quot;level&quot;: &quot;info&quot;,
+  &quot;msg&quot;: &quot;API call completed&quot;,
+  &quot;sid&quot;: &quot;abc12345&quot;,
+  &quot;service&quot;: &quot;daily-digest&quot;,
+  &quot;host&quot;: &quot;WIN-DESKTOP&quot;
+}</code></pre>
+<table>
+<tr><th>欄位</th><th>說明</th><th>格式建議</th></tr>
+<tr><td><code>ts</code></td><td>時間戳</td><td>ISO 8601，包含時區（建議 UTC 或本地帶 offset）</td></tr>
+<tr><td><code>level</code></td><td>日誌等級</td><td>debug/info/warn/error/fatal</td></tr>
+<tr><td><code>msg</code></td><td>人類可讀描述</td><td>簡潔明確</td></tr>
+<tr><td><code>sid</code></td><td>相關性 ID（Session/Correlation ID）</td><td>UUID 或短 hash</td></tr>
+<tr><td><code>service</code></td><td>服務名稱</td><td>全系統一致</td></tr>
+<tr><td><code>host</code></td><td>主機名稱</td><td>自動注入</td></tr>
+</table>
+<h3 id="擴展欄位設計原則">擴展欄位設計原則</h3>
+<ol>
+<li><strong>保持淺層結構</strong>：最多 2-3 層巢狀，深層巢狀嚴重影響查詢效能</li>
+<li><strong>一致的命名慣例</strong>：全系統統一使用 <code>snake_case</code>（如 <code>user_id</code>），不混用 <code>camelCase</code></li>
+<li><strong>欄位前綴分群</strong>：用前綴區分類別（如 <code>http_method</code>、<code>http_status</code>、<code>db_query</code>）</li>
+<li><strong>避免動態 key 名</strong>：不要用可變值作為 key（如 <code>{&quot;user_123&quot;: &quot;data&quot;}</code>），改用 <code>{&quot;user_id&quot;: 123, &quot;data&quot;: &quot;...&quot;}</code></li>
+</ol>
+<h3 id="錯誤日誌結構化">錯誤日誌結構化</h3>
+<pre><code class="language-json">{
+  &quot;ts&quot;: &quot;2026-02-23T10:30:45+08:00&quot;,
+  &quot;level&quot;: &quot;error&quot;,
+  &quot;msg&quot;: &quot;Database connection failed&quot;,
+  &quot;error&quot;: {
+    &quot;code&quot;: &quot;ECONNREFUSED&quot;,
+    &quot;message&quot;: &quot;Connection refused at localhost:5432&quot;,
+    &quot;stack&quot;: &quot;Error: connect ECONNREFUSED...\n  at TCPConnectWrap...&quot;
+  },
+  &quot;retry_count&quot;: 3,
+  &quot;db&quot;: &quot;users&quot;
+}</code></pre>
+<hr>
+<h2 id="查詢模式與分析技巧">查詢模式與分析技巧</h2>
+<h3 id="命令列工具-本地分析">命令列工具（本地分析）</h3>
+<pre><code class="language-bash"># jq — JSONL 的瑞士刀
+# 篩選 error 等級
+cat logs/structured/*.jsonl | jq -c &#x27;select(.level == &quot;error&quot;)&#x27;
+
+# 統計各等級數量
+cat logs/structured/*.jsonl | jq -r &#x27;.level&#x27; | sort | uniq -c | sort -rn
+
+# 篩選特定 session
+cat logs/structured/*.jsonl | jq -c &#x27;select(.sid == &quot;abc12345&quot;)&#x27;
+
+# 篩選含特定標籤的記錄
+cat logs/structured/*.jsonl | jq -c &#x27;select(.tags | arrays | index(&quot;api-call&quot;))&#x27;
+
+# 時間範圍篩選
+cat logs/structured/*.jsonl | jq -c &#x27;select(.ts &gt;= &quot;2026-02-23T08:00&quot; and .ts &lt;= &quot;2026-02-23T12:00&quot;)&#x27;</code></pre>
+<h3 id="python-分析腳本">Python 分析腳本</h3>
+<pre><code class="language-python">import json
+from collections import Counter
+from pathlib import Path
+
+def analyze_jsonl(log_dir: str, days: int = 7) -&gt; dict:
+    &quot;&quot;&quot;分析 JSONL 日誌的基本統計&quot;&quot;&quot;
+    stats = Counter()
+    errors = []
+    
+    for f in sorted(Path(log_dir).glob(&quot;*.jsonl&quot;)):
+        for line in f.open(encoding=&quot;utf-8&quot;):
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            
+            stats[entry.get(&quot;level&quot;, &quot;unknown&quot;)] += 1
+            
+            if entry.get(&quot;has_error&quot;) or entry.get(&quot;level&quot;) == &quot;error&quot;:
+                errors.append(entry)
+            
+            # 標籤統計
+            for tag in entry.get(&quot;tags&quot;, []):
+                stats[f&quot;tag:{tag}&quot;] += 1
+    
+    return {
+        &quot;total&quot;: sum(v for k, v in stats.items() if k in (&quot;info&quot;, &quot;warn&quot;, &quot;error&quot;, &quot;debug&quot;)),
+        &quot;by_level&quot;: dict(stats),
+        &quot;error_count&quot;: len(errors),
+        &quot;recent_errors&quot;: errors[-5:]
+    }</code></pre>
+<h3 id="powershell-分析-windows-環境">PowerShell 分析（Windows 環境）</h3>
+<pre><code class="language-powershell"># 讀取 JSONL 並篩選
+$logs = Get-Content &quot;logs/structured/*.jsonl&quot; | ForEach-Object {
+    try { $_ | ConvertFrom-Json } catch { $null }
+} | Where-Object { $_ -ne $null }
+
+# 統計各等級
+$logs | Group-Object level | Select-Object Name, Count | Sort-Object Count -Descending
+
+# 篩選攔截事件
+$logs | Where-Object { $_.tags -contains &#x27;blocked&#x27; } | Format-Table ts, tool, summary</code></pre>
+<hr>
+<h2 id="日誌輪轉與保留策略">日誌輪轉與保留策略</h2>
+<h3 id="分層保留-tiered-retention">分層保留（Tiered Retention）</h3>
+<table>
+<tr><th>層級</th><th>保留天數</th><th>存取速度</th><th>說明</th></tr>
+<tr><td>Hot（熱存）</td><td>7-30 天</td><td>即時</td><td>原始 JSONL，未壓縮</td></tr>
+<tr><td>Warm（溫存）</td><td>7-90 天</td><td>快速</td><td>gzip 壓縮，合併索引</td></tr>
+<tr><td>Cold（冷存）</td><td>30-365 天</td><td>中等</td><td>歸檔壓縮</td></tr>
+<tr><td>Delete</td><td>&gt;90-365 天</td><td>—</td><td>合規要求後刪除</td></tr>
+</table>
+<h3 id="大小觸發輪轉">大小觸發輪轉</h3>
+<pre><code class="language-python">import os
+import gzip
+import shutil
+
+def rotate_if_needed(log_path: str, max_size_mb: int = 50):
+    &quot;&quot;&quot;日誌超過閾值時自動輪轉壓縮&quot;&quot;&quot;
+    if os.path.getsize(log_path) &gt; max_size_mb * 1024 * 1024:
+        archive = f&quot;{log_path}.{datetime.now():%Y%m%d_%H%M%S}.gz&quot;
+        with open(log_path, &#x27;rb&#x27;) as f_in:
+            with gzip.open(archive, &#x27;wb&#x27;) as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        open(log_path, &#x27;w&#x27;).close()  # 清空原檔</code></pre>
+<hr>
+<h2 id="可觀測性整合-三大支柱">可觀測性整合：三大支柱</h2>
+<h3 id="1-日誌-logs">1. 日誌（Logs）</h3>
+<p>結構化 JSONL 日誌是事件紀錄的基礎，提供離散事件的詳細上下文。</p>
+<h3 id="2-指標-metrics">2. 指標（Metrics）</h3>
+<p>從日誌衍生的聚合數據（如每分鐘錯誤率、API 回應時間 P95），適合趨勢監控與告警。</p>
+<h3 id="3-追蹤-traces">3. 追蹤（Traces）</h3>
+<p>透過 Correlation ID（相關性 ID）串聯跨服務的請求流程，形成完整的請求鏈路圖。</p>
+<h3 id="相關性-id-實踐">相關性 ID 實踐</h3>
+<pre><code class="language-python">import uuid
+from contextvars import ContextVar
+
+# 每個請求生成唯一 ID
+correlation_id = ContextVar(&#x27;correlation_id&#x27;, default=&#x27;&#x27;)
+
+def new_request():
+    cid = str(uuid.uuid4())[:8]
+    correlation_id.set(cid)
+    return cid
+
+def log_entry(level, msg, **extra):
+    return json.dumps({
+        &quot;ts&quot;: datetime.now().isoformat(),
+        &quot;level&quot;: level,
+        &quot;msg&quot;: msg,
+        &quot;sid&quot;: correlation_id.get(),
+        **extra
+    }, ensure_ascii=False)</code></pre>
+<hr>
+<h2 id="安全與效能">安全與效能</h2>
+<h3 id="敏感資料防護">敏感資料防護</h3>
+<ul>
+<li><strong>絕不記錄</strong>：密碼、Token、信用卡號、API Key</li>
+<li><strong>遮罩處理</strong>：PII 資料使用遮罩（如 email → <code>u***@example.com</code>）</li>
+<li><strong>靜態加密</strong>：日誌存檔時使用加密</li>
+<li><strong>存取控制</strong>：日誌目錄設定適當的檔案權限</li>
+</ul>
+<h3 id="效能優化">效能優化</h3>
+<ul>
+<li><strong>非同步寫入</strong>：使用背景執行緒或 buffer 批次寫入，避免阻塞主流程</li>
+<li><strong>採樣策略</strong>：高流量的常規操作可設定 1/10 或 1/100 採樣率，錯誤事件保持 100% 記錄</li>
+<li><strong>gzip 壓縮</strong>：JSONL 壓縮率通常可達 85-95%</li>
+<li><strong>現代框架效能</strong>：結構化日誌庫的開銷通常僅 0.1-0.5ms/條</li>
+</ul>
+<hr>
+<h2 id="與-daily-digest-prompt-專案的關聯">與 Daily-Digest-Prompt 專案的關聯</h2>
+<h3 id="現有實作">現有實作</h3>
+<p>本專案的 <code>post_tool_logger.py</code> 已實作完整的 JSONL 結構化日誌系統，具備：</p>
+<ul>
+<li>自動標籤分類（api-call、cache-read、skill-read、blocked、error 等）</li>
+<li>50MB 緊急輪轉機制</li>
+<li>Session ID（<code>sid</code>）追蹤</li>
+<li><code>query_logs.py</code> CLI 查詢工具</li>
+</ul>
+<h3 id="可優化方向">可優化方向</h3>
+<ol>
+<li><strong>Schema 版本化</strong>：在 JSONL 中加入 <code>schema_version</code> 欄位，支援未來格式演進</li>
+<li><strong>壓縮歸檔</strong>：目前保留 7 天原始檔，可加入 gzip 壓縮的 warm 層延長至 30 天</li>
+<li><strong>衍生指標</strong>：從 JSONL 自動衍生每日指標（API 呼叫次數、快取命中率、平均延遲），存入 <code>state/daily-metrics.json</code></li>
+<li><strong>健康評分增強</strong>：<code>query-logs.ps1 -Mode health-score</code> 可結合日誌趨勢分析（如連續 3 天錯誤率上升觸發預警）</li>
+<li><strong>欄位索引</strong>：對高頻查詢欄位（如 <code>tags</code>、<code>sid</code>、<code>level</code>）建立本地索引加速搜尋</li>
+</ol>
+<h3 id="實際應用範例">實際應用範例</h3>
+<p>本專案每日 44 次 Agent 執行，每次 20-100 次工具呼叫，產生約 900-4400 條 JSONL 記錄。透過結構化日誌，可以：</p>
+<ul>
+<li>追蹤單次 Session 的完整工具呼叫鏈</li>
+<li>統計各 API 的呼叫頻率與快取命中率</li>
+<li>識別 Hook 攔截模式（誤判 vs 合理攔截）</li>
+<li>偵測 Agent 迴圈行為（LoopDetector 整合）</li>
+<li>自動產生 Session 健康報告</li>
+</ul>
+<hr>
+<h2 id="python-結構化日誌推薦庫">Python 結構化日誌推薦庫</h2>
+<table>
+<tr><th>庫</th><th>特色</th><th>適用場景</th></tr>
+<tr><td><strong>structlog</strong></td><td>上下文綁定、處理器鏈、可組合</td><td>複雜應用、需要 context propagation</td></tr>
+<tr><td><strong>python-json-logger</strong></td><td>簡單替換 built-in logging</td><td>快速導入、最小改動</td></tr>
+<tr><td><strong>loguru</strong></td><td>零配置、自動輪轉、異常處理</td><td>快速開發、腳本工具</td></tr>
+</table>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li><a href="https://jsonl.help/use-cases/log-processing/">JSONL for Log Processing - JSONL.help</a></li>
+<li><a href="https://uptrace.dev/glossary/structured-logging">Structured Logging Best Practices - Uptrace</a></li>
+<li><a href="https://betterstack.com/community/guides/logging/structured-logging/">Why Structured Logging is Fundamental to Observability - Better Stack</a></li>
+<li><a href="https://www.dash0.com/guides/json-logging">JSON Logging: A Quick Guide - Dash0</a></li>
+<li><a href="https://newrelic.com/blog/log/python-structured-logging">Guide to Structured Logging in Python - New Relic</a></li>
+<li><a href="https://openobserve.ai/blog/json-logging-guide-examples/">Understanding JSON Logging and Analysis - OpenObserve</a></li>
+</ol>
+<hr>
+<p><em>研究日期：2026-02-23</em>
+<em>研究動機：Daily-Digest-Prompt 專案每日產生大量 JSONL 結構化日誌，但知識庫尚無此技術的系統性研究。本文整理 Schema 設計、查詢模式、輪轉策略與可觀測性整合的最佳實踐，並提出專案可優化方向。</em></p>
+
+      </div>
+
+      <nav class="article-nav"><a href="daily-digest-prompt-配置文件治理與-ya-03a3c300.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Daily-Digest-Prompt 配置文件治理與 YAML 工程化 — 從 16 個 YAML 到可驗證、可演化的配置基礎設施（2026-02-24）</span></a><a href="daily-digest-prompt-專案優化報告hoo-cbf52b8d.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">Daily Digest Prompt 專案優化報告：Hooks 效能提升、測試覆蓋補齊與架構一致性修正（2026-02-23）</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

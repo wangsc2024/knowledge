@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Vite 前端建構系統與 Cloudflare Pages/Workers 部署整合完整指南（2026）">
+  <title>Vite 前端建構系統與 Cloudflare Pages/Workers 部署整合完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Vite 前端建構系統與 Cloudflare Pages/Workers 部署整合完整指南（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-23</span>
+          <span class="reading-time">6 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">Vite</span><span class="tag">Cloudflare Pages</span><span class="tag">Cloudflare Workers</span><span class="tag">前端建構</span><span class="tag">部署</span><span class="tag">CI/CD</span><span class="tag">SSR</span><span class="tag">SPA</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#主題概述">主題概述</a></li><li><a href="#一-vite-建構系統核心架構">一、Vite 建構系統核心架構</a></li>  <li><a href="#1-1-核心設計理念">1.1 核心設計理念</a></li>  <li><a href="#1-2-vite-6-新特性摘要">1.2 Vite 6 新特性摘要</a></li>  <li><a href="#1-3-建構配置關鍵選項">1.3 建構配置關鍵選項</a></li>  <li><a href="#1-4-插件系統">1.4 插件系統</a></li>  <li><a href="#1-5-多頁面應用-mpa">1.5 多頁面應用（MPA）</a></li>  <li><a href="#1-6-效能最佳化策略">1.6 效能最佳化策略</a></li><li><a href="#二-cloudflare-pages-部署方式">二、Cloudflare Pages 部署方式</a></li>  <li><a href="#2-1-git-整合部署-推薦">2.1 Git 整合部署（推薦）</a></li>  <li><a href="#2-2-direct-upload-部署">2.2 Direct Upload 部署</a></li>  <li><a href="#2-3-github-actions-ci-cd">2.3 GitHub Actions CI/CD</a></li><li><a href="#三-cloudflare-workers-vite-plugin-全端整合">三、Cloudflare Workers Vite Plugin（全端整合）</a></li>  <li><a href="#3-1-平台策略轉變">3.1 平台策略轉變</a></li>  <li><a href="#3-2-vite-plugin-v1-0-ga">3.2 Vite Plugin v1.0（GA）</a></li>  <li><a href="#3-3-wrangler-配置">3.3 Wrangler 配置</a></li>  <li><a href="#3-4-全端架構-前端-後端-資料庫">3.4 全端架構：前端 + 後端 + 資料庫</a></li>  <li><a href="#3-5-wrangler-vs-vite-plugin-選型">3.5 Wrangler vs Vite Plugin 選型</a></li><li><a href="#四-spa-模式配置-實用場景">四、SPA 模式配置（實用場景）</a></li>  <li><a href="#4-1-純靜態-spa-cloudflare-pages">4.1 純靜態 SPA（Cloudflare Pages）</a></li>  <li><a href="#4-2-spa-api-workers">4.2 SPA + API（Workers）</a></li><li><a href="#五-部署前檢查清單">五、部署前檢查清單</a></li><li><a href="#六-常見問題與排除">六、常見問題與排除</a></li>  <li><a href="#6-1-部署後路由-404">6.1 部署後路由 404</a></li>  <li><a href="#6-2-css-資源路徑錯誤">6.2 CSS/資源路徑錯誤</a></li>  <li><a href="#6-3-載入錯誤處理">6.3 載入錯誤處理</a></li>  <li><a href="#6-4-legacy-瀏覽器支援">6.4 Legacy 瀏覽器支援</a></li><li><a href="#七-workers-平台近期增強-2025-2026">七、Workers 平台近期增強（2025-2026）</a></li><li><a href="#來源">來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Vite 前端建構系統與 Cloudflare Pages/Workers 部署整合完整指南</h1>
+<h2 id="主題概述">主題概述</h2>
+<p>Vite 是由 Vue.js 作者尤雨溪建立的新世代前端建構工具，以極速開發伺服器啟動和熱模組替換（HMR）著稱。Cloudflare Pages 與 Workers 則是 Cloudflare 提供的邊緣運算與靜態網站託管平台。兩者的整合在 2025-2026 年達到成熟階段，Cloudflare 推出官方 Vite Plugin v1.0（GA），實現了前端、後端、資料庫在同一 Worker 中運作的全端開發模式。本文系統性整理從 Vite 建構配置到 Cloudflare 部署的完整工作流。</p>
+<hr>
+<h2 id="一-vite-建構系統核心架構">一、Vite 建構系統核心架構</h2>
+<h3 id="1-1-核心設計理念">1.1 核心設計理念</h3>
+<ul>
+<li><strong>開發階段</strong>：利用瀏覽器原生 ESM（ES Modules）按需載入，不預先打包全部模組，實現毫秒級啟動</li>
+<li><strong>生產階段</strong>：基於 Rollup 進行最佳化打包，支援 tree-shaking、code splitting、CSS 程式碼分割</li>
+<li><strong>插件架構</strong>：相容 Rollup 插件介面，加上 Vite 特有的生命週期鉤子</li>
+</ul>
+<h3 id="1-2-vite-6-新特性摘要">1.2 Vite 6 新特性摘要</h3>
+<ul>
+<li><strong>Environment API</strong>：支援多環境建構（客戶端 + 伺服器端 SSR），統一 dev/build 行為</li>
+<li><strong>改進的 SSR 支援</strong>：更小的打包尺寸與更快的載入速度</li>
+<li><strong>即時伺服器啟動</strong>：無論應用大小，dev server 啟動速度不受影響</li>
+<li><strong>原生 TypeScript/JSX/CSS 支援</strong>：開箱即用，無需額外配置</li>
+</ul>
+<h3 id="1-3-建構配置關鍵選項">1.3 建構配置關鍵選項</h3>
+<pre><code class="language-javascript">// vite.config.js
+import { defineConfig } from &#x27;vite&#x27;
+
+export default defineConfig({
+  base: &#x27;/&#x27;,           // 公共基礎路徑（子目錄部署需調整）
+  build: {
+    outDir: &#x27;dist&#x27;,    // 輸出目錄
+    target: &#x27;es2015&#x27;,  // 瀏覽器相容性目標
+    cssCodeSplit: true, // CSS 程式碼分割（推薦開啟）
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // 手動分塊策略：將大型依賴抽離
+          vendor: [&#x27;react&#x27;, &#x27;react-dom&#x27;],
+        }
+      }
+    }
+  }
+})</code></pre>
+<p><strong>關鍵配置說明</strong>：</p>
+<ul>
+<li><code>base</code>：部署到子路徑時需設定（如 <code>/my-app/</code>），所有資源路徑會自動改寫</li>
+<li><code>build.target</code>：預設對齊 Baseline Widely Available（Chrome≥107, Firefox≥104, Safari≥16）</li>
+<li><code>build.cssCodeSplit</code>：啟用後每個非同步 chunk 只載入自己的 CSS</li>
+<li><code>import.meta.env.BASE_URL</code>：在程式碼中動態取得 base 路徑</li>
+</ul>
+<h3 id="1-4-插件系統">1.4 插件系統</h3>
+<p>Vite 插件在開發和建構兩個階段運行，攔截以下生命週期事件：</p>
+<ul>
+<li><strong>resolveId</strong>：決定模組 ID 的解析方式</li>
+<li><strong>load</strong>：載入模組內容</li>
+<li><strong>transform</strong>：轉換模組內容（如 JSX → JS）</li>
+<li><strong>buildStart/End</strong>：建構開始/結束時執行</li>
+<li><strong>generateBundle</strong>：修改最終輸出的 bundle</li>
+</ul>
+<h3 id="1-5-多頁面應用-mpa">1.5 多頁面應用（MPA）</h3>
+<pre><code class="language-javascript">build: {
+  rollupOptions: {
+    input: {
+      main: &#x27;index.html&#x27;,
+      about: &#x27;about.html&#x27;,
+      games: &#x27;games/index.html&#x27;
+    }
+  }
+}</code></pre>
+<h3 id="1-6-效能最佳化策略">1.6 效能最佳化策略</h3>
+<table>
+<tr><th>策略</th><th>說明</th></tr>
+<tr><td>動態 import</td><td><code>const Foo = () =&gt; import(&#x27;./Foo.vue&#x27;)</code> 按需載入</td></tr>
+<tr><td>CSS Code Splitting</td><td><code>build.cssCodeSplit: true</code> 每個 chunk 只載入對應 CSS</td></tr>
+<tr><td>ES 模組優先</td><td>使用 <code>lodash-es</code>/<code>date-fns</code> 而非 CommonJS 版本</td></tr>
+<tr><td>圖片格式</td><td>偏好 WebP/AVIF 取代 PNG/JPEG</td></tr>
+<tr><td>Legacy 瀏覽器</td><td><code>@vitejs/plugin-legacy</code> 自動產生 polyfill chunks</td></tr>
+</table>
+<hr>
+<h2 id="二-cloudflare-pages-部署方式">二、Cloudflare Pages 部署方式</h2>
+<h3 id="2-1-git-整合部署-推薦">2.1 Git 整合部署（推薦）</h3>
+<p>Cloudflare Pages 原生支援 Vite 專案。透過 Git 整合，每次 push 自動觸發建構和部署。</p>
+<p><strong>設定步驟</strong>：</p>
+<ol>
+<li>將專案推送至 GitHub/GitLab</li>
+<li>登入 Cloudflare Dashboard → Workers &amp; Pages → Create application</li>
+<li>選擇 Connect to Git → 選取 repository</li>
+<li>配置建構設定：</li>
+</ol>
+<p>   - Build command: <code>npm run build</code>
+   - Build output directory: <code>dist</code></p>
+<ol>
+<li>Save and Deploy</li>
+</ol>
+<p><strong>自動部署特性</strong>：</p>
+<ul>
+<li>每次 commit push 自動重建並部署</li>
+<li>部署完成後可透過 <code>&lt;PROJECT_NAME&gt;.pages.dev</code> 存取</li>
+<li>Pull Request 自動產生預覽 URL</li>
+<li>非 production 分支自動建立 preview deployment</li>
+</ul>
+<p><strong>注意</strong>：使用 Git 整合後無法切換為 Direct Upload 模式。</p>
+<h3 id="2-2-direct-upload-部署">2.2 Direct Upload 部署</h3>
+<pre><code class="language-bash"># 本地建構後直接上傳
+npm run build
+npx wrangler pages deploy dist/</code></pre>
+<p>適合 CI/CD 自訂管線或不想連結 Git 倉庫的場景。</p>
+<h3 id="2-3-github-actions-ci-cd">2.3 GitHub Actions CI/CD</h3>
+<pre><code class="language-yaml"># .github/workflows/deploy.yml
+name: Deploy to Cloudflare Pages
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: pages deploy dist/ --project-name=my-project</code></pre>
+<hr>
+<h2 id="三-cloudflare-workers-vite-plugin-全端整合">三、Cloudflare Workers Vite Plugin（全端整合）</h2>
+<h3 id="3-1-平台策略轉變">3.1 平台策略轉變</h3>
+<p>2025-2026 年 Cloudflare 明確宣示：<strong>所有投資和功能開發將聚焦在 Workers</strong>。Workers 現在支援靜態資源服務和 SSR，成為統一的全端平台。新專案建議直接使用 Workers 而非 Pages。</p>
+<h3 id="3-2-vite-plugin-v1-0-ga">3.2 Vite Plugin v1.0（GA）</h3>
+<pre><code class="language-bash">npm install @cloudflare/vite-plugin</code></pre>
+<pre><code class="language-javascript">// vite.config.js
+import { defineConfig } from &#x27;vite&#x27;
+import { cloudflare } from &#x27;@cloudflare/vite-plugin&#x27;
+
+export default defineConfig({
+  plugins: [cloudflare()]
+})</code></pre>
+<p><strong>核心能力</strong>：</p>
+<ul>
+<li>開發伺服器在 workerd（Workers 運行時）中執行，行為與生產一致</li>
+<li>支援 Workers 獨有 API：KV、R2、D1、Durable Objects、Queues</li>
+<li>HMR 即時更新，同時保有 Workers 運行時特性</li>
+<li><code>vite build</code> 一次性產出客戶端和伺服器端</li>
+<li><code>vite preview</code> 在 Workers 運行時中預覽建構結果</li>
+<li><code>wrangler deploy</code> 直接部署 Vite 建構輸出</li>
+</ul>
+<h3 id="3-3-wrangler-配置">3.3 Wrangler 配置</h3>
+<pre><code class="language-jsonc">// wrangler.jsonc
+{
+  &quot;name&quot;: &quot;my-app&quot;,
+  &quot;main&quot;: &quot;./src/index.ts&quot;,
+  &quot;compatibility_date&quot;: &quot;2025-01-01&quot;,
+  &quot;assets&quot;: {
+    &quot;directory&quot;: &quot;./dist/client&quot;,
+    &quot;binding&quot;: &quot;ASSETS&quot;
+  }
+}</code></pre>
+<h3 id="3-4-全端架構-前端-後端-資料庫">3.4 全端架構：前端 + 後端 + 資料庫</h3>
+<pre><code class="language-plaintext">┌─────────────────────────────────────┐
+│     Cloudflare Worker（單一部署）      │
+├──────────┬──────────┬───────────────┤
+│ 靜態資源  │ 後端 API  │ SSR 渲染       │
+│ (dist/)  │ (Hono/   │ (React Router │
+│          │ Express) │  v7 / Astro)  │
+├──────────┴──────────┴───────────────┤
+│     Cloudflare 儲存服務               │
+│ KV / R2 / D1 / Durable Objects      │
+│ Hyperdrive（PostgreSQL/MySQL 橋接）   │
+└─────────────────────────────────────┘</code></pre>
+<p><strong>單一部署優勢</strong>：前端和後端同時部署，無需分別管理 Pages 和 Workers。</p>
+<h3 id="3-5-wrangler-vs-vite-plugin-選型">3.5 Wrangler vs Vite Plugin 選型</h3>
+<table>
+<tr><th>面向</th><th>Wrangler</th><th>Vite Plugin</th></tr>
+<tr><td>適用場景</td><td>後端/API/無伺服器函數</td><td>前端為主的全端應用</td></tr>
+<tr><td>HMR</td><td>不支援</td><td>支援</td></tr>
+<tr><td>框架支援</td><td>通用 Workers</td><td>React/Vue/Svelte/Solid/React Router v7</td></tr>
+<tr><td>遠端開發</td><td>支援 --remote</td><td>不支援</td></tr>
+<tr><td>建構最佳化</td><td>基礎</td><td>進階（code splitting、tree shaking）</td></tr>
+<tr><td>插件生態</td><td>無</td><td>Vite/Rollup 插件生態系</td></tr>
+</table>
+<hr>
+<h2 id="四-spa-模式配置-實用場景">四、SPA 模式配置（實用場景）</h2>
+<h3 id="4-1-純靜態-spa-cloudflare-pages">4.1 純靜態 SPA（Cloudflare Pages）</h3>
+<pre><code class="language-javascript">// vite.config.js — React SPA
+import { defineConfig } from &#x27;vite&#x27;
+import react from &#x27;@vitejs/plugin-react&#x27;
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    outDir: &#x27;dist&#x27;,
+    sourcemap: false,
+  }
+})</code></pre>
+<p>搭配 Cloudflare Pages 的 SPA 模式，所有非資源請求自動導向 <code>index.html</code>。</p>
+<h3 id="4-2-spa-api-workers">4.2 SPA + API（Workers）</h3>
+<pre><code class="language-jsonc">// wrangler.jsonc
+{
+  &quot;assets&quot;: {
+    &quot;directory&quot;: &quot;./dist&quot;,
+    &quot;binding&quot;: &quot;ASSETS&quot;,
+    &quot;html_handling&quot;: &quot;single-page-application&quot;
+  }
+}</code></pre>
+<p><code>html_handling: &quot;single-page-application&quot;</code> 讓導航請求返回 <code>index.html</code>，API 請求交給 Worker 處理。</p>
+<hr>
+<h2 id="五-部署前檢查清單">五、部署前檢查清單</h2>
+<ul>
+<li>[ ] <code>vite build</code> 本地建構成功，<code>dist/</code> 目錄產出正確</li>
+<li>[ ] <code>base</code> 路徑設定正確（子目錄部署需特別注意）</li>
+<li>[ ] 環境變數已在 Cloudflare Dashboard 或 <code>wrangler.jsonc</code> 配置</li>
+<li>[ ] <code>_headers</code> / <code>_redirects</code> 檔案放在 <code>public/</code> 目錄（自動複製到 <code>dist/</code>）</li>
+<li>[ ] 圖片等大型資源已最佳化（WebP/AVIF 格式）</li>
+<li>[ ] <code>npm ci</code> 在乾淨環境中可正常安裝所有依賴</li>
+<li>[ ] 預覽環境（<code>vite preview</code> 或 preview deployment）已驗證</li>
+</ul>
+<hr>
+<h2 id="六-常見問題與排除">六、常見問題與排除</h2>
+<h3 id="6-1-部署後路由-404">6.1 部署後路由 404</h3>
+<p><strong>原因</strong>：SPA 使用 client-side routing，但伺服器不知道將未知路徑導向 index.html。</p>
+<p><strong>解法</strong>：</p>
+<ul>
+<li>Cloudflare Pages：自動處理（原生 SPA 支援）</li>
+<li>Workers：設定 <code>html_handling: &quot;single-page-application&quot;</code></li>
+</ul>
+<h3 id="6-2-css-資源路徑錯誤">6.2 CSS/資源路徑錯誤</h3>
+<p><strong>原因</strong>：<code>base</code> 設定與實際部署路徑不一致。</p>
+<p><strong>解法</strong>：確保 <code>vite.config.js</code> 的 <code>base</code> 與部署子路徑一致。</p>
+<h3 id="6-3-載入錯誤處理">6.3 載入錯誤處理</h3>
+<p>Vite 提供 <code>vite:preloadError</code> 事件處理動態 import 失敗（常見於部署後舊版本資源被刪除）：</p>
+<pre><code class="language-javascript">window.addEventListener(&#x27;vite:preloadError&#x27;, (event) =&gt; {
+  event.preventDefault()
+  window.location.reload()
+})</code></pre>
+<h3 id="6-4-legacy-瀏覽器支援">6.4 Legacy 瀏覽器支援</h3>
+<pre><code class="language-bash">npm install @vitejs/plugin-legacy</code></pre>
+<pre><code class="language-javascript">import legacy from &#x27;@vitejs/plugin-legacy&#x27;
+
+export default defineConfig({
+  plugins: [legacy({ targets: [&#x27;defaults&#x27;, &#x27;not IE 11&#x27;] })]
+})</code></pre>
+<hr>
+<h2 id="七-workers-平台近期增強-2025-2026">七、Workers 平台近期增強（2025-2026）</h2>
+<table>
+<tr><th>增強項</th><th>說明</th></tr>
+<tr><td>CPU 時間上限</td><td>30s → 5 分鐘</td></tr>
+<tr><td>Node.js API</td><td>支援 crypto、tls、net、dns 模組</td></tr>
+<tr><td>process.env</td><td>支援環境變數和 secrets 存取</td></tr>
+<tr><td>_headers/_redirects</td><td>從 Pages 遷移到 Workers 的相容性</td></tr>
+<tr><td>Images API</td><td>程式化圖片最佳化 binding</td></tr>
+<tr><td>Hyperdrive</td><td>PostgreSQL/MySQL 連線池與查詢快取</td></tr>
+</table>
+<hr>
+<h2 id="來源">來源</h2>
+<ol>
+<li><a href="https://vite.dev/guide/build">Vite 官方文件 - Building for Production</a></li>
+<li><a href="https://developers.cloudflare.com/pages/framework-guides/deploy-a-vite3-project/">Cloudflare Pages - Deploy a Vite 3 Project</a></li>
+<li><a href="https://developers.cloudflare.com/workers/vite-plugin/">Cloudflare Workers Vite Plugin</a></li>
+<li><a href="https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/">Full-Stack Development on Cloudflare Workers</a></li>
+<li><a href="https://developers.cloudflare.com/workers/development-testing/wrangler-vs-vite/">Choosing between Wrangler &amp; Vite</a></li>
+<li><a href="https://developers.cloudflare.com/pages/get-started/git-integration/">Cloudflare Pages Git Integration Guide</a></li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="skill-品質審查報告2026-02-24arch--501a17f1.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">Skill 品質審查報告（2026-02-24）：arch-evolution + todoist-task-creator 深度審查</span></a><a href="系統-log-審查報告---2026-02-23-6ca4e0c8.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">系統 Log 審查報告 - 2026-02-23</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>

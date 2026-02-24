@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Architecture Decision Records (ADR) 方法論完整指南：MADR 模板、LLM 自動化與 AI Agent 專案實踐（2026）">
+  <title>Architecture Decision Records (ADR) 方法論完整指南：MADR 模板、LLM 自動化與 AI Agent 專案實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="reading-progress" id="readingProgress"></div>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+        <a href="../#game">遊戲</a>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
+        <span class="theme-icon">&#9680;</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Architecture Decision Records (ADR) 方法論完整指南：MADR 模板、LLM 自動化與 AI Agent 專案實踐（2026）</h1>
+        <div class="article-meta">
+          <span class="date">2026-02-24</span>
+          <span class="reading-time">6 分鐘閱讀</span>
+          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">ADR</span><span class="tag">Architecture Decision Records</span><span class="tag">MADR</span><span class="tag">軟體架構</span><span class="tag">決策記錄</span><span class="tag">LLM自動化</span><span class="tag">文件化</span></div>
+        </div>
+      </div>
+
+      <details class="article-toc" open>
+        <summary>目錄</summary>
+        <ol>
+          <li><a href="#技術概述">技術概述</a></li><li><a href="#核心概念與原理">核心概念與原理</a></li>  <li><a href="#michael-nygard-原始定義">Michael Nygard 原始定義</a></li>  <li><a href="#nygard-格式-最簡">Nygard 格式（最簡）</a></li>  <li><a href="#madr-4-0-markdown-architectural-decision">MADR 4.0（Markdown Architectural Decision Records）</a></li><li><a href="#最佳實踐">最佳實踐</a></li>  <li><a href="#八大核心實踐">八大核心實踐</a></li>  <li><a href="#大規模組織的-adr-策略">大規模組織的 ADR 策略</a></li><li><a href="#llm-輔助-adr-生成-2025-2026-趨勢">LLM 輔助 ADR 生成（2025-2026 趨勢）</a></li>  <li><a href="#metaprompting-方法論">Metaprompting 方法論</a></li>  <li><a href="#品質保證守則">品質保證守則</a></li>  <li><a href="#進階應用場景">進階應用場景</a></li><li><a href="#工具生態系統">工具生態系統</a></li>  <li><a href="#adr-tools-nat-pryce">adr-tools（Nat Pryce）</a></li>  <li><a href="#adr-log">adr-log</a></li>  <li><a href="#adr-agent-macromania-adr-agent">ADR Agent（macromania/adr-agent）</a></li>  <li><a href="#github-llm-自動化管線">GitHub + LLM 自動化管線</a></li><li><a href="#與本專案的關聯-daily-digest-prompt-應用">與本專案的關聯（daily-digest-prompt 應用）</a></li>  <li><a href="#現有實踐">現有實踐</a></li>  <li><a href="#與-madr-的對比">與 MADR 的對比</a></li>  <li><a href="#潛在改進方向">潛在改進方向</a></li><li><a href="#程式碼範例-madr-4-0-完整模板">程式碼範例：MADR 4.0 完整模板</a></li><li><a href="#參考來源">參考來源</a></li>
+        </ol>
+      </details>
+
+      <div class="article-content">
+        <h1>Architecture Decision Records (ADR) 方法論完整指南</h1>
+<h2 id="技術概述">技術概述</h2>
+<p>Architecture Decision Records（ADR，架構決策記錄）是一種輕量級文件化方法，用於記錄軟體專案中「架構層級的重要決策」。由 Michael Nygard 於 2011 年在 Cognitect 部落格首次提出，其核心理念是：<strong>決策記錄不只是事後補寫的文件，而是團隊思考與溝通的工具</strong>。2024-2026 年間，ADR 結合 LLM（大型語言模型）輔助生成、Agent 自動化追蹤等技術，從傳統的手動文件化演進為可機器輔助的「活文件」（Living Documentation）架構。</p>
+<hr>
+<h2 id="核心概念與原理">核心概念與原理</h2>
+<h3 id="michael-nygard-原始定義">Michael Nygard 原始定義</h3>
+<p><strong>架構顯著決策</strong>（Architecturally Significant Decision）指影響以下面向的決策：</p>
+<ul>
+<li>系統結構（Structure）</li>
+<li>非功能特性（Non-functional Characteristics）</li>
+<li>依賴關係（Dependencies）</li>
+<li>介面設計（Interfaces）</li>
+<li>建構技術（Construction Techniques）</li>
+</ul>
+<h3 id="nygard-格式-最簡">Nygard 格式（最簡）</h3>
+<p>每筆 ADR 是一個短文件（1-2 頁），包含五個欄位：</p>
+<table>
+<tr><th>欄位</th><th>說明</th></tr>
+<tr><td><strong>Title</strong></td><td>簡短描述決策（如「ADR-001: 使用 PostgreSQL 作為主資料庫」）</td></tr>
+<tr><td><strong>Context</strong></td><td>決策的背景脈絡（技術約束、商業需求、團隊能力）</td></tr>
+<tr><td><strong>Decision</strong></td><td>做出的具體決策</td></tr>
+<tr><td><strong>Status</strong></td><td>決策狀態（Proposed → Accepted → Deprecated → Superseded）</td></tr>
+<tr><td><strong>Consequences</strong></td><td>決策的正面與負面後果</td></tr>
+</table>
+<h3 id="madr-4-0-markdown-architectural-decision">MADR 4.0（Markdown Architectural Decision Records）</h3>
+<p>MADR 是目前最主流的 ADR 模板標準，2024 年 9 月發佈 4.0 版。相比 Nygard 格式，增加了更多結構化欄位：</p>
+<p><strong>YAML Front Matter（可選）：</strong></p>
+<pre><code class="language-yaml">status: accepted
+date: 2026-02-24
+decision-makers: [Alice, Bob]
+consulted: [Carol]
+informed: [Dave]</code></pre>
+<p><strong>核心段落：</strong></p>
+<ol>
+<li><strong>Context and Problem Statement</strong> — 描述需要決策的情境</li>
+<li><strong>Decision Drivers</strong> — 影響決策的力量或考量（如效能、成本、團隊熟悉度）</li>
+<li><strong>Considered Options</strong> — 評估過的替代方案（含優缺點分析）</li>
+<li><strong>Decision Outcome</strong> — 選擇的方案與理由</li>
+<li><strong>Consequences</strong> — 正面與負面結果</li>
+<li><strong>Confirmation</strong> — 如何驗證決策是否正確實施</li>
+</ol>
+<p><strong>可選段落：</strong></p>
+<ul>
+<li>Pros and Cons of the Options（各方案優缺點詳列）</li>
+<li>More Information（參考資料、相關 ADR 連結）</li>
+</ul>
+<p><strong>模板變體：</strong></p>
+<ul>
+<li><code>adr-template.md</code>：完整模板（含所有段落 + 說明）</li>
+<li><code>adr-template-minimal.md</code>：僅必填段落 + 說明</li>
+<li><code>adr-template-bare.md</code>：完整段落，無說明（直接填寫）</li>
+<li><code>adr-template-bare-minimal.md</code>：僅必填段落，無說明</li>
+</ul>
+<hr>
+<h2 id="最佳實踐">最佳實踐</h2>
+<h3 id="八大核心實踐">八大核心實踐</h3>
+<ol>
+<li><strong>與程式碼共存版控</strong>：ADR 存放在 <code>docs/decisions/</code> 或 <code>docs/adr/</code>，隨程式碼一起提交 Git。好處：PR 審查時同時審查決策變更。</li>
+</ol>
+<ol>
+<li><strong>使用清晰無術語的語言</strong>：避免過度技術縮寫，確保新成員也能理解。</li>
+</ol>
+<ol>
+<li><strong>保持簡潔但有實質內容</strong>：每篇 ADR 約 1-2 頁，不要寫成完整設計文件。</li>
+</ol>
+<ol>
+<li><strong>記錄「為什麼」而非只記「什麼」</strong>：Context 和 Decision Drivers 比 Decision 本身更重要。</li>
+</ol>
+<ol>
+<li><strong>追蹤決策生命週期</strong>：</li>
+</ol>
+<p>   - <code>Proposed</code> → 提案中，待審議
+   - <code>Accepted</code> → 已接受，正在實施
+   - <code>Deprecated</code> → 已棄用（但保留歷史）
+   - <code>Superseded by ADR-XXX</code> → 被新決策取代（保留並標註）</p>
+<ol>
+<li><strong>絕不刪除 ADR</strong>：即使決策被推翻，原始 ADR 也只標記為 Superseded，永不刪除。這保留了決策演進的完整歷史。</li>
+</ol>
+<ol>
+<li><strong>在 Code Review 中引用 ADR</strong>：PR 審查時引用相關 ADR 編號，建立程式碼與決策的雙向連結。</li>
+</ol>
+<ol>
+<li><strong>定期審查 ADR 有效性</strong>：季度或半年一次檢視所有 Accepted ADR，確認是否仍然適用。</li>
+</ol>
+<h3 id="大規模組織的-adr-策略">大規模組織的 ADR 策略</h3>
+<p>MADR 4.0 建議用子目錄組織：</p>
+<pre><code class="language-plaintext">docs/decisions/
+  backend/
+    0001-use-postgresql.md
+    0002-adopt-event-sourcing.md
+  frontend/
+    0001-choose-react.md
+  infrastructure/
+    0001-kubernetes-deployment.md</code></pre>
+<p>好處：各組件獨立編號，避免跨團隊的序號衝突。</p>
+<hr>
+<h2 id="llm-輔助-adr-生成-2025-2026-趨勢">LLM 輔助 ADR 生成（2025-2026 趨勢）</h2>
+<h3 id="metaprompting-方法論">Metaprompting 方法論</h3>
+<p>Equal Experts 提出的 LLM 輔助 ADR 生成流程：</p>
+<p><strong>步驟 1：決策核心句提取</strong>
+團隊將決策精煉為一句話：「我們在 2 月 24 日決定使用 YAML 作為配置格式，因為它支援注釋、層級清晰、且 LLM 理解力優於 JSON。」</p>
+<p><strong>步驟 2：Metaprompt 設計</strong>
+設計一個「生成 prompt 的 prompt」，確保每個決策特定的 prompt 都遵循團隊標準：</p>
+<ul>
+<li>唯一識別碼格式（如 ADR-DDP-001）</li>
+<li>必填段落（Background、Alternatives、Decision）</li>
+<li>語氣與風格規範</li>
+<li>專案特定的術語表</li>
+</ul>
+<p><strong>步驟 3：多模型交叉審查</strong>
+用不同 LLM 作為「審查者」（Judge），檢查生成的 ADR 是否有邏輯瑕疵、幻覺引用或不一致的理由。</p>
+<h3 id="品質保證守則">品質保證守則</h3>
+<ul>
+<li><strong>參考來源必須驗證</strong>：LLM 經常幻覺參考資料，每個連結都必須人工檢查</li>
+<li><strong>避免可信度陷阱</strong>：AI 生成的文字流暢度容易讓審查者放鬆警惕，必須有明確的「人工審查 checklist」</li>
+<li><strong>回溯性文件化加速</strong>：最大的價值在於快速補建歷史 ADR — 收集決策陳述後，一個上午可生成數十篇</li>
+</ul>
+<h3 id="進階應用場景">進階應用場景</h3>
+<ol>
+<li><strong>隱式 ADR 推斷</strong>：從設計文件、PR 討論、Slack 對話中自動推斷未記錄的架構決策</li>
+<li><strong>ADR 品質審查</strong>：LLM 檢查已有 ADR 的邏輯一致性與完整性</li>
+<li><strong>矛盾偵測</strong>：跨 ADR 集合偵測互相矛盾的決策</li>
+<li><strong>審查者推薦</strong>：根據 ADR 內容領域自動建議適合的審查人選</li>
+</ol>
+<hr>
+<h2 id="工具生態系統">工具生態系統</h2>
+<h3 id="adr-tools-nat-pryce">adr-tools（Nat Pryce）</h3>
+<p>經典命令列工具，支援 Nygard 格式：</p>
+<pre><code class="language-bash">adr init doc/architecture/decisions
+adr new &quot;Use PostgreSQL as primary database&quot;
+adr list
+adr link 5 &quot;Amends&quot; 3</code></pre>
+<h3 id="adr-log">adr-log</h3>
+<p>從 MADR 檔案自動生成架構決策日誌（索引頁）。</p>
+<h3 id="adr-agent-macromania-adr-agent">ADR Agent（macromania/adr-agent）</h3>
+<p>AI Agent 輔助 ADR 撰寫，提供：</p>
+<ul>
+<li>Chat 互動式 ADR 生成</li>
+<li>多 Agent 協作（生成 → 驗證 → 修正）</li>
+<li>基於 LLM 的替代方案分析</li>
+</ul>
+<h3 id="github-llm-自動化管線">GitHub + LLM 自動化管線</h3>
+<p>Iraj Hedayati 提出的 CI/CD 整合方案：</p>
+<ol>
+<li>PR 合併時觸發 GitHub Action</li>
+<li>腳本收集 PR 資訊（標題、描述、變更檔案）</li>
+<li>呼叫 LLM API 生成 ADR Markdown</li>
+<li>存入 <code>docs/decisions/</code> 並提交</li>
+<li>開發者審查後確認或修改</li>
+</ol>
+<hr>
+<h2 id="與本專案的關聯-daily-digest-prompt-應用">與本專案的關聯（daily-digest-prompt 應用）</h2>
+<p>本專案（daily-digest-prompt）已實踐 ADR 方法論：</p>
+<h3 id="現有實踐">現有實踐</h3>
+<ol>
+<li><strong>ADR 索引表</strong>：<code>CLAUDE.md</code> 的「架構決策索引（ADR 速查）」段落記錄了 ADR-001 到 ADR-008</li>
+<li><strong>adr-registry.json</strong>：結構化 JSON 格式的 ADR 註冊表，由 arch-evolution Skill 維護</li>
+<li><strong>improvement-backlog.json</strong>：system-audit 產出的改善建議，由 arch-evolution 模組 A 轉化為 ADR</li>
+<li><strong>OODA 閉環</strong>：Observe(system-insight) → Orient(system-audit) → Decide(arch-evolution) → Act(self-heal)</li>
+</ol>
+<h3 id="與-madr-的對比">與 MADR 的對比</h3>
+<table>
+<tr><th>面向</th><th>MADR 標準</th><th>本專案實踐</th></tr>
+<tr><td>格式</td><td>Markdown 檔案</td><td>JSON（adr-registry.json）+ CLAUDE.md 速查表</td></tr>
+<tr><td>自動化</td><td>adr-tools CLI</td><td>arch-evolution Skill（LLM Agent 驅動）</td></tr>
+<tr><td>去重</td><td>手動</td><td>source_pattern 作為去重 key</td></tr>
+<tr><td>審查</td><td>人工 PR Review</td><td>system-audit 7 維度自動評估</td></tr>
+<tr><td>狀態追蹤</td><td>YAML front matter</td><td>decision 欄位（人工填寫）</td></tr>
+</table>
+<h3 id="潛在改進方向">潛在改進方向</h3>
+<ol>
+<li><strong>採用 MADR 4.0 模板</strong>：將 <code>adr-registry.json</code> 的 entries 同時生成獨立的 Markdown ADR 檔案，便於人類閱讀</li>
+<li><strong>ADR 編號標準化</strong>：目前用 ADR-001~008 序號，可加入分類前綴（如 <code>ADR-SEC-001</code> 安全類）</li>
+<li><strong>Confirmation 段落</strong>：MADR 4.0 的「如何驗證決策正確實施」段落適合結合 system-audit 的 38 子項檢查</li>
+<li><strong>PR 連結</strong>：Git commit message 引用 ADR 編號，建立雙向追溯</li>
+</ol>
+<hr>
+<h2 id="程式碼範例-madr-4-0-完整模板">程式碼範例：MADR 4.0 完整模板</h2>
+<pre><code class="language-markdown">---
+status: accepted
+date: 2026-02-24
+decision-makers: [Team Lead]
+consulted: [DevOps, Security]
+informed: [All Developers]
+---
+
+# ADR-009: 採用 Hook 機器強制層取代 Prompt 自律
+
+## Context and Problem Statement
+
+Agent 的自律行為（如禁止 `&gt; nul` 重導向）依賴 Prompt 宣告，但 Prompt 自律可被上下文壓縮或指令覆蓋。
+需要一種不可繞過的強制機制。
+
+## Decision Drivers
+
+* Agent 曾在上下文壓縮後違反 nul 禁令
+* 安全規則不應依賴 LLM 的遵從性
+* 需要可審計的攔截記錄
+
+## Considered Options
+
+1. 加強 Prompt 措辭（更多次重複禁令）
+2. Hook 機器強制層（PreToolUse/PostToolUse）
+3. 外部 Proxy 攔截所有工具呼叫
+
+## Decision Outcome
+
+選擇方案 2：Hook 機器強制層。
+
+因為：
+- Claude Code 原生支援 Hooks（無額外依賴）
+- PreToolUse 在工具執行前攔截，零延遲
+- Python 實作可測試（496 個測試覆蓋）
+- 攔截事件自動記錄到 JSONL 結構化日誌
+
+## Consequences
+
+**正面：**
+- nul 檔案問題徹底消除
+- 所有攔截事件可審計
+- 測試覆蓋確保規則正確性
+
+**負面：**
+- Hook 執行增加每次工具呼叫約 50ms 延遲
+- 規則過嚴可能誤攔合法操作（需持續調整）
+
+## Confirmation
+
+透過 `python hooks/query_logs.py --blocked` 確認攔截記錄；
+透過 `pytest tests/hooks/` 確認 496 個測試全通過。</code></pre>
+<hr>
+<h2 id="參考來源">參考來源</h2>
+<ol>
+<li>Michael Nygard,「Documenting Architecture Decisions」, Cognitect Blog, 2011</li>
+<li>MADR 4.0 官方文件：https://adr.github.io/madr/</li>
+<li>AWS Architecture Blog,「Master ADRs: Best Practices」</li>
+<li>Equal Experts,「Accelerating ADRs with Generative AI」</li>
+<li>Joel Parker Henderson, architecture-decision-record GitHub 專案</li>
+<li>Nat Pryce, adr-tools GitHub 專案</li>
+<li>macromania/adr-agent — AI Agent 輔助 ADR 撰寫</li>
+<li>Iraj Hedayati,「From Stale Docs to Living Architecture: Automating ADRs with GitHub + LLM」</li>
+</ol>
+
+      </div>
+
+      <nav class="article-nav"><a href="系統-log-審查報告---2026-02-24-ba763e47.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">系統 Log 審查報告 - 2026-02-24</span></a></nav>
+
+      <a href="../" class="back-link">&larr; 返回首頁</a>
+    </article>
+  </main>
+
+  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂部">&uarr;</button>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+  <script>
+    function toggleTheme(){const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}
+    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
+    window.addEventListener('scroll',function(){
+      const prog=document.getElementById('readingProgress');
+      const btn=document.getElementById('backToTop');
+      const h=document.documentElement.scrollHeight-window.innerHeight;
+      const pct=h>0?(window.scrollY/h)*100:0;
+      prog.style.width=pct+'%';
+      btn.classList.toggle('visible',window.scrollY>300);
+    });
+    function copyLink(btn){navigator.clipboard.writeText(location.href).then(()=>{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';},2000);});}
+  </script>
+</body>
+</html>
