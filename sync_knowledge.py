@@ -82,9 +82,15 @@ def content_hash(title: str, text: str) -> str:
 
 
 def generate_slug(title: str, note_id: str) -> str:
-    slug = re.sub(r'[^\w\s\u4e00-\u9fff-]', '', title[:30])
-    slug = re.sub(r'\s+', '-', slug).lower()
-    return f"{slug}-{note_id[:8]}" if slug else f"article-{note_id[:8]}"
+    """生成 ASCII-only URL slug（Cloudflare Pages 相容）。
+    從標題中提取英數字元作為前綴，確保檔名不含非 ASCII 字元。
+    """
+    short_id = note_id[:8]
+    # 只保留 ASCII 英數字與連字號
+    ascii_words = re.findall(r'[a-zA-Z0-9]+', title)
+    prefix = '-'.join(w.lower() for w in ascii_words[:5])
+    prefix = re.sub(r'-+', '-', prefix).strip('-')[:30]
+    return f"{prefix}-{short_id}" if prefix else f"art-{short_id}"
 
 
 def estimate_reading_time(text: str) -> int:
