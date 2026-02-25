@@ -4,6 +4,7 @@ import type { ArticleMeta } from '../types'
 interface Props {
   article: ArticleMeta
   searchQuery: string
+  onTagClick?: (tag: string) => void
 }
 
 function highlight(text: string, query: string): React.ReactNode {
@@ -16,7 +17,7 @@ function highlight(text: string, query: string): React.ReactNode {
   )
 }
 
-export default function ArticleCard({ article, searchQuery }: Props) {
+export default function ArticleCard({ article, searchQuery, onTagClick }: Props) {
   return (
     <article className="article-card">
       <div className="card-top">
@@ -37,7 +38,16 @@ export default function ArticleCard({ article, searchQuery }: Props) {
         {article.tags.length > 0 && (
           <div className="card-tags">
             {article.tags.slice(0, 3).map(t => (
-              <span key={t} className="tag">{t}</span>
+              <span
+                key={t}
+                className="tag clickable"
+                onClick={() => onTagClick?.(t)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && onTagClick?.(t)}
+              >
+                {t}
+              </span>
             ))}
           </div>
         )}

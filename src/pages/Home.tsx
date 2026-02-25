@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Header from '../components/Header'
 import CategoryChart from '../components/CategoryChart'
 import FilterBar from '../components/FilterBar'
@@ -16,8 +16,19 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState('all')
   const [showCounts, setShowCounts] = useState<Record<string, number>>({})
+  const [searchParams, setSearchParams] = useSearchParams()
   const searchRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Initialize search from URL query param
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q) {
+      setSearchQuery(q.toLowerCase())
+      if (searchRef.current) searchRef.current.value = q
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetch('/data/index.json')
@@ -67,6 +78,11 @@ export default function Home() {
     debounceRef.current = setTimeout(() => setSearchQuery(q.toLowerCase().trim()), 150)
   }, [])
 
+  const handleTagClick = useCallback((tag: string) => {
+    setSearchQuery(tag.toLowerCase())
+    if (searchRef.current) searchRef.current.value = tag
+  }, [])
+
   const filtered = useMemo(() => {
     if (!index) return []
     return index.articles.filter(a => {
@@ -75,6 +91,7 @@ export default function Home() {
       if (!searchQuery) return true
       return a.title.toLowerCase().includes(searchQuery)
         || a.tags.some(t => t.toLowerCase().includes(searchQuery))
+        || a.excerpt.toLowerCase().includes(searchQuery)
     })
   }, [index, searchQuery, activeFilter])
 
@@ -231,7 +248,7 @@ export default function Home() {
               </div>
               <div className="article-grid">
                 {visible.map(a => (
-                  <ArticleCard key={a.id} article={a} searchQuery={searchQuery} />
+                  <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} />
                 ))}
               </div>
               {remaining > 0 && (

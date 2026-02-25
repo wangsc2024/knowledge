@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import type { ArticleDetail } from '../types'
 
 export default function Article() {
   const { slug } = useParams<{ slug: string }>()
+  const navigate = useNavigate()
   const [article, setArticle] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -12,6 +13,7 @@ export default function Article() {
   const [showTop, setShowTop] = useState(false)
   const [copied, setCopied] = useState(false)
   const [tocOpen, setTocOpen] = useState(true)
+  const [activeHeading, setActiveHeading] = useState('')
 
   useEffect(() => {
     if (!slug) return
@@ -32,16 +34,41 @@ export default function Article() {
       })
   }, [slug])
 
-  // Reading progress + back to top
+  // Reading progress + back to top + active heading tracking
   useEffect(() => {
     const onScroll = () => {
       const h = document.documentElement.scrollHeight - window.innerHeight
       setProgress(h > 0 ? (window.scrollY / h) * 100 : 0)
       setShowTop(window.scrollY > 300)
+
+      // Track active heading for TOC highlight
+      const headings = document.querySelectorAll('.article-content h2[id], .article-content h3[id]')
+      let current = ''
+      headings.forEach(el => {
+        if (el.getBoundingClientRect().top <= 100) {
+          current = el.id
+        }
+      })
+      setActiveHeading(current)
     }
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Keyboard navigation: left/right to navigate prev/next article
+  const handleKeyNav = useCallback((e: KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+    if (e.key === 'ArrowLeft' && article?.prev) {
+      navigate(`/article/${article.prev.slug}`)
+    } else if (e.key === 'ArrowRight' && article?.next) {
+      navigate(`/article/${article.next.slug}`)
+    }
+  }, [article, navigate])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyNav)
+    return () => window.removeEventListener('keydown', handleKeyNav)
+  }, [handleKeyNav])
 
   const handleCopy = () => {
     navigator.clipboard.writeText(location.href).then(() => {
@@ -78,73 +105,98 @@ export default function Article() {
 
       <Header />
 
-      <div className="article-page">
-        {/* Article Header */}
-        <div className="article-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
+      <div className="article-layout">
+        {/* Sticky TOC Sidebar (large screens) */}
+        {article.headings.length >= 3 && (
+          <aside className="toc-sidebar">
+            <div className="toc-sidebar-inner">
+              <h4>目錄</h4>
+              <ol className="toc-list">
+                {article.headings.map((h, i) => (
+                  <li key={i} className={`${h.level === 3 ? 'toc-h3' : ''}${activeHeading === h.slug ? ' toc-active' : ''}`}>
+                    <a href={`#${h.slug}`}>{h.text}</a>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </aside>
+        )}
+
+        <div className="article-page">
+          {/* Article Header */}
+          <div className="article-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
+            </div>
+            <h1>{article.title}</h1>
+            <div className="article-meta">
+              <span>{article.updatedAt}</span>
+              <span>{article.readingMin} 分鐘閱讀</span>
+              <button
+                className={`copy-btn${copied ? ' copied' : ''}`}
+                onClick={handleCopy}
+              >
+                {copied ? '✓ 已複製' : '🔗 複製連結'}
+              </button>
+            </div>
+            {article.tags.length > 0 && (
+              <div className="article-tags">
+                {article.tags.slice(0, 8).map(t => (
+                  <Link key={t} to={`/?q=${encodeURIComponent(t)}`} className="tag clickable">{t}</Link>
+                ))}
+              </div>
+            )}
           </div>
-          <h1>{article.title}</h1>
-          <div className="article-meta">
-            <span>{article.updatedAt}</span>
-            <span>{article.readingMin} 分鐘閱讀</span>
-            <button
-              className={`copy-btn${copied ? ' copied' : ''}`}
-              onClick={handleCopy}
-            >
-              {copied ? '✓ 已複製' : '🔗 複製連結'}
-            </button>
-          </div>
-          {article.tags.length > 0 && (
-            <div className="article-tags">
-              {article.tags.slice(0, 8).map(t => (
-                <span key={t} className="tag">{t}</span>
-              ))}
+
+          {/* Inline TOC (mobile) */}
+          {article.headings.length >= 3 && (
+            <details className="article-toc toc-mobile" open={tocOpen}>
+              <summary onClick={e => { e.preventDefault(); setTocOpen(o => !o) }}>
+                目錄
+              </summary>
+              <ol className="toc-list">
+                {article.headings.map((h, i) => (
+                  <li key={i} className={h.level === 3 ? 'toc-h3' : ''}>
+                    <a href={`#${h.slug}`}>{h.text}</a>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+
+          {/* Article Content */}
+          <div
+            className="article-content"
+            dangerouslySetInnerHTML={{ __html: article.html }}
+          />
+
+          {/* Keyboard Navigation Hint */}
+          {(article.prev || article.next) && (
+            <div className="keyboard-hint">
+              ← → 鍵盤切換文章
             </div>
           )}
+
+          {/* Prev/Next Navigation */}
+          {(article.prev || article.next) && (
+            <nav className="article-nav">
+              {article.prev ? (
+                <Link to={`/article/${article.prev.slug}`} className="nav-prev">
+                  <span className="nav-label">← 上一篇</span>
+                  <span className="nav-title">{article.prev.title}</span>
+                </Link>
+              ) : <div />}
+              {article.next ? (
+                <Link to={`/article/${article.next.slug}`} className="nav-next">
+                  <span className="nav-label">下一篇 →</span>
+                  <span className="nav-title">{article.next.title}</span>
+                </Link>
+              ) : <div />}
+            </nav>
+          )}
+
+          <Link to="/" className="back-link">← 返回首頁</Link>
         </div>
-
-        {/* TOC */}
-        {article.headings.length >= 3 && (
-          <details className="article-toc" open={tocOpen}>
-            <summary onClick={e => { e.preventDefault(); setTocOpen(o => !o) }}>
-              📑 目錄
-            </summary>
-            <ol className="toc-list">
-              {article.headings.map((h, i) => (
-                <li key={i} className={h.level === 3 ? 'toc-h3' : ''}>
-                  <a href={`#${h.slug}`}>{h.text}</a>
-                </li>
-              ))}
-            </ol>
-          </details>
-        )}
-
-        {/* Article Content */}
-        <div
-          className="article-content"
-          dangerouslySetInnerHTML={{ __html: article.html }}
-        />
-
-        {/* Prev/Next Navigation */}
-        {(article.prev || article.next) && (
-          <nav className="article-nav">
-            {article.prev ? (
-              <Link to={`/article/${article.prev.slug}`} className="nav-prev">
-                <span className="nav-label">← 上一篇</span>
-                <span className="nav-title">{article.prev.title}</span>
-              </Link>
-            ) : <div />}
-            {article.next ? (
-              <Link to={`/article/${article.next.slug}`} className="nav-next">
-                <span className="nav-label">下一篇 →</span>
-                <span className="nav-title">{article.next.title}</span>
-              </Link>
-            ) : <div />}
-          </nav>
-        )}
-
-        <Link to="/" className="back-link">← 返回首頁</Link>
       </div>
 
       {/* Back to Top */}
