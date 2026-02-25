@@ -1,758 +1,257 @@
 # -*- coding: utf-8 -*-
 """
-知識庫轉網站同步腳本
+知識庫 → Vite 網站同步腳本 v2.0
 從 RAG 知識庫查詢佛學、思維、哲學、AI、資訊相關內容
-轉換為靜態 HTML 網站，可部署至 Cloudflare Pages
+輸出 JSON 到 public/data/，供 Vite React 網站使用
+
+同步記錄：sync-log.json（加速增量同步）
+用法：
+  python sync_knowledge.py          # 增量同步（只處理新增/變更）
+  python sync_knowledge.py --force  # 強制全量重建
+  python sync_knowledge.py --pages 5 # 指定最多取幾頁（每頁 100 筆）
 """
 import json
 import hashlib
 import os
 import re
 import sys
-from datetime import datetime
-from html import escape
+import time
+import urllib.request
+import urllib.error
+from datetime import datetime, timezone
 
-# 配置
+# ─── 配置 ────────────────────────────────────────────
 KB_API = "http://localhost:3000"
 OUTPUT_DIR = "d:/source/knowledge"
-ARTICLES_DIR = f"{OUTPUT_DIR}/articles"
+DATA_DIR   = f"{OUTPUT_DIR}/public/data"
+ART_DIR    = f"{DATA_DIR}/articles"
+LOG_PATH   = f"{OUTPUT_DIR}/sync-log.json"
+PAGE_SIZE  = 100   # 每頁筆數
+MAX_PAGES  = 20    # 最多取頁數（可用 --pages 覆蓋）
 
-# 相關主題關鍵字
+# ─── 主題篩選關鍵字 ──────────────────────────────────
 KEYWORDS = [
+    # 佛學
     '佛', '楞嚴', '禪', '心經', '金剛', '維摩', '淨土', '法華', '教觀', '阿彌陀',
-    '思維', '邏輯', '哲學', '認知', '心智', '費曼', '批判',
+    '菩薩', '般若', '戒律', '修行', '天台', '唯識',
+    # 思維 / 哲學
+    '思維', '邏輯', '哲學', '認知', '心智', '費曼', '批判', '決策', '方法論',
+    '結構化', '洞見', '框架', '原則',
+    # AI / 技術
     'AI', 'LLM', 'Claude', 'GPT', 'Agent', 'Gemini', '模型', '深度學習', '機器學習',
-    '程式', '資訊', '技術', 'API', 'MCP', 'RAG', 'Anthropic', '研究', '決策', '方法',
-    '遊戲', 'Canvas', 'HTML5', '正念', '安全', 'Hook', 'Skill', 'Log', '優化',
-    'GitHub', 'WiFi', 'Unsloth', 'JSONL', 'QA', 'DensePose', 'DeepSeek',
-    'Daily-Digest', 'daily-digest', '知識庫', '系統', '洞見'
+    'RAG', 'MCP', 'Anthropic', 'DeepSeek', 'Unsloth', 'DensePose',
+    'LangChain', 'LangGraph', 'Dify', 'vLLM',
+    # 資訊 / 工程
+    '程式', '資訊', '技術', 'API', 'GitHub', 'WiFi', 'JSONL', 'QA',
+    'Hook', 'Skill', 'Log', '優化', '架構', '系統',
+    # 其他常見
+    '遊戲', 'Canvas', 'HTML5', '正念', '安全', 'Daily-Digest', '知識庫',
+    '研究', '開源', '趨勢', '洞察',
 ]
 
-# 分類映射（順序決定優先級）
-def categorize(title, tags):
-    """根據標題與標籤判定文章分類。
-
-    Args:
-        title: 文章標題
-        tags: 標籤列表
-
-    Returns:
-        (分類名稱, 分類 slug) 的元組
-    """
-    tags_str = ','.join(tags) if tags else ''
-    combined = title + tags_str
-    if any(k in combined for k in ['佛', '楞嚴', '禪', '心經', '金剛', '維摩', '咒', '淨土', '法華', '教觀', '阿彌陀']):
-        return '佛學', 'buddhism'
-    if any(k in combined for k in ['遊戲', 'Canvas遊戲', 'HTML5遊戲', '正念記憶', '六根淨化', '貪吃蛇', '配對遊戲', '打字遊戲', 'game']):
-        return '遊戲開發', 'game'
-    if any(k in combined for k in ['Claude', 'claude-code', 'Claude Code', 'Daily-Digest', 'daily-digest', 'Skill品質', 'Hook', 'Hooks']):
-        return 'Claude_Code', 'claude'
-    if any(k in combined for k in ['AI', 'LLM', 'GPT', 'Gemini', '模型', '深度學習', '機器學習', 'Agent', 'LangGraph', 'Anthropic', 'DeepSeek', 'Unsloth', 'DensePose', 'WiFi']):
-        return 'AI技術', 'ai'
-    if any(k in combined for k in ['安全', 'SQL注入', 'Cookie', 'QA System', 'security']):
-        return '資訊安全', 'security'
-    if any(k in combined for k in ['思維', '邏輯', '哲學', '認知', '心智', '決策', '批判', '方法論', '費曼', '學習法', '洞見']):
-        return '思維方法', 'thinking'
-    if any(k in combined for k in ['GitHub熱門', '開源專案', 'GitHub趨勢']):
-        return '開源生態', 'opensource'
+# ─── 分類邏輯（順序決定優先級）───────────────────────
+def categorize(title: str, tags: list[str]) -> tuple[str, str]:
+    combined = title + ' ' + ','.join(tags)
+    rules = [
+        (['佛', '楞嚴', '禪', '心經', '金剛', '維摩', '淨土', '法華', '教觀', '阿彌陀', '菩薩', '般若', '天台'],
+         '佛學', 'buddhism'),
+        (['遊戲', 'Canvas遊戲', 'HTML5遊戲', '貪吃蛇', '配對遊戲', '打字遊戲', 'Pong', 'Space Invader'],
+         '遊戲開發', 'game'),
+        (['Claude', 'claude-code', 'Claude Code', 'Daily-Digest', 'daily-digest', 'Skill品質', 'Hook', 'Hooks'],
+         'Claude Code', 'claude'),
+        (['AI', 'LLM', 'GPT', 'Gemini', '深度學習', '機器學習', 'Agent', 'LangChain', 'LangGraph',
+          'Anthropic', 'DeepSeek', 'Unsloth', 'DensePose', 'vLLM', 'Dify', 'RAG', 'MCP'],
+         'AI技術', 'ai'),
+        (['安全', 'SQL注入', 'Cookie', 'QA System', 'security', '資安', '漏洞'],
+         '資訊安全', 'security'),
+        (['思維', '邏輯', '哲學', '認知', '心智', '決策', '批判', '方法論', '費曼', '洞見', '結構化分析'],
+         '思維方法', 'thinking'),
+        (['GitHub熱門', '開源專案', 'GitHub趨勢', 'GitHub Scout'],
+         '開源生態', 'opensource'),
+    ]
+    for keywords, cat_name, cat_slug in rules:
+        if any(k in combined for k in keywords):
+            return cat_name, cat_slug
     return '其他', 'other'
 
-def generate_slug(title, note_id):
-    """生成 URL-friendly slug。
 
-    Args:
-        title: 文章標題
-        note_id: 筆記 ID
+# ─── 工具函數 ─────────────────────────────────────────
+def content_hash(title: str, text: str) -> str:
+    raw = title + (text[:500] if text else '')
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
 
-    Returns:
-        URL 安全的 slug 字串
-    """
+
+def generate_slug(title: str, note_id: str) -> str:
     slug = re.sub(r'[^\w\s\u4e00-\u9fff-]', '', title[:30])
     slug = re.sub(r'\s+', '-', slug).lower()
     return f"{slug}-{note_id[:8]}" if slug else f"article-{note_id[:8]}"
 
-def content_hash(title, content_text):
-    """計算內容雜湊用於判斷是否更新。
 
-    使用 SHA-256 取前 12 字元，降低碰撞風險。
+def estimate_reading_time(text: str) -> int:
+    cjk = len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', text or ''))
+    words = len(re.findall(r'[a-zA-Z]+', text or ''))
+    return max(1, round(cjk / 400 + words / 200))
 
-    Args:
-        title: 文章標題
-        content_text: 文章內容文字
 
-    Returns:
-        12 字元的十六進位雜湊字串
-    """
-    text = (title + (content_text[:500] if content_text else ''))
-    return hashlib.sha256(text.encode()).hexdigest()[:12]
+def api_get(path: str, retries: int = 3) -> dict:
+    url = f"{KB_API}{path}"
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode())
+        except Exception as e:
+            if attempt == retries - 1:
+                raise RuntimeError(f"API 請求失敗 {url}: {e}")
+            time.sleep(2 ** attempt)
+    return {}
 
-def tiptap_to_html(content_json):
-    """將 Tiptap JSON 轉換為 HTML。
 
-    Args:
-        content_json: Tiptap JSON 物件或 JSON 字串
-
-    Returns:
-        轉換後的 HTML 字串
-    """
+# ─── Tiptap → HTML 轉換 ──────────────────────────────
+def tiptap_to_html(content_json) -> str:
     if not content_json:
         return ""
-
     try:
-        if isinstance(content_json, str):
-            doc = json.loads(content_json)
-        else:
-            doc = content_json
+        doc = json.loads(content_json) if isinstance(content_json, str) else content_json
     except (json.JSONDecodeError, TypeError):
         return ""
 
-    def render_marks(text, marks):
-        if not marks:
-            return escape(text)
-        result = escape(text)
-        for mark in marks:
-            mark_type = mark.get('type', '')
-            if mark_type == 'bold':
-                result = f"<strong>{result}</strong>"
-            elif mark_type == 'italic':
-                result = f"<em>{result}</em>"
-            elif mark_type == 'code':
-                result = f"<code>{result}</code>"
-            elif mark_type == 'link':
-                href = mark.get('attrs', {}).get('href', '#')
-                result = f'<a href="{escape(href)}">{result}</a>'
+    def esc(s: str) -> str:
+        return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+
+    def render_marks(text: str, marks: list) -> str:
+        result = esc(text)
+        for m in marks or []:
+            t = m.get('type', '')
+            if t == 'bold':     result = f"<strong>{result}</strong>"
+            elif t == 'italic': result = f"<em>{result}</em>"
+            elif t == 'code':   result = f"<code>{result}</code>"
+            elif t == 'link':
+                href = m.get('attrs', {}).get('href', '#')
+                result = f'<a href="{esc(href)}" target="_blank" rel="noopener">{result}</a>'
         return result
 
-    def render_node(node):
-        node_type = node.get('type', '')
-        content = node.get('content', [])
+    def render(node: dict) -> str:
+        nt = node.get('type', '')
+        children = node.get('content', [])
         attrs = node.get('attrs', {})
 
-        if node_type == 'doc':
-            return ''.join(render_node(c) for c in content)
-        elif node_type == 'paragraph':
-            inner = ''.join(render_node(c) for c in content)
-            return f"<p>{inner}</p>\n" if inner else ""
-        elif node_type == 'heading':
-            level = attrs.get('level', 2)
-            inner = ''.join(render_node(c) for c in content)
-            return f"<h{level}>{inner}</h{level}>\n"
-        elif node_type == 'text':
-            text = node.get('text', '')
-            marks = node.get('marks', [])
-            return render_marks(text, marks)
-        elif node_type == 'bulletList':
-            items = ''.join(render_node(c) for c in content)
-            return f"<ul>\n{items}</ul>\n"
-        elif node_type == 'orderedList':
-            items = ''.join(render_node(c) for c in content)
-            return f"<ol>\n{items}</ol>\n"
-        elif node_type == 'listItem':
-            inner = ''.join(render_node(c) for c in content)
-            inner = re.sub(r'^<p>(.*)</p>\s*$', r'\1', inner.strip())
+        if nt == 'doc':          return ''.join(render(c) for c in children)
+        if nt == 'paragraph':
+            inner = ''.join(render(c) for c in children)
+            return f"<p>{inner}</p>\n" if inner.strip() else ""
+        if nt == 'heading':
+            lv = attrs.get('level', 2)
+            inner = ''.join(render(c) for c in children)
+            slug = re.sub(r'[^\w\u4e00-\u9fff]+', '-', re.sub(r'<[^>]+>', '', inner)).strip('-').lower()[:40]
+            return f"<h{lv} id=\"{slug}\">{inner}</h{lv}>\n"
+        if nt == 'text':
+            return render_marks(node.get('text', ''), node.get('marks', []))
+        if nt == 'bulletList':   return f"<ul>\n{''.join(render(c) for c in children)}</ul>\n"
+        if nt == 'orderedList':  return f"<ol>\n{''.join(render(c) for c in children)}</ol>\n"
+        if nt == 'listItem':
+            inner = ''.join(render(c) for c in children)
+            inner = re.sub(r'^<p>(.*)</p>\s*$', r'\1', inner.strip(), flags=re.DOTALL)
             return f"<li>{inner}</li>\n"
-        elif node_type == 'blockquote':
-            inner = ''.join(render_node(c) for c in content)
-            return f"<blockquote>{inner}</blockquote>\n"
-        elif node_type == 'codeBlock':
-            code = ''.join(c.get('text', '') for c in content)
+        if nt == 'blockquote':   return f"<blockquote>{''.join(render(c) for c in children)}</blockquote>\n"
+        if nt == 'codeBlock':
+            code = ''.join(c.get('text', '') for c in children)
             lang = attrs.get('language', '')
-            return f'<pre><code class="language-{lang}">{escape(code)}</code></pre>\n'
-        elif node_type == 'horizontalRule':
-            return "<hr>\n"
-        elif node_type == 'table':
-            rows = ''.join(render_node(c) for c in content)
-            return f"<table>\n{rows}</table>\n"
-        elif node_type == 'tableRow':
-            cells = ''.join(render_node(c) for c in content)
-            return f"<tr>{cells}</tr>\n"
-        elif node_type == 'tableCell':
-            inner = ''.join(render_node(c) for c in content)
-            inner = re.sub(r'^<p>(.*)</p>\s*$', r'\1', inner.strip())
+            return f'<pre><code class="language-{lang}">{esc(code)}</code></pre>\n'
+        if nt == 'horizontalRule': return "<hr>\n"
+        if nt == 'table':        return f"<table>\n{''.join(render(c) for c in children)}</table>\n"
+        if nt == 'tableRow':     return f"<tr>{''.join(render(c) for c in children)}</tr>\n"
+        if nt == 'tableCell':
+            inner = ''.join(render(c) for c in children)
+            inner = re.sub(r'^<p>(.*)</p>\s*$', r'\1', inner.strip(), flags=re.DOTALL)
             return f"<td>{inner}</td>"
-        elif node_type == 'tableHeader':
-            inner = ''.join(render_node(c) for c in content)
-            inner = re.sub(r'^<p>(.*)</p>\s*$', r'\1', inner.strip())
+        if nt == 'tableHeader':
+            inner = ''.join(render(c) for c in children)
+            inner = re.sub(r'^<p>(.*)</p>\s*$', r'\1', inner.strip(), flags=re.DOTALL)
             return f"<th>{inner}</th>"
-        else:
-            return ''.join(render_node(c) for c in content)
+        return ''.join(render(c) for c in children)
 
-    return render_node(doc)
+    return render(doc)
 
-def extract_headings(html_content):
-    """從 HTML 中提取 h2/h3 標題用於生成 TOC。
 
-    Args:
-        html_content: HTML 字串
-
-    Returns:
-        標題資訊的列表，每項含 level, text, slug
-    """
+def extract_headings(html: str) -> list[dict]:
     headings = []
-    pattern = re.compile(r'<h([23])>(.*?)</h[23]>', re.DOTALL)
-    for match in pattern.finditer(html_content):
-        level = int(match.group(1))
-        text = re.sub(r'<[^>]+>', '', match.group(2)).strip()
+    for m in re.finditer(r'<h([23]) id="([^"]*)">(.*?)</h[23]>', html, re.DOTALL):
+        text = re.sub(r'<[^>]+>', '', m.group(3)).strip()
         if text:
-            slug = re.sub(r'[^\w\u4e00-\u9fff]+', '-', text).strip('-').lower()[:40]
-            headings.append({'level': level, 'text': text, 'slug': slug})
+            headings.append({'level': int(m.group(1)), 'text': text, 'slug': m.group(2)})
     return headings
 
-def inject_heading_ids(html_content, headings):
-    """在 HTML 標題中注入 id 屬性。
 
-    Args:
-        html_content: 原始 HTML 字串
-        headings: extract_headings 回傳的標題列表
-
-    Returns:
-        注入 id 後的 HTML 字串
-    """
-    result = html_content
-    for h in headings:
-        target_text = h['text']
-        result = result.replace(
-            f'<h{h["level"]}>{target_text}</h{h["level"]}>',
-            f'<h{h["level"]} id="{h["slug"]}">{target_text}</h{h["level"]}>',
-            1
-        )
-    return result
-
-def generate_toc_html(headings):
-    """生成目錄 HTML。
-
-    Args:
-        headings: 標題列表
-
-    Returns:
-        目錄 HTML 字串，不足 3 個標題時回傳空字串
-    """
-    if len(headings) < 3:
-        return ''
-    items = []
-    for h in headings:
-        indent = '  ' if h['level'] == 3 else ''
-        items.append(f'{indent}<li><a href="#{h["slug"]}">{escape(h["text"])}</a></li>')
-    return f'''<details class="article-toc" open>
-        <summary>目錄</summary>
-        <ol>
-          {"".join(items)}
-        </ol>
-      </details>'''
-
-def estimate_reading_time(content_text):
-    """估算閱讀時間（中文 400 字/分鐘，英文 200 詞/分鐘）。"""
-    if not content_text:
-        return 1
-    cjk = len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf]', content_text))
-    words = len(re.findall(r'[a-zA-Z]+', content_text))
-    minutes = cjk / 400 + words / 200
-    return max(1, round(minutes))
-
-
-def generate_article_html(note, category_name, category_slug, prev_article=None, next_article=None):
-    """生成文章頁面 HTML（含閱讀進度條、TOC、上下篇導航、閱讀時間）。
-
-    Args:
-        note: 筆記資料字典
-        category_name: 分類名稱
-        category_slug: 分類 slug
-        prev_article: 上一篇文章 dict（含 slug, title）或 None
-        next_article: 下一篇文章 dict（含 slug, title）或 None
-
-    Returns:
-        完整的文章頁面 HTML
-    """
-    title = note.get('title', 'Untitled')
-    tags = note.get('tags', []) or []
-    content = note.get('content')
-    content_text = note.get('contentText', '')
-    updated = note.get('updatedAt', '')[:10]
-    reading_min = estimate_reading_time(content_text)
-
-    article_html = tiptap_to_html(content)
-    headings = extract_headings(article_html)
-    article_html = inject_heading_ids(article_html, headings)
-    toc_html = generate_toc_html(headings)
-    tags_html = ''.join(f'<span class="tag">{escape(t)}</span>' for t in tags[:8])
-
-    # 上下篇導航
-    nav_prev = ''
-    nav_next = ''
-    if prev_article:
-        nav_prev = f'<a href="{prev_article["slug"]}.html" class="nav-prev"><span class="nav-label">&larr; 上一篇</span><span class="nav-title">{escape(prev_article["title"])}</span></a>'
-    if next_article:
-        nav_next = f'<a href="{next_article["slug"]}.html" class="nav-next"><span class="nav-label">下一篇 &rarr;</span><span class="nav-title">{escape(next_article["title"])}</span></a>'
-    article_nav = ''
-    if nav_prev or nav_next:
-        article_nav = f'<nav class="article-nav">{nav_prev}{nav_next}</nav>'
-
-    return f'''<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="{escape(title)}">
-  <title>{escape(title)} | 知識庫</title>
-  <link rel="stylesheet" href="../styles.css">
-</head>
-<body>
-  <div class="reading-progress" id="readingProgress"></div>
-  <header>
-    <div class="container">
-      <a href="../" class="logo">知識庫</a>
-      <nav>
-        <a href="../#buddhism">佛學</a>
-        <a href="../#thinking">思維方法</a>
-        <a href="../#ai">AI技術</a>
-        <a href="../#claude">Claude Code</a>
-        <a href="../#game">遊戲</a>
-      </nav>
-      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">&#9680;</span>
-      </button>
-    </div>
-  </header>
-
-  <main class="container">
-    <article>
-      <div class="article-header">
-        <span class="category-badge category-{category_slug}">{category_name.replace('_', ' ')}</span>
-        <h1>{escape(title)}</h1>
-        <div class="article-meta">
-          <span class="date">{updated}</span>
-          <span class="reading-time">{reading_min} 分鐘閱讀</span>
-          <button class="copy-link-btn" onclick="copyLink(this)" aria-label="複製連結">&#128279; 複製連結</button>
-          <div class="tags">{tags_html}</div>
-        </div>
-      </div>
-
-      {toc_html}
-
-      <div class="article-content">
-        {article_html}
-      </div>
-
-      {article_nav}
-
-      <a href="../" class="back-link">&larr; 返回首頁</a>
-    </article>
-  </main>
-
-  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})" aria-label="回到頂部">&uarr;</button>
-
-  <footer>
-    <div class="container">
-      <p>Powered by RAG Knowledge Base</p>
-    </div>
-  </footer>
-  <script>
-    function toggleTheme(){{const b=document.body;b.classList.toggle('dark');localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light')}}
-    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
-    window.addEventListener('scroll',function(){{
-      const prog=document.getElementById('readingProgress');
-      const btn=document.getElementById('backToTop');
-      const h=document.documentElement.scrollHeight-window.innerHeight;
-      const pct=h>0?(window.scrollY/h)*100:0;
-      prog.style.width=pct+'%';
-      btn.classList.toggle('visible',window.scrollY>300);
-    }});
-    function copyLink(btn){{navigator.clipboard.writeText(location.href).then(()=>{{btn.classList.add('copied');btn.innerHTML='&#10003; 已複製';setTimeout(()=>{{btn.classList.remove('copied');btn.innerHTML='&#128279; 複製連結';}},2000);}});}}
-  </script>
-</body>
-</html>
-'''
-
-def generate_index_html(articles_by_category, sync_time, total_count, new_article_ids=None):
-    """生成首頁 HTML（含最近更新、搜尋計數、分類折疊、回到頂部、鍵盤快捷鍵）。
-
-    Args:
-        articles_by_category: 按分類組織的文章字典
-        sync_time: 同步時間字串
-        total_count: 文章總數
-        new_article_ids: 新文章 ID 集合（用於標示 NEW 徽章）
-
-    Returns:
-        完整的首頁 HTML
-    """
-    sections = []
-    nav_items = []
-    new_article_ids = new_article_ids or set()
-
-    category_order = [
-        ('佛學', 'buddhism'),
-        ('思維方法', 'thinking'),
-        ('AI技術', 'ai'),
-        ('Claude_Code', 'claude'),
-        ('遊戲開發', 'game'),
-        ('資訊安全', 'security'),
-        ('開源生態', 'opensource'),
-        ('其他', 'other')
-    ]
-
-    # 收集最近更新的文章（取最新 8 篇）
-    all_articles = []
-    for cat_name, cat_slug in category_order:
-        for art in articles_by_category.get(cat_name, []):
-            art['_cat_name'] = cat_name
-            art['_cat_slug'] = cat_slug
-            all_articles.append(art)
-    all_articles.sort(key=lambda x: x.get('updated', ''), reverse=True)
-    recent_articles = all_articles[:8]
-
-    # 生成最近更新卡片
-    recent_cards = []
-    for art in recent_articles:
-        display_cat = art['_cat_name'].replace('_', ' ')
-        new_badge = '<span class="new-badge">NEW</span>' if art.get('id') in new_article_ids else ''
-        recent_cards.append(f'''
-        <div class="recent-card">
-          <h4><a href="articles/{art['slug']}.html">{escape(art['title'])}</a>{new_badge}</h4>
-          <div class="card-meta">
-            <span class="category-badge category-{art['_cat_slug']}">{display_cat}</span>
-            <span>{art.get('updated', '')}</span>
-          </div>
-        </div>''')
-
-    recent_section = f'''
-    <section class="recent-section" id="recent">
-      <h2>最近更新</h2>
-      <div class="recent-grid">
-{"".join(recent_cards)}
-      </div>
-    </section>
-'''
-
-    for cat_name, cat_slug in category_order:
-        articles = articles_by_category.get(cat_name, [])
-        if not articles:
-            continue
-
-        articles.sort(key=lambda x: x.get('updated', ''), reverse=True)
-        display_name = cat_name.replace('_', ' ')
-        count = len(articles)
-        nav_items.append(f'<a href="#{cat_slug}">{display_name} <span class="nav-count">{count}</span></a>')
-
-        cards = []
-        for art in articles:
-            tags_html = ''.join(f'<span class="tag">{escape(t)}</span>' for t in (art.get('tags') or [])[:4])
-            date_str = art.get('updated', '')
-            new_badge = '<span class="new-badge">NEW</span>' if art.get('id') in new_article_ids else ''
-            excerpt_html = f'<p class="card-excerpt">{escape(art.get("excerpt", ""))}</p>' if art.get('excerpt') else ''
-            reading_html = f'<span class="reading-time">{art.get("reading_min", 1)} 分鐘</span>'
-            cards.append(f'''
-        <article class="article-card" data-title="{escape(art['title'].lower())}" data-tags="{escape(','.join(art.get('tags') or []).lower())}" data-category="{cat_slug}">
-          <span class="category-badge category-{cat_slug}">{display_name}</span>
-          <h3><a href="articles/{art['slug']}.html">{escape(art['title'])}</a>{new_badge}</h3>
-          {excerpt_html}
-          <div class="card-footer">
-            <span class="date">{date_str}</span>
-            {reading_html}
-            <div class="tags">{tags_html}</div>
-          </div>
-        </article>
-''')
-
-        sections.append(f'''
-    <section class="category-section expanded" id="{cat_slug}">
-      <h2 onclick="this.parentElement.classList.toggle('expanded')">{display_name} <span class="count">({count})</span></h2>
-      <div class="article-list">
-{"".join(cards)}
-      </div>
-    </section>
-''')
-
-    nav_html = '\n        '.join(nav_items)
-
-    # 生成分類篩選按鈕
-    filter_buttons = ['<button class="filter-btn active" data-filter="all" onclick="filterByCategory(\'all\')">全部</button>']
-    for cat_name, cat_slug in category_order:
-        if cat_name in articles_by_category and articles_by_category[cat_name]:
-            display_name = cat_name.replace('_', ' ')
-            count = len(articles_by_category[cat_name])
-            filter_buttons.append(
-                f'<button class="filter-btn" data-filter="{cat_slug}" onclick="filterByCategory(\'{cat_slug}\')">{display_name} ({count})</button>'
-            )
-    filter_bar = '\n        '.join(filter_buttons)
-
-    # 分類統計長條圖
-    cat_colors = {
-        'buddhism': 'var(--accent-buddhism)', 'thinking': 'var(--accent-thinking)',
-        'ai': 'var(--accent-ai)', 'claude': 'var(--accent-claude)',
-        'game': 'var(--accent-game)', 'security': 'var(--accent-security)',
-        'opensource': 'var(--accent-opensource)', 'other': 'var(--text-light)'
-    }
-    max_count = max((len(articles_by_category.get(cn, [])) for cn, _ in category_order), default=1) or 1
-    chart_bars = []
-    for cat_name, cat_slug in category_order:
-        count = len(articles_by_category.get(cat_name, []))
-        if count == 0:
-            continue
-        pct = round(count / max_count * 100)
-        color = cat_colors.get(cat_slug, 'var(--text-light)')
-        display = cat_name.replace('_', ' ')
-        chart_bars.append(
-            f'<div class="chart-row">'
-            f'<span class="chart-label">{display}</span>'
-            f'<div class="chart-bar-bg"><div class="chart-bar-fill" style="width:{pct}%;background:{color}"></div></div>'
-            f'<span class="chart-count">{count}</span>'
-            f'</div>'
-        )
-    chart_html = f'''
-    <section class="chart-section container">
-      <h2>知識分佈</h2>
-      <div class="chart-container">
-{"".join(chart_bars)}
-      </div>
-    </section>
-''' if chart_bars else ''
-
-    return f'''<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="個人知識庫：佛學、思維方法、AI技術、遊戲開發與 Claude Code 研究">
-  <title>知識庫 | Knowledge Base</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <header>
-    <div class="container">
-      <a href="/" class="logo">知識庫</a>
-      <button class="menu-toggle" onclick="document.querySelector('nav').classList.toggle('open')" aria-label="選單">
-        <span></span><span></span><span></span>
-      </button>
-      <nav>
-        {nav_html}
-      </nav>
-      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換深色模式">
-        <span class="theme-icon">&#9680;</span>
-      </button>
-    </div>
-  </header>
-
-  <section class="hero">
-    <div class="container">
-      <h1>探索知識的邊界</h1>
-      <p>彙整佛學智慧、思維方法論、AI 前沿技術與開發實踐</p>
-      <div class="stats">
-        <span>{total_count} 篇文章</span>
-        <span>{len([c for c in articles_by_category if articles_by_category[c]])} 個主題</span>
-        <span>最後同步 {sync_time}</span>
-      </div>
-      <div class="search-box">
-        <input type="text" id="searchInput" placeholder="搜尋文章標題或標籤..." oninput="filterArticles(this.value)">
-        <span class="kbd-hint">/</span>
-      </div>
-      <div class="search-count" id="searchCount"></div>
-      <div class="search-stats" id="searchStats"></div>
-    </div>
-  </section>
-
-{chart_html}
-
-  <div class="filter-bar container">
-    {filter_bar}
-  </div>
-
-  <main class="container">
-{recent_section}
-{"".join(sections)}
-  </main>
-
-  <button class="back-to-top" id="backToTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})" aria-label="回到頂部">&uarr;</button>
-
-  <footer>
-    <div class="container">
-      <p>Powered by RAG Knowledge Base | Last sync: {sync_time}</p>
-    </div>
-  </footer>
-
-  <script>
-    function toggleTheme(){{
-      const b=document.body;
-      b.classList.toggle('dark');
-      localStorage.setItem('theme',b.classList.contains('dark')?'dark':'light');
-    }}
-    if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark');
-
-    let activeFilter='all';
-    function filterByCategory(cat){{
-      activeFilter=cat;
-      document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.filter===cat));
-      const sections=document.querySelectorAll('.category-section');
-      const recentSec=document.querySelector('.recent-section');
-      if(cat==='all'){{
-        sections.forEach(s=>{{s.style.display='';if(!s.classList.contains('expanded'))s.classList.add('expanded')}});
-        if(recentSec)recentSec.style.display='';
-        document.getElementById('searchCount').textContent='';
-        return;
-      }}
-      if(recentSec)recentSec.style.display='none';
-      let total=0;
-      sections.forEach(s=>{{
-        const match=s.id===cat;
-        s.style.display=match?'':'none';
-        if(match){{
-          s.classList.add('expanded');
-          total=s.querySelectorAll('.article-card').length;
-        }}
-      }});
-      document.getElementById('searchCount').textContent=total+' 篇';
-    }}
-
-    let searchTimer=null;
-    function filterArticles(q){{
-      clearTimeout(searchTimer);
-      searchTimer=setTimeout(()=>doFilter(q),150);
-    }}
-    function doFilter(q){{
-      const query=q.toLowerCase().trim();
-      const cards=document.querySelectorAll('.article-card');
-      const sections=document.querySelectorAll('.category-section');
-      const recentSec=document.querySelector('.recent-section');
-      let visible=0;
-      const catCounts={{}};
-      cards.forEach(c=>{{
-        const t=c.getAttribute('data-title')||'';
-        const tags=c.getAttribute('data-tags')||'';
-        const cat=c.getAttribute('data-category')||'other';
-        const catMatch=activeFilter==='all'||cat===activeFilter;
-        const textMatch=!query||t.includes(query)||tags.includes(query);
-        const show=catMatch&&textMatch;
-        c.style.display=show?'':'none';
-        if(show){{visible++;catCounts[cat]=(catCounts[cat]||0)+1;}}
-        const titleEl=c.querySelector('h3 a');
-        if(titleEl){{
-          const orig=titleEl.textContent;
-          if(query&&show){{
-            const re=new RegExp('('+query.replace(/[.*+?^${{}}()|[\\]\\\\]/g,'\\\\$&')+')','gi');
-            titleEl.innerHTML=orig.replace(re,'<mark>$1</mark>');
-          }}else{{
-            titleEl.textContent=orig;
-          }}
-        }}
-      }});
-      sections.forEach(s=>{{
-        const vis=s.querySelectorAll('.article-card:not([style*="none"])');
-        s.style.display=vis.length>0?'':'none';
-        if(vis.length>0&&!s.classList.contains('expanded'))s.classList.add('expanded');
-      }});
-      if(recentSec)recentSec.style.display=(query||activeFilter!=='all')?'none':'';
-      const counter=document.getElementById('searchCount');
-      counter.textContent=(query||activeFilter!=='all')?visible+' 篇符合':'';
-      // Show per-category stats when searching
-      const statsEl=document.getElementById('searchStats');
-      if(query&&visible>0){{
-        const catNames={{buddhism:'佛學',thinking:'思維',ai:'AI',claude:'Claude',game:'遊戲',security:'安全',opensource:'開源',other:'其他'}};
-        statsEl.innerHTML=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
-          `<span class="search-stat-item" onclick="filterByCategory('${{k}}')">${{catNames[k]||k}} ${{v}}</span>`
-        ).join('');
-      }}else{{
-        statsEl.innerHTML='';
-      }}
-    }}
-
-    // Back to top
-    window.addEventListener('scroll',function(){{
-      const btn=document.getElementById('backToTop');
-      btn.classList.toggle('visible',window.scrollY>400);
-    }});
-
-    // Keyboard shortcut: / to focus search, Esc to clear
-    document.addEventListener('keydown',function(e){{
-      if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){{
-        e.preventDefault();
-        document.getElementById('searchInput').focus();
-      }}
-      if(e.key==='Escape'){{
-        const inp=document.getElementById('searchInput');
-        if(inp.value){{inp.value='';filterArticles('');inp.blur();}}
-      }}
-    }});
-
-    // Fade-in animation on scroll
-    const obs=new IntersectionObserver(entries=>{{
-      entries.forEach(e=>{{if(e.isIntersecting){{e.target.classList.add('fade-in');obs.unobserve(e.target);}}}});
-    }},{{threshold:0.05}});
-    document.querySelectorAll('.article-card,.recent-card').forEach(c=>obs.observe(c));
-
-    // Lazy load: show 12 cards per category initially
-    const INITIAL_SHOW=12;
-    document.querySelectorAll('.category-section').forEach(sec=>{{
-      const cards=sec.querySelectorAll('.article-card');
-      if(cards.length<=INITIAL_SHOW)return;
-      for(let i=INITIAL_SHOW;i<cards.length;i++)cards[i].classList.add('lazy-hidden');
-      cards.forEach((c,i)=>{{if(i>=INITIAL_SHOW)c.style.display='none';}});
-      const btn=document.createElement('button');
-      btn.className='load-more-btn';
-      const remaining=cards.length-INITIAL_SHOW;
-      btn.textContent=`載入更多 (${{remaining}} 篇)`;
-      btn.onclick=()=>{{
-        cards.forEach(c=>{{c.classList.remove('lazy-hidden');c.style.display='';}});
-        btn.remove();
-        // Re-observe for animation
-        cards.forEach(c=>{{if(!c.classList.contains('fade-in'))obs.observe(c);}});
-      }};
-      sec.querySelector('.article-list').after(btn);
-    }});
-  </script>
-</body>
-</html>
-'''
-
+# ─── 主程式 ───────────────────────────────────────────
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
 
     force_rebuild = '--force' in sys.argv
+    max_pages = MAX_PAGES
+    if '--pages' in sys.argv:
+        idx = sys.argv.index('--pages')
+        if idx + 1 < len(sys.argv):
+            max_pages = int(sys.argv[idx + 1])
 
-    os.makedirs(ARTICLES_DIR, exist_ok=True)
+    # 建立目錄
+    os.makedirs(ART_DIR, exist_ok=True)
 
-    temp_notes_path = f'{OUTPUT_DIR}/temp_notes.json'
-    if not os.path.exists(temp_notes_path):
-        print("錯誤：找不到 temp_notes.json，請先從知識庫匯出筆記。")
-        sys.exit(1)
-
-    with open(temp_notes_path, 'r', encoding='utf-8-sig') as f:
-        data = json.load(f)
-
-    sync_log_path = f'{OUTPUT_DIR}/sync-log.json'
-    if os.path.exists(sync_log_path):
-        with open(sync_log_path, 'r', encoding='utf-8') as f:
+    # 讀取舊同步記錄
+    if os.path.exists(LOG_PATH):
+        with open(LOG_PATH, 'r', encoding='utf-8') as f:
             sync_log = json.load(f)
     else:
-        sync_log = {'synced_notes': [], 'last_sync': None}
+        sync_log = {'synced_notes': [], 'last_sync': None, 'stats': {}}
 
     synced_hashes = {n['id']: n.get('hash', '') for n in sync_log.get('synced_notes', [])}
 
-    notes = data.get('notes', [])
+    # ─── 擷取所有筆記 ────────────────────────────────
+    print("⬇ 從知識庫擷取筆記...")
+    all_notes: list[dict] = []
+    offset = 0
+    page = 0
+    while page < max_pages:
+        try:
+            resp = api_get(f"/api/notes?limit={PAGE_SIZE}&offset={offset}")
+        except RuntimeError as e:
+            print(f"  ⚠ API 錯誤：{e}")
+            break
+        batch = resp.get('notes', [])
+        if not batch:
+            break
+        all_notes.extend(batch)
+        print(f"  取得第 {page+1} 頁，共 {len(batch)} 筆（累計 {len(all_notes)} 筆）")
+        if len(batch) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+        page += 1
 
-    # 篩選相關主題
-    filtered_notes = []
-    for n in notes:
+    print(f"  總計 {len(all_notes)} 筆筆記")
+
+    # ─── 篩選相關主題 ────────────────────────────────
+    filtered: list[dict] = []
+    for n in all_notes:
         title = n.get('title', '')
         if not title:
             continue
         tags = n.get('tags', []) or []
         combined = title + ' ' + ','.join(tags)
         if any(k in combined for k in KEYWORDS):
-            filtered_notes.append(n)
+            filtered.append(n)
 
-    articles_by_category = {}
-    synced_notes = []
-    new_article_ids = set()
-    new_count = 0
-    updated_count = 0
-    skipped_count = 0
+    print(f"  篩選後相關筆記：{len(filtered)} 篇")
 
-    # Pass 1: 收集所有文章的 metadata（不生成 HTML）
-    note_metadata = []  # (note, cat_name, cat_slug, slug, note_hash, need_update)
-    for note in filtered_notes:
+    # ─── Pass 1：收集 metadata ─────────────────────
+    note_meta: list[tuple] = []
+    articles_by_cat: dict[str, list] = {}
+
+    for note in filtered:
         note_id = note['id']
         title = note.get('title', 'Untitled')
         tags = note.get('tags', []) or []
-        content_text = note.get('contentText', '')
+        content_text = note.get('contentText', '') or ''
+        updated = note.get('updatedAt', '')[:10]
 
         note_hash = content_hash(title, content_text)
         old_hash = synced_hashes.get(note_id, '')
@@ -761,119 +260,158 @@ def main():
         cat_name, cat_slug = categorize(title, tags)
         slug = generate_slug(title, note_id)
 
-        note_metadata.append((note, cat_name, cat_slug, slug, note_hash, need_update))
-
-        if cat_name not in articles_by_category:
-            articles_by_category[cat_name] = []
-
-        excerpt = ''
-        if content_text:
-            excerpt = re.sub(r'[#*\->\[\]`]', '', content_text)
-            excerpt = re.sub(r'\s+', ' ', excerpt).strip()[:100]
-
+        excerpt = re.sub(r'[#*\->\[\]`]', '', content_text)
+        excerpt = re.sub(r'\s+', ' ', excerpt).strip()[:120]
         reading_min = estimate_reading_time(content_text)
-        articles_by_category[cat_name].append({
-            'id': note_id,
-            'title': title,
-            'slug': slug,
-            'tags': tags,
-            'updated': note.get('updatedAt', '')[:10],
-            'excerpt': excerpt,
-            'reading_min': reading_min
-        })
 
-        synced_notes.append({
+        art_meta = {
             'id': note_id,
             'title': title,
             'slug': slug,
             'category': cat_name,
-            'hash': note_hash
-        })
+            'categorySlug': cat_slug,
+            'tags': tags,
+            'updatedAt': updated,
+            'excerpt': excerpt,
+            'readingMin': reading_min,
+        }
 
-    # Pass 1.5: 按分類排序文章（由新到舊），建立上下篇索引
-    cat_sorted = {}
-    for cat_name, arts in articles_by_category.items():
-        sorted_arts = sorted(arts, key=lambda x: x.get('updated', ''), reverse=True)
-        cat_sorted[cat_name] = sorted_arts
+        if cat_name not in articles_by_cat:
+            articles_by_cat[cat_name] = []
+        articles_by_cat[cat_name].append(art_meta)
+        note_meta.append((note, art_meta, cat_name, cat_slug, slug, note_hash, need_update))
 
-    # 建立 note_id → (prev, next) 的映射
-    nav_map = {}  # note_id -> {'prev': {slug, title}, 'next': {slug, title}}
-    for cat_name, arts in cat_sorted.items():
-        for i, art in enumerate(arts):
-            prev_art = arts[i - 1] if i > 0 else None
-            next_art = arts[i + 1] if i < len(arts) - 1 else None
+    # ─── Pass 1.5：排序建立上下篇索引 ────────────────
+    nav_map: dict[str, dict] = {}
+    for cat_name, arts in articles_by_cat.items():
+        sorted_arts = sorted(arts, key=lambda x: x.get('updatedAt', ''), reverse=True)
+        articles_by_cat[cat_name] = sorted_arts
+        for i, art in enumerate(sorted_arts):
+            prev = sorted_arts[i - 1] if i > 0 else None
+            nxt = sorted_arts[i + 1] if i < len(sorted_arts) - 1 else None
             nav_map[art['id']] = {
-                'prev': {'slug': prev_art['slug'], 'title': prev_art['title']} if prev_art else None,
-                'next': {'slug': next_art['slug'], 'title': next_art['title']} if next_art else None
+                'prev': {'slug': prev['slug'], 'title': prev['title']} if prev else None,
+                'next': {'slug': nxt['slug'], 'title': nxt['title']} if nxt else None,
             }
 
-    # Pass 2: 生成文章 HTML（含上下篇導航）
-    for note, cat_name, cat_slug, slug, note_hash, need_update in note_metadata:
-        note_id = note['id']
-        nav_info = nav_map.get(note_id, {})
+    # ─── 標記新文章（比對舊 sync log）───────────────
+    old_ids = {n['id'] for n in sync_log.get('synced_notes', [])}
+    new_ids = {a[1]['id'] for a in note_meta if a[1]['id'] not in old_ids}
 
+    for item in note_meta:
+        item[1]['isNew'] = item[1]['id'] in new_ids
+
+    # ─── Pass 2：生成文章 JSON ────────────────────────
+    new_count = updated_count = skipped_count = 0
+
+    for note, art_meta, cat_name, cat_slug, slug, note_hash, need_update in note_meta:
         if need_update:
-            html_content = generate_article_html(
-                note, cat_name, cat_slug,
-                prev_article=nav_info.get('prev'),
-                next_article=nav_info.get('next')
-            )
-            html_path = f'{ARTICLES_DIR}/{slug}.html'
+            html = tiptap_to_html(note.get('content'))
+            headings = extract_headings(html)
+            nav = nav_map.get(art_meta['id'], {})
 
-            with open(html_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
+            art_detail = {
+                **art_meta,
+                'html': html,
+                'headings': headings,
+                'prev': nav.get('prev'),
+                'next': nav.get('next'),
+            }
 
-            old_hash = synced_hashes.get(note_id, '')
-            if old_hash:
+            out_path = f"{ART_DIR}/{slug}.json"
+            with open(out_path, 'w', encoding='utf-8') as f:
+                json.dump(art_detail, f, ensure_ascii=False, separators=(',', ':'))
+
+            if art_meta['id'] in old_ids:
                 updated_count += 1
             else:
                 new_count += 1
-                new_article_ids.add(note_id)
         else:
             skipped_count += 1
 
-    # 生成首頁
-    sync_time = datetime.now().strftime('%Y-%m-%d %H:%M')
-    total_count = len(synced_notes)
-    index_html = generate_index_html(articles_by_category, sync_time, total_count, new_article_ids)
+    # ─── 生成 index.json ─────────────────────────────
+    # 按分類收集，每類按更新時間排序
+    all_articles: list[dict] = []
+    cat_counts: dict[str, int] = {}
+    cat_order = ['佛學', '思維方法', 'AI技術', 'Claude Code', '遊戲開發', '資訊安全', '開源生態', '其他']
 
-    with open(f'{OUTPUT_DIR}/index.html', 'w', encoding='utf-8') as f:
-        f.write(index_html)
+    for cat in cat_order:
+        arts = articles_by_cat.get(cat, [])
+        cat_counts[cat] = len(arts)
+        all_articles.extend(arts)
 
-    # 更新同步記錄
-    category_stats = {cat: len(arts) for cat, arts in articles_by_category.items()}
+    # 加上不在預定順序中的分類
+    for cat, arts in articles_by_cat.items():
+        if cat not in cat_order:
+            cat_counts[cat] = len(arts)
+            all_articles.extend(arts)
 
-    new_sync_log = {
-        'last_sync': datetime.now().isoformat(),
-        'synced_notes': synced_notes,
+    index_data = {
+        'articles': all_articles,
         'stats': {
-            'total_articles': total_count,
-            'categories': category_stats
+            'total': len(all_articles),
+            'categories': cat_counts,
+            'lastSync': datetime.now().isoformat(),
         }
     }
 
-    with open(sync_log_path, 'w', encoding='utf-8') as f:
-        json.dump(new_sync_log, f, ensure_ascii=False, indent=2)
+    index_path = f"{DATA_DIR}/index.json"
+    with open(index_path, 'w', encoding='utf-8') as f:
+        json.dump(index_data, f, ensure_ascii=False, separators=(',', ':'))
 
-    # 清理暫存檔
-    temp_files = [
-        'temp_notes.json', 'temp_all_notes.json', 'temp_notes_p1.json',
-        'temp_notes_p2.json', 'temp_notes_p3.json', 'temp_notes_p4.json',
-        'temp_notes_p5.json'
+    print(f"\n✅ index.json 已寫入：{len(all_articles)} 篇文章")
+
+    # ─── 更新 sync-log.json ───────────────────────────
+    synced_notes = [
+        {
+            'id': art_meta['id'],
+            'title': art_meta['title'],
+            'slug': art_meta['slug'],
+            'category': cat_name,
+            'hash': note_hash,
+        }
+        for _, art_meta, cat_name, _, _, note_hash, _ in note_meta
     ]
-    for f_name in temp_files:
-        temp_file = f'{OUTPUT_DIR}/{f_name}'
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
 
-    print(f"同步完成！")
-    print(f"  新增: {new_count} 篇")
-    print(f"  更新: {updated_count} 篇")
-    print(f"  跳過: {skipped_count} 篇（無變更）")
-    print(f"  總計: {total_count} 篇")
-    print(f"分類統計:")
-    for cat, count in category_stats.items():
-        print(f"  {cat}: {count} 篇")
+    new_log = {
+        'last_sync': datetime.now().isoformat(),
+        'synced_notes': synced_notes,
+        'stats': {
+            'total_articles': len(all_articles),
+            'categories': cat_counts,
+        }
+    }
+
+    with open(LOG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(new_log, f, ensure_ascii=False, indent=2)
+
+    # ─── 清理舊 HTML 文章（遷移後可選執行）───────────
+    old_html_dir = f"{OUTPUT_DIR}/articles"
+    if os.path.isdir(old_html_dir):
+        html_files = [f for f in os.listdir(old_html_dir) if f.endswith('.html')]
+        if html_files:
+            print(f"\n💡 提示：舊 articles/ 目錄有 {len(html_files)} 個 HTML 文章檔案")
+            print("   可執行 'python sync_knowledge.py --clean-html' 清理（不影響新網站）")
+
+    if '--clean-html' in sys.argv:
+        if os.path.isdir(old_html_dir):
+            import shutil
+            shutil.rmtree(old_html_dir)
+            print(f"✅ 已清理舊 articles/ 目錄")
+
+    # ─── 摘要 ─────────────────────────────────────────
+    print(f"\n📊 同步摘要：")
+    print(f"  新增：{new_count} 篇")
+    print(f"  更新：{updated_count} 篇")
+    print(f"  跳過：{skipped_count} 篇（無變更）")
+    print(f"  總計：{len(all_articles)} 篇")
+    print(f"\n分類統計：")
+    for cat, count in cat_counts.items():
+        if count > 0:
+            print(f"  {cat}：{count} 篇")
+    print(f"\n📁 輸出目錄：{DATA_DIR}")
+    print("🚀 執行 'npm run build' 建置 Vite 網站")
+
 
 if __name__ == '__main__':
     main()
