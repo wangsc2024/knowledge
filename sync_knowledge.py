@@ -49,6 +49,11 @@ KEYWORDS = [
     '研究', '開源', '趨勢', '洞察',
 ]
 
+# ─── 排除關鍵字（標題含任一詞者跳過）────────────────
+EXCLUDE_KEYWORDS = [
+    '報告',
+]
+
 # ─── 分類邏輯（順序決定優先級）───────────────────────
 def categorize(title: str, tags: list[str]) -> tuple[str, str]:
     combined = title + ' ' + ','.join(tags)
@@ -233,14 +238,22 @@ def main():
 
     # ─── 篩選相關主題 ────────────────────────────────
     filtered: list[dict] = []
+    excluded_count = 0
     for n in all_notes:
         title = n.get('title', '')
         if not title:
+            continue
+        # 排除含 EXCLUDE_KEYWORDS 的標題
+        if any(k in title for k in EXCLUDE_KEYWORDS):
+            excluded_count += 1
             continue
         tags = n.get('tags', []) or []
         combined = title + ' ' + ','.join(tags)
         if any(k in combined for k in KEYWORDS):
             filtered.append(n)
+
+    if excluded_count:
+        print(f"  排除含關鍵字筆記：{excluded_count} 篇（EXCLUDE_KEYWORDS）")
 
     print(f"  篩選後相關筆記：{len(filtered)} 篇")
 
