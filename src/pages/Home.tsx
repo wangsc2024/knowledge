@@ -90,6 +90,7 @@ export default function Home() {
       if (!catMatch) return false
       if (!searchQuery) return true
       return a.title.toLowerCase().includes(searchQuery)
+        || a.category.toLowerCase().includes(searchQuery)
         || a.tags.some(t => t.toLowerCase().includes(searchQuery))
         || a.excerpt.toLowerCase().includes(searchQuery)
     })
