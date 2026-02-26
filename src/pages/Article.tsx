@@ -1,7 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import type { ArticleDetail } from '../types'
+
+function estimateWordCount(html: string): number {
+  const text = html.replace(/<[^>]+>/g, '')
+  const cjk = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length
+  const words = (text.match(/[a-zA-Z]+/g) || []).length
+  return cjk + words
+}
 
 export default function Article() {
   const { slug } = useParams<{ slug: string }>()
@@ -14,6 +21,7 @@ export default function Article() {
   const [copied, setCopied] = useState(false)
   const [tocOpen, setTocOpen] = useState(true)
   const [activeHeading, setActiveHeading] = useState('')
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!slug) return
@@ -33,6 +41,31 @@ export default function Article() {
         setLoading(false)
       })
   }, [slug])
+
+  // Add copy buttons to code blocks
+  useEffect(() => {
+    if (!article || !contentRef.current) return
+    const pres = contentRef.current.querySelectorAll('pre')
+    pres.forEach(pre => {
+      if (pre.querySelector('.code-copy-btn')) return
+      const btn = document.createElement('button')
+      btn.className = 'code-copy-btn'
+      btn.textContent = '複製'
+      btn.addEventListener('click', () => {
+        const code = pre.querySelector('code')?.textContent || ''
+        navigator.clipboard.writeText(code).then(() => {
+          btn.textContent = '已複製'
+          btn.classList.add('copied')
+          setTimeout(() => {
+            btn.textContent = '複製'
+            btn.classList.remove('copied')
+          }, 2000)
+        })
+      })
+      pre.style.position = 'relative'
+      pre.appendChild(btn)
+    })
+  }, [article])
 
   // Reading progress + back to top + active heading tracking
   useEffect(() => {
@@ -131,6 +164,7 @@ export default function Article() {
             <h1>{article.title}</h1>
             <div className="article-meta">
               <span>{article.updatedAt}</span>
+              <span>約 {estimateWordCount(article.html).toLocaleString()} 字</span>
               <span>{article.readingMin} 分鐘閱讀</span>
               <button
                 className={`copy-btn${copied ? ' copied' : ''}`}
@@ -166,6 +200,7 @@ export default function Article() {
 
           {/* Article Content */}
           <div
+            ref={contentRef}
             className="article-content"
             dangerouslySetInnerHTML={{ __html: article.html }}
           />

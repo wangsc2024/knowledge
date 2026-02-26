@@ -165,7 +165,22 @@ export default function Home() {
               onChange={e => handleSearch(e.target.value)}
               aria-label="搜尋"
             />
-            <span className="search-kbd">/</span>
+            {searchQuery && (
+              <button
+                className="search-clear"
+                onClick={() => {
+                  setSearchQuery('')
+                  if (searchRef.current) {
+                    searchRef.current.value = ''
+                    searchRef.current.focus()
+                  }
+                }}
+                aria-label="清除搜尋"
+              >
+                ✕
+              </button>
+            )}
+            <span className="search-kbd">{searchQuery ? '' : '/'}</span>
           </div>
           {searchQuery && (
             <div className="search-stats">
