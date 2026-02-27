@@ -67,6 +67,19 @@ export default function Article() {
     })
   }, [article])
 
+  // Wrap tables for mobile horizontal scroll
+  useEffect(() => {
+    if (!article || !contentRef.current) return
+    const tables = contentRef.current.querySelectorAll('table')
+    tables.forEach(table => {
+      if (table.parentElement?.classList.contains('table-wrap')) return
+      const wrapper = document.createElement('div')
+      wrapper.className = 'table-wrap'
+      table.parentNode?.insertBefore(wrapper, table)
+      wrapper.appendChild(table)
+    })
+  }, [article])
+
   // Reading progress + back to top + active heading tracking
   useEffect(() => {
     const onScroll = () => {
