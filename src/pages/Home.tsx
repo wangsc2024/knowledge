@@ -110,6 +110,12 @@ export default function Home() {
   const lastSync = index?.stats.lastSync?.slice(0, 16).replace('T', ' ') ?? ''
   const activeCategories = Object.keys(categoryCounts).length
 
+  const totalReadingHours = useMemo(() => {
+    if (!index) return 0
+    const mins = index.articles.reduce((sum, a) => sum + (a.readingMin || 0), 0)
+    return Math.round(mins / 60)
+  }, [index])
+
   // Recent articles
   const recentArticles = useMemo(() => {
     if (!index) return []
@@ -152,6 +158,12 @@ export default function Home() {
               <span className="hero-stat-value">{activeCategories}</span>
               <span className="hero-stat-label">個主題</span>
             </div>
+            {totalReadingHours > 0 && (
+              <div className="hero-stat">
+                <span className="hero-stat-value">{totalReadingHours}h+</span>
+                <span className="hero-stat-label">閱讀時數</span>
+              </div>
+            )}
             <div className="hero-stat">
               <span className="hero-stat-value">{lastSync}</span>
               <span className="hero-stat-label">最後同步</span>
@@ -161,7 +173,7 @@ export default function Home() {
             <input
               ref={searchRef}
               type="text"
-              placeholder="搜尋文章標題或標籤..."
+              placeholder={`搜尋 ${total} 篇文章...`}
               onChange={e => handleSearch(e.target.value)}
               aria-label="搜尋"
             />
@@ -231,9 +243,11 @@ export default function Home() {
                     <Link to={`/article/${a.slug}`}>{a.title}</Link>
                     {a.isNew && <span className="new-badge" style={{ marginLeft: '0.4rem' }}>NEW</span>}
                   </h4>
+                  {a.excerpt && <p className="recent-card-excerpt">{a.excerpt}</p>}
                   <div className="recent-card-meta">
                     <span className={`cat-badge ${a.categorySlug}`}>{a.category}</span>
                     <span className="card-date">{a.updatedAt}</span>
+                    <span className="card-time">{a.readingMin} 分鐘</span>
                   </div>
                 </div>
               ))}
