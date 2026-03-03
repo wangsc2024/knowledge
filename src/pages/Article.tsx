@@ -21,6 +21,7 @@ export default function Article() {
   const [copied, setCopied] = useState(false)
   const [tocOpen, setTocOpen] = useState(true)
   const [activeHeading, setActiveHeading] = useState('')
+  const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal')
   const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -200,6 +201,13 @@ export default function Article() {
               >
                 {copied ? '✓ 已複製' : '🔗 複製連結'}
               </button>
+              <button
+                className="font-size-btn"
+                onClick={() => setFontSize(f => f === 'normal' ? 'large' : 'normal')}
+                aria-label="切換字體大小"
+              >
+                {fontSize === 'normal' ? 'A+' : 'A-'}
+              </button>
             </div>
             {article.tags.length > 0 && (
               <div className="article-tags">
@@ -229,7 +237,7 @@ export default function Article() {
           {/* Article Content */}
           <div
             ref={contentRef}
-            className="article-content"
+            className={`article-content${fontSize === 'large' ? ' article-content-lg' : ''}`}
             dangerouslySetInnerHTML={{ __html: article.html }}
           />
 

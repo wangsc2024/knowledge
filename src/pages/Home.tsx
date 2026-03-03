@@ -8,6 +8,7 @@ import type { KnowledgeIndex, ArticleMeta } from '../types'
 import { CATEGORY_ORDER } from '../types'
 
 const INITIAL_SHOW = 12
+type SortMode = 'recent' | 'reading' | 'title'
 
 const CATEGORY_DESC: Record<string, string> = {
   buddhism: '楞嚴經、法華經、淨土宗、教觀綱宗等經典研究與修行方法',
@@ -27,6 +28,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState('all')
   const [showCounts, setShowCounts] = useState<Record<string, number>>({})
+  const [sortMode, setSortMode] = useState<SortMode>('recent')
   const [searchParams, setSearchParams] = useSearchParams()
   const searchRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -87,7 +89,7 @@ export default function Home() {
 
   const handleSearch = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setSearchQuery(q.toLowerCase().trim()), 150)
+    debounceRef.current = setTimeout(() => setSearchQuery(q.toLowerCase().trim()), 250)
   }, [])
 
   const handleTagClick = useCallback((tag: string) => {
@@ -104,7 +106,7 @@ export default function Home() {
 
   const filtered = useMemo(() => {
     if (!index) return []
-    return index.articles.filter(a => {
+    const results = index.articles.filter(a => {
       const catMatch = activeFilter === 'all' || a.categorySlug === activeFilter
       if (!catMatch) return false
       if (!searchQuery) return true
@@ -113,7 +115,13 @@ export default function Home() {
         || a.tags.some(t => t.toLowerCase().includes(searchQuery))
         || a.excerpt.toLowerCase().includes(searchQuery)
     })
-  }, [index, searchQuery, activeFilter])
+    if (sortMode === 'reading') {
+      results.sort((a, b) => b.readingMin - a.readingMin)
+    } else if (sortMode === 'title') {
+      results.sort((a, b) => a.title.localeCompare(b.title, 'zh-Hant'))
+    }
+    return results
+  }, [index, searchQuery, activeFilter, sortMode])
 
   const groupedFiltered = useMemo(() => {
     const groups: Record<string, ArticleMeta[]> = {}
@@ -278,15 +286,29 @@ export default function Home() {
       <CategoryChart categories={categoryCounts} />
 
       {/* Filter Bar */}
-      <FilterBar
-        activeFilter={activeFilter}
-        categories={categoryCounts}
-        onFilter={slug => {
-          setActiveFilter(slug)
-          setSearchQuery('')
-          if (searchRef.current) searchRef.current.value = ''
-        }}
-      />
+      <div className="filter-sort-row container">
+        <FilterBar
+          activeFilter={activeFilter}
+          categories={categoryCounts}
+          onFilter={slug => {
+            setActiveFilter(slug)
+            setSearchQuery('')
+            if (searchRef.current) searchRef.current.value = ''
+          }}
+        />
+        <div className="sort-group">
+          <span className="sort-label">排序</span>
+          {([['recent', '最新'], ['reading', '閱讀量'], ['title', '標題']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              className={`sort-btn${sortMode === key ? ' active' : ''}`}
+              onClick={() => setSortMode(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Main Content */}
       <main className="container articles-main">

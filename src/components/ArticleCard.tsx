@@ -23,6 +23,7 @@ export default function ArticleCard({ article, searchQuery, onTagClick }: Props)
       <div className="card-top">
         <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
         {article.isNew && <span className="new-badge">NEW</span>}
+        <span className="card-time">{article.readingMin} 分鐘</span>
       </div>
       <h3>
         <Link to={`/article/${article.slug}`}>
@@ -30,17 +31,16 @@ export default function ArticleCard({ article, searchQuery, onTagClick }: Props)
         </Link>
       </h3>
       {article.excerpt && (
-        <p className="card-excerpt">{article.excerpt}</p>
+        <p className="card-excerpt">{highlight(article.excerpt, searchQuery)}</p>
       )}
       <div className="card-footer">
         <span className="card-date">{article.updatedAt}</span>
-        <span className="card-time">{article.readingMin} 分鐘</span>
         {article.tags.length > 0 && (
           <div className="card-tags">
             {article.tags.slice(0, 3).map(t => (
               <span
                 key={t}
-                className="tag clickable"
+                className={`tag clickable${searchQuery && t.toLowerCase().includes(searchQuery) ? ' tag-match' : ''}`}
                 onClick={() => onTagClick?.(t)}
                 role="button"
                 tabIndex={0}

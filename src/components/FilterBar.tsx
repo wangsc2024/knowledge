@@ -10,7 +10,7 @@ export default function FilterBar({ activeFilter, categories, onFilter }: Props)
   const available = CATEGORY_ORDER.filter(c => (categories[c.name] ?? 0) > 0)
 
   return (
-    <div className="filter-bar container">
+    <div className="filter-bar">
       <button
         className={`filter-btn${activeFilter === 'all' ? ' active' : ''}`}
         onClick={() => onFilter('all')}
