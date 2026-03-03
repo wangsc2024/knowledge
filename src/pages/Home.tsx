@@ -8,7 +8,52 @@ import type { KnowledgeIndex, ArticleMeta } from '../types'
 import { CATEGORY_ORDER } from '../types'
 
 const INITIAL_SHOW = 12
-type SortMode = 'recent' | 'reading' | 'title'
+type SortMode = 'recent' | 'reading' | 'title' | 'relevance'
+
+/** Split search query into tokens, supporting multi-keyword search */
+function tokenizeQuery(query: string): string[] {
+  return query.trim().toLowerCase().split(/\s+/).filter(t => t.length > 0)
+}
+
+/** Calculate search relevance score for an article against query tokens */
+function calcRelevance(article: ArticleMeta, tokens: string[]): number {
+  if (tokens.length === 0) return 0
+  let score = 0
+  const titleLower = article.title.toLowerCase()
+  const excerptLower = article.excerpt.toLowerCase()
+  const tagsLower = article.tags.map(t => t.toLowerCase())
+  const categoryLower = article.category.toLowerCase()
+
+  for (const token of tokens) {
+    // Title match (highest weight)
+    if (titleLower.includes(token)) {
+      score += 10
+      if (titleLower.startsWith(token)) score += 5
+    }
+    // Tag exact match (high weight)
+    if (tagsLower.some(t => t === token)) {
+      score += 8
+    } else if (tagsLower.some(t => t.includes(token))) {
+      score += 4
+    }
+    // Category match
+    if (categoryLower.includes(token)) score += 3
+    // Excerpt match (lowest weight)
+    if (excerptLower.includes(token)) score += 2
+  }
+  return score
+}
+
+/** Check if an article matches ALL tokens (AND logic) */
+function matchesAllTokens(article: ArticleMeta, tokens: string[]): boolean {
+  if (tokens.length === 0) return true
+  return tokens.every(token =>
+    article.title.toLowerCase().includes(token)
+    || article.category.toLowerCase().includes(token)
+    || article.tags.some(t => t.toLowerCase().includes(token))
+    || article.excerpt.toLowerCase().includes(token)
+  )
+}
 
 const CATEGORY_DESC: Record<string, string> = {
   buddhism: '楞嚴經、法華經、淨土宗、教觀綱宗等經典研究與修行方法',
@@ -33,6 +78,9 @@ export default function Home() {
   const searchRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigate = useNavigate()
+
+  // Track previous sort mode before search auto-switches to relevance
+  const prevSortRef = useRef<SortMode>('recent')
 
   // Initialize search from URL query param
   useEffect(() => {
@@ -89,13 +137,25 @@ export default function Home() {
 
   const handleSearch = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setSearchQuery(q.toLowerCase().trim()), 250)
-  }, [])
+    debounceRef.current = setTimeout(() => {
+      const trimmed = q.toLowerCase().trim()
+      // Auto-switch to relevance sort when search begins, restore when cleared
+      if (trimmed && !searchQuery) {
+        prevSortRef.current = sortMode
+        setSortMode('relevance')
+      } else if (!trimmed && searchQuery) {
+        setSortMode(prevSortRef.current)
+      }
+      setSearchQuery(trimmed)
+    }, 250)
+  }, [searchQuery, sortMode])
 
   const handleTagClick = useCallback((tag: string) => {
     setSearchQuery(tag.toLowerCase())
     if (searchRef.current) searchRef.current.value = tag
-  }, [])
+    prevSortRef.current = sortMode
+    setSortMode('relevance')
+  }, [sortMode])
 
   const handleRandomArticle = useCallback(() => {
     if (!index || index.articles.length === 0) return
@@ -104,24 +164,32 @@ export default function Home() {
     navigate(`/article/${articles[randomIdx].slug}`)
   }, [index, navigate])
 
+  // Tokenize search query for multi-keyword support
+  const searchTokens = useMemo(() => tokenizeQuery(searchQuery), [searchQuery])
+
   const filtered = useMemo(() => {
     if (!index) return []
     const results = index.articles.filter(a => {
       const catMatch = activeFilter === 'all' || a.categorySlug === activeFilter
       if (!catMatch) return false
-      if (!searchQuery) return true
-      return a.title.toLowerCase().includes(searchQuery)
-        || a.category.toLowerCase().includes(searchQuery)
-        || a.tags.some(t => t.toLowerCase().includes(searchQuery))
-        || a.excerpt.toLowerCase().includes(searchQuery)
+      if (searchTokens.length === 0) return true
+      return matchesAllTokens(a, searchTokens)
     })
-    if (sortMode === 'reading') {
+    if (sortMode === 'relevance' && searchTokens.length > 0) {
+      // Sort by relevance score descending, then by date as tiebreaker
+      results.sort((a, b) => {
+        const scoreA = calcRelevance(a, searchTokens)
+        const scoreB = calcRelevance(b, searchTokens)
+        if (scoreB !== scoreA) return scoreB - scoreA
+        return b.updatedAt.localeCompare(a.updatedAt)
+      })
+    } else if (sortMode === 'reading') {
       results.sort((a, b) => b.readingMin - a.readingMin)
     } else if (sortMode === 'title') {
       results.sort((a, b) => a.title.localeCompare(b.title, 'zh-Hant'))
     }
     return results
-  }, [index, searchQuery, activeFilter, sortMode])
+  }, [index, searchTokens, activeFilter, sortMode])
 
   const groupedFiltered = useMemo(() => {
     const groups: Record<string, ArticleMeta[]> = {}
@@ -180,7 +248,7 @@ export default function Home() {
   if (error) {
     return (
       <div className="loading">
-        <p>⚠️ 載入失敗：{error}</p>
+        <p>載入失敗：{error}</p>
         <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>請先執行 python sync_knowledge.py 同步資料</p>
       </div>
     )
@@ -219,7 +287,7 @@ export default function Home() {
             <input
               ref={searchRef}
               type="text"
-              placeholder={`搜尋 ${total} 篇文章...`}
+              placeholder={`搜尋 ${total} 篇文章... (支援多關鍵字，空格分隔)`}
               onChange={e => handleSearch(e.target.value)}
               aria-label="搜尋"
             />
@@ -228,6 +296,7 @@ export default function Home() {
                 className="search-clear"
                 onClick={() => {
                   setSearchQuery('')
+                  setSortMode(prevSortRef.current)
                   if (searchRef.current) {
                     searchRef.current.value = ''
                     searchRef.current.focus()
@@ -240,6 +309,13 @@ export default function Home() {
             )}
             <span className="search-kbd">{searchQuery ? '' : '/'}</span>
           </div>
+          {searchQuery && searchTokens.length > 1 && (
+            <div className="search-tokens">
+              {searchTokens.map((token, i) => (
+                <span key={i} className="search-token">{token}</span>
+              ))}
+            </div>
+          )}
           {!searchQuery && popularTags.length > 0 && (
             <div className="quick-tags">
               <span className="quick-tags-label">熱門：</span>
@@ -250,6 +326,8 @@ export default function Home() {
                   onClick={() => {
                     setSearchQuery(tag.toLowerCase())
                     if (searchRef.current) searchRef.current.value = tag
+                    prevSortRef.current = sortMode
+                    setSortMode('relevance')
                   }}
                 >
                   {tag}
@@ -298,11 +376,20 @@ export default function Home() {
         />
         <div className="sort-group">
           <span className="sort-label">排序</span>
-          {([['recent', '最新'], ['reading', '閱讀量'], ['title', '標題']] as const).map(([key, label]) => (
+          {([
+            ['recent', '最新'],
+            ['relevance', '相關度'],
+            ['reading', '閱讀量'],
+            ['title', '標題'],
+          ] as const).map(([key, label]) => (
             <button
               key={key}
-              className={`sort-btn${sortMode === key ? ' active' : ''}`}
-              onClick={() => setSortMode(key)}
+              className={`sort-btn${sortMode === key ? ' active' : ''}${key === 'relevance' && !searchQuery ? ' sort-btn-disabled' : ''}`}
+              onClick={() => {
+                if (key === 'relevance' && !searchQuery) return
+                setSortMode(key)
+              }}
+              title={key === 'relevance' && !searchQuery ? '輸入搜尋關鍵字後可用相關度排序' : undefined}
             >
               {label}
             </button>
@@ -340,56 +427,87 @@ export default function Home() {
           </section>
         )}
 
-        {/* Category Sections */}
-        {CATEGORY_ORDER.map(cat => {
-          const articles = groupedFiltered[cat.name]
-          if (!articles || articles.length === 0) return null
-          const shown = showCounts[cat.slug] ?? INITIAL_SHOW
-          const visible = articles.slice(0, shown)
-          const remaining = articles.length - shown
-
-          return (
-            <section key={cat.slug} className="category-section" id={cat.slug}>
-              <div
-                className="category-header"
-                onClick={() => {
-                  const el = document.getElementById(cat.slug)
-                  el?.classList.toggle('collapsed')
-                }}
+        {/* Relevance-sorted flat list when searching */}
+        {searchQuery && sortMode === 'relevance' ? (
+          <section className="relevance-results">
+            <h2 className="relevance-header">
+              搜尋結果
+              <span className="relevance-hint">依相關度排序</span>
+            </h2>
+            <div className="article-grid">
+              {filtered.slice(0, showCounts['__relevance'] ?? INITIAL_SHOW * 2).map(a => (
+                <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} />
+              ))}
+            </div>
+            {filtered.length > (showCounts['__relevance'] ?? INITIAL_SHOW * 2) && (
+              <button
+                className="load-more-btn"
+                onClick={() => setShowCounts(prev => ({
+                  ...prev,
+                  __relevance: (prev['__relevance'] ?? INITIAL_SHOW * 2) + 24
+                }))}
               >
-                <div className="category-header-text">
-                  <h2>{cat.name}</h2>
-                  {CATEGORY_DESC[cat.slug] && (
-                    <span className="category-desc">{CATEGORY_DESC[cat.slug]}</span>
-                  )}
-                </div>
-                <span className="cat-count">{articles.length} 篇</span>
-                <span className="cat-toggle">▼</span>
-              </div>
-              <div className="article-grid">
-                {visible.map(a => (
-                  <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} />
-                ))}
-              </div>
-              {remaining > 0 && (
-                <button
-                  className="load-more-btn"
-                  onClick={() => setShowCounts(prev => ({
-                    ...prev,
-                    [cat.slug]: (prev[cat.slug] ?? INITIAL_SHOW) + 12
-                  }))}
+                載入更多 ({filtered.length - (showCounts['__relevance'] ?? INITIAL_SHOW * 2)} 篇)
+              </button>
+            )}
+          </section>
+        ) : (
+          /* Category Sections */
+          CATEGORY_ORDER.map(cat => {
+            const articles = groupedFiltered[cat.name]
+            if (!articles || articles.length === 0) return null
+            const shown = showCounts[cat.slug] ?? INITIAL_SHOW
+            const visible = articles.slice(0, shown)
+            const remaining = articles.length - shown
+
+            return (
+              <section key={cat.slug} className="category-section" id={cat.slug}>
+                <div
+                  className="category-header"
+                  onClick={() => {
+                    const el = document.getElementById(cat.slug)
+                    el?.classList.toggle('collapsed')
+                  }}
                 >
-                  載入更多 ({remaining} 篇)
-                </button>
-              )}
-            </section>
-          )
-        })}
+                  <div className="category-header-text">
+                    <h2>{cat.name}</h2>
+                    {CATEGORY_DESC[cat.slug] && (
+                      <span className="category-desc">{CATEGORY_DESC[cat.slug]}</span>
+                    )}
+                  </div>
+                  <span className="cat-count">{articles.length} 篇</span>
+                  <span className="cat-toggle">▼</span>
+                </div>
+                <div className="article-grid">
+                  {visible.map(a => (
+                    <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} />
+                  ))}
+                </div>
+                {remaining > 0 && (
+                  <button
+                    className="load-more-btn"
+                    onClick={() => setShowCounts(prev => ({
+                      ...prev,
+                      [cat.slug]: (prev[cat.slug] ?? INITIAL_SHOW) + 12
+                    }))}
+                  >
+                    載入更多 ({remaining} 篇)
+                  </button>
+                )}
+              </section>
+            )
+          })
+        )}
 
         {filtered.length === 0 && searchQuery && (
           <div className="empty-state">
             <p>找不到符合「{searchQuery}」的文章</p>
-            <p style={{ fontSize: '0.875rem' }}>試試其他關鍵字或切換分類</p>
+            <p style={{ fontSize: '0.875rem' }}>
+              {searchTokens.length > 1
+                ? '多關鍵字使用 AND 邏輯，試試減少關鍵字或使用更寬泛的詞彙'
+                : '試試其他關鍵字或切換分類'
+              }
+            </p>
           </div>
         )}
       </main>

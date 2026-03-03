@@ -9,9 +9,14 @@ interface Props {
 
 function highlight(text: string, query: string): React.ReactNode {
   if (!query) return text
-  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'))
+  // Support multi-keyword highlighting: split by spaces, highlight each token
+  const tokens = query.trim().split(/\s+/).filter(t => t.length > 0)
+  if (tokens.length === 0) return text
+  const escaped = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const regex = new RegExp(`(${escaped.join('|')})`, 'gi')
+  const parts = text.split(regex)
   return parts.map((part, i) =>
-    part.toLowerCase() === query.toLowerCase()
+    tokens.some(t => part.toLowerCase() === t.toLowerCase())
       ? <mark key={i}>{part}</mark>
       : part
   )
