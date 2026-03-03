@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import CategoryChart from '../components/CategoryChart'
 import FilterBar from '../components/FilterBar'
@@ -30,6 +30,7 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams()
   const searchRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navigate = useNavigate()
 
   // Initialize search from URL query param
   useEffect(() => {
@@ -93,6 +94,13 @@ export default function Home() {
     setSearchQuery(tag.toLowerCase())
     if (searchRef.current) searchRef.current.value = tag
   }, [])
+
+  const handleRandomArticle = useCallback(() => {
+    if (!index || index.articles.length === 0) return
+    const articles = index.articles
+    const randomIdx = Math.floor(Math.random() * articles.length)
+    navigate(`/article/${articles[randomIdx].slug}`)
+  }, [index, navigate])
 
   const filtered = useMemo(() => {
     if (!index) return []
@@ -205,6 +213,9 @@ export default function Home() {
             )}
             <span className="search-kbd">{searchQuery ? '' : '/'}</span>
           </div>
+          <button className="random-btn" onClick={handleRandomArticle}>
+            隨機探索一篇文章
+          </button>
           {searchQuery && (
             <div className="search-stats">
               <span>{filtered.length} 篇符合</span>
