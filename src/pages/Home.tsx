@@ -315,7 +315,8 @@ export default function Home() {
 
       <footer>
         <div className="container">
-          <p>Powered by RAG Knowledge Base | Last sync: {lastSync}</p>
+          <p>{total} 篇文章 · {activeCategories} 個分類 · {totalReadingHours}h+ 閱讀量 · 最後同步 {lastSync}</p>
+          <p style={{ fontSize: '0.75rem', marginTop: '0.35rem' }}>Powered by RAG Knowledge Base</p>
         </div>
       </footer>
     </>
