@@ -42,12 +42,25 @@ export default function Article() {
       })
   }, [slug])
 
-  // Add copy buttons to code blocks
+  // Add copy buttons and language labels to code blocks
   useEffect(() => {
     if (!article || !contentRef.current) return
     const pres = contentRef.current.querySelectorAll('pre')
     pres.forEach(pre => {
       if (pre.querySelector('.code-copy-btn')) return
+      pre.style.position = 'relative'
+
+      // Language label
+      const codeEl = pre.querySelector('code')
+      const langClass = codeEl?.className.match(/language-(\w+)/)
+      if (langClass && langClass[1]) {
+        const label = document.createElement('span')
+        label.className = 'code-lang-label'
+        label.textContent = langClass[1]
+        pre.appendChild(label)
+      }
+
+      // Copy button
       const btn = document.createElement('button')
       btn.className = 'code-copy-btn'
       btn.textContent = '複製'
@@ -62,7 +75,6 @@ export default function Article() {
           }, 2000)
         })
       })
-      pre.style.position = 'relative'
       pre.appendChild(btn)
     })
   }, [article])
@@ -148,6 +160,9 @@ export default function Article() {
     <>
       {/* Reading Progress */}
       <div className="reading-progress" style={{ width: `${progress}%` }} />
+      {progress > 0 && (
+        <span className="reading-progress-text">{Math.round(progress)}%</span>
+      )}
 
       <Header />
 

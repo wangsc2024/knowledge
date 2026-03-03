@@ -9,6 +9,17 @@ import { CATEGORY_ORDER } from '../types'
 
 const INITIAL_SHOW = 12
 
+const CATEGORY_DESC: Record<string, string> = {
+  buddhism: '楞嚴經、法華經、淨土宗、教觀綱宗等經典研究與修行方法',
+  thinking: '費曼技巧、批判思考、決策框架與結構化分析方法論',
+  ai: 'LLM、RAG、Agent 架構、深度學習與 AI 應用前沿技術',
+  claude: 'Claude Code 工具鏈、Hooks、Skills 與自動化開發實踐',
+  game: 'HTML5 遊戲、Canvas 渲染、遊戲設計模式與互動體驗',
+  security: '資通安全、滲透測試、漏洞分析與防護策略',
+  opensource: 'GitHub 熱門專案、開源生態趨勢與技術選型',
+  other: '跨領域知識與未分類研究',
+}
+
 export default function Home() {
   const [index, setIndex] = useState<KnowledgeIndex | null>(null)
   const [loading, setLoading] = useState(true)
@@ -272,7 +283,12 @@ export default function Home() {
                   el?.classList.toggle('collapsed')
                 }}
               >
-                <h2>{cat.name}</h2>
+                <div className="category-header-text">
+                  <h2>{cat.name}</h2>
+                  {CATEGORY_DESC[cat.slug] && (
+                    <span className="category-desc">{CATEGORY_DESC[cat.slug]}</span>
+                  )}
+                </div>
                 <span className="cat-count">{articles.length} 篇</span>
                 <span className="cat-toggle">▼</span>
               </div>
