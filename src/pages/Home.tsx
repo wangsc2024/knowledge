@@ -141,6 +141,25 @@ export default function Home() {
     return [...index.articles].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8)
   }, [index])
 
+  // New articles count
+  const newArticlesCount = useMemo(() => {
+    if (!index) return 0
+    return index.articles.filter(a => a.isNew).length
+  }, [index])
+
+  // Popular tags for quick search
+  const popularTags = useMemo(() => {
+    if (!index) return []
+    const tagCount: Record<string, number> = {}
+    index.articles.forEach(a => {
+      a.tags.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1 })
+    })
+    return Object.entries(tagCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([tag]) => tag)
+  }, [index])
+
   if (loading) {
     return (
       <div className="loading">
@@ -213,6 +232,23 @@ export default function Home() {
             )}
             <span className="search-kbd">{searchQuery ? '' : '/'}</span>
           </div>
+          {!searchQuery && popularTags.length > 0 && (
+            <div className="quick-tags">
+              <span className="quick-tags-label">熱門：</span>
+              {popularTags.map(tag => (
+                <button
+                  key={tag}
+                  className="quick-tag-btn"
+                  onClick={() => {
+                    setSearchQuery(tag.toLowerCase())
+                    if (searchRef.current) searchRef.current.value = tag
+                  }}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
           <button className="random-btn" onClick={handleRandomArticle}>
             隨機探索一篇文章
           </button>
@@ -257,7 +293,12 @@ export default function Home() {
         {/* Recent (only when no filter/search) */}
         {activeFilter === 'all' && !searchQuery && (
           <section className="recent-section">
-            <h2>最近更新</h2>
+            <h2>
+              最近更新
+              {newArticlesCount > 0 && (
+                <span className="new-count-badge">+{newArticlesCount} 新增</span>
+              )}
+            </h2>
             <div className="recent-grid">
               {recentArticles.map(a => (
                 <div key={a.id} className="recent-card">
