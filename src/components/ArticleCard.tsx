@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ArticleMeta } from '../types'
+import { CATEGORY_COLOR } from '../types'
 
 interface Props {
   article: ArticleMeta
@@ -23,8 +24,9 @@ function highlight(text: string, query: string): React.ReactNode {
 }
 
 export default function ArticleCard({ article, searchQuery, onTagClick }: Props) {
+  const accentColor = CATEGORY_COLOR[article.categorySlug] ?? undefined
   return (
-    <article className="article-card">
+    <article className="article-card" style={accentColor ? { '--card-accent': accentColor } as React.CSSProperties : undefined}>
       <div className="card-top">
         <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
         {article.isNew && <span className="new-badge">NEW</span>}

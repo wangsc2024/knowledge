@@ -43,6 +43,22 @@ export default function Article() {
       })
   }, [slug])
 
+  // Heading anchor click: copy link to that section
+  useEffect(() => {
+    if (!article || !contentRef.current) return
+    const headings = contentRef.current.querySelectorAll('h2[id], h3[id]')
+    const handler = (e: Event) => {
+      const el = e.currentTarget as HTMLElement
+      if (el.id) {
+        const url = `${location.origin}${location.pathname}#${el.id}`
+        navigator.clipboard.writeText(url).catch(() => {})
+        history.replaceState(null, '', `#${el.id}`)
+      }
+    }
+    headings.forEach(h => h.addEventListener('click', handler))
+    return () => headings.forEach(h => h.removeEventListener('click', handler))
+  }, [article])
+
   // Add copy buttons and language labels to code blocks
   useEffect(() => {
     if (!article || !contentRef.current) return
