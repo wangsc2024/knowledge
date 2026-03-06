@@ -45,7 +45,7 @@ export default function ArticleCard({ article, searchQuery, onTagClick }: Props)
             {article.tags.slice(0, 3).map(t => (
               <span
                 key={t}
-                className={`tag clickable${searchQuery && t.toLowerCase().includes(searchQuery) ? ' tag-match' : ''}`}
+                className={`tag clickable${searchQuery && searchQuery.trim().split(/\s+/).some(token => token.length > 0 && t.toLowerCase().includes(token)) ? ' tag-match' : ''}`}
                 onClick={() => onTagClick?.(t)}
                 role="button"
                 tabIndex={0}
