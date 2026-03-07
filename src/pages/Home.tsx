@@ -170,8 +170,12 @@ export default function Home() {
   const filtered = useMemo(() => {
     if (!index) return []
     const results = index.articles.filter(a => {
-      const catMatch = activeFilter === 'all' || a.categorySlug === activeFilter
-      if (!catMatch) return false
+      if (activeFilter === 'new') {
+        if (!a.isNew) return false
+      } else {
+        const catMatch = activeFilter === 'all' || a.categorySlug === activeFilter
+        if (!catMatch) return false
+      }
       if (searchTokens.length === 0) return true
       return matchesAllTokens(a, searchTokens)
     })
@@ -368,6 +372,7 @@ export default function Home() {
         <FilterBar
           activeFilter={activeFilter}
           categories={categoryCounts}
+          newCount={newArticlesCount}
           onFilter={slug => {
             setActiveFilter(slug)
             setSearchQuery('')
