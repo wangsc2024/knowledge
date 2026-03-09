@@ -26,6 +26,7 @@ OUTPUT_DIR = "d:/source/knowledge"
 DATA_DIR   = f"{OUTPUT_DIR}/public/data"
 ART_DIR    = f"{DATA_DIR}/articles"
 LOG_PATH   = f"{OUTPUT_DIR}/sync-log.json"
+PODCAST_URLS_PATH = f"{OUTPUT_DIR}/podcast-urls.json"
 PAGE_SIZE  = 100   # 每頁筆數
 MAX_PAGES  = 20    # 最多取頁數（可用 --pages 覆蓋）
 
@@ -344,6 +345,36 @@ def main():
                 new_count += 1
         else:
             skipped_count += 1
+
+    # ─── Pass 2.5：Podcast 注入（覆蓋既有文章）────
+    podcast_urls = {}
+    if os.path.exists(PODCAST_URLS_PATH):
+        try:
+            with open(PODCAST_URLS_PATH, 'r', encoding='utf-8') as pf:
+                podcast_urls = json.load(pf)
+        except Exception as e:
+            print(f"  ⚠ 讀取 podcast-urls.json 失敗: {e}")
+
+    for note, art_meta, _, _, slug, _, _ in note_meta:
+        p = podcast_urls.get(art_meta['id'])
+        if not p:
+            continue
+        out_path = f"{ART_DIR}/{slug}.json"
+        if not os.path.exists(out_path):
+            continue
+        try:
+            with open(out_path, 'r', encoding='utf-8') as f:
+                art = json.load(f)
+            if '收聽 Podcast' in (art.get('html') or ''):
+                continue
+            pod_html = f'\n<hr>\n<h2 id="收聽-podcast">收聽 Podcast</h2>\n<p>🎙️ <a href="{p["url"]}" target="_blank" rel="noopener">{p["title"]}</a> — 雙主持人知識電台（直接播放 MP3）</p>\n'
+            art['html'] = (art.get('html') or '') + pod_html
+            art['headings'] = (art.get('headings') or []) + [{'level': 2, 'text': '收聽 Podcast', 'slug': '收聽-podcast'}]
+            with open(out_path, 'w', encoding='utf-8') as f:
+                json.dump(art, f, ensure_ascii=False, separators=(',', ':'))
+            print(f"  ✅ 已注入 Podcast：{slug}")
+        except Exception as e:
+            print(f"  ⚠ Podcast 注入失敗 {slug}: {e}")
 
     # ─── 生成 index.json ─────────────────────────────
     # 按分類收集，每類按更新時間排序
