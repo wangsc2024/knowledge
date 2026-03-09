@@ -180,7 +180,12 @@ export default function Article() {
       {/* Reading Progress */}
       <div className="reading-progress" style={{ width: `${progress}%` }} />
       {progress > 0 && (
-        <span className="reading-progress-text">{Math.round(progress)}%</span>
+        <span className="reading-progress-text">
+          {Math.round(progress)}%
+          {article.readingMin > 0 && progress < 95 && (
+            <> · {Math.max(1, Math.ceil(article.readingMin * (100 - progress) / 100))} 分鐘</>
+          )}
+        </span>
       )}
 
       <Header />
