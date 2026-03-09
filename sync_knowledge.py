@@ -367,9 +367,9 @@ def main():
                 art = json.load(f)
             if '收聽 Podcast' in (art.get('html') or ''):
                 continue
-            pod_html = f'\n<hr>\n<h2 id="收聽-podcast">收聽 Podcast</h2>\n<p>🎙️ <a href="{p["url"]}" target="_blank" rel="noopener">{p["title"]}</a> — 雙主持人知識電台（直接播放 MP3）</p>\n'
-            art['html'] = (art.get('html') or '') + pod_html
-            art['headings'] = (art.get('headings') or []) + [{'level': 2, 'text': '收聽 Podcast', 'slug': '收聽-podcast'}]
+            pod_html = f'\n<h2 id="收聽-podcast">收聽 Podcast</h2>\n<p>🎙️ <a href="{p["url"]}" target="_blank" rel="noopener">{p["title"]}</a> — 雙主持人知識電台（直接播放 MP3）</p>\n<hr>\n'
+            art['html'] = pod_html + (art.get('html') or '')
+            art['headings'] = [{'level': 2, 'text': '收聽 Podcast', 'slug': '收聽-podcast'}] + (art.get('headings') or [])
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(art, f, ensure_ascii=False, separators=(',', ':'))
             print(f"  ✅ 已注入 Podcast：{slug}")
