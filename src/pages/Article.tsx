@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import type { ArticleDetail } from '../types'
+import { useViewCount } from '../hooks/useViewCount'
 
 function estimateWordCount(html: string): number {
   const text = html.replace(/<[^>]+>/g, '')
@@ -23,6 +24,7 @@ export default function Article() {
   const [activeHeading, setActiveHeading] = useState('')
   const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal')
   const contentRef = useRef<HTMLDivElement>(null)
+  const views = useViewCount(slug)
 
   useEffect(() => {
     if (!slug) return
@@ -211,6 +213,9 @@ export default function Article() {
               <span>{article.updatedAt}</span>
               <span>約 {estimateWordCount(article.html).toLocaleString()} 字</span>
               <span>{article.readingMin} 分鐘閱讀</span>
+              {views !== null && (
+                <span title="總瀏覽次數">👁 {views.toLocaleString()} 次</span>
+              )}
               <button
                 className={`copy-btn${copied ? ' copied' : ''}`}
                 onClick={handleCopy}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useScrollDirection } from '../hooks/useScrollDirection'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '../hooks/useTheme'
 import { CATEGORY_ORDER } from '../types'
@@ -9,6 +10,7 @@ interface Props {
 
 export default function Header({ categoryCounts = {} }: Props) {
   const { dark, toggle } = useTheme()
+  const scrollDir = useScrollDirection()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -16,7 +18,7 @@ export default function Header({ categoryCounts = {} }: Props) {
 
   return (
     <>
-      <header>
+      <header className={scrollDir === "down" ? "header-hidden" : ""}>
         <div className="container">
           <Link to="/" className="logo" onClick={() => setMenuOpen(false)}>知識庫</Link>
           <nav>

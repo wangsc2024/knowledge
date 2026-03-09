@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useViewCountRead } from '../hooks/useViewCount'
 import type { ArticleMeta } from '../types'
 import { CATEGORY_COLOR } from '../types'
 
@@ -25,12 +26,14 @@ function highlight(text: string, query: string): React.ReactNode {
 
 export default function ArticleCard({ article, searchQuery, onTagClick }: Props) {
   const accentColor = CATEGORY_COLOR[article.categorySlug] ?? undefined
+  const views = useViewCountRead(article.slug)
   return (
     <article className="article-card" style={accentColor ? { '--card-accent': accentColor } as React.CSSProperties : undefined}>
       <div className="card-top">
         <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
         {article.isNew && <span className="new-badge">NEW</span>}
         <span className="card-time">{article.readingMin} 分鐘</span>
+        {views !== null && views > 0 && <span className="card-views">👁 {views.toLocaleString()}</span>}
       </div>
       <h3>
         <Link to={`/article/${article.slug}`}>
