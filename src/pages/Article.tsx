@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import type { ArticleDetail } from '../types'
 import { useViewCount } from '../hooks/useViewCount'
+import { recordRead } from '../hooks/useReadingHistory'
 
 function estimateWordCount(html: string): number {
   const text = html.replace(/<[^>]+>/g, '')
@@ -38,6 +39,7 @@ export default function Article() {
         setArticle(data)
         setLoading(false)
         window.scrollTo(0, 0)
+        recordRead(data.slug, data.title, data.category, data.categorySlug)
       })
       .catch(e => {
         setError(e.message)

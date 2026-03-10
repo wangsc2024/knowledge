@@ -7,6 +7,7 @@ interface Props {
   article: ArticleMeta
   searchQuery: string
   onTagClick?: (tag: string) => void
+  isRead?: boolean
 }
 
 function highlight(text: string, query: string): React.ReactNode {
@@ -24,7 +25,7 @@ function highlight(text: string, query: string): React.ReactNode {
   )
 }
 
-export default function ArticleCard({ article, searchQuery, onTagClick }: Props) {
+export default function ArticleCard({ article, searchQuery, onTagClick, isRead }: Props) {
   const accentColor = CATEGORY_COLOR[article.categorySlug] ?? undefined
   const views = useViewCountRead(article.slug)
   return (
@@ -32,6 +33,7 @@ export default function ArticleCard({ article, searchQuery, onTagClick }: Props)
       <div className="card-top">
         <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
         {article.isNew && <span className="new-badge">NEW</span>}
+        {isRead && !article.isNew && <span className="read-badge">已讀</span>}
         <span className="card-time">{article.readingMin} 分鐘</span>
         {views !== null && views > 0 && <span className="card-views">👁 {views.toLocaleString()}</span>}
       </div>

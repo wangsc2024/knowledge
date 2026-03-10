@@ -5,6 +5,7 @@ import CategoryChart from '../components/CategoryChart'
 import FilterBar from '../components/FilterBar'
 import ArticleCard from '../components/ArticleCard'
 import type { KnowledgeIndex, ArticleMeta } from '../types'
+import { getReadingHistory, getReadSlugs } from '../hooks/useReadingHistory'
 import { CATEGORY_ORDER } from '../types'
 
 const INITIAL_SHOW = 12
@@ -240,6 +241,10 @@ export default function Home() {
       .map(([tag]) => tag)
   }, [index])
 
+  // Reading history
+  const readSlugs = useMemo(() => getReadSlugs(), [index])
+  const readingHistory = useMemo(() => getReadingHistory(6), [index])
+
   if (loading) {
     return (
       <div className="loading">
@@ -404,6 +409,21 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="container articles-main">
+        {/* Reading History */}
+        {activeFilter === 'all' && !searchQuery && readingHistory.length > 0 && (
+          <section className="reading-history-section">
+            <h2>繼續閱讀</h2>
+            <div className="reading-history-grid">
+              {readingHistory.map(r => (
+                <Link key={r.slug} to={`/article/${r.slug}`} className="reading-history-card">
+                  <span className={`cat-badge ${r.categorySlug}`}>{r.category}</span>
+                  <span className="reading-history-title">{r.title}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Recent (only when no filter/search) */}
         {activeFilter === 'all' && !searchQuery && (
           <section className="recent-section">
@@ -441,7 +461,7 @@ export default function Home() {
             </h2>
             <div className="article-grid">
               {filtered.slice(0, showCounts['__relevance'] ?? INITIAL_SHOW * 2).map(a => (
-                <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} />
+                <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} />
               ))}
             </div>
             {filtered.length > (showCounts['__relevance'] ?? INITIAL_SHOW * 2) && (
@@ -485,7 +505,7 @@ export default function Home() {
                 </div>
                 <div className="article-grid">
                   {visible.map(a => (
-                    <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} />
+                    <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} />
                   ))}
                 </div>
                 {remaining > 0 && (
