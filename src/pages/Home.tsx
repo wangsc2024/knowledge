@@ -7,6 +7,7 @@ import ArticleCard from '../components/ArticleCard'
 import type { KnowledgeIndex, ArticleMeta } from '../types'
 import { getReadingHistory, getReadSlugs } from '../hooks/useReadingHistory'
 import { CATEGORY_ORDER } from '../types'
+import { relativeDate } from '../utils/relativeDate'
 
 const INITIAL_SHOW = 12
 type SortMode = 'recent' | 'reading' | 'title' | 'relevance'
@@ -443,7 +444,7 @@ export default function Home() {
                   {a.excerpt && <p className="recent-card-excerpt">{a.excerpt}</p>}
                   <div className="recent-card-meta">
                     <span className={`cat-badge ${a.categorySlug}`}>{a.category}</span>
-                    <span className="card-date">{a.updatedAt}</span>
+                    <span className="card-date" title={a.updatedAt}>{relativeDate(a.updatedAt)}</span>
                     <span className="card-time">{a.readingMin} 分鐘</span>
                   </div>
                 </div>

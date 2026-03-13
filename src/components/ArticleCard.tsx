@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useViewCountRead } from '../hooks/useViewCount'
 import type { ArticleMeta } from '../types'
 import { CATEGORY_COLOR } from '../types'
+import { relativeDate } from '../utils/relativeDate'
 
 interface Props {
   article: ArticleMeta
@@ -46,7 +47,7 @@ export default function ArticleCard({ article, searchQuery, onTagClick, isRead }
         <p className="card-excerpt">{highlight(article.excerpt, searchQuery)}</p>
       )}
       <div className="card-footer">
-        <span className="card-date">{article.updatedAt}</span>
+        <span className="card-date" title={article.updatedAt}>{relativeDate(article.updatedAt)}</span>
         {article.tags.length > 0 && (
           <div className="card-tags">
             {article.tags.slice(0, 3).map(t => (
