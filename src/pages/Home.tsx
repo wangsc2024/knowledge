@@ -6,6 +6,7 @@ import FilterBar from '../components/FilterBar'
 import ArticleCard from '../components/ArticleCard'
 import type { KnowledgeIndex, ArticleMeta } from '../types'
 import { getReadingHistory, getReadSlugs } from '../hooks/useReadingHistory'
+import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../hooks/useSearchHistory'
 import { CATEGORY_ORDER } from '../types'
 import { relativeDate } from '../utils/relativeDate'
 
@@ -80,6 +81,8 @@ export default function Home() {
   const searchRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigate = useNavigate()
+  const [searchFocused, setSearchFocused] = useState(false)
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
 
   // Track previous sort mode before search auto-switches to relevance
   const prevSortRef = useRef<SortMode>('recent')
@@ -149,6 +152,10 @@ export default function Home() {
         setSortMode(prevSortRef.current)
       }
       setSearchQuery(trimmed)
+      if (trimmed.length >= 2) {
+        addSearchHistory(trimmed)
+        setSearchHistory(getSearchHistory())
+      }
     }, 250)
   }, [searchQuery, sortMode])
 
@@ -299,6 +306,8 @@ export default function Home() {
               type="text"
               placeholder={`搜尋 ${total} 篇文章... (支援多關鍵字，空格分隔)`}
               onChange={e => handleSearch(e.target.value)}
+              onFocus={() => { setSearchFocused(true); setSearchHistory(getSearchHistory()) }}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
               aria-label="搜尋"
             />
             {searchQuery && (
@@ -318,6 +327,30 @@ export default function Home() {
               </button>
             )}
             <span className="search-kbd">{searchQuery ? '' : '/'}</span>
+            {searchFocused && !searchQuery && searchHistory.length > 0 && (
+              <div className="search-history-dropdown">
+                <div className="search-history-header">
+                  <span>搜尋紀錄</span>
+                  <button onClick={() => { clearSearchHistory(); setSearchHistory([]) }}>清除</button>
+                </div>
+                {searchHistory.map(h => (
+                  <button
+                    key={h}
+                    className="search-history-item"
+                    onMouseDown={e => {
+                      e.preventDefault()
+                      setSearchQuery(h)
+                      if (searchRef.current) searchRef.current.value = h
+                      prevSortRef.current = sortMode
+                      setSortMode('relevance')
+                      setSearchFocused(false)
+                    }}
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {searchQuery && searchTokens.length > 1 && (
             <div className="search-tokens">
