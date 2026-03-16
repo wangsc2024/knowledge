@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
-import type { ArticleDetail } from '../types'
+import type { ArticleDetail, ArticleMeta, KnowledgeIndex } from '../types'
 import { useViewCount } from '../hooks/useViewCount'
 import { recordRead } from '../hooks/useReadingHistory'
 
@@ -26,6 +26,32 @@ export default function Article() {
   const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal')
   const contentRef = useRef<HTMLDivElement>(null)
   const views = useViewCount(slug)
+  const [allArticles, setAllArticles] = useState<ArticleMeta[]>([])
+
+  // Load index for related articles
+  useEffect(() => {
+    fetch('/data/index.json')
+      .then(r => r.json() as Promise<KnowledgeIndex>)
+      .then(data => setAllArticles(data.articles))
+      .catch(() => {})
+  }, [])
+
+  // Compute related articles (same category + shared tags, excluding current)
+  const relatedArticles = useMemo(() => {
+    if (!article || allArticles.length === 0) return []
+    const currentTags = new Set(article.tags.map(t => t.toLowerCase()))
+    return allArticles
+      .filter(a => a.slug !== article.slug)
+      .map(a => {
+        let score = 0
+        if (a.categorySlug === article.categorySlug) score += 3
+        a.tags.forEach(t => { if (currentTags.has(t.toLowerCase())) score += 2 })
+        return { ...a, score }
+      })
+      .filter(a => a.score > 0)
+      .sort((a, b) => b.score - a.score || b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 4)
+  }, [article, allArticles])
 
   useEffect(() => {
     if (!slug) return
@@ -292,6 +318,22 @@ export default function Article() {
                 </Link>
               ) : <div />}
             </nav>
+          )}
+
+          {/* Related Articles */}
+          {relatedArticles.length > 0 && (
+            <section className="related-articles">
+              <h3>相關文章</h3>
+              <div className="related-grid">
+                {relatedArticles.map(a => (
+                  <Link key={a.id} to={`/article/${a.slug}`} className="related-card">
+                    <span className={`cat-badge ${a.categorySlug}`}>{a.category}</span>
+                    <span className="related-title">{a.title}</span>
+                    <span className="related-meta">{a.readingMin} 分鐘</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
           )}
 
           <Link to="/" className="back-link">← 返回首頁</Link>

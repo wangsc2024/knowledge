@@ -414,8 +414,6 @@ export default function Home() {
           newCount={newArticlesCount}
           onFilter={slug => {
             setActiveFilter(slug)
-            setSearchQuery('')
-            if (searchRef.current) searchRef.current.value = ''
           }}
         />
         <div className="sort-group">
