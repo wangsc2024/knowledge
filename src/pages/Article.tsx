@@ -4,6 +4,7 @@ import Header from '../components/Header'
 import type { ArticleDetail, ArticleMeta, KnowledgeIndex } from '../types'
 import { useViewCount } from '../hooks/useViewCount'
 import { recordRead } from '../hooks/useReadingHistory'
+import { isBookmarked as checkBookmarked, toggleBookmark } from '../hooks/useBookmarks'
 
 function estimateWordCount(html: string): number {
   const text = html.replace(/<[^>]+>/g, '')
@@ -27,6 +28,7 @@ export default function Article() {
   const contentRef = useRef<HTMLDivElement>(null)
   const views = useViewCount(slug)
   const [allArticles, setAllArticles] = useState<ArticleMeta[]>([])
+  const [bookmarked, setBookmarked] = useState(false)
 
   // Load index for related articles
   useEffect(() => {
@@ -66,6 +68,7 @@ export default function Article() {
         setLoading(false)
         window.scrollTo(0, 0)
         recordRead(data.slug, data.title, data.category, data.categorySlug)
+        setBookmarked(checkBookmarked(data.slug))
       })
       .catch(e => {
         setError(e.message)
@@ -254,6 +257,17 @@ export default function Article() {
                 onClick={handleCopy}
               >
                 {copied ? '✓ 已複製' : '🔗 複製連結'}
+              </button>
+              <button
+                className={`bookmark-btn-article${bookmarked ? ' bookmarked' : ''}`}
+                onClick={() => {
+                  if (!article) return
+                  const result = toggleBookmark(article.slug, article.title, article.category, article.categorySlug)
+                  setBookmarked(result)
+                }}
+                aria-label={bookmarked ? '取消收藏' : '收藏'}
+              >
+                {bookmarked ? '★ 已收藏' : '☆ 收藏'}
               </button>
               <button
                 className="font-size-btn"

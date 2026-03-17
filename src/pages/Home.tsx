@@ -7,6 +7,7 @@ import ArticleCard from '../components/ArticleCard'
 import type { KnowledgeIndex, ArticleMeta } from '../types'
 import { getReadingHistory, getReadSlugs } from '../hooks/useReadingHistory'
 import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../hooks/useSearchHistory'
+import { getBookmarks, getBookmarkedSlugs } from '../hooks/useBookmarks'
 import { CATEGORY_ORDER } from '../types'
 import { relativeDate } from '../utils/relativeDate'
 
@@ -253,6 +254,12 @@ export default function Home() {
   const readSlugs = useMemo(() => getReadSlugs(), [index])
   const readingHistory = useMemo(() => getReadingHistory(6), [index])
 
+  // Bookmarks
+  const [bookmarkVer, setBookmarkVer] = useState(0)
+  const bookmarkedSlugs = useMemo(() => getBookmarkedSlugs(), [bookmarkVer, index])
+  const bookmarks = useMemo(() => getBookmarks(8), [bookmarkVer, index])
+  const handleBookmarkChange = useCallback(() => setBookmarkVer(v => v + 1), [])
+
   if (loading) {
     return (
       <div className="loading">
@@ -456,6 +463,21 @@ export default function Home() {
           </section>
         )}
 
+        {/* Bookmarks */}
+        {activeFilter === 'all' && !searchQuery && bookmarks.length > 0 && (
+          <section className="bookmarks-section">
+            <h2>收藏文章 <span className="bookmark-count">{bookmarks.length}</span></h2>
+            <div className="reading-history-grid">
+              {bookmarks.map(b => (
+                <Link key={b.slug} to={`/article/${b.slug}`} className="reading-history-card">
+                  <span className={`cat-badge ${b.categorySlug}`}>{b.category}</span>
+                  <span className="reading-history-title">{b.title}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Recent (only when no filter/search) */}
         {activeFilter === 'all' && !searchQuery && (
           <section className="recent-section">
@@ -493,7 +515,7 @@ export default function Home() {
             </h2>
             <div className="article-grid">
               {filtered.slice(0, showCounts['__relevance'] ?? INITIAL_SHOW * 2).map(a => (
-                <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} />
+                <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} isBookmarked={bookmarkedSlugs.has(a.slug)} onBookmarkChange={handleBookmarkChange} />
               ))}
             </div>
             {filtered.length > (showCounts['__relevance'] ?? INITIAL_SHOW * 2) && (
@@ -537,7 +559,7 @@ export default function Home() {
                 </div>
                 <div className="article-grid">
                   {visible.map(a => (
-                    <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} />
+                    <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} isBookmarked={bookmarkedSlugs.has(a.slug)} onBookmarkChange={handleBookmarkChange} />
                   ))}
                 </div>
                 {remaining > 0 && (

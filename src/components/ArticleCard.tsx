@@ -1,14 +1,18 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useViewCountRead } from '../hooks/useViewCount'
 import type { ArticleMeta } from '../types'
 import { CATEGORY_COLOR } from '../types'
 import { relativeDate } from '../utils/relativeDate'
+import { toggleBookmark } from '../hooks/useBookmarks'
 
 interface Props {
   article: ArticleMeta
   searchQuery: string
   onTagClick?: (tag: string) => void
   isRead?: boolean
+  isBookmarked?: boolean
+  onBookmarkChange?: () => void
 }
 
 function highlight(text: string, query: string): React.ReactNode {
@@ -26,9 +30,19 @@ function highlight(text: string, query: string): React.ReactNode {
   )
 }
 
-export default function ArticleCard({ article, searchQuery, onTagClick, isRead }: Props) {
+export default function ArticleCard({ article, searchQuery, onTagClick, isRead, isBookmarked: initialBookmarked, onBookmarkChange }: Props) {
   const accentColor = CATEGORY_COLOR[article.categorySlug] ?? undefined
   const views = useViewCountRead(article.slug)
+  const [bookmarked, setBookmarked] = useState(initialBookmarked ?? false)
+
+  const handleBookmark = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const result = toggleBookmark(article.slug, article.title, article.category, article.categorySlug)
+    setBookmarked(result)
+    onBookmarkChange?.()
+  }
+
   return (
     <article className="article-card" style={accentColor ? { '--card-accent': accentColor } as React.CSSProperties : undefined}>
       <div className="card-top">
@@ -37,6 +51,14 @@ export default function ArticleCard({ article, searchQuery, onTagClick, isRead }
         {isRead && !article.isNew && <span className="read-badge">已讀</span>}
         <span className="card-time">{article.readingMin} 分鐘</span>
         {views !== null && views > 0 && <span className="card-views">👁 {views.toLocaleString()}</span>}
+        <button
+          className={`bookmark-btn${bookmarked ? ' bookmarked' : ''}`}
+          onClick={handleBookmark}
+          aria-label={bookmarked ? '取消收藏' : '收藏'}
+          title={bookmarked ? '取消收藏' : '收藏'}
+        >
+          {bookmarked ? '★' : '☆'}
+        </button>
       </div>
       <h3>
         <Link to={`/article/${article.slug}`}>
