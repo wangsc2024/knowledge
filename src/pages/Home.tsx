@@ -8,6 +8,7 @@ import type { KnowledgeIndex, ArticleMeta } from '../types'
 import { getReadingHistory, getReadSlugs } from '../hooks/useReadingHistory'
 import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../hooks/useSearchHistory'
 import { getBookmarks, getBookmarkedSlugs } from '../hooks/useBookmarks'
+import { useFadeIn } from '../hooks/useFadeIn'
 import { CATEGORY_ORDER } from '../types'
 import { relativeDate } from '../utils/relativeDate'
 
@@ -259,6 +260,7 @@ export default function Home() {
   const bookmarkedSlugs = useMemo(() => getBookmarkedSlugs(), [bookmarkVer, index])
   const bookmarks = useMemo(() => getBookmarks(8), [bookmarkVer, index])
   const handleBookmarkChange = useCallback(() => setBookmarkVer(v => v + 1), [])
+  const fadeRef = useFadeIn<HTMLElement>('.article-card, .recent-card')
 
   if (loading) {
     return (
@@ -447,7 +449,7 @@ export default function Home() {
       </div>
 
       {/* Main Content */}
-      <main className="container articles-main">
+      <main className="container articles-main" ref={fadeRef}>
         {/* Reading History */}
         {activeFilter === 'all' && !searchQuery && readingHistory.length > 0 && (
           <section className="reading-history-section">
