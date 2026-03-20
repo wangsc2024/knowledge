@@ -43,6 +43,16 @@ export function getSavedPosition(slug: string): number | null {
   return record ? record.position : null
 }
 
+/** Get all saved positions as a slug→percentage map. */
+export function getAllPositions(): Record<string, number> {
+  const records = load()
+  const map: Record<string, number> = {}
+  for (const r of records) {
+    map[r.slug] = r.position
+  }
+  return map
+}
+
 /** Clear saved position for an article. */
 export function clearSavedPosition(slug: string) {
   const records = load().filter(r => r.slug !== slug)

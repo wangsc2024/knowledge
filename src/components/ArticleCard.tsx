@@ -13,6 +13,7 @@ interface Props {
   isRead?: boolean
   isBookmarked?: boolean
   onBookmarkChange?: () => void
+  readingProgress?: number
 }
 
 function highlight(text: string, query: string): React.ReactNode {
@@ -30,7 +31,7 @@ function highlight(text: string, query: string): React.ReactNode {
   )
 }
 
-export default function ArticleCard({ article, searchQuery, onTagClick, isRead, isBookmarked: initialBookmarked, onBookmarkChange }: Props) {
+export default function ArticleCard({ article, searchQuery, onTagClick, isRead, isBookmarked: initialBookmarked, onBookmarkChange, readingProgress }: Props) {
   const accentColor = CATEGORY_COLOR[article.categorySlug] ?? undefined
   const views = useViewCountRead(article.slug)
   const [bookmarked, setBookmarked] = useState(initialBookmarked ?? false)
@@ -87,6 +88,12 @@ export default function ArticleCard({ article, searchQuery, onTagClick, isRead, 
           </div>
         )}
       </div>
+      {readingProgress != null && readingProgress > 0 && (
+        <div className="card-progress" title={`已閱讀 ${readingProgress}%`}>
+          <div className="card-progress-bar" style={{ width: `${readingProgress}%` }} />
+          <span className="card-progress-text">{readingProgress}%</span>
+        </div>
+      )}
     </article>
   )
 }
