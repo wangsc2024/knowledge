@@ -5,6 +5,7 @@ import type { ArticleDetail, ArticleMeta, KnowledgeIndex } from '../types'
 import { useViewCount } from '../hooks/useViewCount'
 import { recordRead } from '../hooks/useReadingHistory'
 import { isBookmarked as checkBookmarked, toggleBookmark } from '../hooks/useBookmarks'
+import { saveScrollPosition, getSavedPosition, clearSavedPosition } from '../hooks/useScrollPosition'
 
 function estimateWordCount(html: string): number {
   const text = html.replace(/<[^>]+>/g, '')
@@ -29,6 +30,7 @@ export default function Article() {
   const views = useViewCount(slug)
   const [allArticles, setAllArticles] = useState<ArticleMeta[]>([])
   const [bookmarked, setBookmarked] = useState(false)
+  const [resumePosition, setResumePosition] = useState<number | null>(null)
 
   // Load index for related articles
   useEffect(() => {
@@ -69,6 +71,11 @@ export default function Article() {
         window.scrollTo(0, 0)
         recordRead(data.slug, data.title, data.category, data.categorySlug)
         setBookmarked(checkBookmarked(data.slug))
+        // Check for saved scroll position
+        const saved = getSavedPosition(data.slug)
+        if (saved && saved > 5) {
+          setResumePosition(saved)
+        }
       })
       .catch(e => {
         setError(e.message)
@@ -141,6 +148,23 @@ export default function Article() {
       wrapper.appendChild(table)
     })
   }, [article])
+
+  // Save scroll position periodically
+  useEffect(() => {
+    if (!slug) return
+    let saveTimer: ReturnType<typeof setTimeout> | null = null
+    const onScrollSave = () => {
+      if (saveTimer) clearTimeout(saveTimer)
+      saveTimer = setTimeout(() => saveScrollPosition(slug, window.scrollY), 1000)
+    }
+    window.addEventListener('scroll', onScrollSave)
+    return () => {
+      window.removeEventListener('scroll', onScrollSave)
+      if (saveTimer) clearTimeout(saveTimer)
+      // Save final position on unmount
+      saveScrollPosition(slug, window.scrollY)
+    }
+  }, [slug])
 
   // Reading progress + back to top + active heading tracking
   useEffect(() => {
@@ -285,6 +309,22 @@ export default function Article() {
               </div>
             )}
           </div>
+
+          {/* Resume Reading Banner */}
+          {resumePosition !== null && (
+            <div className="resume-banner">
+              <span>上次閱讀到 {resumePosition}%</span>
+              <button onClick={() => {
+                const h = document.documentElement.scrollHeight - window.innerHeight
+                window.scrollTo({ top: h * resumePosition / 100, behavior: 'smooth' })
+                setResumePosition(null)
+              }}>繼續閱讀</button>
+              <button className="resume-dismiss" onClick={() => {
+                setResumePosition(null)
+                if (slug) clearSavedPosition(slug)
+              }}>略過</button>
+            </div>
+          )}
 
           {/* Inline TOC (mobile) */}
           {article.headings.length >= 3 && (
