@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import type { ArticleDetail, ArticleMeta, KnowledgeIndex } from '../types'
 import { useViewCount } from '../hooks/useViewCount'
+import { relativeDate } from '../utils/relativeDate'
 import { recordRead } from '../hooks/useReadingHistory'
 import { isBookmarked as checkBookmarked, toggleBookmark } from '../hooks/useBookmarks'
 import { saveScrollPosition, getSavedPosition, clearSavedPosition } from '../hooks/useScrollPosition'
@@ -270,7 +271,7 @@ export default function Article() {
             </div>
             <h1>{article.title}</h1>
             <div className="article-meta">
-              <span>{article.updatedAt}</span>
+              <span title={article.updatedAt}>{relativeDate(article.updatedAt)}</span>
               <span>約 {estimateWordCount(article.html).toLocaleString()} 字</span>
               <span>{article.readingMin} 分鐘閱讀</span>
               {views !== null && (
