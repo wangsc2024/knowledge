@@ -416,6 +416,35 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Personal Reading Stats */}
+      {(readSlugs.size > 0 || completeSlugs.size > 0 || bookmarkedSlugs.size > 0) && (
+        <section className="reading-stats-panel">
+          <div className="container">
+            <div className="reading-stats-grid">
+              <div className="reading-stat-item">
+                <span className="reading-stat-num">{readSlugs.size}</span>
+                <span className="reading-stat-desc">已瀏覽</span>
+              </div>
+              <div className="reading-stat-item">
+                <span className="reading-stat-num">{completeSlugs.size}</span>
+                <span className="reading-stat-desc">已讀完</span>
+              </div>
+              <div className="reading-stat-item">
+                <span className="reading-stat-num">{bookmarkedSlugs.size}</span>
+                <span className="reading-stat-desc">已收藏</span>
+              </div>
+              <div className="reading-stat-item reading-stat-progress">
+                <span className="reading-stat-num">{total > 0 ? Math.round(readSlugs.size / total * 100) : 0}%</span>
+                <span className="reading-stat-desc">探索進度</span>
+                <div className="reading-stat-bar">
+                  <div className="reading-stat-bar-fill" style={{ width: `${total > 0 ? Math.min(100, readSlugs.size / total * 100) : 0}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Chart */}
       <CategoryChart categories={categoryCounts} />
 
