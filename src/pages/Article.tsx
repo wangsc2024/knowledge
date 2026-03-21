@@ -7,6 +7,7 @@ import { relativeDate } from '../utils/relativeDate'
 import { recordRead } from '../hooks/useReadingHistory'
 import { isBookmarked as checkBookmarked, toggleBookmark } from '../hooks/useBookmarks'
 import { saveScrollPosition, getSavedPosition, clearSavedPosition } from '../hooks/useScrollPosition'
+import { isComplete, markComplete } from '../hooks/useReadComplete'
 
 function estimateWordCount(html: string): number {
   const text = html.replace(/<[^>]+>/g, '')
@@ -32,6 +33,7 @@ export default function Article() {
   const [allArticles, setAllArticles] = useState<ArticleMeta[]>([])
   const [bookmarked, setBookmarked] = useState(false)
   const [resumePosition, setResumePosition] = useState<number | null>(null)
+  const [completed, setCompleted] = useState(false)
 
   // Load index for related articles
   useEffect(() => {
@@ -72,6 +74,7 @@ export default function Article() {
         window.scrollTo(0, 0)
         recordRead(data.slug, data.title, data.category, data.categorySlug)
         setBookmarked(checkBookmarked(data.slug))
+        setCompleted(isComplete(data.slug))
         // Check for saved scroll position
         const saved = getSavedPosition(data.slug)
         if (saved && saved > 5) {
@@ -171,7 +174,12 @@ export default function Article() {
   useEffect(() => {
     const onScroll = () => {
       const h = document.documentElement.scrollHeight - window.innerHeight
-      setProgress(h > 0 ? (window.scrollY / h) * 100 : 0)
+      const pct = h > 0 ? (window.scrollY / h) * 100 : 0
+      setProgress(pct)
+      if (pct > 95 && !completed && slug) {
+        markComplete(slug)
+        setCompleted(true)
+      }
       setShowTop(window.scrollY > 300)
 
       // Track active heading for TOC highlight
@@ -234,7 +242,7 @@ export default function Article() {
   return (
     <>
       {/* Reading Progress */}
-      <div className="reading-progress" style={{ width: `${progress}%` }} />
+      <div className={`reading-progress${completed ? ' reading-progress-done' : ''}`} style={{ width: `${progress}%` }} />
       {progress > 0 && (
         <span className="reading-progress-text">
           {Math.round(progress)}%
@@ -268,6 +276,7 @@ export default function Article() {
           <div className="article-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
+              {completed && <span className="complete-badge">已讀完</span>}
             </div>
             <h1>{article.title}</h1>
             <div className="article-meta">

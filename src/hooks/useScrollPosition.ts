@@ -1,3 +1,5 @@
+import { markComplete } from './useReadComplete'
+
 const STORAGE_KEY = 'kb-scroll-positions'
 const MAX_ENTRIES = 30
 
@@ -30,6 +32,7 @@ export function saveScrollPosition(slug: string, scrollY: number) {
     // Remove entry if exists
     const records = load().filter(r => r.slug !== slug)
     save(records)
+    if (pct > 95) markComplete(slug)
     return
   }
   const records = load().filter(r => r.slug !== slug)

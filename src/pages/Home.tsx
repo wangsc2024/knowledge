@@ -9,6 +9,7 @@ import { getReadingHistory, getReadSlugs } from '../hooks/useReadingHistory'
 import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../hooks/useSearchHistory'
 import { getBookmarks, getBookmarkedSlugs } from '../hooks/useBookmarks'
 import { getAllPositions } from '../hooks/useScrollPosition'
+import { getCompleteSlugs } from '../hooks/useReadComplete'
 import { useFadeIn } from '../hooks/useFadeIn'
 import { CATEGORY_ORDER } from '../types'
 import { relativeDate } from '../utils/relativeDate'
@@ -254,6 +255,7 @@ export default function Home() {
 
   // Reading history
   const readSlugs = useMemo(() => getReadSlugs(), [index])
+  const completeSlugs = useMemo(() => getCompleteSlugs(), [index])
   const readingHistory = useMemo(() => getReadingHistory(6), [index])
 
   // Bookmarks
@@ -519,7 +521,7 @@ export default function Home() {
             </h2>
             <div className="article-grid">
               {filtered.slice(0, showCounts['__relevance'] ?? INITIAL_SHOW * 2).map(a => (
-                <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} isBookmarked={bookmarkedSlugs.has(a.slug)} onBookmarkChange={handleBookmarkChange} readingProgress={readingPositions[a.slug]} />
+                <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} isComplete={completeSlugs.has(a.slug)} isBookmarked={bookmarkedSlugs.has(a.slug)} onBookmarkChange={handleBookmarkChange} readingProgress={readingPositions[a.slug]} />
               ))}
             </div>
             {filtered.length > (showCounts['__relevance'] ?? INITIAL_SHOW * 2) && (
@@ -563,7 +565,7 @@ export default function Home() {
                 </div>
                 <div className="article-grid">
                   {visible.map(a => (
-                    <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} isBookmarked={bookmarkedSlugs.has(a.slug)} onBookmarkChange={handleBookmarkChange} readingProgress={readingPositions[a.slug]} />
+                    <ArticleCard key={a.id} article={a} searchQuery={searchQuery} onTagClick={handleTagClick} isRead={readSlugs.has(a.slug)} isComplete={completeSlugs.has(a.slug)} isBookmarked={bookmarkedSlugs.has(a.slug)} onBookmarkChange={handleBookmarkChange} readingProgress={readingPositions[a.slug]} />
                   ))}
                 </div>
                 {remaining > 0 && (
