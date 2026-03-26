@@ -240,17 +240,21 @@ export default function Home() {
     return index.articles.filter(a => a.isNew).length
   }, [index])
 
-  // Popular tags for quick search
+  // Popular tags for quick search (with category color mapping)
   const popularTags = useMemo(() => {
     if (!index) return []
     const tagCount: Record<string, number> = {}
+    const tagCategory: Record<string, string> = {}
     index.articles.forEach(a => {
-      a.tags.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1 })
+      a.tags.forEach(t => {
+        tagCount[t] = (tagCount[t] || 0) + 1
+        if (!tagCategory[t]) tagCategory[t] = a.categorySlug
+      })
     })
     return Object.entries(tagCount)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([tag]) => tag)
+      .slice(0, 20)
+      .map(([tag, count]) => ({ tag, count, categorySlug: tagCategory[tag] }))
   }, [index])
 
   // Reading history
@@ -375,18 +379,20 @@ export default function Home() {
           {!searchQuery && popularTags.length > 0 && (
             <div className="quick-tags">
               <span className="quick-tags-label">熱門：</span>
-              {popularTags.map(tag => (
+              {popularTags.map(({ tag, count, categorySlug }) => (
                 <button
                   key={tag}
-                  className="quick-tag-btn"
+                  className={`quick-tag-btn quick-tag-${categorySlug}`}
                   onClick={() => {
                     setSearchQuery(tag.toLowerCase())
                     if (searchRef.current) searchRef.current.value = tag
                     prevSortRef.current = sortMode
                     setSortMode('relevance')
                   }}
+                  title={`${count} 篇文章`}
                 >
                   {tag}
+                  <span className="quick-tag-count">{count}</span>
                 </button>
               ))}
             </div>
@@ -396,7 +402,7 @@ export default function Home() {
           </button>
           {searchQuery && (
             <div className="search-stats">
-              <span>{filtered.length} 篇符合</span>
+              <span>{filtered.length} 篇符合 ({total > 0 ? Math.round(filtered.length / total * 100) : 0}%)</span>
               {Object.entries(groupedFiltered)
                 .sort((a, b) => b[1].length - a[1].length)
                 .map(([cat, arts]) => {

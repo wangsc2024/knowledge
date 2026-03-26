@@ -254,6 +254,17 @@ export default function Article() {
 
       <Header />
 
+      {/* Breadcrumb Navigation */}
+      <nav className="breadcrumb" aria-label="breadcrumb">
+        <div className="container">
+          <Link to="/">首頁</Link>
+          <span className="breadcrumb-sep">/</span>
+          <Link to={`/?filter=${article.categorySlug}`} className={`breadcrumb-cat ${article.categorySlug}`}>{article.category}</Link>
+          <span className="breadcrumb-sep">/</span>
+          <span className="breadcrumb-current">{article.title.length > 40 ? article.title.slice(0, 40) + '…' : article.title}</span>
+        </div>
+      </nav>
+
       <div className="article-layout">
         {/* Sticky TOC Sidebar (large screens) */}
         {article.headings.length >= 3 && (
