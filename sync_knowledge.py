@@ -54,6 +54,13 @@ KEYWORDS = [
 EXCLUDE_KEYWORDS = [
     '報告',
     '專案優化',
+    '任務：任務：',
+    'workflow-forge',
+    'cursor-cli',
+    'CLI trace',
+    'CLI 驗證紀錄',
+    'Harness優化',
+    '品質優化（2026',
 ]
 
 # ─── 分類邏輯（順序決定優先級）───────────────────────
@@ -61,7 +68,8 @@ def categorize(title: str, tags: list[str]) -> tuple[str, str]:
     combined = title + ' ' + ','.join(tags)
     rules = [
         (['佛', '楞嚴', '禪', '心經', '金剛', '維摩', '淨土', '法華', '教觀', '阿彌陀', '菩薩', '般若', '天台',
-          '無量壽', '往生', '修行', '戒律', '唯識', '華嚴', '地藏', '藥師', '圓覺', '涅槃'],
+          '無量壽', '往生', '修行', '戒律', '唯識', '華嚴', '地藏', '藥師', '圓覺', '涅槃',
+          '四聖諦', '八正道', '十如是', '道德經', '大悲懺', '大智度論', '別教'],
          '佛學', 'buddhism'),
         (['遊戲', 'Canvas遊戲', 'HTML5遊戲', '貪吃蛇', '配對遊戲', '打字遊戲', 'Pong', 'Space Invader'],
          '遊戲開發', 'game'),
@@ -70,9 +78,9 @@ def categorize(title: str, tags: list[str]) -> tuple[str, str]:
         (['AI', 'LLM', 'GPT', 'Gemini', '深度學習', '機器學習', 'Agent', 'LangChain', 'LangGraph',
           'Anthropic', 'DeepSeek', 'Unsloth', 'DensePose', 'vLLM', 'Dify', 'RAG', 'MCP'],
          'AI技術', 'ai'),
-        (['安全', 'SQL注入', 'Cookie', 'QA System', 'security', '資安', '漏洞'],
+        (['安全', 'SQL注入', 'Cookie', 'QA System', 'security', '資安', '漏洞', 'ISMS'],
          '資訊安全', 'security'),
-        (['思維', '邏輯', '哲學', '認知', '心智', '決策', '批判', '方法論', '費曼', '洞見', '結構化分析'],
+        (['思維', '邏輯', '哲學', '認知', '心智', '決策', '批判', '方法論', '費曼', '洞見', '結構化分析', '原子習慣'],
          '思維方法', 'thinking'),
         (['GitHub熱門', '開源專案', 'GitHub趨勢', 'GitHub Scout'],
          '開源生態', 'opensource'),
