@@ -269,6 +269,21 @@ export default function Home() {
   const bookmarks = useMemo(() => getBookmarks(8), [bookmarkVer, index])
   const handleBookmarkChange = useCallback(() => setBookmarkVer(v => v + 1), [])
   const fadeRef = useFadeIn<HTMLElement>('.article-card, .recent-card')
+  const filterRowRef = useRef<HTMLDivElement>(null)
+
+  // Add 'stuck' class when filter-sort-row is stuck to top
+  useEffect(() => {
+    const el = filterRowRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        el.classList.toggle('stuck', entry.intersectionRatio < 1)
+      },
+      { threshold: [1], rootMargin: '-61px 0px 0px 0px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   if (loading) {
     return (
@@ -455,7 +470,7 @@ export default function Home() {
       <CategoryChart categories={categoryCounts} />
 
       {/* Filter Bar */}
-      <div className="filter-sort-row container">
+      <div className="filter-sort-row container" ref={filterRowRef}>
         <FilterBar
           activeFilter={activeFilter}
           categories={categoryCounts}
