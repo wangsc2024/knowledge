@@ -4,10 +4,11 @@ interface Props {
   activeFilter: string
   categories: Record<string, number>
   newCount?: number
+  unreadCount?: number
   onFilter: (slug: string) => void
 }
 
-export default function FilterBar({ activeFilter, categories, newCount = 0, onFilter }: Props) {
+export default function FilterBar({ activeFilter, categories, newCount = 0, unreadCount = 0, onFilter }: Props) {
   const available = CATEGORY_ORDER.filter(c => (categories[c.name] ?? 0) > 0)
 
   return (
@@ -24,6 +25,14 @@ export default function FilterBar({ activeFilter, categories, newCount = 0, onFi
           onClick={() => onFilter('new')}
         >
           新增 ({newCount})
+        </button>
+      )}
+      {unreadCount > 0 && (
+        <button
+          className={`filter-btn filter-btn-unread${activeFilter === 'unread' ? ' active' : ''}`}
+          onClick={() => onFilter('unread')}
+        >
+          未讀 ({unreadCount})
         </button>
       )}
       {available.map(cat => (

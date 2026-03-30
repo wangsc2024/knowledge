@@ -185,6 +185,8 @@ export default function Home() {
     const results = index.articles.filter(a => {
       if (activeFilter === 'new') {
         if (!a.isNew) return false
+      } else if (activeFilter === 'unread') {
+        if (readSlugs.has(a.slug)) return false
       } else {
         const catMatch = activeFilter === 'all' || a.categorySlug === activeFilter
         if (!catMatch) return false
@@ -240,6 +242,7 @@ export default function Home() {
     return index.articles.filter(a => a.isNew).length
   }, [index])
 
+
   // Popular tags for quick search (with category color mapping)
   const popularTags = useMemo(() => {
     if (!index) return []
@@ -259,6 +262,10 @@ export default function Home() {
 
   // Reading history
   const readSlugs = useMemo(() => getReadSlugs(), [index])
+  const unreadCount = useMemo(() => {
+    if (!index) return 0
+    return index.articles.filter(a => !readSlugs.has(a.slug)).length
+  }, [index, readSlugs])
   const completeSlugs = useMemo(() => getCompleteSlugs(), [index])
   const readingHistory = useMemo(() => getReadingHistory(6), [index])
 
@@ -475,6 +482,7 @@ export default function Home() {
           activeFilter={activeFilter}
           categories={categoryCounts}
           newCount={newArticlesCount}
+          unreadCount={unreadCount}
           onFilter={slug => {
             setActiveFilter(slug)
           }}
