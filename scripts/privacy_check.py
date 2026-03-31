@@ -22,13 +22,18 @@ WARN_PATTERNS = [
 
 TEXT_FIELDS = ["title", "excerpt", "html", "content"]
 
+# 佔位符白名單：命中 BLOCK 但實為示範值時，降級為 WARN
+PLACEHOLDER_RE = re.compile(
+    r"your[-_].*[-_]here|example[-_]|xxx{3,}|placeholder|<[^>]*>|\.\.\.", re.IGNORECASE
+)
+
 def scan_text(text, patterns, label):
     hits = []
     for pat, desc in patterns:
         try:
-            m = re.findall(pat, text)
-            if m:
-                hits.append({"field": label, "rule": desc, "sample": str(m[0])[:40], "count": len(m)})
+            matches = list(re.finditer(pat, text))
+            if matches:
+                hits.append({"field": label, "rule": desc, "sample": matches[0].group()[:80], "count": len(matches)})
         except re.error:
             pass
     return hits
@@ -42,7 +47,14 @@ def scan_file(path):
     for f in TEXT_FIELDS:
         v = data.get(f, "")
         if v and isinstance(v, str):
-            b += scan_text(v, BLOCK_PATTERNS, f)
+            raw_blocks = scan_text(v, BLOCK_PATTERNS, f)
+            # 佔位符降級：BLOCK 命中但 sample 符合佔位符模式 → 降為 WARN
+            for hit in raw_blocks:
+                if PLACEHOLDER_RE.search(hit["sample"]):
+                    hit["rule"] += "（佔位符，已降級）"
+                    w.append(hit)
+                else:
+                    b.append(hit)
             w += scan_text(v, WARN_PATTERNS, f)
     return b, w
 
