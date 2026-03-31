@@ -10,6 +10,7 @@ interface Props {
 
 export default function FilterBar({ activeFilter, categories, newCount = 0, unreadCount = 0, onFilter }: Props) {
   const available = CATEGORY_ORDER.filter(c => (categories[c.name] ?? 0) > 0)
+  const total = Object.values(categories).reduce((sum, n) => sum + n, 0)
 
   return (
     <div className="filter-bar">
@@ -17,7 +18,7 @@ export default function FilterBar({ activeFilter, categories, newCount = 0, unre
         className={`filter-btn${activeFilter === 'all' ? ' active' : ''}`}
         onClick={() => onFilter('all')}
       >
-        全部
+        全部 ({total})
       </button>
       {newCount > 0 && (
         <button

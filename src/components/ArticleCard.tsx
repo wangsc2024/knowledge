@@ -87,6 +87,11 @@ export default function ArticleCard({ article, searchQuery, onTagClick, isRead, 
                 {t}
               </span>
             ))}
+            {article.tags.length > 3 && (
+              <span className="tag tag-overflow" title={article.tags.slice(3).join(', ')}>
+                +{article.tags.length - 3}
+              </span>
+            )}
           </div>
         )}
       </div>
