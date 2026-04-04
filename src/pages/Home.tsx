@@ -12,7 +12,7 @@ import { getAllPositions } from '../hooks/useScrollPosition'
 import { getCompleteSlugs } from '../hooks/useReadComplete'
 import { useFadeIn } from '../hooks/useFadeIn'
 import { CATEGORY_ORDER } from '../types'
-import { relativeDate } from '../utils/relativeDate'
+import { relativeDate, relativeTime } from '../utils/relativeDate'
 
 const INITIAL_SHOW = 12
 type SortMode = 'recent' | 'reading' | 'title' | 'relevance'
@@ -221,7 +221,8 @@ export default function Home() {
 
   const categoryCounts = index?.stats.categories ?? {}
   const total = index?.stats.total ?? 0
-  const lastSync = index?.stats.lastSync?.slice(0, 16).replace('T', ' ') ?? ''
+  const lastSyncRaw = index?.stats.lastSync ?? ''
+  const lastSync = relativeTime(lastSyncRaw)
   const activeCategories = Object.keys(categoryCounts).length
 
   const totalReadingHours = useMemo(() => {
@@ -334,7 +335,7 @@ export default function Home() {
                 <span className="hero-stat-label">閱讀時數</span>
               </div>
             )}
-            <div className="hero-stat">
+            <div className="hero-stat" title={lastSyncRaw.slice(0, 16).replace('T', ' ')}>
               <span className="hero-stat-value">{lastSync}</span>
               <span className="hero-stat-label">最後同步</span>
             </div>
