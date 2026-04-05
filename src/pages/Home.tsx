@@ -219,6 +219,20 @@ export default function Home() {
     return groups
   }, [filtered])
 
+  // Per-category stats: total reading hours + newest date
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, { readingHours: number; newestDate: string }> = {}
+    if (!index) return stats
+    for (const cat of CATEGORY_ORDER) {
+      const arts = index.articles.filter(a => a.category === cat.name)
+      if (arts.length === 0) continue
+      const totalMin = arts.reduce((sum, a) => sum + (a.readingMin || 0), 0)
+      const newest = arts.reduce((latest, a) => a.updatedAt > latest ? a.updatedAt : latest, '')
+      stats[cat.name] = { readingHours: Math.round(totalMin / 60), newestDate: newest }
+    }
+    return stats
+  }, [index])
+
   const categoryCounts = index?.stats.categories ?? {}
   const total = index?.stats.total ?? 0
   const lastSyncRaw = index?.stats.lastSync ?? ''
@@ -619,7 +633,15 @@ export default function Home() {
                       <span className="category-desc">{CATEGORY_DESC[cat.slug]}</span>
                     )}
                   </div>
-                  <span className="cat-count">{articles.length} 篇</span>
+                  <div className="cat-mini-stats">
+                    <span className="cat-count">{articles.length} 篇</span>
+                    {categoryStats[cat.name]?.readingHours > 0 && (
+                      <span className="cat-hours">{categoryStats[cat.name].readingHours}h</span>
+                    )}
+                    {categoryStats[cat.name]?.newestDate && (
+                      <span className="cat-newest" title={categoryStats[cat.name].newestDate}>{relativeDate(categoryStats[cat.name].newestDate)}</span>
+                    )}
+                  </div>
                   <span className="cat-toggle">▼</span>
                 </div>
                 <div className="article-grid">
