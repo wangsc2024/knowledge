@@ -28,7 +28,7 @@ ART_DIR    = f"{DATA_DIR}/articles"
 LOG_PATH   = f"{OUTPUT_DIR}/sync-log.json"
 PODCAST_URLS_PATH = f"{OUTPUT_DIR}/podcast-urls.json"
 PAGE_SIZE  = 100   # 每頁筆數
-MAX_PAGES  = 20    # 最多取頁數（可用 --pages 覆蓋）
+MAX_PAGES  = 30    # 最多取頁數（可用 --pages 覆蓋）
 
 # ─── 主題篩選關鍵字 ──────────────────────────────────
 KEYWORDS = [
