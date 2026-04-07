@@ -61,6 +61,10 @@ EXCLUDE_KEYWORDS = [
     'CLI 驗證紀錄',
     'Harness優化',
     '品質優化（2026',
+    'Daily Digest Memory',
+    'insight-briefing',
+    '任務：深度研究',
+    '結果：# Cursor CLI',
 ]
 
 # ─── 分類邏輯（順序決定優先級）───────────────────────
