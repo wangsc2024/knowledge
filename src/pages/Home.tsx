@@ -13,54 +13,17 @@ import { getCompleteSlugs } from '../hooks/useReadComplete'
 import { useFadeIn } from '../hooks/useFadeIn'
 import { CATEGORY_ORDER } from '../types'
 import { relativeDate, relativeTime } from '../utils/relativeDate'
+import { tokenizeQuery, calcRelevance, matchesAllTokens } from '../utils/searchRelevance'
 
 const INITIAL_SHOW = 12
 type SortMode = 'recent' | 'reading' | 'title' | 'relevance'
 
-/** Split search query into tokens, supporting multi-keyword search */
-function tokenizeQuery(query: string): string[] {
-  return query.trim().toLowerCase().split(/\s+/).filter(t => t.length > 0)
-}
-
-/** Calculate search relevance score for an article against query tokens */
-function calcRelevance(article: ArticleMeta, tokens: string[]): number {
-  if (tokens.length === 0) return 0
-  let score = 0
-  const titleLower = article.title.toLowerCase()
-  const excerptLower = article.excerpt.toLowerCase()
-  const tagsLower = article.tags.map(t => t.toLowerCase())
-  const categoryLower = article.category.toLowerCase()
-
-  for (const token of tokens) {
-    // Title match (highest weight)
-    if (titleLower.includes(token)) {
-      score += 10
-      if (titleLower.startsWith(token)) score += 5
-    }
-    // Tag exact match (high weight)
-    if (tagsLower.some(t => t === token)) {
-      score += 8
-    } else if (tagsLower.some(t => t.includes(token))) {
-      score += 4
-    }
-    // Category match
-    if (categoryLower.includes(token)) score += 3
-    // Excerpt match (lowest weight)
-    if (excerptLower.includes(token)) score += 2
-  }
-  return score
-}
-
-/** Check if an article matches ALL tokens (AND logic) */
-function matchesAllTokens(article: ArticleMeta, tokens: string[]): boolean {
-  if (tokens.length === 0) return true
-  return tokens.every(token =>
-    article.title.toLowerCase().includes(token)
-    || article.category.toLowerCase().includes(token)
-    || article.tags.some(t => t.toLowerCase().includes(token))
-    || article.excerpt.toLowerCase().includes(token)
-  )
-}
+const FILTER_SLUGS = new Set([
+  'all',
+  'new',
+  'unread',
+  ...CATEGORY_ORDER.map(c => c.slug),
+])
 
 const CATEGORY_DESC: Record<string, string> = {
   buddhism: '楞嚴經、法華經、淨土宗、教觀綱宗等經典研究與修行方法',
@@ -91,13 +54,19 @@ export default function Home() {
   // Track previous sort mode before search auto-switches to relevance
   const prevSortRef = useRef<SortMode>('recent')
 
-  // Initialize search from URL query param
+  // Initialize search + filter from URL query params（麵包屑 ?filter= 與 ?q=）
   useEffect(() => {
     const q = searchParams.get('q')
+    const f = searchParams.get('filter')
+    if (f && FILTER_SLUGS.has(f)) {
+      setActiveFilter(f)
+    }
     if (q) {
       setSearchQuery(q.toLowerCase())
       if (searchRef.current) searchRef.current.value = q
-      setSearchParams({}, { replace: true })
+      const next = new URLSearchParams(searchParams)
+      next.delete('q')
+      setSearchParams(next, { replace: true })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -500,6 +469,12 @@ export default function Home() {
           unreadCount={unreadCount}
           onFilter={slug => {
             setActiveFilter(slug)
+            setSearchParams(prev => {
+              const next = new URLSearchParams(prev)
+              if (slug === 'all') next.delete('filter')
+              else next.set('filter', slug)
+              return next
+            }, { replace: true })
           }}
         />
         <div className="sort-group">
