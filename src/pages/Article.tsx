@@ -241,6 +241,9 @@ export default function Article() {
 
   return (
     <>
+      <a href="#article-main" className="skip-link">
+        跳至正文
+      </a>
       {/* Reading Progress */}
       <div className={`reading-progress${completed ? ' reading-progress-done' : ''}`} style={{ width: `${progress}%` }} />
       {progress > 0 && (
@@ -365,7 +368,9 @@ export default function Article() {
 
           {/* Article Content */}
           <div
+            id="article-main"
             ref={contentRef}
+            tabIndex={-1}
             className={`article-content${fontSize === 'large' ? ' article-content-lg' : ''}`}
             dangerouslySetInnerHTML={{ __html: article.html }}
           />

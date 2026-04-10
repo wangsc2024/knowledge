@@ -13,7 +13,8 @@ import { getCompleteSlugs } from '../hooks/useReadComplete'
 import { useFadeIn } from '../hooks/useFadeIn'
 import { CATEGORY_ORDER } from '../types'
 import { relativeDate, relativeTime } from '../utils/relativeDate'
-import { tokenizeQuery, calcRelevance, matchesAllTokens } from '../utils/searchRelevance'
+import { tokenizeQuery, matchesAllTokens } from '../utils/searchRelevance'
+import { sortArticleMetas } from '../utils/articleListSort'
 
 const INITIAL_SHOW = 12
 type SortMode = 'recent' | 'reading' | 'title' | 'relevance'
@@ -149,6 +150,8 @@ export default function Home() {
   // Tokenize search query for multi-keyword support
   const searchTokens = useMemo(() => tokenizeQuery(searchQuery), [searchQuery])
 
+  const readSlugs = useMemo(() => getReadSlugs(), [index])
+
   const filtered = useMemo(() => {
     if (!index) return []
     const results = index.articles.filter(a => {
@@ -163,21 +166,8 @@ export default function Home() {
       if (searchTokens.length === 0) return true
       return matchesAllTokens(a, searchTokens)
     })
-    if (sortMode === 'relevance' && searchTokens.length > 0) {
-      // Sort by relevance score descending, then by date as tiebreaker
-      results.sort((a, b) => {
-        const scoreA = calcRelevance(a, searchTokens)
-        const scoreB = calcRelevance(b, searchTokens)
-        if (scoreB !== scoreA) return scoreB - scoreA
-        return b.updatedAt.localeCompare(a.updatedAt)
-      })
-    } else if (sortMode === 'reading') {
-      results.sort((a, b) => b.readingMin - a.readingMin)
-    } else if (sortMode === 'title') {
-      results.sort((a, b) => a.title.localeCompare(b.title, 'zh-Hant'))
-    }
-    return results
-  }, [index, searchTokens, activeFilter, sortMode])
+    return sortArticleMetas(results, sortMode, searchTokens)
+  }, [index, searchTokens, activeFilter, sortMode, readSlugs])
 
   const groupedFiltered = useMemo(() => {
     const groups: Record<string, ArticleMeta[]> = {}
@@ -245,7 +235,6 @@ export default function Home() {
   }, [index])
 
   // Reading history
-  const readSlugs = useMemo(() => getReadSlugs(), [index])
   const unreadCount = useMemo(() => {
     if (!index) return 0
     return index.articles.filter(a => !readSlugs.has(a.slug)).length
