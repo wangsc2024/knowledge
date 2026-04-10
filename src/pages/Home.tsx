@@ -326,12 +326,14 @@ export default function Home() {
           <div className="search-wrap">
             <input
               ref={searchRef}
-              type="text"
-              placeholder={`搜尋 ${total} 篇文章... (支援多關鍵字，空格分隔)`}
+              type="search"
+              autoComplete="off"
+              enterKeyHint="search"
+              placeholder={`搜尋 ${total} 篇文章…（多關鍵字以空格分隔）`}
               onChange={e => handleSearch(e.target.value)}
               onFocus={() => { setSearchFocused(true); setSearchHistory(getSearchHistory()) }}
               onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-              aria-label="搜尋"
+              aria-label="搜尋文章標題與摘要"
             />
             {searchQuery && (
               <button
