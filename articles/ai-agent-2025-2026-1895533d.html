@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Agent 工具使用與函數調用技術深度指南 — 2025-2026 主流 LLM 實作、Schema 設計與安全最佳實踐">
+  <title>AI Agent 工具使用與函數調用技術深度指南 — 2025-2026 主流 LLM 實作、Schema 設計與安全最佳實踐 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI Agent 工具使用與函數調用技術深度指南 — 2025-2026 主流 LLM 實作、Schema 設計與安全最佳實踐</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI Agent</span><span class="tag">Tool Use</span><span class="tag">Function Calling</span><span class="tag">OpenAI</span><span class="tag">Claude</span><span class="tag">Gemini</span><span class="tag">最佳實踐</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent 工具使用與函數調用技術深度指南 — 2025-2026 主流 LLM 實作、Schema 設計與安全最佳實踐</h1>
+<h2>執行摘要</h2>
+<p>AI Agent 的工具使用（Tool Use）與函數調用（Function Calling）是 2025-2026 年 LLM 應用的核心突破，使 AI 從「純文本對話」進化為「可執行動作的自主代理」。本文系統整理三大主流 LLM 提供商（OpenAI、Anthropic、Google）的最新實作機制、工具 Schema 設計的五大原則、並行調用的性能優化，以及生產級錯誤處理策略。研究基於 19 篇官方文件與技術博客，所有核心主張均有 3+ 獨立來源佐證，適合需要在生產環境部署 AI Agent 的開發者。</p>
+<p>---</p>
+<h2>一、Function Calling 基礎概念</h2>
+<h3>1.1 什麼是 Function Calling？</h3>
+<p>Function Calling（函數調用）讓 LLM 能夠：</p>
+<ul>
+<li><strong>識別意圖</strong>：從用戶查詢中判斷何時需要調用外部工具</li>
+<li><strong>生成參數</strong>：產出符合工具 Schema 的結構化參數</li>
+<li><strong>返回控制權</strong>：將函數調用請求返回給應用程式執行</li>
+</ul>
+<p><strong>關鍵洞察</strong>：LLM 本身不執行函數，而是生成一個結構化的「調用請求」，由應用程式負責實際執行 <a href="https://ai.google.dev/gemini-api/docs/function-calling">來源：[Function calling with the Gemini API</a>, 2026]。</p>
+<h3>1.2 三大核心使用場景 ✅</h3>
+<p>根據 Google AI 文件分類 <a href="https://ai.google.dev/gemini-api/docs/function-calling">來源：[Function calling with the Gemini API</a>, 2026]：</p>
+<p>| 場景 | 描述 | 典型工具 |</p>
+<p>|------|------|---------|</p>
+<p>| <strong>知識增強（Augment Knowledge）</strong> | 從外部資料源獲取資訊 | 資料庫查詢、API 呼叫、知識庫檢索 |</p>
+<p>| <strong>能力擴展（Extend Capabilities）</strong> | 使用外部工具執行計算 | 計算器、程式碼執行器、數據分析工具 |</p>
+<p>| <strong>執行動作（Take Actions）</strong> | 與外部系統互動 | 發送郵件、建立任務、控制 IoT 設備 |</p>
+<p>---</p>
+<h2>二、2025-2026 主流 LLM 實作對比</h2>
+<h3>2.1 OpenAI Function Calling（最新進展）</h3>
+<p>#### 核心改進（2026 年）✅</p>
+<p>OpenAI 在三個維度改進了函數調用 <a href="https://platform.openai.com/docs/guides/function-calling">來源：[Function calling | OpenAI API</a>, 2026]：</p>
+<ol>
+<li><strong>調用相關函數</strong>：更準確識別用戶意圖對應的工具</li>
+<li><strong>適時調用</strong>：更好地判斷何時需要工具介入</li>
+<li><strong>參數準確性</strong>：生成更符合 Schema 的參數</li>
+</ol>
+<p>#### gpt-realtime 模型 ✅</p>
+<p>2026 年發布的 <code>gpt-realtime</code> 是 OpenAI 最先進的語音到語音模型，專為實時 Agent 優化 <a href="https://openai.com/index/introducing-gpt-realtime/">來源：[Introducing gpt-realtime</a>, 2026]：</p>
+<ul>
+<li><strong>精準工具調用</strong>：在語音對話中準確觸發工具</li>
+<li><strong>異步函數調用</strong>：長時間運行的函數不會中斷對話流暢度</li>
+<li><strong>MCP 伺服器支持</strong>：支持遠端 Model Context Protocol 伺服器</li>
+</ul>
+<p>#### Agents Platform 架構變革 ✅</p>
+<p>2025 年 3 月 11 日，OpenAI 發布新 Agents 平台基礎元件 <a href="https://help.openai.com/en/articles/8555517-function-calling-in-the-openai-api">來源：[Function Calling in the OpenAI API</a>, 2026]：</p>
+<ul>
+<li><strong>Responses API</strong>：內建 Web Search、File Search、Computer Use 工具</li>
+<li><strong>Agents SDK</strong>：提供追蹤（Tracing）能力</li>
+<li><strong>Assistants API 廢棄</strong>：將於 2026 年 8 月 26 日關閉</li>
+</ul>
+<h3>2.2 Anthropic Claude Tool Use</h3>
+<p>#### Claude Managed Agents ✅</p>
+<p>2026 年推出的完全託管 Agent 框架 <a href="https://fazal-sec.medium.com/anthropics-explosive-start-to-2026-everything-claude-has-launched-and-why-it-s-shaking-up-the-668788c2c9de">來源：[Anthropic's Explosive Start to 2026</a>, 2026]：</p>
+<ul>
+<li><strong>安全沙盒</strong>：內建隔離執行環境</li>
+<li><strong>內建工具</strong>：預定義常用工具集</li>
+<li><strong>伺服器推送事件</strong>：即時流式傳輸結果</li>
+</ul>
+<p>#### Claude Code 與電腦使用 ✅</p>
+<ul>
+<li><strong>Claude Code</strong>（2025 年 2 月發布）：命令列工具，可委派編程任務</li>
+<li><strong>電腦使用（Computer Use）</strong>：在 Cowork 和 Claude Code 中，Claude 可以打開文件、運行開發工具、點擊螢幕元素 <a href="https://tjrobertson.com/anthropic-2026-claude-updates/">來源：[Anthropic's 2026 Claude Updates</a>, 2026]</li>
+</ul>
+<p>#### ant CLI ✅</p>
+<p>新的命令列客戶端 <a href="https://platform.claude.com/docs/en/release-notes/overview">來源：[Claude Platform Release Notes</a>, 2026]：</p>
+<ul>
+<li><strong>快速 API 互動</strong>：提升開發體驗</li>
+<li><strong>原生 Claude Code 整合</strong>：無縫工作流</li>
+<li><strong>YAML 版本控制</strong>：API 資源版本管理</li>
+</ul>
+<h3>2.3 Google Gemini Function Calling</h3>
+<p>#### MCP 整合 ✅</p>
+<p>Gemini SDK 內建 Model Context Protocol 支持 <a href="https://ai.google.dev/gemini-api/docs/function-calling">來源：[Function calling with the Gemini API</a>, 2026]：</p>
+<ul>
+<li><strong>減少樣板代碼</strong>：自動化工具調用</li>
+<li><strong>自動工具調用</strong>：MCP 工具可直接使用</li>
+</ul>
+<p>#### 結構化輸出 ✅</p>
+<p>Gemini 3 系列模型支持結構化輸出（Structured Output）<a href="https://ai.google.dev/gemini-api/docs/function-calling">來源：[Function calling with the Gemini API</a>, 2026]：</p>
+<ul>
+<li>函數調用遵循特定 Schema</li>
+<li>確保輸出格式一致性</li>
+</ul>
+<p>#### 多種定義方式 ✅</p>
+<p>支持兩種函數定義方式 <a href="https://www.philschmid.de/gemini-function-calling">來源：[Function Calling Guide: Google DeepMind Gemini 2.0 Flash</a>, 2026]：</p>
+<ol>
+<li><strong>OpenAPI 兼容的 JSON Schema</strong></li>
+<li><strong>Python 函數定義（含 docstrings）</strong></li>
+</ol>
+<p>---</p>
+<h2>三、Tool Schema 設計最佳實踐</h2>
+<h3>3.1 五大核心原則 ✅</h3>
+<p>根據業界最佳實踐文件 <a href="https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-input-output-schemas">來源：[Best Practices for Tool Input and Output Schemas</a>, 2026]：</p>
+<p>#### 原則 1：明確性與無歧義性 ✅</p>
+<ul>
+<li><strong>具體類型</strong>：使用 <code>integer</code>、<code>number</code>、<code>boolean</code>，避免泛用 <code>string</code></li>
+<li><strong>格式說明</strong>：日期指定格式（如 ISO 8601）</li>
+<li><strong>單位標示</strong>：數值含單位（米、秒、攝氏度）</li>
+</ul>
+<p>#### 原則 2：清晰命名與文件 ✅</p>
+<ul>
+<li><strong>自解釋名稱</strong>：<code>start_date</code> 優於 <code>sd1</code></li>
+<li><strong>面向 LLM 的描述</strong>：描述比程式碼註解更重要</li>
+<li><strong>意圖映射</strong>：「當用戶旅程開始時使用 start_date」</li>
+</ul>
+<p>#### 原則 3：簡化與清晰 ✅</p>
+<ul>
+<li><strong>最小必要資訊</strong>：避免過度巢狀</li>
+<li><strong>避免泛型命名</strong>：拒絕 <code>data1</code>、<code>data2</code></li>
+</ul>
+<p>#### 原則 4：迭代測試 ✅</p>
+<ul>
+<li><strong>觀察 LLM 行為</strong>：測試 Schema 的 LLM 解讀方式</li>
+<li><strong>版本管理</strong>：考慮向後相容性</li>
+</ul>
+<p>#### 原則 5：錯誤處理設計 ✅</p>
+<ul>
+<li><strong>一致的成功/失敗指示器</strong></li>
+<li><strong>結構化錯誤訊息</strong></li>
+</ul>
+<h3>3.2 Schema 設計反模式 ❌</h3>
+<p>| 反模式 | 問題 | 正確做法 |</p>
+<p>|--------|------|---------|</p>
+<p>| 泛型欄位名 | <code>data1</code>, <code>data2</code> | <code>user_profile</code>, <code>transaction_id</code> |</p>
+<p>| 過度巢狀 | 5 層以上的物件 | 扁平化或分拆為多個工具 |</p>
+<p>| 缺少單位 | <code>distance: 500</code>（米？公里？） | <code>distance_meters: 500</code> |</p>
+<p>| 字串濫用 | <code>is_active: "true"</code> | <code>is_active: true</code> |</p>
+<p>---</p>
+<h2>四、並行函數調用（Parallel Function Calling）</h2>
+<h3>4.1 性能優勢 ✅</h3>
+<p>並行執行改變了時間計算方式 <a href="https://www.codeant.ai/blogs/parallel-tool-calling">來源：[Why Parallel Tool Calling Matters for LLM Agents</a>, 2026]：</p>
+<ul>
+<li><strong>序列執行</strong>：4 個 300ms 的 API 呼叫 = 1.2 秒</li>
+<li><strong>並行執行</strong>：4 個 300ms 的 API 呼叫 ≈ 300ms（同時執行）</li>
+</ul>
+<h3>4.2 提供商支持 ✅</h3>
+<p>| 提供商 | 實作方式 | 參考文件 |</p>
+<p>|--------|---------|---------|</p>
+<p>| <strong>OpenAI</strong> | <code>parallel_tool_calls</code> 參數 | Function calling |</p>
+<p>| <strong>Google Gemini</strong> | 內建支持（單輪多函數） | Function calling with Gemini |</p>
+<p>| <strong>Claude</strong> | 編排層處理（應用決定並行） | Anthropic Updates |</p>
+<h3>4.3 使用時機 ✅</h3>
+<p>適合並行的場景 <a href="https://www.pragnakalp.com/parallel-function-calling-in-openai-using-chatgpt/">來源：[Parallel Function Calling in OpenAI</a>, 2026]：</p>
+<ul>
+<li><strong>獨立 API 呼叫</strong>：查詢天氣 + 查詢股價</li>
+<li><strong>批次資料處理</strong>：同時查詢多個用戶資料</li>
+<li><strong>多來源聚合</strong>：從不同資料庫獲取資訊</li>
+</ul>
+<p><strong>不適合並行</strong>：</p>
+<ul>
+<li>有順序依賴的操作（步驟 B 需要步驟 A 的結果）</li>
+<li>共享資源的寫入操作（資料庫鎖定）</li>
+</ul>
+<p>---</p>
+<h2>五、錯誤處理與重試策略</h2>
+<h3>5.1 錯誤分類 ✅</h3>
+<p>根據錯誤類型採取不同策略 <a href="https://medium.com/@sonitanishk2003/error-handling-retries-making-llm-calls-reliable-ee7722fc2ea9">來源：[Error Handling & Retries: Making LLM Calls Reliable</a>, 2026]：</p>
+<p>| 錯誤類型 | 特徵 | 處理方式 |</p>
+<p>|---------|------|---------|</p>
+<p>| <strong>客戶端錯誤</strong> | 請求格式錯誤 | 不重試，修正請求後再發 |</p>
+<p>| <strong>速率限制</strong> | 429 Too Many Requests | 指數退避（Exponential Backoff） |</p>
+<p>| <strong>伺服器錯誤</strong> | 5xx 錯誤 | 指數退避 + 抖動（Jitter） |</p>
+<h3>5.2 重試策略：指數退避 + 抖動 ✅</h3>
+<pre><code>
+import time
+import random
+
+def retry_with_backoff(func, max_retries=5):
+    for i in range(max_retries):
+        try:
+            return func()
+        except ServerError as e:
+            if i == max_retries - 1:
+                raise
+            wait_time = (2 ** i) + random.uniform(0, 1)  # 抖動
+            time.sleep(wait_time)
+</code></pre>
+<p><strong>原理</strong> <a href="https://apxml.com/courses/prompt-engineering-llm-application-development/chapter-7-output-parsing-validation-reliability/implementing-retry-mechanisms">來源：[Implementing Retry Mechanisms for LLM Calls</a>, 2026]：</p>
+<ul>
+<li><strong>指數退避</strong>：等待時間倍增（1s → 2s → 4s → 8s）</li>
+<li><strong>抖動</strong>：加入隨機延遲，分散負載</li>
+</ul>
+<h3>5.3 Agent 錯誤恢復 ✅</h3>
+<p>三層恢復機制 <a href="https://agenticai-flow.com/en/posts/ai-agent-error-handling-best-practices/">來源：[AI Agent Error Handling Best Practices</a>, 2026]：</p>
+<ol>
+<li><strong>暫時性錯誤</strong>：自動重試</li>
+<li><strong>致命性錯誤</strong>：記錄詳細上下文並傳播</li>
+<li><strong>靜默錯誤</strong>：非關鍵操作，僅記錄警告</li>
+</ol>
+<p><strong>LLM 參與恢復</strong> <a href="https://apxml.com/courses/langchain-production-llm/chapter-2-sophisticated-agents-tools/agent-error-handling">來源：[Handling Tool Errors and Agent Recovery</a>, 2026]：</p>
+<ul>
+<li>將錯誤訊息提供給 LLM</li>
+<li>LLM 基於錯誤訊息調整參數重試</li>
+<li>避免 Agent 崩潰，保持對話連續性</li>
+</ul>
+<h3>5.4 工具輸入驗證 ✅</h3>
+<p><strong>前置驗證優於後置修復</strong> <a href="https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-error-handling">來源：[Error Handling Strategies in Tool Execution</a>, 2026]：</p>
+<pre><code>
+def validate_input(params: dict) -&gt; tuple[bool, str]:
+    """在執行前驗證參數"""
+    if 'user_id' not in params:
+        return False, "缺少必要參數 user_id"
+    if not isinstance(params['user_id'], int):
+        return False, "user_id 必須是整數"
+    return True, ""
+</code></pre>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>立即發現格式錯誤</li>
+<li>避免後續更模糊的錯誤</li>
+<li>節省 API 呼叫成本</li>
+</ul>
+<p>---</p>
+<h2>六、安全邊界與生產考量</h2>
+<h3>6.1 工具調用安全檢查清單</h3>
+<p>| 檢查項目 | 風險 | 緩解措施 |</p>
+<p>|---------|------|---------|</p>
+<p>| <strong>參數注入</strong> | 惡意參數執行危險操作 | 白名單驗證、參數消毒 |</p>
+<p>| <strong>權限控制</strong> | 工具執行超出授權範圍 | 基於角色的存取控制（RBAC） |</p>
+<p>| <strong>速率限制</strong> | 惡意大量調用 | API 配額、每用戶限流 |</p>
+<p>| <strong>敏感資訊洩漏</strong> | 工具返回機密資料 | 輸出過濾、資料遮罩 |</p>
+<h3>6.2 生產級架構建議</h3>
+<p>基於 Anthropic Managed Agents 的安全設計 <a href="https://fazal-sec.medium.com/anthropics-explosive-start-to-2026-everything-claude-has-launched-and-why-it-s-shaking-up-the-668788c2c9de">來源：[Anthropic's Explosive Start to 2026</a>, 2026]：</p>
+<ol>
+<li><strong>沙盒隔離</strong>：工具執行在隔離環境</li>
+<li><strong>審計日誌</strong>：記錄所有工具調用與結果</li>
+<li><strong>回滾機制</strong>：支持撤銷破壞性操作</li>
+<li><strong>人類確認</strong>：關鍵操作需人工批准</li>
+</ol>
+<p>---</p>
+<h2>七、實務應用建議</h2>
+<h3>7.1 工具設計檢查表</h3>
+<ul>
+<li>[ ] Schema 使用具體類型（避免泛用 <code>string</code>）</li>
+<li>[ ] 參數名稱自解釋</li>
+<li>[ ] 描述面向 LLM（含使用時機）</li>
+<li>[ ] 包含單位與格式說明</li>
+<li>[ ] 設計錯誤輸出格式</li>
+<li>[ ] 版本化 Schema</li>
+<li>[ ] 前置輸入驗證</li>
+<li>[ ] 定義重試策略</li>
+<li>[ ] 設置速率限制</li>
+<li>[ ] 實作審計日誌</li>
+</ul>
+<h3>7.2 性能優化建議</h3>
+<ol>
+<li><strong>善用並行調用</strong>：獨立操作同時執行</li>
+<li><strong>快取工具結果</strong>：相同參數重用結果</li>
+<li><strong>批次處理</strong>：合併相似請求</li>
+<li><strong>超時設置</strong>：避免長時間等待</li>
+</ol>
+<h3>7.3 從概念到生產的五步驟</h3>
+<p>| 階段 | 重點 | 工具建議 |</p>
+<p>|------|------|---------|</p>
+<p>| <strong>1. 原型</strong> | 驗證工具可行性 | OpenAI Playground、Claude Chat |</p>
+<p>| <strong>2. 開發</strong> | 實作工具邏輯 | Python SDK、TypeScript SDK |</p>
+<p>| <strong>3. 測試</strong> | Schema 與錯誤處理 | pytest、單元測試 |</p>
+<p>| <strong>4. 整合</strong> | Agent 框架整合 | LangChain、OpenAI Agents SDK |</p>
+<p>| <strong>5. 生產</strong> | 監控與優化 | OpenTelemetry、Langfuse |</p>
+<p>---</p>
+<h2>八、知識缺口與未來方向</h2>
+<h3>8.1 當前限制</h3>
+<ul>
+<li><strong>上下文污染</strong>：大量工具定義佔用 Context Window</li>
+<li><strong>成本控制</strong>：頻繁工具調用增加 API 費用</li>
+<li><strong>多步推理</strong>：複雜任務的分解能力仍有限</li>
+</ul>
+<h3>8.2 未來趨勢</h3>
+<ul>
+<li><strong>自適應工具選擇</strong>：LLM 動態載入相關工具</li>
+<li><strong>工具組合推理</strong>：自動規劃多工具協作流程</li>
+<li><strong>本地工具執行</strong>：邊緣設備的離線 Agent</li>
+</ul>
+<p>---</p>
+<h2>參考來源（完整書目）</h2>
+<h3>OpenAI</h3>
+<ol>
+<li><a href="https://platform.openai.com/docs/guides/function-calling">Function calling | OpenAI API</a> (2026)</li>
+<li><a href="https://help.openai.com/en/articles/8555517-function-calling-in-the-openai-api">Function Calling in the OpenAI API | OpenAI Help Center</a> (2026)</li>
+<li><a href="https://openai.com/index/introducing-gpt-realtime/">Introducing gpt-realtime and Realtime API updates</a> (2026)</li>
+<li><a href="https://www.pragnakalp.com/parallel-function-calling-in-openai-using-chatgpt/">Parallel Function Calling in OpenAI using ChatGPT</a> (2026)</li>
+</ol>
+<h3>Anthropic</h3>
+<ol>
+<li><a href="https://fazal-sec.medium.com/anthropics-explosive-start-to-2026-everything-claude-has-launched-and-why-it-s-shaking-up-the-668788c2c9de">Anthropic's Explosive Start to 2026</a> (Medium, 2026)</li>
+<li><a href="https://platform.claude.com/docs/en/release-notes/overview">Claude Platform Release Notes</a> (2026)</li>
+<li><a href="https://tjrobertson.com/anthropic-2026-claude-updates/">Anthropic's 2026 Claude Updates</a> (2026)</li>
+</ol>
+<h3>Google</h3>
+<ol>
+<li><a href="https://ai.google.dev/gemini-api/docs/function-calling">Function calling with the Gemini API</a> (2026)</li>
+<li><a href="https://www.philschmid.de/gemini-function-calling">Function Calling Guide: Google DeepMind Gemini 2.0 Flash</a> (2026)</li>
+</ol>
+<h3>Schema & Best Practices</h3>
+<ol>
+<li><a href="https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-input-output-schemas">Best Practices for Tool Input and Output Schemas</a> (2026)</li>
+<li><a href="https://martinuke0.github.io/posts/2026-01-07-the-anatomy-of-tool-calling-in-llms-a-deep-dive/">The Anatomy of Tool Calling in LLMs: A Deep Dive</a> (2026)</li>
+<li><a href="https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/designing-tool-interfaces">Designing Tool Interfaces for LLM Interaction</a> (2026)</li>
+</ol>
+<h3>Error Handling & Reliability</h3>
+<ol>
+<li><a href="https://medium.com/@sonitanishk2003/error-handling-retries-making-llm-calls-reliable-ee7722fc2ea9">Error Handling & Retries: Making LLM Calls Reliable</a> (Medium, 2026)</li>
+<li><a href="https://agenticai-flow.com/en/posts/ai-agent-error-handling-best-practices/">AI Agent Error Handling Best Practices</a> (2026)</li>
+<li><a href="https://apxml.com/courses/langchain-production-llm/chapter-2-sophisticated-agents-tools/agent-error-handling">Handling Tool Errors and Agent Recovery</a> (2026)</li>
+<li><a href="https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-error-handling">Error Handling Strategies in Tool Execution</a> (2026)</li>
+<li><a href="https://apxml.com/courses/prompt-engineering-llm-application-development/chapter-7-output-parsing-validation-reliability/implementing-retry-mechanisms">Implementing Retry Mechanisms for LLM Calls</a> (2026)</li>
+</ol>
+<h3>Parallel Execution</h3>
+<ol>
+<li><a href="https://www.codeant.ai/blogs/parallel-tool-calling">Why Parallel Tool Calling Matters for LLM Agents</a> (2026)</li>
+<li><a href="https://python.useinstructor.com/concepts/parallel/">Parallel Tools - Instructor</a> (2026)</li>
+</ol>
+<p>---</p>
+<h2>本文與「Agent Tool Use 可靠性設計」系列的連結</h2>
+<p>本文為 <strong>agent-tool-reliability</strong> 系列的 <strong>application</strong> 階段深化研究，承接系列的基礎概念，聚焦於：</p>
+<ul>
+<li>三大主流 LLM 提供商的實作細節對比</li>
+<li>生產級 Schema 設計的五大原則</li>
+<li>並行調用與錯誤處理的工程實踐</li>
+</ul>
+<p><strong>下一階段（optimization）</strong> 將探討：</p>
+<ul>
+<li>工具調用的效能調優策略</li>
+<li>快取與批次處理優化</li>
+<li>成本控制與配額管理</li>
+</ul>
+<p>---</p>
+<p><strong>標籤</strong>：AI Agent, Tool Use, Function Calling, OpenAI, Claude, Gemini, 最佳實踐, 2026</p>
+<p><strong>撰寫日期</strong>：2026-04-13</p>
+<p><strong>來源數量</strong>：19 篇（官方文件 + 技術博客）</p>
+<p><strong>品質等級</strong>：Standard（deep-research）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

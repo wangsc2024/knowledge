@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動需求工程：使用者故事、驗收條件與 BDD／Gherkin 自動化工作流（2026-04-10）">
+  <title>AI 驅動需求工程：使用者故事、驗收條件與 BDD／Gherkin 自動化工作流（2026-04-10） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動需求工程：使用者故事、驗收條件與 BDD／Gherkin 自動化工作流（2026-04-10）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">需求工程</span><span class="tag">BDD-Gherkin</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動需求工程：使用者故事、驗收條件與 BDD／Gherkin 自動化工作流</h1>
+<blockquote>研究日期：2026-04-10 · 任務類型：ai_sysdev · 系列：<code>ai-driven-requirements-bdd</code>（foundation）</blockquote>
+<p>></p>
+<blockquote><strong>與 KB 既有筆記的關係</strong>：承接 Spec Kit／SDD 與 Agent Tool Use 守衛等「文件與工具邊界」主題；本文補齊<strong>需求層→可執行 Feature 檔</strong>的管線，避免只停在 PRD 文字而無法進 CI。</blockquote>
+<h2>一、技術概述（約 150 字）</h2>
+<p>行為驅動開發（BDD）把利害關係人語言（使用者故事、驗收條件）收斂成<strong>可執行規格</strong>：以 Gherkin 的 Feature／Scenario 結構描述系統行為，並由 Cucumber 生態系（或其他 BDD 執行器）驅動自動化測試。導入 LLM 後，瓶頸從「會不會寫測試」轉為<strong>語意對齊</strong>（故事是否可測）、<strong>語法可解析</strong>（Gherkin 合法）、<strong>維護成本</strong>（步驟是否過細或重複）。實務上宜採「人機協作」：模型產出初稿，開發／QA 做結構與邊界案例審閘，再由 CI 執行 lint 與測試選擇，形成閉環。</p>
+<h2>二、核心方法與工具</h2>
+<p>| 層級 | 方法／工具 | 用途 |</p>
+<p>|------|------------|------|</p>
+<p>| 需求 | INVEST 使用者故事、驗收條件（AC）清單、Example Mapping | 先固定「可測試意圖」再寫 Gherkin |</p>
+<p>| 規格語言 | Gherkin（Feature、Scenario、Given／When／Then、Scenario Outline、Examples） | 與 Cucumber 相容之結構化行為描述 |</p>
+<p>| 執行 | Cucumber、pytest-bdd、SpecFlow（.NET）等 | 將 .feature 綁定到步驟定義與自動化 |</p>
+<p>| 品質閘 | gherkin-lint、formatter、標籤（@smoke） | 靜態檢查與測試子集／平行分片 |</p>
+<p>| AI | 指令模板＋範例 few-shot＋輸出 schema 驗證 | 降低幻覺步驟與非法關鍵字 |</p>
+<h2>三、實際工作流程（step-by-step）</h2>
+<ol>
+<li><strong>產品／BA 產出</strong>：1 則使用者故事 + 3–7 條驗收條件（含負向與邊界）。</li>
+<li><strong>Example Mapping（可選）</strong>：以規則／例子／問題便利貼對齊「未知」與測試資料。</li>
+<li><strong>LLM 初稿</strong>：提示詞要求只輸出 Gherkin，禁止解釋文字；指定關鍵字語言（# language: zh-TW 等）與標籤規範。</li>
+<li><strong>靜態檢查</strong>：執行 gherkin-lint／formatter；失敗則把 stderr 貼回模型做<strong>單輪修正</strong>（避免無限循環）。</li>
+<li><strong>步驟定義對齊</strong>：每個 When／Then 對應程式碼；若無法實作則刪或改寫步驟（避免「空洞 Gherkin」）。</li>
+<li><strong>CI</strong>：<code>lint</code> job → <code>bdd</code> job（依 @smoke 或路徑分片）；與既有 pytest／hooks 並行。</li>
+<li><strong>回寫</strong>：將通過的 Feature 合併；registry／研究註冊表記錄主題與日期，利於去重。</li>
+</ol>
+<h2>四、程式碼／配置範例</h2>
+<p><strong>最小 Feature（Cucumber 相容骨架）</strong></p>
+<pre><code>
+# language: zh-TW
+@smoke @billing
+功能: 逾期帳單提醒
+  為了降低呆帳
+  身為財務人員
+  我想要在帳單逾期後收到通知
+
+  場景: 逾期一天觸發通知
+    假如 客戶 "A001" 有一筆應於昨天到期的帳單
+    當 排程工作 "daily-billing" 執行完成
+    那麼 系統應已送出 1 封逾期通知給 "A001"
+</code></pre>
+<p><strong>GitHub Actions 片段（概念）</strong></p>
+<pre><code>
+jobs:
+  gherkin-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx gherkin-lint features/**/*.feature
+  bdd-smoke:
+    needs: gherkin-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm test -- --tags @smoke
+</code></pre>
+<p><strong>LLM 系統提示（摘要）</strong></p>
+<pre><code>
+你只輸出合法 Gherkin。必含：功能／場景／假如-當-那麼。
+禁止 Markdown 围栏。每步一行。必要時用場景大綱+例子表。
+</code></pre>
+<h2>五、效果量化（公開報告方向）</h2>
+<ul>
+<li>企業導入 BDD 常見報告面向：<strong>缺陷左移</strong>、<strong>回歸覆蓋</strong>與<strong>溝通回合數下降</strong>；具體百分比依團隊與領域差異大，宜以<strong>修復前後缺陷密度／發版前驗收輪次</strong>做內部 A/B，而非單一通用數字。</li>
+<li>LLM 輔助寫測試：產業案例多描述「初稿時間縮短」，仍需搭配 lint／CI 才能轉成可靠證據鏈。</li>
+</ul>
+<h2>六、與 daily-digest-prompt 的應用場景</h2>
+<ul>
+<li><strong>自動任務結果檔</strong>：可把 <code>results/todoist-auto-*.json</code> 的 <code>summary</code>／<code>status</code> 規則改寫成 Gherkin 子集，由 pytest-bdd 或自訂步驟驗證 schema。</li>
+<li><strong>Hooks／守衛</strong>：既有 <code>pre_bash_guard</code> 等可對照「場景：禁止 nul 重導向」類規則，讓非工程利害關係人也能讀 Feature 理解决策。</li>
+<li><strong>Phase2／多後端</strong>：對「成功／partial／failed」狀態轉移寫場景，利於回歸與文件同步。</li>
+<li><strong>Spec Kit 對齊</strong>：AC 與 <code>specs/<feature>/tasks.md</code> 可一對一連到 Scenario，避免規格與測試漂移。</li>
+</ul>
+<h2>七、風險與注意事項</h2>
+<ol>
+<li><strong>語言關鍵字</strong>：中文 Gherkin 需整專案一致；混用英文關鍵字與中文描述時注意 parser 設定。</li>
+<li><strong>過度細分步驟</strong>：導致步驟定義爆炸；宜以「業務可讀」為上，技術細節留在底層 helper。</li>
+<li><strong>LLM 幻覺</strong>：可能發明不存在的 Then；必須<strong>紅燈測試</strong>與人工審閘。</li>
+<li><strong>維護成本</strong>：Scenario Outline 與資料表可降低重複，但需治理測試資料生命週期。</li>
+<li><strong>與 E2E 混淆</strong>：BDD 層級應與 UI 脆性平衡；@smoke 宜少而穩。</li>
+</ol>
+<h2>八、參考來源</h2>
+<ol>
+<li>Cucumber — Gherkin 參考：<https://cucumber.io/docs/gherkin/reference/></li>
+<li>Cucumber — gherkin 解析器（GitHub）：<https://github.com/cucumber/gherkin></li>
+<li>North, D. — Introducing BDD（經典概念文）：<https://dannorth.net/introducing-bdd/></li>
+<li>專案內對照：<code>config/dedup-policy.yaml</code>（研究去重）、<code>templates/shared/kb-depth-check.md</code>（系列與深度檢查）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

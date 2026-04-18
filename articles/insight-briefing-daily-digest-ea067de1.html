@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing：Daily-Digest-Prompt 系統韌性提升：從失敗模式分析到自適應降級的綜合策略（2026-04-10）">
+  <title>insight-briefing：Daily-Digest-Prompt 系統韌性提升：從失敗模式分析到自適應降級的綜合策略（2026-04-10） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing：Daily-Digest-Prompt 系統韌性提升：從失敗模式分析到自適應降級的綜合策略（2026-04-10）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">系統韌性</span><span class="tag">失敗模式分析</span><span class="tag">自適應降級</span><span class="tag">daily-digest-prompt</span><span class="tag">系統診斷</span><span class="tag">2026-04-10</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 系統韌性提升：從失敗模式分析到自適應降級的綜合策略</h1>
+<p><strong>日期</strong>：2026-04-10</p>
+<p><strong>研究類型</strong>：跨領域系統洞察</p>
+<p><strong>資料來源</strong>：system-insight.json + improvement-backlog.json + 知識庫既有研究</p>
+<p>---</p>
+<h2>摘要</h2>
+<p>Daily-Digest-Prompt 系統當前面臨多維度韌性挑戰：排程成功率僅 65%（目標 90%）、9 個高失敗時段呈明顯聚集、快取命中率 30.2%（目標 40%）、9/11 任務結果檔缺失。本簡報整合系統洞察數據與既有診斷報告，識別五大核心問題並提出三層韌性策略：<strong>即時修復層</strong>（診斷函數實作）、<strong>適應層</strong>（時段感知降級）、<strong>演化層</strong>（公平性調度優化）。預期可將成功率提升至 85%+ 並建立長期自適應能力。</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<h3>1. 失敗模式呈現明顯時段聚集（新發現）</h3>
+<p><strong>數據</strong>：</p>
+<ul>
+<li>高失敗時段：1, 4, 5, 6, 7, 8, 11, 21, 22（9 個時段，佔全日 37.5%）</li>
+<li>早晨 4-8 時連續 5 小時失敗率顯著高於其他時段</li>
+<li>成功率從理想的 90% 降至實際的 65%（差距 25%）</li>
+</ul>
+<p><strong>洞察</strong>：</p>
+<p>失敗時段的聚集性暗示<strong>非隨機因素</strong>主導，可能原因包括：</p>
+<ul>
+<li>後端模型在特定時段的健康狀態變化（例如 API rate limit 重置時間）</li>
+<li>特定時段的任務類型分布（例如早晨集中執行研究類任務）</li>
+<li>Timeout 設定與實際執行時間的不匹配（特定任務在該時段耗時更長）</li>
+</ul>
+<p><strong>證據鏈</strong>：</p>
+<ul>
+<li>system-insight.json <code>high_failure_hours: [1, 4, 5, 6, 7, 8, 11, 21, 22]</code></li>
+<li>system-insight.json <code>alerts.daily_success_rate: 0.65 < 0.9</code></li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ol>
+<li><strong>短期</strong>：執行 <code>query-logs.ps1 -Mode errors</code> 並按小時分組，識別失敗任務類型</li>
+<li><strong>中期</strong>：實施時段感知的 timeout 動態調整（4-8 時 +30%）</li>
+<li><strong>長期</strong>：建立時段健康度監控，失敗率 >40% 時自動切換 backend</li>
+</ol>
+<p>---</p>
+<h3>2. 快取效率斷鏈已修復但需持續觀測（進行中）</h3>
+<p><strong>數據</strong>：</p>
+<ul>
+<li>當前命中率：30.2%（目標 40%）</li>
+<li>已修復：hooks/post_tool_logger.py 新增 metadata.source 記錄</li>
+<li>狀態：backlog_kso_20260408_cache_source_logging 標記為 resolved（2026-04-10）</li>
+</ul>
+<p><strong>洞察</strong>：</p>
+<p>metadata.source 記錄是資料驅動 TTL 優化的前提。修復已完成但效果需 <strong>3-7 天觀測期</strong>才能評估是否達標（命中率 ≥40% 或相對提升 ≥20%）。</p>
+<p><strong>證據鏈</strong>：</p>
+<ul>
+<li>improvement-backlog.json <code>backlog_kso_20260408_cache_source_logging.status: "resolved"</code></li>
+<li>system-insight.json <code>metrics.cache_hit_ratio: 0.302</code></li>
+<li>workflows/cache-ttl-adjustment-validation-workflow.yaml（驗證流程已定義）</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ol>
+<li><strong>即時</strong>：執行 <code>cache-miss-feedback-loop</code> 工具（若存在）分析 miss 根因分類</li>
+<li><strong>3天後</strong>：比對 2026-04-08 前後的命中率基準線（執行 cache-ttl-adjustment-validation-workflow）</li>
+<li><strong>7天後</strong>：若未達標（<40%），調整 cache-policy.yaml 的 adaptive_ttl 規則</li>
+</ol>
+<p>---</p>
+<h3>3. Result 檔案缺失診斷流程已定義但實作未完整整合（系統性缺口）</h3>
+<p><strong>數據</strong>：</p>
+<ul>
+<li>9/11 自動任務結果檔被標記為 result_file_missing_or_invalid</li>
+<li>受影響任務：fahua, git_push, github_scout, kb_insight_evaluation, jiaoguangzong, podcast_create, podcast_jiaoguangzong, shurangama, ntfy_review</li>
+<li>workflow-forge 已產出診斷流程（2026-04-07）</li>
+<li>但 run-todoist-agent-team.ps1 尚未實作 Invoke-ResultFileDiagnostic 函數</li>
+</ul>
+<p><strong>洞察</strong>：</p>
+<p>這是典型的「文件先行但執行滯後」缺口。workflow 定義（workflows/result-file-diagnostic-workflow.yaml）與執行邏輯（PS1 腳本）之間存在 <strong>實作斷層</strong>，導致診斷流程無法自動觸發。</p>
+<p><strong>證據鏈</strong>：</p>
+<ul>
+<li>improvement-backlog.json <code>backlog_ntfy_20260407_result_file_missing_pattern.status: "pending"</code></li>
+<li>KB 筆記「結果檔案缺失診斷框架」（2026-04-08）明確指出：「Gap：workflow 定義與執行邏輯之間存在實作缺口」</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ol>
+<li><strong>立即</strong>：在 run-todoist-agent-team.ps1 實作 <code>Invoke-ResultFileDiagnostic</code> 函數（參考 workflow YAML 的 6 步驟）</li>
+<li><strong>整合</strong>：Phase 2 執行完成後自動觸發診斷，產出 state/result-file-diagnostics.json</li>
+<li><strong>追蹤</strong>：在 Phase 3 組裝時讀取診斷結果，精準標記缺失根因（backend 失敗 / 檔案覆寫 / JSON 損壞 / 診斷欄位缺失）</li>
+</ol>
+<p>---</p>
+<h3>4. 自動任務公平性 emergency 已診斷但需架構決策（待 arch_evolution）</h3>
+<p><strong>數據</strong>：</p>
+<ul>
+<li>fairness_metric: 4.137（emergency 閾值 0.5，超標 8.3 倍）</li>
+<li>36/39 活躍任務零執行（92.3%）</li>
+<li>rotation_doctor 已執行並產出診斷：execution_order 過度稀疏（0-44，44.3% 空缺）</li>
+</ul>
+<p><strong>洞察</strong>：</p>
+<p>公平性問題的根因已透過 auto_task_rotation_doctor 明確診斷（2026-04-10），包括 execution_order 分布不均、max_auto_per_run 不足、輪轉進度慢。但修復需要<strong>編輯 frequency-limits.yaml</strong>，屬於配置變更，需經 arch_evolution 審議。</p>
+<p><strong>證據鏈</strong>：</p>
+<ul>
+<li>system-insight.json <code>fairness_diagnostic.bottlenecks</code>（3 個瓶頸已識別）</li>
+<li>system-insight.json <code>emergency_actions</code>（rotation_doctor 已執行但因治理禁止修改配置）</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ol>
+<li><strong>arch_evolution 下輪決策</strong>：評估提高 max_auto_per_run（當前值未知，需查 frequency-limits.yaml）</li>
+<li><strong>execution_order 緊縮</strong>：將 44 個 order 值壓縮至 0-38（消除空缺）</li>
+<li><strong>觸發容量評估</strong>：計算每日總觸發次數是否足夠（當前 ~44 次/日，38 任務需 ~57 次）</li>
+</ol>
+<p>---</p>
+<h3>5. 系統缺少跨時段的韌性降級機制（架構級缺口）</h3>
+<p><strong>數據</strong>：</p>
+<ul>
+<li>9 個高失敗時段仍使用相同的 timeout 與 backend 配置</li>
+<li>無時段感知的自適應機制</li>
+<li>timeouts.yaml 為靜態配置，未依時段或歷史失敗率動態調整</li>
+</ul>
+<p><strong>洞察</strong>：</p>
+<p>當前系統採用「一刀切」配置：所有時段使用相同 timeout、相同 backend 優先級、相同重試策略。但失敗時段的聚集性表明<strong>環境變異性</strong>（例如 API健康度、網路延遲），需要<strong>上下文感知的降級策略</strong>。</p>
+<p><strong>理論支撐</strong>：</p>
+<ul>
+<li>Harness Engineering 原則：系統應具備「漸進式降級」與「自適應調整」能力</li>
+<li>類比 Circuit Breaker 模式：連續失敗應觸發快速失敗或切換備選路徑</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ol>
+<li><strong>時段感知 timeout</strong>：在 timeouts.yaml 新增 <code>hour_multipliers</code>，4-8 時 timeout × 1.3</li>
+<li><strong>Backend fallback 順序調整</strong>：失敗時段優先使用穩定性更高的 backend（可能犧牲成本）</li>
+<li><strong>失敗率斷路器</strong>：某時段連續 3 次失敗率 >50%，該時段後續任務自動跳過或延遲至下一時段</li>
+</ol>
+<p>---</p>
+<h2>建議行動路線圖</h2>
+<h3>第一層：即時修復（1-3 天）</h3>
+<p>| 行動 | 優先級 | 預期效果 |</p>
+<p>|------|--------|----------|</p>
+<p>| 實作 Invoke-ResultFileDiagnostic | P0 | 降低 result_file_missing 從 82% 至 <30% |</p>
+<p>| 執行 cache-miss-feedback-loop | P1 | 識別 cache miss 根因分類，為 TTL 調整提供數據 |</p>
+<p>| 分析失敗時段任務類型分布 | P1 | 識別是否特定任務類型在特定時段失敗 |</p>
+<h3>第二層：適應層（1-2 週）</h3>
+<p>| 行動 | 優先級 | 預期效果 |</p>
+<p>|------|--------|----------|</p>
+<p>| 時段感知 timeout 動態調整 | P1 | 減少 4-8 時 timeout 失敗率 |</p>
+<p>| Backend fallback 時段策略 | P2 | 提升高失敗時段的任務成功率至 80%+ |</p>
+<p>| 快取 TTL 驗證與調整 | P1 | 命中率提升至 40%+ |</p>
+<h3>第三層：演化層（2-4 週）</h3>
+<p>| 行動 | 優先級 | 預期效果 |</p>
+<p>|------|--------|----------|</p>
+<p>| arch_evolution 決策公平性調度 | P0 | fairness_metric 降至 <0.5，零執行任務 <10% |</p>
+<p>| 失敗率斷路器機制 | P2 | 避免連續失敗浪費資源 |</p>
+<p>| 建立時段健康度監控 | P2 | 自動識別異常時段並觸發告警 |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><strong>系統數據</strong>：</li>
+</ol>
+<p>   - <code>context/system-insight.json</code>（2026-04-10）</p>
+<p>   - <code>context/improvement-backlog.json</code>（2026-04-10）</p>
+<ol>
+<li><strong>知識庫既有研究</strong>：</li>
+</ol>
+<p>   - 「結果檔案缺失診斷框架：根因分類與系統性修復策略」（2026-04-08）</p>
+<p>   - 「workflow-forge 執行報告：結果檔案診斷與修復工作流」（2026-04-07）</p>
+<p>   - 「Harness Engineering 生產級可靠度優化」（2026-04-10）</p>
+<ol>
+<li><strong>相關配置</strong>：</li>
+</ol>
+<p>   - <code>config/timeouts.yaml</code>（靜態配置）</p>
+<p>   - <code>config/frequency-limits.yaml</code>（公平性調度來源）</p>
+<p>   - <code>workflows/result-file-diagnostic-workflow.yaml</code>（診斷流程定義）</p>
+<p>   - <code>workflows/cache-ttl-adjustment-validation-workflow.yaml</code>（快取驗證流程）</p>
+<p>---</p>
+<h2>附錄：術語對照</h2>
+<p>| 術語 | 說明 |</p>
+<p>|------|------|</p>
+<p>| fairness_metric | 自動任務公平性指標，值越低越公平（理想 <0.5） |</p>
+<p>| result_file_missing_or_invalid | 結果檔案缺失或無效，導致 Phase 3 組裝失敗 |</p>
+<p>| high_failure_hours | 系統識別的高失敗時段（基於近 7 天統計） |</p>
+<p>| cache_hit_ratio | 快取命中率，hit / (hit + miss) |</p>
+<p>| rotation_doctor | 自動任務輪轉診斷工具（auto_task_rotation_doctor） |</p>
+<p>| arch_evolution | 架構演化自動任務（負責 ADR 決策與配置變更審議） |</p>
+<p>---</p>
+<p><strong>🤖 Generated by insight-briefing Skill（深度研究洞察簡報）</strong></p>
+<p><strong>執行時間</strong>：2026-04-10</p>
+<p><strong>下次建議</strong>：4-8 時段失敗根因深度分析（backend健康度 vs 任務類型分布）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

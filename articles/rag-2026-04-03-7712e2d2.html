@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-04-03：RAG 檢索品質度量化基線建立與系統治理缺口分析 — Precision@K 監控工具、Constraint 嵌入率 0% 根因與配置膨脹 116% 趨勢應對">
+  <title>專案RAG優化日報 2026-04-03：RAG 檢索品質度量化基線建立與系統治理缺口分析 — Precision@K 監控工具、Constraint 嵌入率 0% 根因與配置膨脹 116% 趨勢應對 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-04-03：RAG 檢索品質度量化基線建立與系統治理缺口分析 — Precision@K 監控工具、Constraint 嵌入率 0% 根因與配置膨脹 116% 趨勢應對</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">RAG</span><span class="tag">知識庫</span><span class="tag">品質度量</span><span class="tag">Precision</span><span class="tag">MRR</span><span class="tag">Constraint治理</span><span class="tag">配置膨脹</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-04-03</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-04-03</h1>
+<p><strong>RAG 檢索品質度量化基線建立與系統治理缺口分析 — Precision@K 監控工具、Constraint 嵌入率 0% 根因與配置膨脹 116% 趨勢應對</strong></p>
+<p><em>研究日期</em>：2026-04-03</p>
+<p><em>任務 ID</em>：6g2FfvWmxqhCWx85</p>
+<p><em>標籤</em>：專案優化、深度思維、知識庫、RAG 品質度量、Constraint 治理</p>
+<p><em>適用對象</em>：daily-digest-prompt 專案</p>
+<p><em>方法</em>：專案內部分析（配置/狀態/日誌審計）+ 工具建立與基線量測</p>
+<p>---</p>
+<h2>一、執行摘要</h2>
+<p>本次針對 daily-digest-prompt 專案進行三維度深度審計：(1) RAG 檢索品質量化、(2) 約束治理缺口分析、(3) 配置膨脹趨勢評估。</p>
+<p><strong>核心成果</strong>：</p>
+<ul>
+<li>建立 <code>tools/rag_quality_check.py</code> — 首個 RAG 品質度量工具，8 組基準查詢量化 Precision@K/MRR</li>
+<li>首次基線度量：Precision@3=66.7%、Precision@5=40.0%、MRR=1.000（首筆命中率 100%）</li>
+<li>發現 Constraint 嵌入率 0%（11 proposed / 0 accepted）、ADR fitness 覆蓋率 0.3% 的治理缺口</li>
+<li>配置膨脹：YAML 3220→6970 行（+116%）、Skill 30→78 個（+160%）、配置檔 23→60 個（+161%）</li>
+</ul>
+<p>---</p>
+<h2>二、RAG 檢索品質度量化</h2>
+<h3>2.1 工具設計</h3>
+<p>新建 <code>tools/rag_quality_check.py</code>，採用 8 組覆蓋不同知識領域的基準查詢：</p>
+<p>| 類別 | 查詢 | 預期結果數 |</p>
+<p>|------|------|----------|</p>
+<p>| RAG | RAG 管線效率優化 | ≥2 |</p>
+<p>| Agent | Agent 架構治理 | ≥3 |</p>
+<p>| 系統 | Todoist API 遷移 | ≥1 |</p>
+<p>| 研究 | 知識庫跨領域遷移 | ≥1 |</p>
+<p>| 排程 | 自動任務排程效率 | ≥1 |</p>
+<p>| 安全 | Hook 攔截規則 | ≥1 |</p>
+<p>| 認知 | 貝葉斯推理決策 | ≥1 |</p>
+<p>| AI | 深度學習 Transformer | ≥1 |</p>
+<p>度量指標：</p>
+<ul>
+<li><strong>Precision@K</strong>：前 K 個結果中 score ≥ 0.4 的比例</li>
+<li><strong>MRR</strong>（Mean Reciprocal Rank）：第一個相關結果的倒數排名</li>
+<li><strong>分數分布</strong>：high(≥0.7) / medium(0.4-0.7) / low(0.2-0.4) / irrelevant(<0.2)</li>
+</ul>
+<h3>2.2 基線結果（2026-04-03）</h3>
+<p>| 指標 | 值 | 評估 |</p>
+<p>|------|----|----- |</p>
+<p>| Precision@3 | 66.7% | 良好（目標 ≥70%） |</p>
+<p>| Precision@5 | 40.0% | 需改善（目標 ≥50%） |</p>
+<p>| MRR | 1.000 | 優秀（首筆必中） |</p>
+<p>| 平均分數 | 0.2725 | 偏低（多數結果落在 low 區間） |</p>
+<p>| 分數標準差 | 0.0193 | 穩定（跨查詢一致性高） |</p>
+<p>| 達標率 | 8/8 (100%) | 所有查詢找到足夠結果 |</p>
+<h3>2.3 關鍵洞見</h3>
+<ol>
+<li><strong>MRR 完美但 P@5 不足</strong>：搜尋引擎「找得到」但「排得不好」— 首筆必中，但第 4-5 名結果品質下降</li>
+<li><strong>high 區間結果為 0</strong>：所有查詢的 max_score 均 ≤ 0.5，說明向量相似度或 RRF 融合權重需調整</li>
+<li><strong>分數一致性高</strong>（stddev=0.019）：不同領域查詢表現均勻，無特定領域弱點</li>
+</ol>
+<h3>2.4 優化建議</h3>
+<ul>
+<li><strong>短期</strong>：調整 RRF 融合的 <code>k</code> 參數（目前可能過大，壓低了高分文件的排名）</li>
+<li><strong>中期</strong>：引入輕量 Reranking（如 cross-encoder 或 LLM-based rerank）提升 P@5</li>
+<li><strong>長期</strong>：建立 Ground Truth 標註集，從 benchmark 升級為 evaluation pipeline</li>
+</ul>
+<p>---</p>
+<h2>三、約束治理缺口分析</h2>
+<h3>3.1 Constraint 嵌入率</h3>
+<p>| 指標 | 值 | 說明 |</p>
+<p>|------|----|----- |</p>
+<p>| 提案數（proposed） | 11 | constraint-evolve 管線產出 |</p>
+<p>| 接受數（accepted） | 0 | 無任何規則通過審議 |</p>
+<p>| 嵌入數（embedded） | 0 | 無任何規則轉化為執行時制約 |</p>
+<p>| 嵌入率 | 0.0% | <strong>治理真空</strong> |</p>
+<h3>3.2 ADR Fitness 覆蓋率</h3>
+<p>| 指標 | 值 |</p>
+<p>|------|----|</p>
+<p>| 已接受 ADR 總數 | 388 |</p>
+<p>| 含 fitness function | 1 |</p>
+<p>| 覆蓋率 | 0.3% |</p>
+<h3>3.3 根因分析</h3>
+<ol>
+<li><strong>審議流程缺失</strong>：constraint-registry.json 中 7 筆 pattern 均為 <code>review_required</code>，但無自動或手動審議機制觸發接受/拒絕</li>
+<li><strong>ADR 產出速度遠超 fitness 補齊速度</strong>：每日新增 5-10 ADR，但 fitness function 需人工定義</li>
+<li><strong>建議</strong>：建立自動審議閾值（trigger_count ≥ 10 自動接受）+ ADR fitness 批量生成腳本</li>
+</ol>
+<p>---</p>
+<h2>四、配置膨脹趨勢</h2>
+<h3>4.1 成長趨勢（2026-03-11 至 2026-04-03）</h3>
+<p>| 指標 | 基線（03-11） | 現值（04-03） | 成長率 |</p>
+<p>|------|-------------|-------------|--------|</p>
+<p>| YAML 總行數 | 3,220 | 6,970 | +116% |</p>
+<p>| YAML 檔案數 | 23 | 60 | +161% |</p>
+<p>| Skill 數量 | 30 | 78 | +160% |</p>
+<p>| 自動任務模板 | 21 | 27 | +28% |</p>
+<p>| Hook 代碼行數 | 4,651 | 5,736 | +23% |</p>
+<h3>4.2 膨脹驅動因素</h3>
+<ul>
+<li><strong>Skill 增長</strong>（+48 個）：治理類 Skill 占 60%（fairness-rebalancer、cache-swr-manager、constraint-embedding-verifier 等）</li>
+<li><strong>YAML 增長</strong>（+37 個）：新增治理層配置（hook-rules、routing、cache-policy 等）</li>
+<li><strong>正向指標</strong>：hook_lines 成長最慢（+23%），代表核心守衛邏輯穩定</li>
+</ul>
+<h3>4.3 建議</h3>
+<ul>
+<li><strong>配置分層</strong>：將 60 個 YAML 分為 core（≤10，修改需 review）/ plugin（可自由增減）</li>
+<li><strong>Skill 退役機制</strong>：30 天無呼叫的 Skill 標記 deprecated，60 天後歸檔</li>
+<li><strong>定期瘦身</strong>：每週 <code>analyze-config.ps1</code> 產出膨脹告警</li>
+</ul>
+<p>---</p>
+<h2>五、本次實施成果</h2>
+<h3>已完成</h3>
+<p>| 項目 | 交付物 | 狀態 |</p>
+<p>|------|--------|------|</p>
+<p>| RAG 品質度量工具 | <code>tools/rag_quality_check.py</code> | ✅ 建立並測試通過 |</p>
+<p>| 首次基線量測 | <code>state/rag-quality-metrics.json</code> | ✅ 8 查詢 100% 達標 |</p>
+<h3>後續待辦</h3>
+<ol>
+<li>整合 <code>rag_quality_check.py</code> 到 <code>check-health.ps1</code>（RAG 品質區塊）</li>
+<li>建立 constraint 自動審議閾值機制</li>
+<li>P@5 提升至 50%+（調 RRF k 參數或引入 reranking）</li>
+<li>配置分層策略落地</li>
+</ol>
+<p>---</p>
+<h2>六、與前次報告的銜接</h2>
+<p>| 報告日期 | 主題 | 本次關聯 |</p>
+<p>|---------|------|----------|</p>
+<p>| 2026-03-30 | RAG 管線效率（Embedding 快取、查詢路由） | 本次建立品質<strong>度量</strong>基線，補齊效率優化的<strong>可觀測性</strong>缺口 |</p>
+<p>| 2026-03-31 | 自動任務排程效率與 DRR | 本次發現排程指標穩定（熵 0.44），聚焦治理層缺口 |</p>
+<p>---</p>
+<h2>來源與方法</h2>
+<ul>
+<li>專案內部分析：git log、state/<em>.json、config/</em>.yaml、context/*.json</li>
+<li>工具建立：<code>tools/rag_quality_check.py</code>（純 Python，無外部依賴）</li>
+<li>基準測試：8 組 hybrid search 查詢 × localhost:3000 KB API</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

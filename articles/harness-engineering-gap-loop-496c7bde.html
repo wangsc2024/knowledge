@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 生產環境回饋迴路與補償面自適應 — 從 Gap Loop 到 A/B Toggle 的系統持續優化機制">
+  <title>Harness Engineering 生產環境回饋迴路與補償面自適應 — 從 Gap Loop 到 A/B Toggle 的系統持續優化機制 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 生產環境回饋迴路與補償面自適應 — 從 Gap Loop 到 A/B Toggle 的系統持續優化機制</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">回饋迴路</span><span class="tag">補償面</span><span class="tag">Gap Loop</span><span class="tag">自適應</span><span class="tag">系統優化</span><span class="tag">AI Agent</span><span class="tag">Feature Flag</span><span class="tag">深度思維</span><span class="tag">研究</span><span class="tag">知識庫</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 生產環境回饋迴路與補償面自適應</h1>
+<blockquote>日期：2026-04-06 | 研究系列：harness-engineering（mechanism 階段補充）</blockquote>
+<blockquote>承接既有知識：漸進式降級（Circuit Breaker/Bulkhead/Retry Budget）、約束 SLI/SLO、約束演化機制</blockquote>
+<blockquote>本文聚焦：生產環境中的回饋迴路閉環與補償面自適應優化</blockquote>
+<p>---</p>
+<h2>一、核心概念：Harness 回饋迴路的四階段閉環</h2>
+<p>根據 OpenAI Cookbook Self-Evolving Agents 與 Philipp Schmid 的 Agent Harness 研究，現代 Harness Engineering 的回饋迴路由四個階段組成：</p>
+<h3>1.1 四階段閉環模型</h3>
+<p>| 階段 | 名稱 | 核心動作 | 產出 |</p>
+<p>|------|------|---------|------|</p>
+<p>| S1 | Baseline Execution | Agent 在生產環境執行任務 | 原始輸出 + 執行軌跡（trajectories） |</p>
+<p>| S2 | Feedback Collection | 人工審查或 LLM-as-Judge 自動評分 | 結構化回饋（thumbs-up/down + 評語） |</p>
+<p>| S3 | Eval & Scoring | 多維度評分匯總 | 加權品質分數 + 問題分類 |</p>
+<p>| S4 | Prompt/Constraint Refinement | 依回饋調整 prompt 或約束 | 新版本 prompt + 版本審計軌跡 |</p>
+<p><strong>關鍵洞見</strong>（Philipp Schmid）：「競爭優勢不再是 prompt 本身，而是你的 Harness 所捕獲的軌跡資料。」</p>
+<h3>1.2 評分策略：Multi-Grader 架構</h3>
+<p>OpenAI Cookbook 示範的多評分器策略平衡了規則式與語義式檢查：</p>
+<p>| 評分器 | 類型 | 用途 |</p>
+<p>|--------|------|------|</p>
+<p>| 關鍵實體保留 | Python 邏輯 | 確保領域關鍵術語未被遺漏 |</p>
+<p>| 長度偏差 | Python 邏輯 | 維持簡潔性紀律 |</p>
+<p>| 餘弦相似度 | 文本指標 | 錨定摘要與源內容的相關性 |</p>
+<p>| LLM 評審 | 模型評估 | 捕捉細微品質訊號 |</p>
+<p>通過閾值：75% 評分器通過 <strong>或</strong> 平均分 ≥ 0.85 即為「寬鬆通過」。</p>
+<p>---</p>
+<h2>二、Gap Loop 機制：從失敗到嵌入的閉環</h2>
+<h3>2.1 Gap Loop 五步模型</h3>
+<p>Gap Loop 是 Harness 系統從失敗中學習的核心機制：</p>
+<pre><code>
+Production Failure → Gap Detection → Gap Classification → Architecture Review → Constraint Embedding
+     ↑                                                                              |
+     └──────────────────── 回饋閉環 ────────────────────────────────────────────────┘
+</code></pre>
+<ol>
+<li><strong>失敗偵測</strong>：透過結構化日誌（JSONL）與 OpenTelemetry 追蹤異常模式</li>
+<li><strong>Gap 分類</strong>：依失敗分類學（failure taxonomy）歸類為已知模式或新模式</li>
+<li><strong>影響評估</strong>：計算 Gap 對 SLI/SLO 的影響程度</li>
+<li><strong>架構審查</strong>：判斷是否需要新約束或調整現有約束</li>
+<li><strong>約束嵌入</strong>：將修復方案寫入 Harness 配置（constraint evolution）</li>
+</ol>
+<h3>2.2 自動修復與升級策略</h3>
+<p>根據 Algomox 的自癒基礎設施研究，Agent 系統的自動修復分三層：</p>
+<p>| 層級 | 策略 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| L1 即時修復 | 自動重試 + 回滾 | 已知模式的暫時性故障 |</p>
+<p>| L2 適應性修復 | 調整參數 + 替代路徑 | 環境變化導致的持續性問題 |</p>
+<p>| L3 結構性修復 | 約束重寫 + 架構調整 | 系統設計層面的根本問題 |</p>
+<p><strong>關鍵指標</strong>：機器學習回饋迴路分析每次修復動作的四個維度 — 成功率、影響效果、資源效率、非預期後果。</p>
+<p>---</p>
+<h2>三、補償面（Compensation Surface）自適應</h2>
+<h3>3.1 補償面的概念模型</h3>
+<p>補償面是 Harness 系統中介入來源（intervention sources）與系統行為之間的映射關係。每個介入點可以被視為多維空間中的一個「面」，系統透過調整面的參數來補償 Agent 行為的偏差。</p>
+<h3>3.2 三層優先順序</h3>
+<pre><code>
+runtime_override &gt; daily_limit &gt; component_flags
+</code></pre>
+<ul>
+<li><strong>runtime_override</strong>：即時覆寫，用於緊急修復（如 Circuit Breaker 觸發後的降級）</li>
+<li><strong>daily_limit</strong>：每日限額控制，防止資源耗盡（如 Token 預算、API 配額）</li>
+<li><strong>component_flags</strong>：元件旗標，長期行為調控（如功能開關、A/B 測試分組）</li>
+</ul>
+<h3>3.3 A/B Toggle 機制</h3>
+<p>結合 Feature Flag 最佳實踐，Harness 的 A/B Toggle 分為兩類用途：</p>
+<ol>
+<li><strong>工程驗證（Engineering Verification）</strong>：在生產環境安全測試約束變更的效能影響</li>
+<li><strong>行為分析（Behavioral Analytics）</strong>：比較不同約束配置下 Agent 的任務完成率</li>
+</ol>
+<p><strong>旗標生命週期管理</strong>：</p>
+<ul>
+<li>新旗標必須有明確的實驗期限（如 7 天）</li>
+<li>根據不活躍指標自動識別待退役的旗標</li>
+<li>與問題追蹤系統整合，追蹤清理狀態</li>
+</ul>
+<p>---</p>
+<h2>四、持續優化的三大模式</h2>
+<h3>4.1 Entropy Management（熵管理）</h3>
+<p>透過排程任務定期掃描：</p>
+<ul>
+<li>配置不一致性</li>
+<li>死代碼（Dead Code）</li>
+<li>文件漂移（Documentation Drift）</li>
+</ul>
+<h3>4.2 Dynamic Resource Allocation（動態資源分配）</h3>
+<p>根據上下文在正確時機載入正確資訊：</p>
+<ul>
+<li>按需載入 Skill/模板（非預載）</li>
+<li>快取 TTL 預計算（PowerShell Phase 0 模式）</li>
+<li>Token 預算動態分配</li>
+</ul>
+<h3>4.3 Regression Detection（回歸偵測）</h3>
+<p>標記 Agent 行為退化：</p>
+<ul>
+<li>基準線效能追蹤（benchmark.yaml fitness_functions）</li>
+<li>趨勢分析（entropy-trend.json 時間序列）</li>
+<li>SLO 燃燒率告警（多視窗模式）</li>
+</ul>
+<p>---</p>
+<h2>五、量化成效與實務數據</h2>
+<p>| 指標 | 數值 | 來源 |</p>
+<p>|------|------|------|</p>
+<p>| LangChain 自驗證迴路提升 | 52.8% → 66.5%（+13.7pt） | Terminal Bench 2.0 |</p>
+<p>| Harness 優化後基準測試 | 42% → 78%（+36pt） | Rentier Digital 8 個月數據 |</p>
+<p>| Self-evolving 寬鬆通過閾值 | 75% graders pass 或 avg ≥ 0.85 | OpenAI Cookbook |</p>
+<p>| Checkpoint-Resume 降低重試成本 | 30-50% | harness-engineering.ai |</p>
+<p>| 自驗證 + 迴圈偵測改善 | +13.7pt（不改模型） | LangChain/NxCode |</p>
+<p>---</p>
+<h2>六、對 Daily-Digest-Prompt 系統的優化建議</h2>
+<p>基於上述研究，結合本專案 B0-B5 Harness 分層架構，提出三項具體優化方向：</p>
+<h3>6.1 強化 B4-A Gap Loop 的自動分類</h3>
+<p>目前 <code>harness_gap_tracker.py</code> 偵測 gap 後需人工判斷分類。建議：</p>
+<ul>
+<li>引入 failure taxonomy 自動分類（對齊 <code>post_tool_logger.py</code> 的失敗標籤）</li>
+<li>分類結果直接映射到 <code>arch-evolution</code> 審查佇列</li>
+<li>新增「gap → constraint proposal」自動轉化路徑</li>
+</ul>
+<h3>6.2 導入 Multi-Grader 品質評分</h3>
+<p>目前 <code>quality_gate.py</code> 以單一確定性門檻為主。建議：</p>
+<ul>
+<li>增加餘弦相似度評分器（錨定任務輸出與預期格式）</li>
+<li>B2-C LLM 評估層增加「寬鬆通過」邏輯（75% pass 或 avg ≥ 0.85）</li>
+<li>評分結果回饋至 <code>scoring.yaml</code> 調整權重</li>
+</ul>
+<h3>6.3 補償面 A/B Toggle 實驗框架</h3>
+<p>目前 <code>component_flags</code> 為靜態配置。建議：</p>
+<ul>
+<li>為高影響約束變更建立 A/B 實驗期（7 天）</li>
+<li>實驗結果寫入 <code>state/compensation-experiment.json</code></li>
+<li>月度 Harness 審查（B5-B）納入實驗結果分析</li>
+</ul>
+<p>---</p>
+<h2>來源</h2>
+<ol>
+<li>NxCode — Harness Engineering Complete Guide 2026</li>
+<li>Philipp Schmid — The Importance of Agent Harness in 2026</li>
+<li>OpenAI Cookbook — Self-Evolving Agents: Autonomous Agent Retraining</li>
+<li>Algomox — Self-Healing Infrastructure: Agentic AI in Auto-Remediation</li>
+<li>HarnessEngineering.academy — What is Harness Engineering Introduction 2026</li>
+<li>Harness.io — Feature Flags & A/B Testing Best Practices</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

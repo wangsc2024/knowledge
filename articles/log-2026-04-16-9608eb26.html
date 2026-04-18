@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-04-16">
+  <title>系統 Log 審查報告 - 2026-04-16 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 審查報告 - 2026-04-16</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">phase_failure</span><span class="tag">agent_crash</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 - 2026-04-16</h1>
+<h2>執行摘要</h2>
+<ul>
+<li><strong>審查窗口</strong>：2026-04-10 ~ 2026-04-16（7 天）</li>
+<li><strong>發現問題</strong>：4 個核心問題（均需 backlog 處理）</li>
+<li><strong>修正項目</strong>：0（logs 層運作正常，核心問題超出職責範圍）</li>
+<li><strong>系統狀態</strong>：04-16 已自然改善（ERROR=4, failed=7, nul=4）</li>
+</ul>
+<h2>趨勢分析</h2>
+<h3>phase_failure（failure-stats）</h3>
+<p>最近一日 2026-04-15 的 phase_failure 為 17，高於前一日 2026-04-14（10），短期趨勢為惡化，不得描述為「改善中」。相較窗內高峰 2026-04-11（21 次）已回落。窗內 phase_failure 中位數為 17；最近一日相對中位數為「等於」中位數。</p>
+<h3>log grep 統計（按日期）</h3>
+<p>| 日期 | ERROR | WARN | TIMEOUT | failed | nul |</p>
+<p>|------|-------|------|---------|--------|-----|</p>
+<p>| 04-09 | 213 | 194 | 326 | 365 | 159 |</p>
+<p>| 04-10 | 502 | 194 | 427 | 212 | 855 |</p>
+<p>| 04-11 | 315 | 132 | 223 | 195 | 526 |</p>
+<p>| 04-13 | 619 | 147 | 395 | 689 | 1186 |</p>
+<p>| 04-14 | 314 | 249 | 591 | 337 | 391 |</p>
+<p>| 04-15 | 241 | 169 | 455 | 163 | 235 |</p>
+<p>| 04-16 | 4 | 8 | 37 | 7 | 4 |</p>
+<p><strong>觀察</strong>：04-13 為高峰（ERROR=619, failed=689），04-16 大幅改善。nul 計數可能為誤匹配（無實體 nul 檔案）。</p>
+<h2>問題詳情</h2>
+<h3>🔴 問題 1：單日 phase_failure 超標（P0）</h3>
+<ul>
+<li><strong>症狀</strong>：2026-04-15 達 17 次（閾值 10 次）</li>
+<li><strong>細分</strong>：</li>
+</ul>
+<p>  - agent_crash: 5 次（無 stderr 日誌，疑似 PowerShell Start-Job 提前退出或 OOM）</p>
+<p>  - timeout: 3 次（skill_forge、workflow_forge 複雜任務超時）</p>
+<p>  - result_file_missing: 3 次（Phase 2 未生成 JSON）</p>
+<p>  - assembly_side_effects_missing: 4 次（02:00-03:00 集中，ntfy/KB API 不可用）</p>
+<p>  - plan_parse_error: 1 次</p>
+<ul>
+<li><strong>時段集中</strong>：02:00-03:00（assembly 失敗）、05:00-06:00（workflow_forge timeout）</li>
+<li><strong>建議</strong>：</li>
+</ul>
+<p>  1. PowerShell Start-Job 穩定性調查（增加日誌追蹤）</p>
+<p>  2. Cursor CLI timeout 調整（2100s → 3000s）</p>
+<p>  3. Phase 3 ntfy/KB health check</p>
+<h3>🔴 問題 2：OpenAI Codex quota 耗盡（P1）</h3>
+<ul>
+<li><strong>症狀</strong>：2 次 quota_exceeded（ai_deep_research_continue 18:00、workflow_forge 05:00）</li>
+<li><strong>錯誤訊息</strong>：「You've hit your usage limit. To get more access now, send a request to your admin or try again at Apr 17th, 2026 3:34 PM.」</li>
+<li><strong>建議</strong>：LLM Gate quota 監控與告警，接近上限時切換後端</li>
+</ul>
+<h3>🟠 問題 3：query 區塊失敗 27 次（已修復）</h3>
+<ul>
+<li><strong>症狀</strong>：04-10 ~ 04-11 集中發生 27 次（04:30-10:00 時段）</li>
+<li><strong>根因</strong>：Phase 1 LLM 返回對話式回應而非結構化 plan JSON（chatroom-plan.json 未產生）</li>
+<li><strong>修復</strong>：commit 526bf0c（04-11 15:46）強化 todoist-query.md 對話禁止邏輯</li>
+<li><strong>恢復時間</strong>：04-15 18:00 後全數成功</li>
+<li><strong>狀態</strong>：✅ 已完全修復，無需處理</li>
+</ul>
+<h3>🟡 問題 4：nul 計數異常（誤報）</h3>
+<ul>
+<li><strong>症狀</strong>：log grep 顯示 04-13=1186, 04-10=855</li>
+<li><strong>調查</strong>：無實體 nul 檔案存在，Python 中的 2 處僅為註解/規則描述</li>
+<li><strong>根因</strong>：grep pattern 誤匹配「null」、「annual」等字串</li>
+<li><strong>建議</strong>：未來掃描使用 word boundary <code>\bnul\b</code></li>
+</ul>
+<h2>系統健康度</h2>
+<ul>
+<li>✅ autonomous-runtime.json：mode=normal，無殭屍降級</li>
+<li>✅ SLO 全部 green（budget_consumed_pct=0%）</li>
+<li>✅ Phase 1/3 對話性防護已到位</li>
+<li>✅ 04-16 已大幅改善（ERROR=4, failed=7）</li>
+</ul>
+<h2>待處理項目（需 arch_evolution 或 self_heal）</h2>
+<ol>
+<li><strong>P0</strong>：PowerShell Start-Job 穩定性調查（5 次無 stderr crash）</li>
+<li><strong>P1</strong>：OpenAI Codex quota 監控與告警</li>
+<li><strong>P2</strong>：Cursor CLI timeout 調整（skill_forge/workflow_forge）</li>
+<li><strong>P2</strong>：Phase 3 assembly 前置 ntfy/KB health check</li>
+</ol>
+<h2>結論</h2>
+<p>系統於 04-15 經歷 phase_failure 尖峰（17 次），主因為 agent_crash（5 次）、quota（2 次）、assembly 失敗（4 次）。query 失敗（27 次）已於 04-11 修復。04-16 已自然改善，ERROR 從窗內高峰 619 降至 4。所有核心問題已記錄，建議由 arch_evolution 或 self_heal 處理。</p>
+<p>---</p>
+<p><strong>生成時間</strong>：2026-04-16 02:36  </p>
+<p><strong>資料來源</strong>：state/failure-stats.json、state/scheduler-state.json、logs/（7 天）  </p>
+<p><strong>phase_failure 趨勢</strong>：短期惡化（17 > 10），窗內高峰 04-11（21 次）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

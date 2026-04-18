@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge 2026-04-15：系統成功率提升專用 workflow 鑄造報告">
+  <title>workflow-forge 2026-04-15：系統成功率提升專用 workflow 鑄造報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge 2026-04-15：系統成功率提升專用 workflow 鑄造報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">系統成功率</span><span class="tag">失敗叢聚分析</span><span class="tag">OODA</span><span class="tag">improvement-backlog</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge 鑄造報告（2026-04-15）</h1>
+<h2>執行摘要</h2>
+<ul>
+<li><strong>產出類型</strong>：workflow YAML</li>
+<li><strong>產出路徑</strong>：<code>workflows/system-success-rate-improvement-workflow.yaml</code></li>
+<li><strong>優先級</strong>：P0</li>
+<li><strong>總分</strong>：98/100（影響範圍 40 + 可執行性 33 + 信號強度 25）</li>
+</ul>
+<h2>缺口識別</h2>
+<h3>來源信號</h3>
+<ol>
+<li><strong>system-insight.json critical 告警</strong>：</li>
+</ol>
+<p>   - daily_success_rate = 72.4%（門檻 90%）</p>
+<p>   - recommendations：「執行結果檔失敗叢聚分析」</p>
+<ol>
+<li><strong>state/failed-auto-tasks.json</strong>：</li>
+</ol>
+<p>   - 記錄連續失敗任務（task/reason/time 叢聚）</p>
+<p>   - 缺少從歷史記錄到修復建議的完整閉環</p>
+<ol>
+<li><strong>現有 workflow 缺口</strong>：</li>
+</ol>
+<p>   - 已有 23 個 workflow 產出物</p>
+<p>   - 有 result-file-diagnostic（單次失敗處理）</p>
+<p>   - <strong>缺少</strong>：系統性失敗叢聚分析 → 根因定位 → SMART 修復建議生成 → 追蹤驗證的閉環</p>
+<h3>評分標準（滿分 100）</h3>
+<ul>
+<li><strong>影響範圍（40 分）</strong>：所有 44 個自動任務的系統性失敗分析</li>
+<li><strong>可執行性（33 分）</strong>：整合現有 failed-auto-tasks.json、system-insight、improvement-backlog，僅需新增 workflow YAML，不修改核心 config</li>
+<li><strong>信號強度（25 分）</strong>：critical alert + explicit recommendation</li>
+</ul>
+<h2>工作流設計</h2>
+<h3>觸發條件（三選一）</h3>
+<ol>
+<li>system-insight 檢測到 <code>daily_success_rate < 0.9</code></li>
+<li>failed-auto-tasks 新增 entry 且 <code>consecutive_count ≥ 2</code></li>
+<li>手動執行系統健康審查</li>
+</ol>
+<h3>步驟概覽（6 步驟）</h3>
+<p>#### 步驟 0：前置條件檢查</p>
+<ul>
+<li>讀取 <code>context/system-insight.json</code></li>
+<li>確認 daily_success_rate < 0.9 且存在 critical alert</li>
+<li>若 ≥ 0.9，terminate_with_success（健康狀態跳過不算失敗）</li>
+</ul>
+<p>#### 步驟 1：失敗叢聚分析</p>
+<p><strong>三類叢聚</strong>：</p>
+<ol>
+<li><strong>任務叢聚</strong>：同一任務連續失敗 ≥3 次</li>
+<li><strong>原因叢聚</strong>：同一失敗原因出現 ≥5 次</li>
+<li><strong>時段叢聚</strong>：high_failure_hours 與 failed_at 交叉分析</li>
+</ol>
+<p><strong>輸入</strong>：</p>
+<ul>
+<li><code>state/failed-auto-tasks.json</code>（task_key, reason, last_failed_at, consecutive_count）</li>
+<li><code>context/system-insight.json</code>（high_failure_hours）</li>
+</ul>
+<p><strong>輸出</strong>：</p>
+<ul>
+<li>task_clusters（陣列）</li>
+<li>reason_clusters（陣列）</li>
+<li>time_clusters（陣列）</li>
+</ul>
+<p>#### 步驟 2：根因定位</p>
+<p><strong>reason 映射到根因類型</strong>：</p>
+<p>| reason | root_cause_type | 診斷步驟 |</p>
+<p>|--------|----------------|----------|</p>
+<p>| fsm_phase_timeout | timeout_insufficient | 讀取 timeouts.yaml，建議值 = 實際執行時間 × 1.2 |</p>
+<p>| result_file_missing_or_invalid | result_json_issue | 執行 result-file-diagnostic-workflow.yaml |</p>
+<p>| format_failed | schema_mismatch | 檢查 schema 與 prompt 必填欄位一致性 |</p>
+<p>| task_did_not_complete_or_timeout | execution_interrupted | 檢查 Cursor CLI / Codex 日誌，確認 fail-safe 占位 |</p>
+<p><strong>輸出</strong>：root_causes 陣列（含 cluster_id、root_cause_type、evidence、affected_scope）</p>
+<p>#### 步驟 3：修復建議生成</p>
+<p><strong>四類修復建議（SMART 原則）</strong>：</p>
+<ol>
+<li><strong>schema_fix</strong>：</li>
+</ol>
+<p>   - 標題：修正 {task_key} 結果 JSON schema 不符問題</p>
+<p>   - 步驟：讀取 schema → 補強 prompt 必填欄位檢查 → validate_results.py 驗證</p>
+<p>   - 優先級：high</p>
+<p>   - 預估影響：消除 format_failed，success_rate +3-5%</p>
+<ol>
+<li><strong>timeout_adjustment</strong>：</li>
+</ol>
+<p>   - 標題：調整 {task_key} timeout 至 {recommended_value}s</p>
+<p>   - 步驟：寫入 improvement-backlog（不直接修改 timeouts.yaml）</p>
+<p>   - 優先級：medium</p>
+<p>   - 預估影響：減少 fsm_phase_timeout，success_rate +2-4%</p>
+<ol>
+<li><strong>prompt_fix</strong>：</li>
+</ol>
+<p>   - 標題：補強 {task_key} prompt 的 fail-safe 占位與驗證步驟</p>
+<p>   - 步驟：檢查 prompt 是否含 fail-safe + validate_results.py 步驟</p>
+<p>   - 優先級：high</p>
+<p>   - 預估影響：消除 task_did_not_complete_or_timeout，success_rate +5-8%</p>
+<ol>
+<li><strong>tool_fix</strong>：</li>
+</ol>
+<p>   - 標題：修復 {tool_name} 邏輯缺陷</p>
+<p>   - 步驟：定位工具問題 → 寫入 backlog</p>
+<p>   - 優先級：high</p>
+<p>   - 預估影響：修復工具層問題，success_rate +3-6%</p>
+<p><strong>輸出</strong>：recommendations 陣列（含 id、type、title、action_steps、priority、estimated_impact、affected_tasks）</p>
+<p>#### 步驟 4：整合至 improvement-backlog</p>
+<p><strong>優先級映射</strong>：</p>
+<ul>
+<li><strong>high</strong>：連續失敗 ≥5 次 或 影響 ≥3 個任務</li>
+<li><strong>medium</strong>：連續失敗 3-4 次 或 影響 2 個任務</li>
+<li><strong>low</strong>：單一任務偶發失敗（consecutive_count ≤ 2）</li>
+</ul>
+<p><strong>backlog entry schema</strong>：</p>
+<pre><code>
+{
+  "id": "backlog_sr_{YYYYMMDD}_{序號}",
+  "source": "system_success_rate_workflow",
+  "title": "{recommendation.title}",
+  "description": "{action_steps + evidence}",
+  "priority": "high|medium|low",
+  "effort": "low|medium|high",
+  "created_at": "ISO-8601",
+  "status": "pending",
+  "tags": ["system_success_rate", "auto_detected", "workflow_forge"],
+  "related_file": "{prompt 檔案路徑}"
+}
+</code></pre>
+<p><strong>容錯</strong>：backlog 寫入失敗不中斷 workflow（記錄警告）</p>
+<p>#### 步驟 5：追蹤驗證設定</p>
+<p><strong>建立 <code>context/success-rate-tracking.json</code></strong>：</p>
+<pre><code>
+{
+  "version": 1,
+  "baseline_success_rate": 0.724,
+  "target_success_rate": 0.9,
+  "analysis_date": "2026-04-15",
+  "repair_items": ["backlog_sr_20260415_001", "backlog_sr_20260415_002"],
+  "next_verification_date": "2026-04-22",
+  "notes": "執行 workflow 的觸發條件與叢聚摘要"
+}
+</code></pre>
+<p><strong>驗證規則</strong>：7 天後執行 system-insight，比對 daily_success_rate 是否提升 ≥5%</p>
+<p><strong>成功標準</strong>：</p>
+<ul>
+<li><strong>短期</strong>（7 天內）：success_rate ≥ 85%</li>
+<li><strong>長期</strong>（14 天內）：success_rate ≥ 90%</li>
+</ul>
+<h2>整合點</h2>
+<h3>輸入來源</h3>
+<ul>
+<li><code>state/failed-auto-tasks.json</code>（失敗記錄）</li>
+<li><code>context/system-insight.json</code>（告警與高失敗時段）</li>
+</ul>
+<h3>參考文件</h3>
+<ul>
+<li><code>workflows/result-file-diagnostic-workflow.yaml</code>（result_file_missing 根因分析）</li>
+<li><code>config/error-types.yaml</code>（reason 映射）</li>
+<li><code>config/timeouts.yaml</code>（timeout 根因）</li>
+<li><code>config/schemas/results-auto-task-schema.json</code>（schema 規範）</li>
+</ul>
+<h3>輸出目標</h3>
+<ul>
+<li><code>context/improvement-backlog.json</code>（新增修復建議 entries）</li>
+<li><code>context/success-rate-tracking.json</code>（新建追蹤檔案）</li>
+</ul>
+<h3>消費者</h3>
+<ul>
+<li><strong>arch-evolution 自動任務</strong>：將修復建議轉化為 ADR</li>
+<li><strong>self-heal 自動任務</strong>：執行可自動化的修復建議</li>
+<li><strong>system-insight 自動任務</strong>：7 天後驗證成功率提升</li>
+</ul>
+<h2>約束條件</h2>
+<h3>唯讀檔案（不可修改）</h3>
+<ul>
+<li><code>state/scheduler-state.json</code></li>
+<li><code>config/frequency-limits.yaml</code> tasks 區塊</li>
+<li><code>config/timeouts.yaml</code>（僅讀取，建議寫入 backlog）</li>
+<li><code>config/routing.yaml</code></li>
+</ul>
+<h3>可寫入檔案</h3>
+<ul>
+<li><code>workflows/index.yaml</code>（已更新）</li>
+<li><code>context/improvement-backlog.json</code></li>
+<li><code>context/success-rate-tracking.json</code>（新建）</li>
+<li><code>config/agent-extra-reads.yaml</code>（已更新）</li>
+</ul>
+<h2>預期影響</h2>
+<h3>基準線（2026-04-14）</h3>
+<ul>
+<li>daily_success_rate = 72.4%</li>
+</ul>
+<h3>目標</h3>
+<ul>
+<li><strong>7 天內</strong>：≥ 85%（提升 12.6 個百分點）</li>
+<li><strong>14 天內</strong>：≥ 90%（達成健康門檻）</li>
+</ul>
+<h3>假設</h3>
+<ul>
+<li>修復建議被 arch-evolution 或 self-heal 採納並執行</li>
+<li>timeout 調整、prompt 補強、schema 修正均落地</li>
+<li>根因修復後，對應的失敗原因叢聚消失</li>
+</ul>
+<h2>後續行動</h2>
+<ol>
+<li><strong>system-insight 自動任務</strong>：檢測到 daily_success_rate < 90% 時觸發本 workflow</li>
+<li><strong>arch-evolution 自動任務</strong>：讀取 improvement-backlog，將高優先級修復建議轉化為 ADR</li>
+<li><strong>self-heal 自動任務</strong>：執行可自動化的修復建議（如補充 fail-safe 占位）</li>
+<li><strong>7 天後驗證</strong>：重新執行 system-insight，確認 success_rate 是否達標</li>
+</ol>
+<h2>技術債管理</h2>
+<ul>
+<li><strong>已整合</strong>：workflows/index.yaml、config/agent-extra-reads.yaml、context/workflow-forge-registry.json</li>
+<li><strong>已驗證</strong>：YAML 格式可解析（uv run python -c yaml.safe_load）</li>
+<li><strong>文件化</strong>：本報告將匯入知識庫，tags=["workflow-forge", "流程標準化", "系統成功率", "失敗叢聚分析"]</li>
+</ul>
+<h2>關鍵學習</h2>
+<ol>
+<li><strong>缺口識別方法</strong>：critical alert + explicit recommendation + 現有 workflow 缺口分析</li>
+<li><strong>優先級評分</strong>：影響範圍（40%）+ 可執行性（35%）+ 信號強度（25%）</li>
+<li><strong>開創性門檻</strong>：產物必須為「新」工作流定義，不重複既有 workflow</li>
+<li><strong>SMART 修復建議</strong>：Specific、Measurable、Achievable、Relevant、Time-bound</li>
+<li><strong>容錯設計</strong>：backlog 寫入失敗不中斷 workflow，允許部分步驟降級</li>
+</ol>
+<p>---</p>
+<p><strong>產出時間</strong>：2026-04-15T05:14:30+08:00  </p>
+<p><strong>workflow-forge 版本</strong>：1.1.0  </p>
+<p><strong>產物版本</strong>：system-success-rate-improvement-workflow.yaml v1.0.0</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

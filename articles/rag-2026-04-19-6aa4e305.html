@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案 RAG 優化日報（2026-04-19）">
+  <title>專案 RAG 優化日報（2026-04-19） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案 RAG 優化日報（2026-04-19）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">RAG</span><span class="tag">daily-digest-prompt</span><span class="tag">快取優化</span><span class="tag">Phase失敗率</span><span class="tag">知識活化</span><span class="tag">2026-04-19</span><span class="tag">系統診斷</span><span class="tag">優化建議</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案 RAG 優化日報（2026-04-19）</h1>
+<h2>一、執行摘要</h2>
+<p>基於 RAG 知識庫查詢與系統健康檢查，本次優化聚焦於四個關鍵領域：快取效益提升、Phase 失敗率降低、配置驗證補全、知識活化迴圈建立。優化後預期系統成功率從 73% 提升至 85%+，快取命中率從 27.9% 提升至 45%+。</p>
+<h2>二、診斷結果</h2>
+<h3>2.1 快取效益低下（P0）</h3>
+<ul>
+<li><strong>現況</strong>：7 天平均命中率 27.9%，目標 40%+</li>
+<li><strong>根因</strong>：昨日 34 次快取操作中，快取被標記為 <code>stale</code> 而非 <code>hit</code></li>
+<li><strong>影響</strong>：API 重複呼叫增加延遲與成本</li>
+<li><strong>證據</strong>：<code>logs/structured/2026-04-18.jsonl</code> 顯示 <code>cache_status: "stale"</code></li>
+</ul>
+<h3>2.2 Phase 失敗率高（P1）</h3>
+<ul>
+<li><strong>現況</strong>：近 7 天 Phase 失敗 115 次</li>
+<li><strong>根因</strong>：「assembly failed after 2 attempts」</li>
+<li><strong>影響</strong>：系統成功率僅 73%</li>
+<li><strong>證據</strong>：<code>state/scheduler-state.json</code> 記錄多次 assembly 失敗</li>
+</ul>
+<h3>2.3 配置驗證不完整（P2）</h3>
+<ul>
+<li><strong>現況</strong>：15 個配置檔缺少 JSON Schema 驗證</li>
+<li><strong>風險</strong>：配置錯誤可能導致運行時失敗</li>
+<li><strong>證據</strong>：<code>check-health.ps1</code> 顯示「💡 有 15 個配置檔尚未使用 JSON Schema 驗證」</li>
+</ul>
+<h3>2.4 知識活化不足（P3）</h3>
+<ul>
+<li><strong>現況</strong>：107 筆研究積累，但轉化為系統改善的比例低</li>
+<li><strong>根因</strong>：缺乏「研究→ADR→實施」追蹤機制</li>
+<li><strong>證據</strong>：知識庫文獻「知識活化與 OODA 閉環實效性分析」指出轉化效率診斷需求</li>
+</ul>
+<h2>三、優化方案</h2>
+<h3>3.1 快取命中率提升（P0）</h3>
+<p><strong>方案 A：強化 cache-first 策略</strong></p>
+<ul>
+<li>在 api-cache Skill 步驟 0 強制讀取快取狀態</li>
+<li>修改快取判定邏輯：stale → hit（在 grace period 內）</li>
+<li>啟用 SWR（Stale-While-Revalidate）機制</li>
+</ul>
+<p><strong>方案 B：優化 TTL 動態調整</strong></p>
+<ul>
+<li>實施 adaptive_ttl 規則（config/cache-policy.yaml 已定義）</li>
+<li>依實際命中率調整各端點 TTL</li>
+<li>目標：hackernews 50%+、gmail 40%+、knowledge 60%+</li>
+</ul>
+<p><strong>預期效果</strong>：命中率從 27.9% → 45%+</p>
+<h3>3.2 Phase 失敗率降低（P1）</h3>
+<p><strong>方案 A：加強 Phase 間結果驗證</strong></p>
+<ul>
+<li>Phase 2 完成前驗證結果 JSON schema</li>
+<li>Phase 3 啟動前確認所有依賴檔案存在</li>
+<li>失敗時記錄詳細錯誤原因（不只「assembly failed」）</li>
+</ul>
+<p><strong>方案 B：增加重試策略</strong></p>
+<ul>
+<li>Phase 失敗時自動重試（最多 3 次）</li>
+<li>重試間隔：2s → 5s → 10s（指數退避）</li>
+<li>記錄重試原因與次數</li>
+</ul>
+<p><strong>預期效果</strong>：成功率從 73% → 85%+</p>
+<h3>3.3 JSON Schema 驗證補全（P2）</h3>
+<p><strong>執行步驟</strong>：</p>
+<pre><code>
+# 1. 生成缺失的 Schema
+uv run python hooks/validate_config.py --migrate
+
+# 2. 加入 pre-commit hook
+echo "uv run python hooks/validate_config.py" &gt;&gt; .git/hooks/pre-commit
+
+# 3. 驗證所有配置檔
+uv run python hooks/validate_config.py --check-all
+</code></pre>
+<p><strong>預期效果</strong>：配置錯誤在提交前攔截</p>
+<h3>3.4 知識活化迴圈（P3）</h3>
+<p><strong>建立追蹤機制</strong>：建立 <code>context/knowledge-activation.yaml</code>，追蹤研究到 ADR 到實施的完整流程。</p>
+<p><strong>自動回顧機制</strong>：</p>
+<ul>
+<li>新增自動任務 <code>knowledge_activation_review</code>（每週執行）</li>
+<li>識別高價值研究（引用次數、相關性分數）</li>
+<li>自動生成 ADR proposal</li>
+</ul>
+<p><strong>預期效果</strong>：知識活化率從 16.8% → 30%+</p>
+<h2>四、預期效益</h2>
+<p>| 指標 | 現況 | 目標 | 提升幅度 |</p>
+<p>|------|------|------|----------|</p>
+<p>| 系統成功率 | 73% | 85%+ | +16.4% |</p>
+<p>| 快取命中率 | 27.9% | 45%+ | +61.3% |</p>
+<p>| Phase 失敗次數/7d | 115 | <50 | -56.5% |</p>
+<p>| 知識活化率 | 16.8% | 30%+ | +78.6% |</p>
+<p>| 配置驗證覆蓋率 | 0/15 | 15/15 | +100% |</p>
+<p><strong>總體效益評估</strong>：</p>
+<ul>
+<li>降低運維成本（減少 API 重複呼叫）</li>
+<li>提升系統穩定性（失敗率減半）</li>
+<li>加速知識轉化（縮短研究到實施週期）</li>
+</ul>
+<h2>五、實施時程</h2>
+<p>總計 30 小時（約 1.5 週），分三週執行：</p>
+<ul>
+<li>Week 1: 快取優化 + Phase 驗證（10h，P0/P1）</li>
+<li>Week 2: Schema 補全 + TTL 調整（8h，P0/P2）</li>
+<li>Week 3: 知識活化機制 + 測試（12h，P3）</li>
+</ul>
+<h2>六、參考資料</h2>
+<h3>知識庫文獻</h3>
+<ol>
+<li>知識活化與 OODA 閉環實效性分析（2026-03-12）</li>
+<li>專案優化建議報告（2026-02-15）</li>
+</ol>
+<h3>系統健康數據</h3>
+<ul>
+<li>檢查時間：2026-04-19 01:01:54</li>
+<li>成功率：73%（近 7 天 200 次執行）</li>
+<li>快取命中率：27.9%（7 天均值）</li>
+<li>Phase 失敗：115 次（近 7 天）</li>
+</ul>
+<p>---</p>
+<p><strong>產出日期</strong>：2026-04-19</p>
+<p><strong>分析方法</strong>：RAG 知識庫查詢 + system-audit Skill + check-health.ps1</p>
+<p><strong>下次回顧</strong>：2026-04-26</p>
+<p><strong>版本</strong>：v1.0.0</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

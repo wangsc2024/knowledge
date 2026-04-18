@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 瀏覽器／Computer-Use Agent 的可靠性、安全性與生產治理 深度研究報告">
+  <title>AI 瀏覽器／Computer-Use Agent 的可靠性、安全性與生產治理 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AI 瀏覽器／Computer-Use Agent 的可靠性、安全性與生產治理 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">AI 瀏覽器／Computer-Use Agent 的可靠性、安全性與生產治理</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 瀏覽器／Computer-Use Agent 的可靠性、安全性與生產治理：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>2025 到 2026 年間，browser agent 與 computer-use agent 已從展示型功能走向可部署的半自主系統，但可靠性仍未達可完全放手的程度。OpenAI 公布的 Computer-Using Agent（CUA）在 WebArena 取得 58.1%、WebVoyager 87.0%、OSWorld 38.1% 的成績，代表專有模型確實比早期研究基線進步不少；然而 OSWorld 論文的人類成功率仍高達 72.36%，說明真實桌面與跨站流程距離穩定自動化仍有顯著落差 [來源：OpenAI Computer-Using Agent, 2025；OSWorld, 2024；WebArena, 2023]。因此，這類 agent 的核心問題不再只是「能不能操作介面」，而是「是否能在不可信內容、網站變動與真實副作用下，持續安全地完成任務」。</p>
+<p>多個權威來源形成明確共識：要把 browser/computer-use agent 放進生產環境，至少必須具備四道邊界。第一是隔離執行與最小權限，避免把使用者主要工作環境、敏感憑證與高權限工具直接暴露給模型 [來源：Anthropic Computer Use Docs, 2025；OWASP Prompt Injection, 2026]。第二是 approval gating，也就是在登入、付款、送信、刪除、同意條款等高影響動作前，必須有人類確認或接管 [來源：OpenAI Operator System Card, 2025；OpenAI Help Center Operator, 2025；Anthropic Computer Use Docs, 2025]。第三是 prompt injection 防護，因 browser agent 天生會讀取來自網頁、郵件與圖片的非可信內容，若沒有監測器、allowlist 與上下文約束，模型很容易被間接指令劫持 [來源：OWASP Prompt Injection, 2026；OpenAI Operator System Card, 2025；Anthropic Computer Use Docs, 2025]。第四是可觀測性與稽核，系統必須保留步驟事件、截圖、網路請求與人工接手紀錄，否則發生錯誤時無法回放與定責 [來源：Browserbase Observability Docs, 2026；Browserbase Live View, 2026；OpenAI Operator System Card, 2025]。</p>
+<p>對 daily-digest-prompt 或個人專案而言，最可行的導入方式不是追求全面自治，而是把 browser agent 限定在「高回報、低副作用、可人工覆核」的區段，例如跨站資訊蒐集、表單草稿、測試回歸、後台巡檢與需要登入但可暫停接管的流程。真正的工程關鍵不是選哪個模型，而是是否先把 benchmark、風險分級、批准節點與觀測面做成制度化中介層。</p>
+<h2>研究背景與動機</h2>
+<p>AI agent 進入真實瀏覽器與桌面環境後，挑戰從文字推理轉向具身互動。WebArena 與 WebVoyager 顯示，真實網站任務必須處理頁面結構差異、表單流程、彈窗與動態內容 [來源：WebArena, 2023；WebVoyager, 2024]。OSWorld 則把評測範圍擴展到跨作業系統的完整電腦操作，包含瀏覽器之外的 GUI 與應用程式 [來源：OSWorld, 2024]。這些 benchmark 的共同訊號是：demo 可以展示局部能力，但真正決定上線價值的，是 agent 在長步驟任務中的端到端完成率與錯誤可控性。</p>
+<p>2025 年 OpenAI 將 CUA 與 Operator 推向研究預覽，首次公開把這種能力商品化時的安全結構，包括 confirmations、watch mode、prompt injection monitor 與高風險任務拒絕策略 [來源：OpenAI Computer-Using Agent, 2025；OpenAI Operator System Card, 2025]。Anthropic 的 computer use 文件則從平台角度強調隔離環境、網域 allowlist、敏感操作人工確認與對抗惡意畫面內容 [來源：Anthropic Computer Use Docs, 2025]。這讓研究重點從「模型是否會點擊按鈕」進一步轉為「怎樣的治理框架，才足以讓 agent 在真實流程中可被信任」。</p>
+<h2>核心技術解析</h2>
+<p>第一個核心事實是，能力評測必須看 functional correctness 與端到端成功率，而不是單步表現或靜態頁面理解。WebArena 建立多站點、可執行的 web environment，強調任務是否真正完成；早期 GPT-4 代理端到端成功率只有 10.59%，顯示真實網頁操作比單輪問答困難得多 [來源：WebArena, 2023]。WebVoyager 把評測帶到真實網站，摘要結果顯示多模態 agent 成功率為 55.7%，且自動評分與人工評判高度一致 [來源：WebVoyager, 2024]。OSWorld 更指出人類成功率 72.36%，當時最佳模型只有 12.24%，說明桌面級操作中的 GUI grounding 與程序知識仍是主要瓶頸 [來源：OSWorld, 2024]。OpenAI 後續公布的 CUA 指標顯示，專有模型的 WebArena 與 WebVoyager 成績大幅提升，但 OSWorld 也仍只有 38.1%，因此「可用」不等於「可無監督部署」[來源：OpenAI Computer-Using Agent, 2025]。</p>
+<p>第二個核心事實是，生產安全的第一原則不是更強模型，而是更窄的權限面。Anthropic 明確要求在低權限 VM 或 container 中執行 computer use，並以網域 allowlist 限制外部暴露面，避免模型在任意網站、任意帳號與本機敏感資料上自由活動 [來源：Anthropic Computer Use Docs, 2025]。OWASP 對 prompt injection 的說明也支持這種做法，因為間接注入常透過網頁、郵件或多模態內容進入上下文，若資料與工具範圍過廣，就容易把語義污染轉成真實副作用 [來源：OWASP Prompt Injection, 2026；OWASP LLM01 Prompt Injection, 2026]。這表示 browser agent 的執行環境應被視為一個零信任沙盒，而不是「替使用者操作自己的主工作站」。</p>
+<p>第三個核心事實是，approval gating 必須深入流程，而不是只在最後一步提醒使用者。Operator system card 指出，在高影響動作前加入 confirmations，可把模型失誤造成的風險降低約 90%；對某些高敏感網站，watch mode 還要求使用者持續在場，若使用者離開頁面就暫停執行 [來源：OpenAI Operator System Card, 2025]。OpenAI 說明頁也提到，遇到登入或輸入密碼時，系統應切換到 take over mode，交由使用者完成 [來源：OpenAI Help Center Operator, 2025]。Anthropic 亦建議對接受 Cookie、金融交易、同意條款等需要明確授權的動作，一律要求人工確認 [來源：Anthropic Computer Use Docs, 2025]。因此，成熟的 agent 架構應把批准拆成多點節流：登入前、敏感站點內、世界狀態改變前、提交前預覽。</p>
+<p>第四個核心事實是，prompt injection 對 browser/computer-use agent 是第一級風險。OWASP 將 indirect prompt injection 定義為攻擊者把惡意指令藏在外部內容中，等模型後續讀取時再劫持其行為 [來源：OWASP Prompt Injection, 2026；OWASP LLM01 Prompt Injection, 2026]。這與 browser agent 的威脅模型高度重疊，因為網頁、郵件與圖片本來就是其主要輸入來源。OpenAI system card 直接把 prompt injections 列為 Operator 三大風險之一，並以額外監控器在紅隊資料上取得 99% recall、90% precision，用來在畫面偵測到疑似注入時暫停流程 [來源：OpenAI Operator System Card, 2025]。Anthropic 也承認模型有時會遵循出現在畫面中的衝突指令，因此建議把敏感資料與高風險操作隔離，並在偵測到疑似注入時轉向使用者確認 [來源：Anthropic Computer Use Docs, 2025]。這些設計都指向同一結論：沒有上下文治理，browser agent 就會把網頁內容錯認為可信規格。</p>
+<p>第五個核心事實是，可觀測性不是附屬功能，而是生產條件的一部分。Browserbase 的觀測文件顯示，實務上需要 session live view、video recording、console logs、network logs、CDP events 與可程式化的 session logs API，才能在 agent 失誤、網站變動、代理被擋或流程卡住時有效定位問題 [來源：Browserbase Observability Docs, 2026；Browserbase Session Live View, 2026]。這些能力與 OpenAI 的 watch mode 在治理目標上是一致的：人類不只是在事前批准，更要能在執行中介入，並在事後追查到底發生了什麼 [來源：OpenAI Operator System Card, 2025]。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ 已驗證：browser/computer-use agent 的評估應以端到端完成率為核心，而非 demo 成功片段。支持來源至少 4 筆：WebArena、WebVoyager、OSWorld、OpenAI CUA。</li>
+<li>✅ 已驗證：生產最小安全邊界包含隔離執行、最小權限、網域 allowlist 與高影響動作人工確認。支持來源至少 4 筆：Anthropic、OpenAI Operator、OpenAI Help、OWASP。</li>
+<li>✅ 已驗證：prompt injection 是 browser agent 的首要風險，因為網頁內容本身就是非可信輸入。支持來源至少 4 筆：OWASP、OWASP GenAI、OpenAI Operator、Anthropic。</li>
+<li>✅ 已驗證：approval gating 應是多節點流程，而非單一確認按鈕；登入、付款、發信、刪除與同意條款都應分別設 gate。支持來源至少 3 筆：OpenAI Operator、OpenAI Help、Anthropic。</li>
+<li>✅ 已驗證：缺乏可觀測性就無法把 browser agent 納入正式運維；至少要有截圖、事件流、網路紀錄與人工接管事件。支持來源至少 3 筆：Browserbase Observability、Browserbase Live View、OpenAI Operator。</li>
+<li>⚠️ 待驗證：把 policy-as-code 與 runtime context firewall 做成中介層，可能是降低 prompt injection 與流程漂移的最佳工程做法，但目前直接來自官方文件的明示證據較少，仍需更多實證案例補強。支持來源 2 筆：LangChain Guardrails、OWASP。</li>
+</ol>
+<h2>實務應用建議</h2>
+<p>對 daily-digest-prompt 這類工作流系統，第一步不是把 agent 直接接到所有網站，而是先建立「風險分層的工作清單」。建議把可自動化任務限制在資料蒐集、後台巡檢、表單草稿、測試回歸、可回放的客服支援流程等低副作用區段；涉及付款、刪除、寄信、帳號設定變更與憑證操作的流程，一律保留人工接手。</p>
+<p>第二步是建立明確的 agent contract。每個工作流都應宣告允許網域、允許工具、允許副作用、需要確認的節點、最大步數與超時條件。若採 Browserbase、Playwright 或同類平台，可把 live view、session log 與 replay 作為預設開啟項，而不是事故後才補裝 [來源：Browserbase Observability Docs, 2026]。</p>
+<p>第三步是把 approval 設計成可觀測的狀態機，而不是 UI 提示。登入、2FA、敏感表單提交、下載與上傳、外寄訊息送出，都應是可審計的節點；每次批准都要留下時間、人員、前後畫面與任務上下文，這樣失誤才可回溯。</p>
+<p>第四步是建立內部 acceptance benchmark。外部 benchmark 很重要，但最終是否能上線，仍要看它在你自己的網站、表單、後台與權限模型上是否穩定。建議把 20 到 50 條常用流程做成固定回歸集，以完成率、人工接手率、平均步數、回滾率與高風險告警率作為 release gate。</p>
+<h2>與現有知識的連結</h2>
+<p>這個主題與既有知識庫中的兩條脈絡高度相連。第一條是「多 Agent 協作協定（A2A + MCP）」研究，其中已指出 MCP tool poisoning 與跨系統委派的零信任需求；browser/computer-use agent 可視為把同樣的信任問題從工具層搬到 GUI 與網站內容層。第二條是「LLM Application 可觀測性」研究，該研究主張三層日誌架構與 OpenTelemetry 整合；browser agent 則把觀測範圍再擴張到畫面事件、網頁 DOM、網路請求與人工接管。因此，本研究可作為日後建立 agent governance layer 的前置理論基礎。</p>
+<h2>未來展望</h2>
+<p>未來一到兩年，browser/computer-use agent 最可能的進步方向不是單純更高 benchmark，而是更細緻的治理能力，包括更強的注入監測器、更好的任務分解、更成熟的 approval workflow，以及與憑證管理、政策引擎、稽核系統的深度整合。真正的分水嶺會出現在「可靠性是否足以讓企業把它放進關鍵但可監督的流程」，而不是「模型是否已經像人類一樣操作任何網站」。對個人與中小型專案而言，勝負手仍然是工程紀律：先定邊界，再上 agent。</p>
+<h2>完整書目</h2>
+<ul>
+<li>OpenAI. (2025). Computer-Using Agent. OpenAI. https://openai.com/index/computer-using-agent/</li>
+<li>OpenAI. (2025). Operator System Card. OpenAI. https://openai.com/index/operator-system-card/</li>
+<li>OpenAI Help Center. (2025). Operator. OpenAI Help. https://help.openai.com/en/articles/10421097-operator</li>
+<li>Anthropic. (2025). Computer use tool. Anthropic Docs. https://docs.anthropic.com/en/docs/build-with-claude/computer-use</li>
+<li>OWASP Foundation. (2026). Prompt Injection. OWASP. https://owasp.org/www-community/attacks/PromptInjection</li>
+<li>OWASP Gen AI Security Project. (2026). LLM01: Prompt Injection. OWASP. https://genai.owasp.org/llm01/</li>
+<li>Zhou, S. et al. (2023). WebArena: A Realistic Web Environment for Building Autonomous Agents. arXiv / Hugging Face Papers. https://huggingface.co/papers/2307.13854</li>
+<li>He, H. et al. (2024). WebVoyager: Building an End-to-End Web Agent with Large Multimodal Models. arXiv / Hugging Face Papers. https://huggingface.co/papers/2401.13919</li>
+<li>Xie, T. et al. (2024). OSWORLD: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments. arXiv. https://arxiv.org/abs/2404.07972</li>
+<li>Browserbase. (2026). Observability. Browserbase Docs. https://docs.browserbase.com/features/observability</li>
+<li>Browserbase. (2026). Session live view. Browserbase Docs. https://docs.browserbase.com/features/session-live-view</li>
+<li>LangChain. (2026). Guardrails. LangChain Docs. https://docs.langchain.com/oss/javascript/langchain/guardrails</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

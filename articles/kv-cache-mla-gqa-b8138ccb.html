@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="KV Cache 壓縮與長上下文推理優化 — 從 MLA/GQA 到 Dynamic Sparse Attention 的 2026 年最新進展">
+  <title>KV Cache 壓縮與長上下文推理優化 — 從 MLA/GQA 到 Dynamic Sparse Attention 的 2026 年最新進展 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>KV Cache 壓縮與長上下文推理優化 — 從 MLA/GQA 到 Dynamic Sparse Attention 的 2026 年最新進展</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">KV Cache</span><span class="tag">LLM推理優化</span><span class="tag">MLA</span><span class="tag">Sparse Attention</span><span class="tag">DeepSeek</span><span class="tag">RocketKV</span><span class="tag">技術研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>KV Cache 壓縮與長上下文推理優化</h1>
+<h2>主題概述</h2>
+<p>隨著 LLM 上下文窗口擴展至百萬 token 級別，KV Cache 已成為推理階段最大的記憶體瓶頸。以 70B 參數模型處理 200K token 為例，KV Cache 單獨即消耗 40-80 GB GPU 記憶體（佔總推理記憶體 70%）。2026 年湧現多項突破性技術，涵蓋五大優化方向，本文系統整理最新進展與工程實踐。</p>
+<p>---</p>
+<h2>一、五大 KV Cache 優化方向（2026 分類框架）</h2>
+<p>根據最新綜述論文（arXiv:2603.20397），KV Cache 優化可分為：</p>
+<h3>1. Cache Eviction（快取驅逐）</h3>
+<ul>
+<li><strong>核心思路</strong>：依注意力分數選擇性丟棄低重要性 token</li>
+<li><strong>代表方法</strong>：</li>
+</ul>
+<p>  - <strong>H2O（Heavy-Hitter Oracle）</strong>：追蹤累積注意力分數，辨識並保留「重擊手」token，達 5-10× 記憶體縮減，吞吐量提升最高 29×</p>
+<p>  - <strong>SnapKV</strong>：在編碼階段透過投票機制識別關鍵 token，同時保留周圍上下文，達 8.2× 記憶體縮減、3.6× 吞吐量提升</p>
+<h3>2. Cache Compression（快取壓縮）</h3>
+<ul>
+<li><strong>量化壓縮</strong>：</li>
+</ul>
+<p>  - <strong>KIVI</strong>：非對稱 2-bit 量化，峰值記憶體減少 2.6×，準確度損失 <2%</p>
+<p>  - <strong>TurboQuant（Google）</strong>：結合 W&B 評估的 KV Cache 壓縮流水線</p>
+<ul>
+<li><strong>低秩壓縮</strong>：</li>
+</ul>
+<p>  - <strong>MLA（Multi-Head Latent Attention）</strong>：DeepSeek-V2 首創，將完整 K/V 向量壓縮至低維潛在向量後快取，再按需解壓。KV Cache 縮減 93.3%（Absorb 模式達 98.6%），生成吞吐量提升 5.76×</p>
+<p>  - <strong>MHA2MLA-VLM（2026 新）</strong>：將既有視覺語言模型轉換為 MLA 架構的參數高效框架，無需昂貴重訓</p>
+<ul>
+<li><strong>語義分塊壓縮</strong>：</li>
+</ul>
+<p>  - <strong>ChunkKV</strong>：以語義區塊（非孤立 token）為壓縮單位，保留完整語言結構與上下文完整性</p>
+<p>  - <strong>KVTC（KV Cache Transform Coding）</strong>：達 20× 壓縮（特定場景 40×+），同時維持推理與長上下文準確度</p>
+<h3>3. Hybrid Memory Solutions（混合記憶體）</h3>
+<ul>
+<li><strong>PagedAttention（vLLM）</strong>：將 KV Cache 視為虛擬記憶體分頁，支援多序列高效共享，無損準確度</li>
+<li><strong>ShadowKV</strong>：低秩 Key Cache 留 GPU + Value Cache 卸載至 CPU，配合即時重建最小稀疏 KV 對</li>
+<li><strong>TailorKV</strong>：逐層自適應量化 + 稀疏策略，GPU 記憶體減少 73.8%，吞吐量提升 8-18×</li>
+</ul>
+<h3>4. Dynamic Sparse Attention（動態稀疏注意力）</h3>
+<ul>
+<li><strong>DHSA（Dynamic Hierarchical Sparse Attention）</strong>：</li>
+</ul>
+<p>  - 依資料驅動自適應分割序列為變長區塊，與輸入注意力模式匹配</p>
+<p>  - Prefill 延遲降低 20-60%，峰值記憶體減少 35%</p>
+<p>  - 相較靜態 block sparse，準確度提升 6-18%</p>
+<ul>
+<li><strong>RocketKV（兩階段壓縮）</strong>：</li>
+</ul>
+<p>  - 第一階段：SnapKV 粗粒度永久驅逐（pooling kernel=63）</p>
+<p>  - 第二階段：混合稀疏注意力（HSA）在序列和注意力頭兩個維度同時細粒度篩選</p>
+<p>  - 壓縮比最高 400×，端到端加速 3.7×，解碼峰值記憶體減少 32.6%</p>
+<p>  - 自適應壓縮分配公式：<code>r = min(0.2 + 0.06 × log₂(c), 0.8)</code></p>
+<p>  - RocketKV-MT 變體：跨多輪對話保留完整 KV 歷史</p>
+<ul>
+<li><strong>FAST-Prefill</strong>：首個 FPGA 加速器，針對長上下文 prefill 階段的動態稀疏注意力</li>
+</ul>
+<h3>5. Novel Attention Mechanisms（新型注意力機制）</h3>
+<ul>
+<li><strong>KIMI Linear</strong>：混合注意力方法，百萬 token 序列吞吐量提升 6×</li>
+<li><strong>線性注意力/對數線性注意力</strong>：替代 softmax，降低計算複雜度</li>
+</ul>
+<p>---</p>
+<h2>二、技術對比總覽</h2>
+<p>| 技術 | 記憶體縮減 | 吞吐量提升 | 準確度影響 | 類別 |</p>
+<p>|------|-----------|-----------|-----------|------|</p>
+<p>| H2O | 5-10× | 最高 29× | 相當 | Eviction |</p>
+<p>| SnapKV | 8.2× | 3.6× | 相當 | Eviction |</p>
+<p>| KIVI | 2.6× | 2.35-3.47× | <2% 損失 | Quantization |</p>
+<p>| MLA | 93.3-98.6% | 5.76× | 改善 | Low-Rank |</p>
+<p>| KVTC | 20-40× | — | 維持 | Transform Coding |</p>
+<p>| TailorKV | 73.8% | 8-18× | 近無損 | Hybrid |</p>
+<p>| RocketKV | 400× | 3.7× | 可忽略 | Two-Stage |</p>
+<p>| DHSA | 35% | — | +6-18% | Sparse Attention |</p>
+<p>---</p>
+<h2>三、2026 年研究趨勢與未來方向</h2>
+<ol>
+<li><strong>自適應多階段流水線</strong>：根據工作負載特徵動態組合多種優化技術，無單一技術在所有場景佔優</li>
+<li><strong>硬軟體協同設計</strong>：利用 CSD（計算型儲存裝置）、FPGA 等專用硬體進行近儲存計算</li>
+<li><strong>MLA 架構擴散</strong>：從 DeepSeek 系列擴展至視覺語言模型（MHA2MLA-VLM），降低遷移成本</li>
+<li><strong>百萬 token 級專用優化</strong>：1-2M token 窗口已成標準，壓縮與快取是關鍵創新點</li>
+<li><strong>多輪對話場景</strong>：RocketKV-MT 等方案解決永久驅逐策略在多輪場景的侷限</li>
+</ol>
+<p>---</p>
+<h2>四、工程實踐啟示</h2>
+<ul>
+<li><strong>部署選型</strong>：無單一萬能方案，需依硬體限制、延遲要求、上下文長度選擇最適技術組合</li>
+<li><strong>量化 + 稀疏雙管齊下</strong>：TailorKV 證明逐層結合量化與稀疏可達最佳性價比</li>
+<li><strong>MLA 為新模型首選</strong>：新訓練的模型應優先考慮 MLA 架構，既有模型可透過 MHA2MLA 轉換</li>
+<li><strong>FlashAttention 相容性</strong>：RocketKV、Dynamic Sparse Flash Attention 等均已與 FlashAttention 無縫整合</li>
+</ul>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li>KV Cache Optimization Strategies for Scalable and Efficient LLM Inference (arXiv:2603.20397, 2026)</li>
+<li>RocketKV: Accelerating Long-Context LLM Inference via Two-Stage KV Cache Compression (arXiv:2502.14051)</li>
+<li>Long-Context Modeling with Dynamic Hierarchical Sparse Attention for On-Device LLMs (arXiv:2510.24606)</li>
+<li>FAST-Prefill: FPGA Accelerated Sparse Attention for Long Context LLM Prefill (arXiv:2602.20515)</li>
+<li>Build DeepSeek-V3: Multi-Head Latent Attention (MLA) Architecture — PyImageSearch (2026/03)</li>
+<li>MHA2MLA-VLM: Enabling DeepSeek's Economical Multi-Head Latent Attention across VLMs (arXiv:2601.11464)</li>
+<li>ChunkKV: Semantic-Preserving KV Cache Compression (OpenReview, 2026)</li>
+<li>KVTC: KV Cache Transform Coding for Compact Storage (OpenReview, 2026)</li>
+</ul>
+<p>---</p>
+<p><em>研究日期：2026-04-07</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「研究 1 項 AI 最新技術」。KB 去重檢查後確認 KV Cache 壓縮方向尚未涵蓋，為 2026 年 LLM 推理基礎設施的關鍵議題。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

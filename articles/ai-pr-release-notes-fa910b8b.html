@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 活文件驗證管線：PR 摘要、Release Notes、OpenAPI 與 llms.txt 的生成後驗證設計（2026-04-04）">
+  <title>AI 活文件驗證管線：PR 摘要、Release Notes、OpenAPI 與 llms.txt 的生成後驗證設計（2026-04-04） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 活文件驗證管線：PR 摘要、Release Notes、OpenAPI 與 llms.txt 的生成後驗證設計（2026-04-04）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">AI 活文件驗證管線</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 活文件驗證管線：PR 摘要、Release Notes、OpenAPI 與 llms.txt 的生成後驗證設計（2026-04-04）</h1>
+<h2>技術概述</h2>
+<p>AI 文件生成的下一個瓶頸，已不是「能不能生成」，而是「生成後是否持續正確」。知識庫既有筆記已涵蓋 API 文件、變更日誌與活文件生成；本次聚焦尚未被獨立整理的驗證層：如何把 PR 摘要、Release Notes、OpenAPI 文件與 <code>llms.txt</code> 納入同一條 docs-as-code 驗證管線，降低文件漂移。最新官方實務顯示，GitHub 已把 PR 摘要與 Release Notes 產品化，但同時明確標示 AI 摘要有範圍限制與幻覺風險；Copilot 也提供 repository/path-specific/agent instructions 來提高輸出一致性。結論是，AI 最適合產生文件草稿與結構化摘要，而最關鍵的工程設計在於後段的 schema 檢查、差異比對、人工覆核與再生成觸發條件。</p>
+<h2>核心方法與工具</h2>
+<h3>1. PR 摘要生成</h3>
+<ul>
+<li>GitHub Copilot 可直接在 PR 描述或 comment 生成摘要。</li>
+<li>適用於讓 reviewer 先快速掌握變更範圍、受影響檔案與審查焦點。</li>
+<li>限制是摘要仍需人工校核，不能視為正式文件來源。</li>
+</ul>
+<h3>2. 指令分層與上下文注入</h3>
+<ul>
+<li>使用 <code>.github/copilot-instructions.md</code> 放 repository-wide 規範。</li>
+<li>使用 <code>.github/instructions/*<em>/</em>.instructions.md</code> 放 path-specific 規範。</li>
+<li>需要 agent 特定規範時，再補 <code>AGENTS.md</code>、<code>CLAUDE.md</code> 或 <code>GEMINI.md</code>。</li>
+<li>這一層的目的是把「文件格式、欄位順序、術語表、禁用詞」前置化，減少每次 prompt 重講。</li>
+</ul>
+<h3>3. Release Notes 自動化</h3>
+<ul>
+<li>GitHub 可自動產生 release notes，內容含 merged PR、contributors 與完整 changelog 連結。</li>
+<li>透過 <code>.github/release.yml</code> 可用 label/category/exclude 規則做分類與排除。</li>
+<li>適合把 AI 生成人類可讀摘要，與 GitHub 的結構化 changelog 互相校正。</li>
+</ul>
+<h3>4. OpenAPI 文件驗證</h3>
+<ul>
+<li>Swagger Editor 仍是最直接的 OAS 驗證器與預覽器。</li>
+<li>先把 API 定義視為真實來源，再從 spec 生成文件，而不是讓 LLM 直接憑程式碼自由描述 API。</li>
+<li>這能把 drift 偵測轉成可機器驗證的 schema 問題。</li>
+</ul>
+<h3>5. `llms.txt` 作為 LLM 文件索引</h3>
+<ul>
+<li><code>llms.txt</code> 採 Markdown 結構，專門提供 LLM/agent 在推理時使用的網站導覽索引。</li>
+<li>它不是傳統 sitemap 替代品，而是給模型快速定位高價值文件的 curated context。</li>
+<li>若搭配 OpenAPI、README、ADR、操作手冊一併輸出，可形成「人類文件 + LLM 文件」雙軌同步。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>以程式碼與結構化來源為準。</li>
+</ol>
+<p>   - API 類內容以 OpenAPI/JSON Schema/型別定義為單一真相來源。</p>
+<p>   - 發版內容以 merge commit、PR labels、tag diff 為單一真相來源。</p>
+<ol>
+<li>先生成草稿文件。</li>
+</ol>
+<p>   - 用 Copilot 生成 PR 摘要。</p>
+<p>   - 用 GitHub 自動生 release notes。</p>
+<p>   - 用 OpenAPI 生成互動式 API 文件。</p>
+<p>   - 用腳本根據 docs 索引與 API 路由清單生成 <code>llms.txt</code>。</p>
+<ol>
+<li>套用路徑化 instructions。</li>
+</ol>
+<p>   - <code>docs/api/**</code> 套 API 文件規範。</p>
+<p>   - <code>docs/adr/**</code> 套 ADR 摘要格式。</p>
+<p>   - <code>CHANGELOG.md</code> 套 release 分類規範。</p>
+<p>   - <code>llms.txt</code> 套固定章節順序與必要連結檢查。</p>
+<ol>
+<li>執行驗證閘門。</li>
+</ol>
+<p>   - 檢查 PR 摘要是否覆蓋高風險檔案。</p>
+<p>   - 檢查 Release Notes 是否有漏掉 category 或納入噪音 PR。</p>
+<p>   - 檢查 OpenAPI 是否可被 Swagger Editor 載入且通過 schema 驗證。</p>
+<p>   - 檢查 <code>llms.txt</code> 是否符合格式、關鍵連結是否存在。</p>
+<ol>
+<li>比對 drift。</li>
+</ol>
+<p>   - 若 API spec 改了但 <code>llms.txt</code> 與 API docs 未更新，阻擋合併。</p>
+<p>   - 若 release notes 與 PR labels 不一致，標記 warning。</p>
+<p>   - 若 AI 摘要未涵蓋重要變更，重新生成並要求人工補充。</p>
+<ol>
+<li>人工覆核後才發布。</li>
+</ol>
+<p>   - AI 只負責草稿與聚合。</p>
+<p>   - human owner 負責確認用詞、風險揭露與對外可讀性。</p>
+<h2>程式碼 / 配置範例</h2>
+<h3>範例 1：GitHub Release Notes 分類</h3>
+<pre><code>
+# .github/release.yml
+changelog:
+  exclude:
+    authors:
+      - dependabot
+    labels:
+      - internal
+  categories:
+    - title: Features
+      labels:
+        - feature
+        - enhancement
+    - title: Fixes
+      labels:
+        - bug
+    - title: Docs
+      labels:
+        - docs
+    - title: Other
+      labels:
+        - "*"
+</code></pre>
+<h3>範例 2：Copilot 路徑化文件規範</h3>
+<pre><code>
+&lt;!-- .github/instructions/docs-api.instructions.md --&gt;
+適用路徑：docs/api/**, openapi/**
+- API 名稱、路徑、參數名稱必須與 OpenAPI spec 完全一致
+- 若找不到對應 schema，輸出 MISSING_SCHEMA，不要猜測
+- 每次修改 API 文件都要列出受影響 endpoints
+- 非功能性說明分成 auth、rate limit、error model 三段
+</code></pre>
+<h3>範例 3：`llms.txt` 生成後驗證腳本</h3>
+<pre><code>
+from pathlib import Path
+
+text = Path("llms.txt").read_text(encoding="utf-8")
+required_sections = ["# ", "## API", "## ADR", "## Operations"]
+missing = [s for s in required_sections if s not in text]
+if missing:
+    raise SystemExit(f"missing sections: {missing}")
+
+links = [line for line in text.splitlines() if line.startswith("- [")]
+if not links:
+    raise SystemExit("no linked resources found")
+
+print("llms.txt basic validation passed")
+</code></pre>
+<h3>範例 4：OpenAPI 驗證 + 文件產物檢查</h3>
+<pre><code>
+# .github/workflows/docs-verify.yml
+name: docs-verify
+on:
+  pull_request:
+    paths:
+      - "openapi/**"
+      - "docs/**"
+      - ".github/release.yml"
+      - ".github/instructions/**"
+
+jobs:
+  verify-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate llms.txt
+        run: python scripts/validate_llms_txt.py
+      - name: Validate OpenAPI
+        run: npx @redocly/cli lint openapi/openapi.yaml
+      - name: Detect docs drift
+        run: python scripts/check_docs_drift.py
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>GitHub 官方指出，PR 摘要的目標是幫作者更快提供 human review 所需上下文，並降低開 PR 的時間成本，但它仍只是輔助工具，不取代人工補充脈絡。</li>
+<li>GitHub 也明示目前 PR 摘要有已知限制：大 PR 若涉及 30 個以上檔案，額外檔案可能不被納入摘要；一般期望回應時間在 40 秒內，但也可能到 1 至 2 分鐘。</li>
+<li>這代表可量化的工程指標不應只看「有沒有生成」，而應追蹤：摘要覆蓋率、人工修訂率、錯誤率、drift 攔截率、文件發布延遲。</li>
+<li>官方來源未提供統一的文件生產力提升百分比，因此較合理的做法是以團隊內部 KPI 驗證，例如「PR 描述補完時間」「release note 退回率」「OpenAPI 與實作不一致次數」。</li>
+</ul>
+<h2>與本專案的應用場景（daily-digest-prompt 如何受益）</h2>
+<h3>1. 研究與自動任務文件不再分裂</h3>
+<ul>
+<li>目前專案有 <code>AGENTS.md</code>、<code>SKILL.md</code>、workflow、results schema、knowledge import 等多套文件來源。</li>
+<li>可新增 <code>llms.txt</code>，把高優先文件索引成 LLM 友善入口，降低 agent 讀錯文件的機率。</li>
+</ul>
+<h3>2. 讓 prompt 規範從文字要求升級為可驗證產物</h3>
+<ul>
+<li>把 <code>results/<em>.json</code>、<code>workflows/</em>.yaml</code>、<code>skills/*/SKILL.md</code> 的要求寫進 path-specific instructions。</li>
+<li>再用 CI 檢查輸出是否真的符合，而不是只靠 prompt 提醒。</li>
+</ul>
+<h3>3. 自動研究任務的發版說明可追溯</h3>
+<ul>
+<li>每次新增研究成果或 KB import 時，可自動生成「研究變更摘要」與 release fragment。</li>
+<li>若某次改動涉及 <code>config/</code>、<code>workflows/</code>、<code>templates/</code>，可強制在摘要中列出風險與回滾點。</li>
+</ul>
+<h3>4. 知識庫與操作文件雙向校對</h3>
+<ul>
+<li>未來可把 KB 匯入標題、results JSON、continuity topic 與 <code>llms.txt</code> 的索引條目互相比對，檢查是否有新能力已落地但文件未同步。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ol>
+<li>AI 摘要不是事實來源；原始 PR diff、spec、schema 才是。</li>
+<li>大型 PR 的摘要覆蓋可能不足，應加檔案數或 diff size 門檻，超過就要求人工重寫。</li>
+<li>指令分層若互相衝突，會降低輸出品質；需定期清理 repository/path-specific/agent instructions。</li>
+<li>讓 LLM 直接從未驗證來源生成 API 文件，會把 drift 擴大成正式文件錯誤。</li>
+<li><code>llms.txt</code> 若自動化生成但沒有死連結檢查，很容易變成失效索引。</li>
+</ol>
+<h2>參考來源</h2>
+<ol>
+<li>GitHub Docs, Creating a pull request summary with GitHub Copilot  </li>
+</ol>
+<p>   https://docs.github.com/en/copilot/how-tos/use-copilot-for-common-tasks/create-a-pr-summary</p>
+<ol>
+<li>GitHub Docs, Responsible use of GitHub Copilot pull request summaries  </li>
+</ol>
+<p>   https://docs.github.com/en/copilot/responsible-use/pull-request-summaries</p>
+<ol>
+<li>GitHub Docs, About customizing GitHub Copilot responses  </li>
+</ol>
+<p>   https://docs.github.com/en/copilot/concepts/prompting/response-customization</p>
+<ol>
+<li>GitHub Docs, Automatically generated release notes  </li>
+</ol>
+<p>   https://docs.github.com/en/enterprise-server@3.19/repositories/releasing-projects-on-github/automatically-generated-release-notes</p>
+<ol>
+<li>llmstxt.org, The /llms.txt file  </li>
+</ol>
+<p>   https://llmstxt.org/</p>
+<ol>
+<li>Swagger Docs, Swagger Editor Documentation  </li>
+</ol>
+<p>   https://swagger.io/docs/open-source-tools/swagger-editor/</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

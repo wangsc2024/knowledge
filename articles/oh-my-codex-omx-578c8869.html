@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="oh-my-codex（OMX）— Multi-Agent Orchestration Layer 深度洞察：Staged Pipeline、Scope-Based Skills、Hook 可觀測性與 daily-digest-prompt 可借鏡架構模式（7.7K+ Stars, 2026-04）">
+  <title>oh-my-codex（OMX）— Multi-Agent Orchestration Layer 深度洞察：Staged Pipeline、Scope-Based Skills、Hook 可觀測性與 daily-digest-prompt 可借鏡架構模式（7.7K+ Stars, 2026-04） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>oh-my-codex（OMX）— Multi-Agent Orchestration Layer 深度洞察：Staged Pipeline、Scope-Based Skills、Hook 可觀測性與 daily-digest-prompt 可借鏡架構模式（7.7K+ Stars, 2026-04）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">oh-my-codex</span><span class="tag">Multi-Agent</span><span class="tag">Orchestration</span><span class="tag">Codex</span><span class="tag">Claude Code</span><span class="tag">Hook</span><span class="tag">Pipeline</span><span class="tag">研究</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">2026趨勢</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>oh-my-codex（OMX）— Multi-Agent Orchestration Layer 深度洞察</h1>
+<h2>專案概述</h2>
+<p><strong>oh-my-codex</strong>（<a href="https://github.com/Yeachan-Heo/oh-my-codex">Yeachan-Heo/oh-my-codex</a>）是韓國開發者 Yeachan Heo 建立的 Multi-Agent Orchestration Layer，定位為 OpenAI Codex CLI 的工作流編排層。2026 年 4 月 Trendshift 排名第二，7,700+ Stars。同作者另有姊妹專案 <strong>oh-my-claudecode</strong>（針對 Claude Code），兩者共享核心架構理念但分別針對不同 LLM 平台優化。</p>
+<p>核心哲學：<strong>「You are the conductor, not the performer」</strong> — 使用者是指揮家，AI Agent 是演奏者。OMX 不取代底層 LLM CLI，而是在其上提供結構化的編排、記憶與品質閘門。</p>
+<p>---</p>
+<h2>一、五大架構支柱</h2>
+<h3>1. Staged Team Pipeline（分階段團隊管線）</h3>
+<p>OMX 的團隊執行遵循嚴格的五階段管線：</p>
+<pre><code>
+team-plan → team-prd → team-exec → team-verify → team-fix (loop)
+</code></pre>
+<ul>
+<li><strong>team-plan</strong>：架構設計與權衡分析，需人工審批才進入下一階段</li>
+<li><strong>team-prd</strong>：產品需求文件生成，明確驗收標準</li>
+<li><strong>team-exec</strong>：N 個 Worker 並行執行，每個 Worker 自動獲得獨立 git worktree</li>
+<li><strong>team-verify</strong>：驗證階段，確認產出符合 PRD</li>
+<li><strong>team-fix</strong>：修復迴圈，直到驗證通過</li>
+</ul>
+<p><strong>可借鏡</strong>：本專案（daily-digest-prompt）的 Phase 0→1→2 管線可強化為 plan→exec→verify→fix 四階段閉環，在 Phase 2 組裝後加入 verify 階段自動驗證結果完整性。</p>
+<h3>2. Scope-Based Skills 階層（範圍式技能繼承）</h3>
+<pre><code>
+Project scope (.omx/skills/) → 優先級高、版本控制、團隊共享
+User scope (~/.omc/skills/) → 跨專案 fallback、個人偏好
+</code></pre>
+<ul>
+<li>Skills 使用 YAML frontmatter + 觸發關鍵字自動注入</li>
+<li><code>/learner</code> 指令從對話中自動萃取可複用模式，存為 Skill</li>
+<li>嚴格品質門檻過濾低質量 Skill</li>
+</ul>
+<p><strong>可借鏡</strong>：本專案的 <code>skills/</code> 目前是單層結構。可考慮引入「專案 Skill」與「全域 Skill」雙層優先級，讓跨專案的通用 Skill（如 ntfy-notify）自動 fallback，專案特有 Skill 覆寫全域版本。</p>
+<h3>3. 五類 MCP Server（持久狀態與程式碼智慧）</h3>
+<p>| MCP Server | 功能 | 持久化位置 |</p>
+<p>|-----------|------|----------|</p>
+<p>| State Server | 執行模式讀寫 (<code>state_read/write/clear</code>) | <code>.omx/state/</code> |</p>
+<p>| Memory Server | 跨 context window 記憶 | <code>.omx/project-memory.json</code> |</p>
+<p>| Notepad Server | 優先級筆記（抗 context 壓縮） | <code>.omx/notepad.md</code> |</p>
+<p>| Code Intelligence | LSP hover/goto/references/diagnostics | 即時 |</p>
+<p>| Trace Server | 執行追蹤可視化 | <code>.omx/logs/</code> |</p>
+<p><strong>可借鏡</strong>：本專案的 <code>context/continuity/</code> 和 <code>context/digest-memory.json</code> 類似 Memory Server，但缺少 Notepad 概念。可引入「優先級筆記」機制 — 在 context 壓縮時保留關鍵決策備忘，防止長時間執行的 Agent 遺忘核心目標。</p>
+<h3>4. Hook 可擴展系統</h3>
+<pre><code>
+omx hooks install --presets=workspace-context,memory,safety,review
+omx hooks status
+</code></pre>
+<p>六種 Hook 事件（oh-my-claudecode 版本）：</p>
+<ul>
+<li><code>session-start</code> / <code>stop</code>：生命週期管理</li>
+<li><code>keyword-detector</code>：每次 prompt 攔截</li>
+<li><code>ask-user-question</code>：輸入請求回呼</li>
+<li><code>pre-tool-use</code> / <code>post-tool-use</code>：工具呼叫前後包裝</li>
+</ul>
+<p>支援 OpenClaw 整合，將事件轉發至外部閘道（使用 <code>{{sessionId}}</code>、<code>{{toolName}}</code> 等模板變數）。</p>
+<p><strong>可借鏡</strong>：本專案的 Hook 系統已相當成熟（6 個 Hook），但缺少「Hook 預設套件」概念。可將常用 Hook 組合打包為 preset（如 <code>safety</code> = pre_bash_guard + pre_write_guard + pre_read_guard），簡化新專案初始化。</p>
+<h3>5. 智慧模型路由（Cost Optimization）</h3>
+<p>| 任務複雜度 | 模型層級 | 用途 |</p>
+<p>|-----------|---------|------|</p>
+<p>| Simple | Spark（Haiku 級） | 格式化、查表 |</p>
+<p>| Standard | Default（Sonnet 級） | 實作、測試 |</p>
+<p>| Complex | xhigh（Opus 級） | 架構設計、深度除錯 |</p>
+<p><strong>可借鏡</strong>：本專案的 <code>config/llm-router.yaml</code> 已有類似機制（mapping 格式，O(1) lookup），但 OMX 的三層分級更簡潔。可考慮在 router 中加入「任務複雜度自動偵測」，而非完全依賴手動 task_type 對應。</p>
+<p>---</p>
+<h2>二、獨特執行模式</h2>
+<p>| 模式 | 特色 | 適用場景 |</p>
+<p>|------|------|--------|</p>
+<p>| <strong>Autopilot</strong> | 自主端到端，含自我修正迴圈 | 完整功能開發 |</p>
+<p>| <strong>Ralph</strong> | 持續驗證/修復直到完成 | 不允許 partial 的嚴格任務 |</p>
+<p>| <strong>Ultrawork</strong> | 最大並行（5+ Agent） | 批次修復 |</p>
+<p>| <strong>Pipeline</strong> | 嚴格順序處理 | 多步驟轉換 |</p>
+<p>| <strong>Team</strong> | 分階段管線 + 驗證迴圈 | 協調式團隊開發 |</p>
+<p><strong>Ralph 模式值得特別注意</strong>：它不允許「silent partial」— 任務要嘛完全完成，要嘛明確報告卡住的原因。這與本專案的 DONE_CERT 認證機制理念一致，但 Ralph 更進一步：它會自動重試直到 verify 通過或達到上限。</p>
+<p>---</p>
+<h2>三、Git Worktree 隔離策略</h2>
+<p>OMX v0.10.0 的一大突破是 <strong>自動 worktree 隔離</strong>：</p>
+<ol>
+<li>每個 Team Worker 自動獲得獨立 worktree：<code>.omx/team/<name>/worktrees/worker-N</code></li>
+<li>三種整合策略：</li>
+</ol>
+<p>   - <strong>Merge</strong>（<code>--no-ff -X theirs</code>）：Worker 清潔推進</p>
+<p>   - <strong>Cherry-pick</strong>：歷史分岔時</p>
+<p>   - <strong>Cross-worker rebase</strong>：順序依賴時</p>
+<ol>
+<li>跨 worktree 狀態共享：<code>OMX_TEAM_STATE_ROOT</code> 確保所有 Worker 讀同一份狀態</li>
+</ol>
+<p><strong>可借鏡</strong>：本專案的 <code>run-todoist-agent-team.ps1</code> 使用子 Agent（<code>.claude/worktrees/</code>），但缺少自動整合策略。可參考 OMX 的三策略模型，在 Phase 3 組裝時根據子 Agent 結果衝突程度選擇合適的整合方式。</p>
+<p>---</p>
+<h2>四、Autoresearch 自主研究模式</h2>
+<p><code>omx autoresearch</code> 提供迭代式自主研究：</p>
+<ul>
+<li>自動探索主題 → 精煉問題 → 綜合發現</li>
+<li>多輪迭代，每輪深化前一輪的發現</li>
+<li><strong>自動終止</strong>：當研究目標被滿足時自動停止</li>
+</ul>
+<p><strong>可借鏡</strong>：本專案的 <code>kb-research-strategist</code> Skill 已有五階段模型（foundation→synthesis），但缺少「自動終止判定」。可參考 OMX 的 autoresearch，加入研究飽和度自動偵測 — 當新搜尋結果與已知發現的重疊率超過閾值時，自動結束研究迴圈。</p>
+<p>---</p>
+<h2>五、與 daily-digest-prompt 對比分析</h2>
+<p>| 面向 | oh-my-codex (OMX) | daily-digest-prompt |</p>
+<p>|------|------------------|--------------------|</p>
+<p>| 定位 | Coding Agent 編排 | 每日任務自動化 Agent |</p>
+<p>| 管線模型 | plan→prd→exec→verify→fix | Phase 0→1→2 |</p>
+<p>| 記憶機制 | MCP Server + notepad | continuity JSON + digest-memory |</p>
+<p>| Skill 系統 | 雙層 scope + 自動萃取 | 單層 SKILL_INDEX + 手動維護 |</p>
+<p>| Hook 系統 | 6 事件 + preset 套件 | 6 Hook + 逐一配置 |</p>
+<p>| 模型路由 | 三層自動分級 | llm-router.yaml mapping |</p>
+<p>| 狀態共享 | OMX_TEAM_STATE_ROOT 環境變數 | results/*.json 檔案交接 |</p>
+<p>| 品質閘門 | verify→fix 自動迴圈 | DONE_CERT + Draft-Verify |</p>
+<p>---</p>
+<h2>六、七大可借鏡技術項目（優先級排序）</h2>
+<h3>P0：高價值、低成本</h3>
+<ol>
+<li><strong>Notepad 抗壓縮記憶</strong>：在 <code>context/</code> 新增 <code>notepad.md</code>，context 壓縮時優先保留此檔內容。成本：修改 preamble.md 加入讀取指令</li>
+<li><strong>Hook Preset 套件化</strong>：將現有 6 個 Hook 打包為 <code>safety</code>/<code>logging</code>/<code>full</code> preset，簡化配置。成本：新增 <code>hooks/presets.yaml</code></li>
+</ol>
+<h3>P1：高價值、中等成本</h3>
+<ol>
+<li><strong>Verify→Fix 自動迴圈</strong>：Phase 2 後加入驗證階段，自動檢查結果完整性並觸發修復。成本：修改 <code>run-agent-team.ps1</code> 加入 Phase 2.5</li>
+<li><strong>研究飽和度自動終止</strong>：為研究任務加入重疊率偵測，超過 80% 重疊自動停止。成本：修改 dedup-policy.yaml + 研究模板</li>
+</ol>
+<h3>P2：中等價值</h3>
+<ol>
+<li><strong>雙層 Skill Scope</strong>：引入全域 Skill fallback 機制（<code>~/.claude/skills/</code> → 專案 <code>skills/</code>）。成本：修改 SKILL_INDEX.md 索引邏輯</li>
+<li><strong>跨 Worktree 狀態共享</strong>：用環境變數或共用目錄確保所有子 Agent 讀同一份狀態。成本：修改 PS1 腳本注入環境變數</li>
+<li><strong>任務複雜度自動偵測</strong>：在 llm-router 中加入啟發式複雜度評分，自動選擇模型層級。成本：修改 <code>tools/llm_router.py</code></li>
+</ol>
+<p>---</p>
+<h2>七、技術棧概覽</h2>
+<ul>
+<li><strong>語言</strong>：TypeScript 91.5% + Rust 4.7%（效能敏感元件）</li>
+<li><strong>執行環境</strong>：Node.js 20+</li>
+<li><strong>團隊模式</strong>：tmux（macOS/Linux）/ psmux（Windows）</li>
+<li><strong>授權</strong>：MIT</li>
+<li><strong>Stars</strong>：7,700+（2026-04）</li>
+<li><strong>核心維護者</strong>：Yeachan Heo、HaD0Yun</li>
+</ul>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li><a href="https://github.com/Yeachan-Heo/oh-my-codex">GitHub - Yeachan-Heo/oh-my-codex</a></li>
+<li><a href="https://github.com/Yeachan-Heo/oh-my-claudecode">GitHub - Yeachan-Heo/oh-my-claudecode</a></li>
+<li><a href="https://yeachan-heo.github.io/oh-my-codex-website/docs.html">OMX Documentation</a></li>
+<li><a href="https://yeachan-heo.github.io/oh-my-codex-website/">OMX Official Website</a></li>
+<li><a href="https://trendshift.io/">Trendshift - April 2026 Trending Repositories</a></li>
+</ul>
+<p>研究日期：2026-04-03</p>
+<p>研究類型：GitHub 熱門專案深度洞察</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing｜AI Agent 工作流的可觀測性與結果檔可靠性">
+  <title>insight-briefing｜AI Agent 工作流的可觀測性與結果檔可靠性 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing｜AI Agent 工作流的可觀測性與結果檔可靠性</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">AI Agent</span><span class="tag">Observability</span><span class="tag">OpenTelemetry</span><span class="tag">Langfuse</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent 工作流的可觀測性與結果檔可靠性</h1>
+<h2>摘要</h2>
+<p>本次簡報聚焦一個直接對應目前系統痛點的問題：如何把 AI Agent 的 tracing、品質評估與結果檔驗證整合成同一條可靠性工作流。現況顯示 <code>daily_success_rate</code> 僅 53.5%，同時研究與 backlog 已多次指出結果檔缺漏、品質欄位漂移與缺乏可觀測性是主要斷點。綜合 OpenTelemetry、Langfuse、Phoenix 與 Microsoft Foundry 的官方做法，可以得到一致結論：單靠結構化結果檔不足以治理 agent 系統，必須補上分散式 trace、tool call 關聯、品質分數、人工或模型評分，以及對生產監控的告警回路。對本專案而言，最務實的方向不是另起一套平台，而是把既有 <code>validate_results.py</code>、<code>done_cert</code>、ntfy 與 structured logs 映射成標準化 trace 與 score，先建立「可追蹤、可比對、可告警」的最小閉環。</p>
+<h2>關鍵洞見</h2>
+<h3>1. Trace 應成為結果檔之外的主索引</h3>
+<ul>
+<li>OpenTelemetry 已定義 GenAI semantic conventions，目的是讓模型呼叫、token 使用、事件與 span 能跨工具對齊。</li>
+<li>Langfuse 強調 tracing 是 LLM 應用最重要的 observability 工具，因為它能保留 prompts、responses、tool calls 與彼此關係。</li>
+<li>對本專案的意義：<code>results/todoist-auto-*.json</code> 應保留最終摘要，但每次任務還需要一個可關聯的 <code>trace_id</code>，把前置讀取、研究蒐集、KB 匯入、驗證與通知串起來。</li>
+</ul>
+<p>證據要點：</p>
+<ul>
+<li>OpenTelemetry 官方指出 GenAI conventions 涵蓋屬性、metrics、span 與 event 命名，提供跨實作一致性。</li>
+<li>Langfuse 官方文件明示 tracing 會捕捉完整請求脈絡，包含工具呼叫與關聯。</li>
+</ul>
+<h3>2. 可觀測性若沒有 evaluation，只能看到「發生了什麼」，無法知道「好不好」</h3>
+<ul>
+<li>Phoenix 把 annotations、human feedback、LLM-as-Judge 與 traces 綁在一起，目的是從大量 trace 中找出失敗模式。</li>
+<li>Langfuse metrics 也把 quality、cost、latency 視為同一儀表板上的核心維度。</li>
+<li>對本專案的意義：<code>done_cert.quality_score</code>、<code>draft_verify</code>、<code>result_guard_zh</code> 不該只存在結果 JSON，還應轉成可聚合的 score/event，才能追蹤哪一類 task、哪一階段最容易出錯。</li>
+</ul>
+<p>證據要點：</p>
+<ul>
+<li>Phoenix 官方明確把 evaluation 定義為偵測 regression、比較 prompt/model 變更的系統化方法。</li>
+<li>Langfuse 指出 quality 可來自 user feedback、model-based scoring、人工評分或自訂 score。</li>
+</ul>
+<h3>3. 生產監控必須看 tool invocation、token、延遲與 quality threshold，而不只是成功/失敗</h3>
+<ul>
+<li>Microsoft Foundry 的 observability 文件把 tracing、real-time dashboards、token consumption、latency、error rates 與 quality scores 放在同一套 production monitoring 內。</li>
+<li>這說明成熟 agent 系統不以單一成功率指標治理，而是同時追蹤執行路徑與品質輸出。</li>
+<li>對本專案的意義：目前 <code>daily_success_rate</code> 太粗，應拆成 <code>result_file_valid_rate</code>、<code>kb_import_success_rate</code>、<code>ntfy_send_success_rate</code>、<code>draft_verify_issue_rate</code> 等更細的品質面。</li>
+</ul>
+<h3>4. Session、custom trace ID 與 release/version 維度是比較變更效果的必要條件</h3>
+<ul>
+<li>Langfuse 文件特別強調 sessions、自訂 trace IDs、attributes、release/version 維度，目的就是讓團隊能比較不同版本或不同流程的效果。</li>
+<li>若本專案只保留單次結果 JSON，而沒有跨 run 的 trace/session 維度，就很難回答「某次 prompt 調整是否真的降低 format drift」。</li>
+<li>建議把 <code>task_key</code>、<code>executed_at</code>、<code>actual_model</code>、<code>artifact.path</code>、<code>done_cert.status</code> 與未來的 <code>trace_id</code> 一起記錄到 structured log。</li>
+</ul>
+<h3>5. 導入順序應先做「結果契約對映到 trace」，再做「自動評分與告警」</h3>
+<ul>
+<li>現有系統已經有 <code>validate_results.py</code>、<code>done_cert</code>、<code>ntfy</code>、structured logs 與 backlog；缺的是統一對映與持續量測。</li>
+<li>最低風險路線是：</li>
+</ul>
+<p>  1. 為每次自動任務補一個穩定 <code>trace_id</code></p>
+<p>  2. 把 <code>validate_results.py</code>、<code>done_cert</code>、KB 匯入與 ntfy 發送結果寫成 trace events/scores</p>
+<p>  3. 再導入人工標註或 LLM judge，針對失敗樣本做週期性評估</p>
+<ul>
+<li>這比直接導入大型平台更符合目前專案狀態，也最容易轉成 backlog 與後續 arch_evolution 決策。</li>
+</ul>
+<h2>共識與分歧</h2>
+<h3>共識</h3>
+<ul>
+<li>官方方案一致認為 agent tracing 必須保留模型呼叫、tool execution 與上下文關係。</li>
+<li>官方方案一致把 quality evaluation 視為生產可靠性的一部分，而不是附加功能。</li>
+<li>官方方案一致要求可切分維度，例如 session、release、prompt version、user 或 trace name。</li>
+</ul>
+<h3>分歧</h3>
+<ul>
+<li>OpenTelemetry 側重標準化語義與跨工具相容。</li>
+<li>Langfuse 與 Phoenix 更強調產品化的 trace/evaluation 工作流。</li>
+<li>Microsoft Foundry 則把 tracing 與 production monitoring、built-in evaluators 整合在平台體驗內。</li>
+</ul>
+<h2>建議行動</h2>
+<ol>
+<li>在 <code>results</code>、structured logs 與 ntfy payload 之間新增統一 <code>trace_id</code>，作為跨步驟主鍵。</li>
+<li>把 <code>done_cert.quality_score</code>、<code>draft_verify.issues_found</code>、<code>result_guard_zh</code> 映射成可聚合的品質 score，取代只看成功/失敗。</li>
+<li>先為 <code>insight_briefing</code>、<code>system_insight</code>、<code>daily_digest_phase1</code> 三類高價值任務建立 trace-to-result 對映，再擴展到全部自動任務。</li>
+<li>對 <code>result_file_missing_or_invalid</code> 與 <code>format_failed</code> 樣本建立人工或 LLM 評分流程，驗證哪一種 prompt/流程修正真正有效。</li>
+<li>以 OpenTelemetry GenAI conventions 為欄位命名基準，避免後續整合 Phoenix、Langfuse 或其他 OTLP 後端時再做二次遷移。</li>
+</ol>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">Semantic conventions for generative AI systems | OpenTelemetry</a> — 官方標準，說明 GenAI spans、attributes、metrics 與事件命名。</li>
+<li><a href="https://langfuse.com/docs/observability/overview">LLM Observability & Application Tracing | Langfuse</a> — 官方文件，說明 traces、sessions、custom trace IDs、cost/token usage 與 observability 的關係。</li>
+<li><a href="https://langfuse.com/docs/metrics/overview">Metrics Overview | Langfuse</a> — 官方文件，說明 quality、cost、latency、volume 與版本/使用者維度。</li>
+<li><a href="https://arize.com/docs/phoenix/tracing/tutorial/annotations-and-evaluations">Annotations and Evaluation | Phoenix</a> — 官方教學，說明 human feedback、annotations、LLM-as-Judge 與 traces 綁定。</li>
+<li><a href="https://learn.microsoft.com/en-us/azure/foundry/concepts/observability">Observability in Generative AI | Microsoft Foundry</a> — 官方文件，說明 tracing、production monitoring、token consumption、error rates 與 quality scores 的整合。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

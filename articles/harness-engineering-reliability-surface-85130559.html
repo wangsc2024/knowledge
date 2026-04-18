@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 生產級可靠度優化：Reliability Surface R(k,ε,λ)、Chaos 注入與級聯防禦對本專案 B0–B5 管線的對照藍圖（2026-04-10）">
+  <title>Harness Engineering 生產級可靠度優化：Reliability Surface R(k,ε,λ)、Chaos 注入與級聯防禦對本專案 B0–B5 管線的對照藍圖（2026-04-10） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 生產級可靠度優化：Reliability Surface R(k,ε,λ)、Chaos 注入與級聯防禦對本專案 B0–B5 管線的對照藍圖（2026-04-10）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">知識庫</span><span class="tag">研究</span><span class="tag">Chaos Engineering</span><span class="tag">ReliabilityBench</span><span class="tag">可觀測性</span><span class="tag">2026-04-10</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 生產級可靠度優化：Reliability Surface R(k,ε,λ)、Chaos 注入與級聯防禦對本專案 B0–B5 管線的對照藍圖（2026-04-10）</h1>
+<h2>執行摘要</h2>
+<p>本筆記在既有 KB 對 <strong>Harness Engineering</strong>、<strong>Fitness Function</strong> 與 <strong>B3 儀表三角</strong> 的累積上，補上兩條 2025–2026 年產業與學術共識的優化軸線：（1）以 <strong>Reliability Surface R(k,ε,λ)</strong> 將「多次取樣一致性、輸入擾動穩健度、工具／API 故障注入下的容錯」收斂成可量測曲面，作為 Harness 的動態適應度函數；（2）以 <strong>Agent 專用 Chaos</strong>（工具逾時、速率限制、串流截斷、schema 漂移等）與 <strong>行為不變式（invariants）</strong> 做持續驗證，對齊本專案 <code>config/autonomous-harness.yaml</code> 的 <strong>execution_contracts</strong>、<strong>checkpoint</strong> 與 <strong>retry／冪等</strong> 設計。並以 <strong>OpenTelemetry 優先的可觀測性</strong> 與 <strong>分類器級聯（含 shadow／probe）</strong> 對照治理堆疊三層（行為、營運、風險）之工程化落地。</p>
+<h2>研究背景</h2>
+<ul>
+<li><strong>Agent harness</strong> 被描述為包覆 LLM 執行的控制面：管理生命週期、脈絡、工具權限與安全邊界，與「僅組裝 Agent 的框架」不同 [來源：htek.dev, 2026]。</li>
+<li>產業敘事強調：多步驟成功率會<strong>複合衰減</strong>（例如單步 95% 在長鏈上快速惡化），Harness 透過驗證迴路、退避重試、checkpoint-resume 等拉高端到端可靠度 [來源：Harness Engineering 部落格, 2026]。</li>
+<li><strong>Agentic AI 可觀測性</strong> 主張以 OTel 統一收集 prompt／工具／檢索／成本／策略決策，作為合規與治理的控制面 [來源：Arthur.ai Column, 2026-04]。</li>
+</ul>
+<h2>核心發現（含三角佐證標記）</h2>
+<h3>1. 可靠度曲面 R(k,ε,λ) 可作為 Harness 的「多維 Fitness」✅</h3>
+<p><strong>ReliabilityBench</strong> 提出 <strong>R(k,ε,λ)</strong>：k 次取樣一致性、ε 級輸入擾動穩健度、λ 強度下的混沌故障容錯，並給出系統化故障類型（逾時、限流、部分回應、schema 漂移等）[來源：arXiv 2601.06112, 2026]。此與演化式架構中「Chaos 作為動態 Fitness Function」的敘事一致 [來源：LinkedIn／Atul Mistry 對 Fitness Function 與 Chaos 的整理, 2025–2026]。</p>
+<h3>2. Agent Chaos 工具鏈補足「基礎設施 Chaos」無法涵蓋的語意／工具失敗 ✅</h3>
+<p><strong>Flakestorm</strong> 明確定位為生產 Agent 的混沌工程：對工具與 LLM 注入失敗並檢查行為契約 [來源：GitHub flakestorm/flakestorm]。<strong>agent-chaos</strong> 亦提供 LLM／tool 多類注入與 fuzz 空間 [來源：GitHub deepankarm/agent-chaos]。兩者與 ReliabilityBench 的故障分類可互相參照 ✅。</p>
+<h3>3. 治理堆疊應以「程式化閘門＋稽核軌跡」實作，而非僅提示詞 ✅</h3>
+<p>Harness 層需同時涵蓋行為治理（工具／資料）、營運治理（步數、token、重試）與結構化稽核軌跡 [來源：Harness Engineering 治理專文, 2026]。<strong>Constitutional Classifiers++</strong> 展示 <strong>兩階段級聯</strong>（輕量 probe 全量篩選 → 較重分類器／ensemble 複判）與 <strong>shadow deployment</strong> 校準拒答率與成本 [來源：Anthropic Research；arXiv 2601.04603 / OpenReview, 2025–2026] —— 可作為高風險輸出閘門的參考模式 ✅。</p>
+<h2>深度分析：對照本專案 `autonomous-harness.yaml` 與 B0–B5</h2>
+<p>| 外部機制 | 本專案對應（示意） | 優化含義 |</p>
+<p>|----------|-------------------|----------|</p>
+<p>| R(k,ε,λ) 持續量測 | B2 確定性／LLM 品質門檻、B3 儀表（熵、覆蓋率、飽和） | 將「單次 eval」擴展為 <strong>k／扰動／故障強度</strong> 三維報表，與現有 <code>quality_gate</code>、<code>entropy_score</code> 並列 |</p>
+<p>| Tool／LLM Chaos | <code>execution_contracts.retry_policy</code>、<code>checkpoint</code>、Phase2 備援 | 在 <strong>staging</strong> 對 <code>run-*-team.ps1</code> 與 Cursor CLI 路徑注入延遲／429／部分 JSON，驗證 <code>never_retry_without_review</code> 與冪等鍵是否生效 |</p>
+<p>| OTel-first 追蹤 | <code>hooks/post_tool_logger.py</code>、JSONL→OTLP 方向 | 將「每次工具決策、guard 結果、token／延遲」對齊 <strong>決策可溯源（provenance）</strong> 欄位，便於 B4 Gap 與 SLO 燃燒率連動 |</p>
+<p>| 分類器級聯 | Hooks <code>pre_*_guard</code>、LLM Gate、高風險路徑 human_review_gates | 低成本的規則／探針先擋，<strong>僅升級</strong>可疑 session 到較重檢查，避免全量延遲 |</p>
+<h2>實務應用建議（可排入 backlog）</h2>
+<ol>
+<li><strong>定義 3 條 Harness SLO 曲面切片</strong>：例如「Todoist Phase2 完成率 ×（模擬 429 強度 λ）×（prompt 輕微改寫 ε）」，每週在離線矩陣上回歸；對齊 ReliabilityBench 方法論 [2601.06112]。</li>
+<li><strong>選一條最小 Chaos profile</strong>：從 agent-chaos／Flakestorm 任選與本專案腳本相容的注入點（例如對 mock <code>invoke-llm</code> 或測試 harness），驗證 <code>checkpoint.auto_cleanup_on_success</code> 與重試預算。</li>
+<li><strong>B3「開放問題」閉環</strong>：延續 KB 筆記「B3 儀表三角」— 為熵、覆蓋率、飽和三指標各設 <strong>上下閾＋告警路由</strong>（ntfy／日誌），並記錄與 <code>harness_gap_tracker</code> 的對應欄位。</li>
+<li><strong>高風險變更走級聯</strong>：對 <code>pre_bash_guard</code>／<code>run-*.ps1</code> 等 <code>human_review_gates</code> 已列路徑，參考 Constitutional Classifiers++ 的「probe 先篩、再升級」以降低全量檢查成本 [Anthropic；2601.04603]。</li>
+</ol>
+<h2>知識缺口與未來方向</h2>
+<ul>
+<li>ReliabilityBench 實驗多於 <strong>工具型 Agent 網域任務</strong>；與本專案「長時排程＋多 JSON 結果檔」的差異需自訂 <strong>狀態 oracle</strong>（例如 <code>results/*.json</code> schema＋<code>cli_exit_note_zh</code>）。</li>
+<li>Chaos 與生產排程並行時需嚴格 <strong>環境隔離</strong>，避免污染 <code>state/</code>（ADR-006：仍由 PowerShell 獨佔寫入）。</li>
+</ul>
+<h2>參考來源（完整書目）</h2>
+<ol>
+<li>htek.dev. (2026). <em>Agent Harnesses: Why 2026 Isn't About More Agents — It's About Controlling Them</em>. https://htek.dev/articles/agent-harnesses-controlling-ai-agents-2026</li>
+<li>Harness Engineering. (2026). <em>The Complete Guide to Agent Harness</em>. https://harness-engineering.ai/blog/agent-harness-complete-guide/</li>
+<li>Harness Engineering. (2026). <em>Harness Engineering: Governing AI Agents through Architectural Rigor</em>. https://harness-engineering.ai/blog/harness-engineering-governing-ai-agents-through-architectural-rigor/</li>
+<li>Arthur.ai. (2026-04). <em>Agentic AI Observability: A 2026 Playbook</em>. https://www.arthur.ai/column/agentic-ai-observability-playbook-2026</li>
+<li>ReliabilityBench 作者群. (2026). <em>ReliabilityBench: Evaluating LLM Agent Reliability Under Production-Like Stress Conditions</em>. arXiv:2601.06112. https://arxiv.org/html/2601.06112v1</li>
+<li>Flakestorm. <em>Flakestorm — Automated Robustness Testing for AI Agents</em>. GitHub. https://github.com/flakestorm/flakestorm</li>
+<li>deepankarm. <em>agent-chaos</em>. GitHub. https://github.com/deepankarm/agent-chaos</li>
+<li>Anthropic. <em>Next-generation Constitutional Classifiers</em>. https://www.anthropic.com/research/next-generation-constitutional-classifiers</li>
+<li>Cunningham 等. (2026). <em>Constitutional Classifiers++: Efficient Production-Grade Defenses against Universal Jailbreaks</em>. arXiv:2601.04603. https://arxiv.org/abs/2601.04603</li>
+</ol>
+<p>---</p>
+<p><strong>關聯 KB</strong>：本文延伸「Harness Engineering B3 儀表三角（2026-04-09）」「Fitness Function 驅動的元件效能量化」等筆記；系列 <code>harness-engineering</code> 五階段已完成，本筆記為 <strong>跨主題深化</strong>。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

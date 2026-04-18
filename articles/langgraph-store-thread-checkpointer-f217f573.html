@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LangGraph Store 與跨 thread 長期記憶：checkpointer 分際與命名空間設計（2026）">
+  <title>LangGraph Store 與跨 thread 長期記憶：checkpointer 分際與命名空間設計（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LangGraph Store 與跨 thread 長期記憶：checkpointer 分際與命名空間設計（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">LangGraph Store</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LangGraph Store 與跨 thread 長期記憶：checkpointer 分際與命名空間設計（2026）</h1>
+<h2>執行摘要（約 280 字）</h2>
+<p>LangGraph 將「可對話續跑」與「跨工作階段仍可召回」拆成兩條持久化軸：<strong>短期／thread 範圍記憶</strong>由 <strong>checkpointer</strong>（<code>BaseCheckpointSaver</code>）將圖狀態以 checkpoint 序列寫入特定 <code>thread_id</code>；<strong>長期／跨 thread 記憶</strong>則由 <strong><code>BaseStore</code> 實作</strong>（如 <code>InMemoryStore</code>、<code>PostgresStore</code>）以「命名空間 tuple + 鍵」儲存 JSON 文件，並可選擇性啟用向量語意檢索 [來源：Memory overview, LangChain Docs, 2026]。官方文件明確指出：僅有 checkpointer 無法在 thread 之間共享資訊，因此需要 Store 介面來承載跨對話的偏好、規則或摘要 [來源：Persistence — Memory store, LangChain Docs, 2026]。生產環境建議以資料庫後端（如 <code>PostgresSaver</code> + <code>PostgresStore</code>）取代記憶體實作，並在首次使用前執行 <code>setup()</code> 遷移 [來源：Add memory — production examples, LangChain Docs, 2026]。本筆記最後對照 <strong>daily-digest-prompt</strong>：以 <code>task_key</code>／排程回合類比 <code>thread_id</code>，以 RAG 與 <code>context/*</code> 連續記憶類比 Store 命名空間，可避免把「應跨排程保留」的知識誤放進僅屬單次執行軌跡的狀態。</p>
+<h2>研究背景</h2>
+<p>今日自動任務履歷中反覆出現 <strong>Cursor CLI</strong>、<strong>備援／quota</strong>、<strong>Phase 2</strong> 等關鍵字，與「多後端執行軌跡可恢復、但使用者級偏好應跨執行保留」的問題同構。LangGraph 的記憶模型將此二分為：<strong>對話／回合內</strong>（thread）vs <strong>使用者或系統層</strong>（namespace） [來源：Memory overview, LangChain Docs, 2026]。</p>
+<h2>核心概念與原理</h2>
+<h3>1. 短期記憶 = thread 範圍 + checkpoint</h3>
+<p>圖在編譯時傳入 <code>checkpointer=...</code>，執行時於 <code>config["configurable"]["thread_id"]</code> 下保存狀態快照；<code>thread_id</code> 是儲存與還原 checkpoint 的主鍵 [來源：Persistence — Threads, LangChain Docs, 2026]。<code>InMemorySaver</code> 適合測試；生產環境文件建議改用 Postgres、Redis、MongoDB 等後端 [來源：Add memory — short-term production, LangChain Docs, 2026]。</p>
+<h3>2. 長期記憶 = Store + 命名空間</h3>
+<p>長期記憶以 JSON 文件存入 Store：<strong>namespace</strong>（tuple，常用 user_id／org／應用情境）+ <strong>key</strong> 識別單筆記憶 [來源：Memory overview — Memory storage, LangChain Docs, 2026]。<code>InMemoryStore</code> 僅供開發；<strong>正式環境應改用 <code>PostgresStore</code>／<code>RedisStore</code> 等</strong> [來源：Persistence — Memory store, LangChain Docs, 2026]。</p>
+<h3>3. checkpointer 與 Store 的協作</h3>
+<p>官方 Persistence 章節說明：兩者同時編譯時，checkpointer 負責 thread 內狀態，Store 讓節點透過 <code>Runtime.store</code>（或注入模式）讀寫跨 thread 資料 [來源：Persistence — Using in LangGraph, LangChain Docs, 2026]。社群 walkthrough 亦強調混淆兩者會導致「新 thread 後偏好遺失」的常見設計錯誤 [來源：Five Agent Memory Types in LangGraph Part 2, DEV Community, 2026]。</p>
+<h3>4. 語意搜尋與篩選</h3>
+<p><code>InMemoryStore</code> 可設定 <code>index</code>（嵌入與維度）啟用 <code>search(..., query=...)</code>；文件亦描述以 filter 搭配向量相似度排序 [來源：Memory overview — Memory storage, LangChain Docs, 2026]。</p>
+<h2>最佳實踐與常見陷阱</h2>
+<p>| 做法 | 說明 |</p>
+<p>|------|------|</p>
+<p>| 釐清資料生命週期 | 只屬單一對話的放 checkpoint；需跨會話的放 Store [來源：Persistence, LangChain Docs, 2026] |</p>
+<p>| 生產持久化 | 使用 <code>PostgresSaver</code>／<code>PostgresStore</code> 等並執行 schema 遷移 [來源：Add memory, LangChain Docs, 2026] |</p>
+<p>| 命名空間設計 | 以 <code>(user_id, domain)</code> 等層級避免金鑰衝突 [來源：Memory overview, LangChain Docs, 2026] |</p>
+<p><strong>陷阱</strong>：把使用者偏好只寫在 graph state（checkpoint）而無 Store——新 <code>thread_id</code> 即遺失 [來源：DEV Community walkthrough, 2026]。</p>
+<h2>與 daily-digest-prompt 的關聯</h2>
+<ul>
+<li><strong>thread_id</strong>：可比對單次 <code>run-todoist-agent-team.ps1</code> Phase 2 執行或單一 <code>task_key</code> 回合 ID，用於可恢復與續跑。</li>
+<li><strong>Store 命名空間</strong>：可比對 <code>context/continuity/auto-task-*.json</code>、<code>context/research-registry.json</code> 等「跨回合仍要保留」的知識；本專案 RAG 匯入則類比為外部知識庫長期儲存。</li>
+<li><strong>配額／備援</strong>：多後端切換時，持久化層與命名空間應與後端無關，避免將「執行軌跡」與「使用者／專案級記憶」綁在同一 ephemeral 狀態。</li>
+</ul>
+<h2>程式碼範例（概念對照）</h2>
+<pre><code>
+# 概念：短期 thread + 長期 store（摘自官方文件結構）
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
+
+checkpointer = InMemorySaver()
+store = InMemoryStore()
+
+graph = builder.compile(checkpointer=checkpointer, store=store)
+# invoke 時帶 thread_id；跨 thread 讀寫用 runtime.store 與 namespace
+</code></pre>
+<h2>參考來源（完整書目）</h2>
+<ol>
+<li>LangChain. (2026). <em>Memory overview — Short-term and long-term memory</em>. LangChain OSS Python LangGraph. https://docs.langchain.com/oss/python/langgraph/memory</li>
+<li>LangChain. (2026). <em>Persistence — Threads, checkpoints, Memory store</em>. LangChain OSS Python LangGraph. https://docs.langchain.com/oss/python/langgraph/persistence</li>
+<li>LangChain. (2026). <em>Add memory — Short-term, long-term, Postgres/Redis examples</em>. LangChain OSS Python LangGraph. https://docs.langchain.com/oss/python/langgraph/add-memory</li>
+<li>LangChain. (2026). <em>Reference — checkpoints — Checkpoint savers</em>. LangChain Reference. https://reference.langchain.com/python/langgraph/checkpoints</li>
+<li>Sreeni. (2026). <em>Five Agent Memory Types in LangGraph: A Deep Code Walkthrough (Part 2)</em>. DEV Community. https://dev.to/sreeni5018/five-agent-memory-types-in-langgraph-a-deep-code-walkthrough-part-2-17kb</li>
+<li>LangChain. (2026). <em>LangGraph.js API — InMemoryStore</em>. https://langchain-ai.github.io/langgraphjs/reference/classes/langgraph.InMemoryStore.html</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

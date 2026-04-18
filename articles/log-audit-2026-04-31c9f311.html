@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Log Audit 2026-04-18：excessive_turns + runaway sessions 分析">
+  <title>Log Audit 2026-04-18：excessive_turns + runaway sessions 分析 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Log Audit 2026-04-18：excessive_turns + runaway sessions 分析</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">log-audit</span><span class="tag">excessive_turns</span><span class="tag">runaway-sessions</span><span class="tag">phase_failure</span><span class="tag">系統健康</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>執行摘要</h2>
+<p>執行日期：2026-04-18（pipeline_status=stale，Fallback B）</p>
+<h2>發現問題（5 個 warning，0 critical）</h2>
+<h3>🟠 excessive_turns：54 sessions 超過 100 turns 閾值</h3>
+<ul>
+<li>最高：session 8173a143-a37（937 turns），f17ed38c-75f（596），51e060c3-39c（555）</li>
+<li>根因：缺乏 hard_stop_turns 硬中斷；建議設定上限 500</li>
+</ul>
+<h3>🟠 loop_tool_hash：355 warnings</h3>
+<ul>
+<li>session 84fa0c01-474 的 Read/Edit 工具重複呼叫（最多 12 次同一 input_hash）</li>
+<li>與 excessive_turns 同源（同一批 runaway session）</li>
+</ul>
+<h3>🟠 Runaway sessions：5 個 cache_read 超標</h3>
+<ul>
+<li>最高：1797625d（133M tokens，597 msgs），bf029080（65M），c85288c3（66M）</li>
+<li>runaway_session_detector 已記錄，但無自動終止機制</li>
+</ul>
+<h3>🟠 Assembly failed x 2（04-16 19:10、04-17 23:00）</h3>
+<h3>🟠 Phase 1 failed x 4（04-17 03:30~07:00）</h3>
+<h2>修正動作</h2>
+<ul>
+<li>轉入 backlog：excessive_turns（ID: backlog_log_audit_pipeline_20260418_043317920643）</li>
+<li>轉入 backlog：runaway cache_read（ID: backlog_log_audit_pipeline_20260418_043323081381）</li>
+<li>log 層無需直接修正（所有問題超出 log_audit 職責範圍）</li>
+</ul>
+<h2>趨勢分析</h2>
+<p>最近一日 2026-04-17 的 phase_failure 為 16，低於前一日 2026-04-16（62），短期趨勢為改善。窗內 phase_failure 中位數為 16.5。2026-04-18 今日 phase_failure=2，持續改善。</p>
+<h2>下次建議角度</h2>
+<p>追蹤 excessive_turns backlog 處理進度、驗證 04-18 改善是否持續至全天</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

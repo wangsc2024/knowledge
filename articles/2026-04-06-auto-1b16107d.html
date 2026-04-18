@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-04-06：auto_task_fairness Emergency 修復">
+  <title>系統優化落實報告 2026-04-06：auto_task_fairness Emergency 修復 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-04-06：auto_task_fairness Emergency 修復</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span><span class="tag">auto_task_fairness</span><span class="tag">Emergency修復</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-04-06</h1>
+<h2>洞察來源</h2>
+<p><strong>系統洞察 Emergency 告警</strong>（context/system-insight.json）：</p>
+<ul>
+<li><strong>auto_task_fairness = 1.53</strong>（門檻 0.5，Emergency 等級）</li>
+<li><strong>影響</strong>：24/39 自動任務從未執行，next_execution_order 卡在 4</li>
+<li><strong>根因診斷</strong>：max_auto_per_run.team_mode = 3，每次輪轉僅選 3 個任務，35 個任務在 order≥4 無法被選中</li>
+</ul>
+<p><strong>診斷建議</strong>（system-insight emergency_actions）：</p>
+<blockquote>提高 max_auto_per_run.team_mode 從 3 至 5-6，或增加觸發次數</blockquote>
+<h2>方案描述</h2>
+<p><strong>方案名稱</strong>：修復 auto_task_fairness Emergency</p>
+<p><strong>目標</strong>：解決 24 個任務從未執行的公平性失衡問題</p>
+<p><strong>影響檔案</strong>：</p>
+<ul>
+<li><code>config/frequency-limits.yaml</code></li>
+</ul>
+<p><strong>修改內容</strong>：</p>
+<pre><code>
+max_auto_per_run:
+  single_mode: 1
+  team_mode: 5  # 3 → 5
+</code></pre>
+<h2>實作步驟</h2>
+<ol>
+<li>✅ 讀取 <code>config/frequency-limits.yaml</code>，確認當前 <code>team_mode: 3</code></li>
+<li>✅ Edit 工具修改 <code>team_mode: 3</code> → <code>team_mode: 5</code></li>
+<li>✅ YAML 格式驗證（yaml.safe_load）</li>
+<li>✅ 配置一致性驗證（validate_config.py --check-auto-tasks）</li>
+<li>✅ 驗收條件逐項核對</li>
+</ol>
+<h2>測試結果</h2>
+<h3>格式驗證</h3>
+<pre><code>
+✅ YAML 語法正確
+✅ max_auto_per_run.team_mode = 5
+✅ 驗證通過：team_mode 已更新為 5
+</code></pre>
+<h3>配置一致性</h3>
+<pre><code>
+✅ 全部 45 個自動任務配置一致
+</code></pre>
+<h3>驗收條件</h3>
+<pre><code>
+✅ frequency-limits.yaml 格式驗證通過
+✅ max_auto_per_run.team_mode 已更新為 5
+✅ 無 YAML 語法錯誤
+</code></pre>
+<h2>驗收狀態</h2>
+<p><strong>全部通過</strong> ✅</p>
+<p>所有驗收條件已滿足，修改已生效。</p>
+<h2>預期效果</h2>
+<ol>
+<li><strong>每輪選 5 個任務</strong>（原 3 個）→ 提升 67% 任務消化能力</li>
+<li><strong>每日 30 次 team 觸發</strong>（每 30 分鐘）→ 可消化 150 次自動任務執行</li>
+<li><strong>39 個活躍任務</strong>（total 45 - 停用 6）→ 約需 8-10 輪即可輪轉一圈</li>
+<li><strong>預計 auto_task_fairness 從 1.53 降至 0.5 以下</strong>（下次 system-insight 執行時驗證）</li>
+</ol>
+<h2>備份與回滾</h2>
+<p><strong>備份參考點</strong>：git commit <code>95db037</code></p>
+<p><strong>回滾指令</strong>（如需）：</p>
+<pre><code>
+git reset --hard 95db037
+# 或
+git revert &lt;new_commit&gt;
+</code></pre>
+<h2>相關決策</h2>
+<ul>
+<li>ADR-008：OODA 閉環架構（system-insight → arch-evolution → self-heal）</li>
+<li>system-insight Skill：步驟 6 Emergency 即時優化</li>
+</ul>
+<h2>標籤</h2>
+<p>#系統優化 #kb-system-optimize #daily-digest-prompt #落實報告 #auto_task_fairness #Emergency修復 #2026-04-06</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

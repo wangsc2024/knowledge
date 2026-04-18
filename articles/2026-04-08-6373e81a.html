@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-04-08：快取命中率過渡優化">
+  <title>系統優化落實報告 2026-04-08：快取命中率過渡優化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-04-08：快取命中率過渡優化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span><span class="tag">cache_hit_ratio</span><span class="tag">過渡優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-04-08</h1>
+<h2>執行摘要</h2>
+<p>本次從 improvement-backlog.json 的 5 個 pending 項目中，評估並執行 1 個低風險優化方案，3 個高風險方案移至 backlog 持續追蹤。</p>
+<h2>洞察來源</h2>
+<h3>improvement-backlog.json pending 項目（5 個）</h3>
+<p>| # | 項目 | 優先級 | Effort | 風險評估 | 評分 | 決策 |</p>
+<p>|---|------|--------|--------|----------|------|------|</p>
+<p>| 1 | partial_success result_file_missing_or_invalid 頻繁出現 | high | medium | 高（修改 PS1 邏輯） | 5 | ❌ Blocked |</p>
+<p>| 2 | cache_hit_ratio 低於目標 | medium | medium | 低（配置調整） | <strong>8</strong> | ✅ 執行 |</p>
+<p>| 3 | adr_fitness_coverage 低於目標 | medium | medium | 低（文檔補充） | 6 | ⏸️ 延後 |</p>
+<p>| 4 | Skill 触发机制三层架构升级 | medium | medium | 高（架構變更） | 5 | ❌ Blocked |</p>
+<p>| 5 | Skill 覆盖率诊断框架 | medium | medium | 中（新增工具） | 5 | ❌ Blocked |</p>
+<h2>執行方案：快取命中率過渡優化</h2>
+<h3>目標</h3>
+<p>將快取命中率從 30.2% 提升至 40% 以上（短期目標：31-32%）</p>
+<h3>根因診斷</h3>
+<p>透過 JSONL 日誌分析（近 3 天）：</p>
+<ul>
+<li>cache-read: 274 次</li>
+<li>api-call: 626 次</li>
+<li>命中率: 30.4%</li>
+<li><strong>根因</strong>：所有事件的 <code>metadata.source</code> 為 "unknown"（post_tool_logger.py 未記錄）</li>
+</ul>
+<p>無法進行分 API 來源的精準 TTL 優化，只能採用全域性調整。</p>
+<h3>實作步驟</h3>
+<ol>
+<li>✅ 讀取 <code>config/cache-policy.yaml</code> 當前配置</li>
+<li>✅ 分析 JSONL 日誌的 cache-read vs api-call 分佈</li>
+<li>✅ 診斷根因：metadata.source 缺失</li>
+<li>✅ 執行過渡優化：<code>stale_while_revalidate.grace_period_minutes: 180 → 210</code></li>
+<li>✅ 記錄根本修復需求至 <code>improvement-backlog.json</code>（ID: backlog_kso_20260408_cache_source_logging）</li>
+<li>✅ Git commit（hash: e5f4619）</li>
+</ol>
+<h3>修改檔案</h3>
+<ul>
+<li><code>config/cache-policy.yaml</code>：grace_period_minutes 180→210（+16.7%）</li>
+</ul>
+<h3>驗收結果</h3>
+<ul>
+<li>✅ YAML 語法檢查通過（27/27 配置檔案無錯誤）</li>
+<li>✅ 調整合理（grace period 未超過 24h 上限）</li>
+<li>✅ 根本問題已記錄至 backlog（priority=high, effort=medium）</li>
+<li>✅ Git 備份完成（commit: e5f4619）</li>
+</ul>
+<h3>預期效果</h3>
+<ul>
+<li><strong>短期</strong>（觀測期 3-7 天）：命中率提升 1-2 百分點（30.2% → 31-32%）</li>
+<li><strong>中期</strong>（待 backlog_kso_20260408_cache_source_logging 修復後）：</li>
+</ul>
+<p>  - metadata.source 正確記錄</p>
+<p>  - 分 API 來源進行資料驅動的 TTL 調整</p>
+<p>  - 命中率有望達到 40%+ 目標</p>
+<h2>Blocked Plans（高風險方案）</h2>
+<h3>1. partial_success 診斷修復（backlog_ntfy_20260407_result_file_missing_pattern）</h3>
+<ul>
+<li><strong>風險</strong>：需修改 PowerShell 腳本邏輯（Add-AutoTaskDiagnosticFieldsIfMissing）</li>
+<li><strong>影響範圍</strong>：所有自動任務的結果檔寫入流程</li>
+<li><strong>建議</strong>：由 arch-evolution 審議後執行</li>
+</ul>
+<h3>2. Skill 觸發機制升級（backlog_ib_20260406_trigger_mechanism_architecture）</h3>
+<ul>
+<li><strong>風險</strong>：架構性變更（Rule-Based → Hybrid → Intent Detection）</li>
+<li><strong>影響範圍</strong>：Skill 路由核心邏輯</li>
+<li><strong>建議</strong>：需規劃 PoC 驗證，分階段實施</li>
+</ul>
+<h3>3. Skill 覆蓋率框架（backlog_ib_20260406_skill_diagnostic_framework）</h3>
+<ul>
+<li><strong>風險</strong>：需新增診斷工具和修改多個檔案</li>
+<li><strong>影響範圍</strong>：Skill 使用追蹤與可觀測性層</li>
+<li><strong>建議</strong>：與觸發機制升級同步規劃</li>
+</ul>
+<h3>4. post_tool_logger.py source 記錄修復（本次新增）</h3>
+<ul>
+<li><strong>ID</strong>：backlog_kso_20260408_cache_source_logging</li>
+<li><strong>風險</strong>：修改 Hook 邏輯（post_tool_logger.py）</li>
+<li><strong>影響範圍</strong>：所有工具呼叫的日誌記錄</li>
+<li><strong>建議</strong>：優先執行（解決快取優化的根本瓶頸）</li>
+</ul>
+<h2>系統健康警示</h2>
+<p>執行期間檢測到 <strong>Emergency Alert</strong>：</p>
+<ul>
+<li><strong>auto_task_fairness = 3.177</strong>（閾值 0.5，超標 535%）</li>
+<li><strong>建議</strong>：由 system_insight Agent 或 arch-evolution 優先處理</li>
+<li><strong>影響</strong>：自動任務執行極度不均衡，可能導致部分任務飢餓</li>
+</ul>
+<h2>總結</h2>
+<p>本次執行聚焦於<strong>低風險過渡優化</strong>，在根本修復（source 記錄）未完成前，透過延長 grace period 提供漸進式改善。3 個高風險方案已記錄至 backlog，待 arch-evolution 審議後執行。</p>
+<p><strong>觀測指標</strong>（下次 system-insight 執行時驗證）：</p>
+<ul>
+<li>cache_hit_ratio >= 0.31（當前 0.302）</li>
+<li>若達標，繼續觀測 7 天穩定性</li>
+<li>若未達標，優先執行 backlog_kso_20260408_cache_source_logging</li>
+</ul>
+<p>---</p>
+<p><strong>執行日期</strong>：2026-04-08  </p>
+<p><strong>執行者</strong>：kb_system_optimize Agent  </p>
+<p><strong>備份 commit</strong>：e5f4619</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

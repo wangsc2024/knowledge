@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="小型 coding agent 的 verifier budget 策略：在固定推理成本下動態分配測試、PRM 與候選搜尋預算 深度研究報告">
+  <title>小型 coding agent 的 verifier budget 策略：在固定推理成本下動態分配測試、PRM 與候選搜尋預算 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>小型 coding agent 的 verifier budget 策略：在固定推理成本下動態分配測試、PRM 與候選搜尋預算 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">小型 coding agent 的 verifier budget 策略：在固定推理成本下動態分配測試、PRM 與候選搜尋預算</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>小型 coding agent 的 verifier budget 策略：在固定推理成本下動態分配測試、PRM 與候選搜尋預算：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>本研究聚焦小型 coding agent 的 verifier budget。多份研究指出，test-time scaling 的關鍵不是多抽樣，而是讓 verifier 控制搜尋流程；在程式任務中，可靠測試仍是最強訊號，PRM 與 critic 更適合在測試不足時做後段排序 [來源：Step-level Verifier-guided Hybrid Test-Time Scaling for Large Language Models, 2025]。較佳策略是先用 L1 限制 token、候選數與工具呼叫，再用 L2 依難度與置信度動態加碼 verifier 回合 [來源：Reasoning on a Budget: A Survey of Adaptive and Controllable Test-Time Compute in LLMs, 2025]。</p>
+<h2>研究背景與動機</h2>
+<p>小型 coding agent 的限制不在於「完全不會寫程式」，而在於它常在固定延遲、固定 token 與有限工具額度下做出脆弱決策。若只做單次生成，模型很容易卡在第一個看似合理但實際錯誤的解法；若一味增加採樣，又會把預算浪費在低品質候選上。這使 verifier budget 成為核心工程問題。</p>
+<p>近年的 test-time compute 研究提供一條可行路線。它不要求重新訓練基礎模型，而是在推理期透過並行候選、序貫修正、步級驗證與 reward 排序，讓小模型在有限資源下逼近更強模型的表現 [來源：Reasoning on a Budget: A Survey of Adaptive and Controllable Test-Time Compute in LLMs, 2025]。對程式生成任務，這個方向尤其重要，因為程式碼往往自帶可驗證結構，例如編譯結果、單元測試、checker 與靜態規則。</p>
+<p>本研究延續先前對 verifier-guided scaling 的觀察，改問更靠近工程實務的問題：在固定推理成本下，小型 coding agent 應如何配置候選生成、測試執行、PRM 評分與搜尋擴張次數，才能在成功率、延遲與成本三者之間取得最佳折衷。</p>
+<h2>核心技術解析</h2>
+<p>第一個已驗證主張是：test-time scaling 的有效性來自「驗證導向的搜尋控制」，而不是單純增加 sample 數。Step-level Hybrid TTS 顯示，程序或步級 verifier 可以在推理過程中決定哪些分支值得繼續擴張、哪些分支應該提早淘汰，這使搜尋預算更接近動態分配而非靜態平均分配 [來源：Step-level Verifier-guided Hybrid Test-Time Scaling for Large Language Models, 2025]。S<em> 在 code generation 上也呈現同一件事：候選品質不只取決於生成數量，還取決於系統是否能製造可區分候選好壞的輸入與執行訊號 [來源：S</em>: Test Time Scaling for Code Generation, 2025]。Survey 將這類機制抽象成 L1 固定上限與 L2 動態適配兩層控制，說明「預算控制」本身就是演算法設計的一部分 [來源：Reasoning on a Budget: A Survey of Adaptive and Controllable Test-Time Compute in LLMs, 2025]。這個主張有 3 個獨立來源支持，屬於已驗證✅。</p>
+<p>第二個已驗證主張是：當任務存在可靠執行環境時，執行結果應被賦予最高權重。S<em> 強調 execution-grounded ranking 的作用，因為真正可執行的差異能直接暴露候選解的品質落差 [來源：S</em>: Test Time Scaling for Code Generation, 2025]。T1 也指出，小模型最不擅長的是高記憶負擔或重計算型自驗證，將這些步驟外包給工具之後，再讓模型在已過濾的候選上做排序，整體效果顯著提升 [來源：T1: Tool-integrated Self-verification for Test-time Compute Scaling in Small Language Models, 2025]。Survey 從更高層次支持這點，指出並行方法若無有效 verifier，best-of-N 的邊際效益會快速下降 [來源：Reasoning on a Budget: A Survey of Adaptive and Controllable Test-Time Compute in LLMs, 2025]。因此，對 coding agent 而言，測試不是最後一道品質門，而是前中後都應介入的主訊號。這個主張同樣達到 3 來源，屬於已驗證✅。</p>
+<p>第三個已驗證主張是：execution-free reward 不該取代測試，而應作為測試稀疏時的補充層。SWE-RM 指出，在軟體工程任務中，單元測試可能稀疏、覆蓋不足，甚至受測試品質本身影響，因此需要更細緻的軌跡級回饋來支撐訓練與選解 [來源：SWE-RM: Execution-Free Feedback for Software Engineering Agents, 2025]。但它也提醒，只看 test-time scaling 排名不夠，還要觀察 AUC 與 ECE，否則 reward model 可能在 RL 訓練中不穩 [來源：SWE-RM: Execution-Free Feedback for Software Engineering Agents, 2025]。T1 的兩段式流程則提供工程上的對照：先用工具完成低成本、高確定性的驗證，再把較昂貴的 PRM 或 critic 留給少數候選 [來源：T1: Tool-integrated Self-verification for Test-time Compute Scaling in Small Language Models, 2025]。Step-level verifier 文獻也支持把過程訊號用於中途調度，而非只做最終驗收 [來源：Step-level Verifier-guided Hybrid Test-Time Scaling for Large Language Models, 2025]。因此，實務上最穩健的做法是「測試優先、reward 補強」。這個主張有 3 個來源支持，屬於已驗證✅。</p>
+<p>第四個已驗證主張是：budget policy 應以兩層機制管理。L1 層負責硬限制，包括總 token、最大候選數、最大工具呼叫數與單次任務延遲上限；L2 層則根據難度 proxy、測試覆蓋率、置信度落差與候選間分數密度，決定是否繼續擴張搜尋 [來源：Reasoning on a Budget: A Survey of Adaptive and Controllable Test-Time Compute in LLMs, 2025]。Step-level Hybrid TTS 與 S<em> 都可視為這個框架在不同粒度上的實作：前者偏動態過程控制，後者偏在候選與測資上做辨識性投資 [來源：Step-level Verifier-guided Hybrid Test-Time Scaling for Large Language Models, 2025] [來源：S</em>: Test Time Scaling for Code Generation, 2025]。這個主張具備 3 個來源，屬於已驗證✅。</p>
+<h2>關鍵洞見</h2>
+<p>第一，verifier 的角色應從「驗收器」升級為「資源分配器」✅（3 來源）。只在最後跑測試，會讓大量低價值候選浪費前段 token；把 verifier 提前嵌進搜尋流程，才能真正降低無效計算。</p>
+<p>第二，可靠可執行測試仍是 coding agent 最值得投資的主訊號✅（3 來源）。若只能在測試、PRM、更多 sample 三者中先選一項加碼，應優先加碼測試與工具驗證。</p>
+<p>第三，PRM 或 critic 的最佳用途不是全面替代測試，而是針對「測試覆蓋不足、候選已縮小」的後段排序與補充判讀✅（3 來源）。這種兩段式設計比全量評分更適合小型 agent。</p>
+<p>第四，budget policy 應明確區分 L1 硬上限與 L2 動態擴張條件✅（3 來源）。沒有硬上限，系統會過度思考；沒有動態擴張，系統又會在難題上過早停手。</p>
+<p>第五，對 repo 修補或長上下文 SWE 任務，reward model 的品質不能只看 TTS 排名，還要看辨識力與校準性✅（3 來源，含同一主題多文獻交叉）。否則表面上排名有用，實際訓練與部署仍可能失穩。</p>
+<p>第六，小模型在數學基準上的工具自驗證成果，能否直接遷移到真實 SWE 任務，證據仍不足⚠️（1 來源）。這是目前研究最明顯的知識缺口，不能直接當成通用結論。</p>
+<h2>實務應用建議</h2>
+<p>對 daily-digest-prompt 或個人 coding agent，第一個建議是把每次任務的 verifier budget 顯性化。至少要記錄 <code>candidate_count</code>、<code>test_runs</code>、<code>tool_verifier_calls</code>、<code>critic_calls</code>、<code>tokens_total</code>、<code>latency_ms</code> 與 <code>success_rate</code>。如果這些指標不可見，後續就無法做任何預算優化。</p>
+<p>第二個建議是採用兩段式選解流程。先用便宜而硬的訊號做初篩，例如語法檢查、單元測試、靜態規則或簡單執行腳本；只讓通過初篩的候選進入 PRM 或 critic 排序。這能避免把昂貴評分浪費在明顯失敗的候選上。</p>
+<p>第三個建議是實作 L2 觸發條件，而不是固定 best-of-N。可用的觸發條件包括：測試覆蓋率不足、前兩名候選分數差距過小、候選在關鍵測例上互有勝負、或任務屬於高風險檔案。只有在這些條件成立時，才開啟額外候選或第二輪修正。</p>
+<p>第四個建議是把 reward model 的評估指標從「排名看起來對」提升到「部署後是否穩」。除了 pass rate，也應追蹤 reward 與最終結果的相關性、AUC、ECE 與不同 repo 類型的穩定性。否則很容易得到一個只在離線排序上表現不錯、但實戰無法穩定帶來收益的 verifier。</p>
+<h2>與現有知識的連結</h2>
+<p>這份研究直接承接前一輪對 verifier-guided test-time scaling 的總結，但把焦點從「有哪些 verifier 方法」收斂到「小型 agent 在有限成本下如何配置 verifier」。前一輪結論指出，測試是最可靠的硬訊號，critic 與 PRM 更適合做候選排序與資源分配；本輪則進一步把這個判斷形式化為 budget policy，說明什麼訊號該放在前段初篩，什麼訊號該保留給後段精排。</p>
+<p>它也與端雲協同、小模型部署與 agent 可觀測性研究相連。因為 verifier budget 的本質就是一種資源治理：在有限延遲、有限算力與有限工具額度下，把最強的驗證訊號用在最值得的地方。這使它不只是模型推理議題，也是 agent SLO、工具治理與運行成本控制議題。</p>
+<h2>未來展望</h2>
+<p>下一步最有價值的工作，不是再收集抽象論證，而是設計可重現的 budget 實驗。具體而言，可在個人 coding agent 上對比三種策略：固定 best-of-N、測試優先兩段式、以及帶 L2 觸發條件的自適應策略。評估指標不只看 pass rate，也看成功率提升幅度、平均延遲、每次成功所需 token 與 verifier 呼叫成本。</p>
+<p>另一個重要方向是把 repo 類型納入 policy。競賽型題目、單檔修補與長上下文多檔案修改的 verifier 結構差異很大，未來應為不同任務型態建立不同的 budget profile，而不是期待單一預算模板通吃所有場景。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Step-level Verifier-guided Hybrid Test-Time Scaling for Large Language Models. (2025). arXiv. https://arxiv.org/abs/2507.15512</li>
+<li>S*: Test Time Scaling for Code Generation. (2025). Findings of ACL EMNLP 2025. https://aclanthology.org/2025.findings-emnlp.865/</li>
+<li>T1: Tool-integrated Self-verification for Test-time Compute Scaling in Small Language Models. (2025). arXiv. https://arxiv.org/html/2504.04718v1</li>
+<li>Reasoning on a Budget: A Survey of Adaptive and Controllable Test-Time Compute in LLMs. (2025). arXiv. https://arxiv.org/html/2507.02076v1</li>
+<li>SWE-RM: Execution-Free Feedback for Software Engineering Agents. (2025). arXiv. https://arxiv.org/html/2512.21919v1</li>
+<li>Explaining OpenAI's o1 Breakthrough: The Revolution of Test Time Compute. (2024). Medium / Wix Engineering. https://medium.com/wix-engineering/explaining-openais-o1-breakthrough-the-revolution-of-test-time-compute-ecebe8ef9379</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

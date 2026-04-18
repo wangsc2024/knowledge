@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Langfuse、Phoenix 與 OpenTelemetry-native：LLM Observability 平台取捨與 daily-digest-prompt 落地策略">
+  <title>Langfuse、Phoenix 與 OpenTelemetry-native：LLM Observability 平台取捨與 daily-digest-prompt 落地策略 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Langfuse、Phoenix 與 OpenTelemetry-native：LLM Observability 平台取捨與 daily-digest-prompt 落地策略</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">LLM Observability</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Langfuse、Phoenix 與 OpenTelemetry-native：LLM Observability 平台取捨與 daily-digest-prompt 落地策略</h1>
+<h2>執行摘要</h2>
+<p>今日已完成任務可辨識的技術主題包括：OpenTelemetry、OTel Logs Data Model、JSONL、OTLP、Langfuse、Playwright、Harness Engineering、SLI/SLO、RAG、Knowledge Base、Hybrid Search、PR Summary、Release Notes、OpenAPI、llms.txt。綜合知識庫去重與連續記憶後，本次研究主題定為「Langfuse、Phoenix 與 OpenTelemetry-native：LLM Observability 平台取捨」，因為它直接承接今日已完成的 <code>Langfuse</code> 與 <code>OTel/JSONL→OTLP</code> 工作，又尚未在知識庫中以比較與治理角度深入整理。</p>
+<p>這三類方案的核心差異不在「能不能看 trace」，而在資料模型主導權、評估工作流整合度，以及生產環境的資料治理成本。Langfuse 是建立在 OpenTelemetry 上的 LLM 工程平台，除 tracing 外還整合 prompt management、evals 與 datasets，適合需要產品化工作台的團隊 [來源：Langfuse Overview, 2026] [來源：Langfuse SDKs, 2026]。Phoenix 則以 OpenTelemetry + OpenInference 為骨幹，把 tracing、evaluation、prompt engineering 與 experiments 放在同一套開放式 AI debugging 工作流中，對 agent 與 framework 自動化接線尤其友善 [來源：What is Arize Phoenix?, 2026] [來源：OpenInference Specification, 2026]。OpenTelemetry-native 路線則保留最高的 backend 自由度與 Collector 可塑性，但 GenAI semantic conventions 仍是 Development 狀態，代表 schema 與實務仍在演進，平台能力需要自己組裝 [來源：Semantic conventions for generative AI systems, 2026] [來源：Collector, 2026]。</p>
+<p>對 <code>daily-digest-prompt</code> 而言，最務實的策略不是二選一，而是以 OpenTelemetry/OTLP 保持資料出口中立，先把 JSONL 與 agent/tool/retrieval span 對齊穩定的追蹤模型，再視團隊工作流選 Langfuse 或 Phoenix 做上層 UI 與 eval orchestration。若近期重點是快速建立「trace + prompt + eval + cost」閉環，Langfuse 會更省整合成本；若重點是以開放標準持續實驗不同 AI framework 與 evaluator 組合，Phoenix 更貼近研究型與平台型工作流。純 OpenTelemetry-native 則更適合作為底座，而非第一個對工程團隊暴露的工作台。</p>
+<h2>研究背景</h2>
+<p>本專案今天已完成的相關任務，集中在三條線：</p>
+<p>第一條是 OpenTelemetry 與 JSONL→OTLP 落地，包括 <code>OTel Logs Data Model 與 JSONL→OTLP Agent 日誌標準化</code> 與先前連續記憶提到的 Collector 成本/背壓議題。第二條是 LLM observability 平台研究，包括今日完成的 <code>Langfuse</code> 深入研究。第三條是 AI agent 治理與評估，包括 <code>AI Agent 可監督性</code>、Harness SLI/SLO、以及活文件驗證管線。這表示團隊現在真正缺的不是「再了解一個工具」，而是回答：在既有 OTLP 基礎上，應如何選擇上層 observability/evaluation 平台，且不把資料出口綁死。</p>
+<h2>核心概念與原理</h2>
+<p>Langfuse 的設計重心是把 observability、prompt management、evaluation 與平台治理做成一個整合式 LLM engineering platform，並且明確宣告自身建立在 OpenTelemetry 之上，因此能與較廣泛的 observability tooling 互通 [來源：Langfuse Overview, 2026] [來源：Langfuse SDKs, 2026]。它的 SDK 直接把 Langfuse trace / observation 映射到 OTel trace / span，並強調 context propagation、attribute propagation 與第三方 instrumentation 的互通性，這表示它不是完全封閉的專有追蹤模型 [來源：Langfuse SDKs, 2026]。</p>
+<p>Phoenix 的設計則更強調「debugging → evaluation → prompt iteration → experiment」這條改善回路。官方文件指出 Phoenix 建立在 OpenTelemetry 之上，並由 OpenInference instrumentation 驅動；同時可接受 OTLP traces，並對常見 framework、provider 與多語言提供 auto-instrumentation [來源：What is Arize Phoenix?, 2026]。這代表 Phoenix 對 tracing 的看法不是單純記錄，而是把 trace 視為後續評估、資料集與實驗的共同事實來源 [來源：What is Arize Phoenix?, 2026]。</p>
+<p>OpenInference 補上的，是 AI-specific semantic layer。官方規格明確說明它是建立在 OpenTelemetry 上的 semantic convention specification，用來標準化 LLM calls、agent reasoning、tool invocation 與 retrieval 在 distributed traces 中的表示方式 [來源：OpenInference Specification, 2026]。它之所以存在，是因為通用 OTel attribute model 對 AI 工作負載過於泛化，無法自然承載多輪訊息、token economics、agentic control flow 與 privacy-sensitive payload [來源：OpenInference Specification, 2026]。</p>
+<p>如果走純 OpenTelemetry-native 路線，就要直接面對 GenAI semantic conventions 的成熟度問題。OpenTelemetry 官方目前將 generative AI semantic conventions 標記為 <code>Development</code>，且要求既有 instrumentation 透過 <code>OTEL_SEMCONV_STABILITY_OPT_IN</code> 逐步切換新版約定 [來源：Semantic conventions for generative AI systems, 2026]。這代表它已足以作為前瞻性對齊方向，但在 production governance 上仍要預留版本漂移與 schema 兼容空間 [來源：Semantic conventions for generative AI systems, 2026] [來源：Semantic Conventions for GenAI agent and framework spans, 2026]。</p>
+<p>此外，GenAI spans 規範已把 <code>create_agent</code>、<code>invoke_agent</code>、<code>execute_tool</code>、<code>retrieval</code> 等操作名稱納入 well-known values，這對 agent pipeline 的跨工具比對非常重要 [來源：Semantic conventions for generative client AI spans, 2026] [來源：Semantic Conventions for GenAI agent and framework spans, 2026]。但同一份規範也明確指出，instructions、inputs、outputs 通常敏感且體積大，預設不應捕捉；生產環境更建議把內容外存，只在 span 上保留引用，以降低儲存與權限治理成本 [來源：Semantic conventions for generative client AI spans, 2026]。這一點與本專案現在以 JSONL 保存大量工具事件的做法高度相關。</p>
+<h2>核心主張與三角佐證</h2>
+<h3>主張 1：三類方案都能建立在 OpenTelemetry 之上，但平台能力整合深度不同。已驗證 ✅</h3>
+<ul>
+<li>Langfuse 官方明示其 SDK 建立在 OpenTelemetry 上，並映射 Langfuse trace/observation 到 OTel trace/span [來源：Langfuse SDKs, 2026]。</li>
+<li>Langfuse 官方總覽也強調其 observability 以 OpenTelemetry 為基礎，目的是提高相容性並降低 vendor lock-in [來源：Langfuse Overview, 2026]。</li>
+<li>Phoenix 官方說明其平台 built on top of OpenTelemetry，並 powered by OpenInference instrumentation [來源：What is Arize Phoenix?, 2026]。</li>
+<li>OpenInference 官方規格指出自身是建立在 OpenTelemetry 上的 AI observability semantic layer [來源：OpenInference Specification, 2026]。</li>
+</ul>
+<h3>主張 2：Phoenix 比較偏向「trace 驅動的評估與實驗工作流」，Langfuse 比較偏向「LLM engineering product suite」。已驗證 ✅</h3>
+<ul>
+<li>Phoenix 官方把 tracing、evaluation、prompt engineering、datasets & experiments 列為核心能力，並把 traces 作為後續 evaluators 與 experiment 的基礎 [來源：What is Arize Phoenix?, 2026]。</li>
+<li>Phoenix 明確支援將 traces/spans 送入 LLM-based evaluators、code-based checks 與 human labels [來源：What is Arize Phoenix?, 2026]。</li>
+<li>Langfuse 則把 observability、prompt management、evaluation、platform 作為整合產品面，同時提供 datasets、experiments 與 dashboard [來源：Langfuse Overview, 2026]。</li>
+<li>Langfuse SDK 文件顯示其 client 不只做 tracing，也直接支援 prompt management、experiments、scores 與 query data [來源：Langfuse SDKs, 2026]。</li>
+</ul>
+<h3>主張 3：若專案需要保留最高可攜性，OpenTelemetry/OTLP 應作為底座；Collector 是生產環境較穩健的中介層。已驗證 ✅</h3>
+<ul>
+<li>OpenTelemetry Collector 官方將其定位為 vendor-agnostic 的接收、處理、匯出層 [來源：Collector, 2026]。</li>
+<li>Collector 官方明示一般而言建議在 service 旁使用 collector，以處理 retries、batching、encryption 與 sensitive data filtering [來源：Collector, 2026]。</li>
+<li>OTel 語言層 exporter 文件指出，在 production 環境把 telemetry 先送到 Collector 是 best practice [來源：Exporters, 2025] [來源：Exporters, 2026]。</li>
+<li>Phoenix 接受 OTLP traces，Langfuse 則建立在 OTel 之上；因此 OTLP/Collector 可作為兩者之上的共通出口。這是根據官方文件的合理推論，而非單一廠商宣稱 [推論自：What is Arize Phoenix?, 2026；Langfuse SDKs, 2026；Collector, 2026]。</li>
+</ul>
+<h3>主張 4：GenAI payload 在 production 預設不應全量寫入 telemetry，需要採 opt-in 或外部儲存模式。已驗證 ✅</h3>
+<ul>
+<li>OTel GenAI spans 規範指出 instructions、inputs、outputs 敏感且體積大，instrumentation 預設不應捕捉 [來源：Semantic conventions for generative client AI spans, 2026]。</li>
+<li>同一規範建議在 production 中把內容外存、span 僅保留 references，以處理 storage 與 access control 問題 [來源：Semantic conventions for generative client AI spans, 2026]。</li>
+<li>OpenInference 規格也把 privacy sensitivity 列為 AI telemetry 的核心需求，要求可在欄位級別遮罩 [來源：OpenInference Specification, 2026]。</li>
+<li>Langfuse 自架架構說明提到多模態 traces 與大型事件可直接進 S3/Blob Storage，顯示其平台也採取將大物件外置的設計思路 [來源：Self-host Langfuse, 2026]。</li>
+</ul>
+<h2>最佳實踐與常見陷阱</h2>
+<p>最佳實踐之一，是先把本專案現有 <code>post_tool_logger</code> JSONL 轉成穩定的 trace/span/event/resource 模型，再決定接 Langfuse 或 Phoenix UI。這樣可維持資料出口中立，也能讓後續若改換 backend，不需重寫 instrumentation。</p>
+<p>最佳實踐之二，是把 prompt/input/output 分層治理。開發期可少量 opt-in 直接記錄內容；正式環境則優先記錄摘要、hash、引用位置與關鍵 metadata，把完整內容留在受控儲存。這與 OTel GenAI 規範的建議一致 [來源：Semantic conventions for generative client AI spans, 2026]。</p>
+<p>最佳實踐之三，是將 <code>agent</code>、<code>task_key</code>、<code>session_id</code>、<code>todoist_run_id</code>、<code>trace_id</code> 做成跨 log/trace/eval 共用主鍵。若缺少這些 join keys，之後即使平台功能再完整，也很難把失敗 trace、結果 JSON 與品質分數真正串起來。</p>
+<p>常見陷阱之一，是太早把某個平台的資料模型當成 canonical schema。由於 OTel GenAI 與 OpenInference 都仍在演進，把平台特定欄位直接寫死進核心日誌契約，未來會增加遷移成本。</p>
+<p>常見陷阱之二，是把「可觀測性」誤等同於「保留全部原文」。官方規範已明示 payload 可能大且敏感；如果沒有抽樣、外存、遮罩與 retention 設計，很容易把 observability 系統變成成本與合規風險來源 [來源：Semantic conventions for generative client AI spans, 2026] [來源：OpenInference Specification, 2026]。</p>
+<h2>與本專案的關聯</h2>
+<p>對 <code>daily-digest-prompt</code>，我建議採三層式落地：</p>
+<ol>
+<li>底層資料平面：維持 JSONL → OTLP/Collector，讓 <code>post_tool_logger</code>、PowerShell 自動任務與未來 Playwright browser actions 都先進統一 trace/metric/log 管線。</li>
+<li>中層語意平面：以 OTel GenAI / OpenInference 對齊 agent span、tool span、retrieval span、token/cost 等欄位，但保留版本旗標，避免未來規範變更造成破壞。</li>
+<li>上層工作台：若當前目標是快速建立 prompt/eval/score 閉環，先接 Langfuse；若目標是研究導向、可插拔 evaluator、生態開放度與 coding agents tracing，Phoenix 更值得 PoC。</li>
+</ol>
+<p>用這個分層後，今日做的 <code>Langfuse</code>、<code>OpenTelemetry</code>、<code>AI Agent 可監督性</code>、<code>Harness SLI/SLO</code> 就能合流：底層是可攜的 telemetry，頂層是可操作的品質與治理工作台。</p>
+<h2>程式碼範例</h2>
+<pre><code>
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+
+const sdk = new NodeSDK({
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: "daily-digest-prompt",
+    "service.namespace": "todoist-auto",
+    "deployment.environment": process.env.NODE_ENV ?? "dev",
+  }),
+  traceExporter: new OTLPTraceExporter({
+    url: "http://localhost:4318/v1/traces",
+  }),
+});
+
+await sdk.start();
+
+// 後續可接 Langfuse 或 Phoenix；核心原則是先保留 OTLP 出口。
+</code></pre>
+<h2>結論</h2>
+<p>若只問「哪個工具最強」，答案沒有意義；真正要問的是「我們想先優化哪一層」。Langfuse 更像整合式 LLM engineering 工作台，Phoenix 更像以開放 tracing 為核心的 AI debugging/evaluation 實驗平台，而 OpenTelemetry-native 則是讓你保住主權與可攜性的底座。對本專案目前的成熟度，最合理的順序是：先固化 OTLP/Collector 與 join keys，再以一個上層平台做 PoC，而不是把核心 schema 綁死在任一產品上。</p>
+<h2>參考來源</h2>
+<ul>
+<li>Langfuse. (2026). Langfuse Overview. https://langfuse.com/docs</li>
+<li>Langfuse. (2026). Langfuse SDKs / OpenTelemetry foundation. https://langfuse.com/docs/observability/sdk/overview</li>
+<li>Langfuse. (2026). Self-host Langfuse. https://langfuse.com/self-hosting</li>
+<li>Arize AI / Phoenix. (2026). What is Arize Phoenix? https://arize.com/docs/phoenix</li>
+<li>OpenInference. (2026). OpenInference Specification. https://arize-ai.github.io/openinference/spec/</li>
+<li>OpenTelemetry. (2026). Semantic conventions for generative AI systems. https://opentelemetry.io/docs/specs/semconv/gen-ai/</li>
+<li>OpenTelemetry. (2026). Semantic conventions for generative client AI spans. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/</li>
+<li>OpenTelemetry. (2026). Semantic Conventions for GenAI agent and framework spans. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/</li>
+<li>OpenTelemetry. (2026). Collector. https://opentelemetry.io/docs/collector/</li>
+<li>OpenTelemetry. (2026). Exporters. https://opentelemetry.io/docs/languages/go/exporters/</li>
+<li>OpenTelemetry. (2025). Exporters. https://opentelemetry.io/docs/languages/js/exporters/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

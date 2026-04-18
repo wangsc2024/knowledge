@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-04-05：資安強化與敏感資料防護管線優化 — 日誌消毒擴展、Prompt Injection 偵測啟用與安全測試補強">
+  <title>專案RAG優化日報 2026-04-05：資安強化與敏感資料防護管線優化 — 日誌消毒擴展、Prompt Injection 偵測啟用與安全測試補強 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-04-05：資安強化與敏感資料防護管線優化 — 日誌消毒擴展、Prompt Injection 偵測啟用與安全測試補強</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">資訊安全</span><span class="tag">日報</span><span class="tag">敏感資料防護</span><span class="tag">Prompt Injection</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-04-05</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-04-05</h1>
+<h2>資安強化與敏感資料防護管線優化</h2>
+<h3>優化摘要</h3>
+<p>本次對 daily-digest-prompt 專案進行資訊安全全面審查，識別 14 項安全風險（4 CRITICAL、5 HIGH、3 MEDIUM、2 LOW），並實施 3 項 P0 安全強化，修改 2 個檔案，新增 17 個安全測試，802 個 hooks 測試全部通過。</p>
+<h3>安全審查發現</h3>
+<p>#### CRITICAL 風險（4 項）</p>
+<ol>
+<li><strong>日誌敏感資料消毒不完整</strong>：<code>hook_utils.py</code> 的 <code>sanitize_sensitive_data()</code> 僅覆蓋 Authorization headers、X-Token headers、環境變數三類，未覆蓋 URL query parameters（<code>?api_key=xxx</code>）和 JSON body 中的 credentials（<code>"password": "xxx"</code>）</li>
+<li><strong>Prompt Injection 偵測規則已定義但未啟用</strong>：<code>INJECTION_PATTERNS</code> 定義了 7 個注入模式但無對應函式可供呼叫</li>
+<li><strong>scheduler-state.json 寫入攔截 regex 存在邊界繞過</strong>：<code>eval</code>、<code>sh -c</code>、<code>tee</code> 等變體可繞過現有 pattern</li>
+<li><strong>結構化日誌輪轉未設權限保護</strong>：50MB 輪轉產生的日誌檔無 chmod 600</li>
+</ol>
+<p>#### HIGH 風險（5 項）</p>
+<ol>
+<li>pre_read_guard 允許讀取 .env.example（負向前瞻設計）</li>
+<li>API 呼叫缺少統一 HTTPS 驗證和超時設定</li>
+<li>results/ JSON schema 驗證為 warn_only（不強制阻擋）</li>
+<li>scheduler-state regex 攔截有 <code>eval</code>/<code>sh -c</code> 邊界情況</li>
+<li>日誌輪轉檔案未設定權限保護</li>
+</ol>
+<h3>已實施優化（3 項）</h3>
+<p>#### 1. 強化日誌敏感資料消毒（hook_utils.py）</p>
+<p><strong>問題</strong>：URL query params 和 JSON body credentials 未被消毒，可能洩漏至 JSONL 日誌</p>
+<p><strong>修復</strong>：新增兩個 pre-compiled regex：</p>
+<ul>
+<li><code>_RE_SANITIZE_URL_PARAM</code>：匹配 <code>?api_key=xxx</code>、<code>&token=xxx</code>、<code>&secret=xxx</code>、<code>&password=xxx</code>、<code>&access_key=xxx</code></li>
+<li><code>_RE_SANITIZE_JSON_CRED</code>：匹配 <code>"password": "xxx"</code>、<code>"api_key": "xxx"</code>、<code>"auth_token": "xxx"</code> 等 JSON 格式</li>
+</ul>
+<p><strong>測試</strong>：新增 7 個測試案例（URL param × 3、JSON body × 3、多參數 × 1），全部通過</p>
+<p>#### 2. 啟用 Prompt Injection 偵測函式（hook_utils.py）</p>
+<p><strong>問題</strong>：<code>INJECTION_PATTERNS</code>（7 個模式）已定義但無可呼叫的 API</p>
+<p><strong>修復</strong>：</p>
+<ul>
+<li>預編譯 7 個 injection patterns 為 <code>_COMPILED_INJECTION_PATTERNS</code></li>
+<li>新增 <code>check_injection_patterns(text: str) -> list</code> 函式，回傳匹配的模式清單（空 = 安全）</li>
+<li>供 post_tool_logger、pre_write_guard 等模組引用</li>
+</ul>
+<p><strong>偵測的注入模式</strong>：</p>
+<ol>
+<li><code>ignore (all) previous instructions</code></li>
+<li><code>system: you are</code></li>
+<li><code></system</code> 標籤</li>
+<li><code>ADMIN MODE</code></li>
+<li><code>forget everything/all</code></li>
+<li><code>you are now a</code></li>
+<li><code>disregard all/any previous/prior</code></li>
+</ol>
+<p><strong>測試</strong>：新增 10 個測試案例（6 個偵測 + 2 個安全文字 + 1 個大小寫 + 1 個多重模式），全部通過</p>
+<p>#### 3. 安全測試補強</p>
+<p><strong>新增 17 個測試</strong>（7 URL/JSON 消毒 + 10 injection 偵測），hooks 測試套件從 785 → 802 個，全部通過。</p>
+<h3>未實施但建議的後續優化</h3>
+<p>| 優先級 | 項目 | 建議 |</p>
+<p>|--------|------|------|</p>
+<p>| P1 | scheduler-state regex 強化 | 改為白名單模式（僅 PowerShell 允許寫入） |</p>
+<p>| P1 | results/ schema 驗證升級 | warn_only → block（強制阻擋格式不符的 JSON） |</p>
+<p>| P2 | 日誌權限保護 | 輪轉時設定 chmod 600 |</p>
+<p>| P2 | API 超時統一配置 | 新增 api-security-policy.yaml |</p>
+<p>| P3 | PII guard 增強 | 身分證字號加檢查碼驗證 |</p>
+<h3>測試結果</h3>
+<ul>
+<li>hooks 測試套件：<strong>802 passed</strong>（+17 新增，0 失敗）</li>
+<li>新增測試分類：</li>
+</ul>
+<p>  - <code>TestSanitizeSensitiveData</code>：17 個（原 10 + 新 7）</p>
+<p>  - <code>TestCheckInjectionPatterns</code>：10 個（全新）</p>
+<h3>技術細節</h3>
+<p><strong>修改檔案</strong>：</p>
+<ol>
+<li><code>hooks/hook_utils.py</code> — 新增 <code>_RE_SANITIZE_URL_PARAM</code>、<code>_RE_SANITIZE_JSON_CRED</code>、<code>_COMPILED_INJECTION_PATTERNS</code>、<code>check_injection_patterns()</code> 函式</li>
+<li><code>tests/hooks/test_hook_utils.py</code> — 新增 <code>TestCheckInjectionPatterns</code> 類別（10 個測試）、擴充 <code>TestSanitizeSensitiveData</code>（7 個測試）</li>
+</ol>
+<p><strong>設計決策</strong>：</p>
+<ul>
+<li>URL param regex 使用 <code>[?&]</code> 前綴確保只匹配 query string，不誤傷 URL path</li>
+<li>JSON body regex 使用雙引號界定符確保只匹配 JSON 格式，不影響 YAML 或其他格式</li>
+<li>Injection 偵測回傳匹配清單而非 bool，讓呼叫端可判斷嚴重程度</li>
+<li>所有 regex 均為模組層級 pre-compiled（<code>re.compile</code>），避免 hot path 重複編譯</li>
+</ul>
+<h3>參考來源</h3>
+<ul>
+<li>專案安全審查（三個 Agent 並行探索：hooks 安全、測試覆蓋、配置安全）</li>
+<li>OWASP Top 10（日誌注入、敏感資料暴露）</li>
+<li>專案既有安全機制（pre_bash_guard、pre_write_guard、pre_read_guard）</li>
+<li>知識庫筆記「專案優化日報 2026-03-21」（異常處理收窄參考）</li>
+</ul>
+<p>---</p>
+<p><strong>標籤</strong>：專案優化, 資訊安全, 日報, 敏感資料防護, Prompt Injection, daily-digest-prompt, 2026-04-05</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

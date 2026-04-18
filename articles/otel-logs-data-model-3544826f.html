@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OTel Logs Data Model 與 JSONL→OTLP Agent 日誌標準化實作指南">
+  <title>OTel Logs Data Model 與 JSONL→OTLP Agent 日誌標準化實作指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>OTel Logs Data Model 與 JSONL→OTLP Agent 日誌標準化實作指南</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">OpenTelemetry Logs</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>OTel Logs Data Model 與 JSONL→OTLP Agent 日誌標準化實作指南</h1>
+<h2>執行摘要</h2>
+<p>今日已完成任務明顯涉及的技術包括：OpenTelemetry GenAI semantic conventions、JSONL→OTLP 轉換、<code>otel-log-standardizer</code>、Tail Sampling、Golden Trace、PowerShell 結構化日誌、Collector 與 W3C Trace Context。綜合去重與 KB 搜尋後，本次選擇「OTel Logs Data Model 與 JSONL→OTLP Agent 日誌標準化」作為研究主題，因為知識庫雖已有 GenAI 可觀測性與 execution trace 背景，卻仍缺少一篇能直接指導 <code>daily-digest-prompt</code> 落地的實作筆記。</p>
+<p>研究結論是：若要把本專案的 JSONL 結構化日誌轉成可治理、可關聯、可匯出的 OpenTelemetry 日誌，核心不是單純把欄位改名，而是先對齊 <code>LogRecord</code> 的頂層欄位與語意，再決定哪些資料放入 <code>Body</code>、哪些進 <code>Attributes</code>、哪些提升為 <code>Resource</code> 或 <code>TraceId/SpanId/TraceFlags</code> [來源：Logs Data Model, 2026] [來源：OpenTelemetry Logging, 2026]。對於檔案型日誌來源，Collector 的 <code>filelog</code> receiver 已是官方建議路徑，且支援 JSON parser、offset 持久化與 rotation 處理，足以承接目前 <code>post_tool_logger.py</code> 這類 JSONL 輸出 [來源：OpenTelemetry Logging, 2026] [來源：filelogreceiver README, 2026]。若未來要補上 Agent/LLM 級語意，則應把 GenAI 的高階欄位視為附加語意層，而不是取代穩定的 Logs Data Model；此外，敏感的大型輸入輸出內容預設不應無限制落在 telemetry 中 [來源：GenAI Events, 2026] [來源：GenAI Attribute Registry, 2026]。</p>
+<h2>研究背景</h2>
+<p>本專案今天完成的任務中，可辨識出的技術主題包括：</p>
+<ul>
+<li>OpenTelemetry GenAI semantic conventions</li>
+<li>JSONL→OTLP 轉換</li>
+<li>otel-log-standardizer</li>
+<li>Tail Sampling</li>
+<li>Golden Trace</li>
+<li>PowerShell 結構化日誌</li>
+<li>OpenTelemetry Collector</li>
+<li>W3C Trace Context</li>
+<li>Agent 可監督性 / observability</li>
+</ul>
+<p>知識庫去重結果顯示，可觀測性方向已有若干研究，但主題多集中在 GenAI span/event、tail sampling 與策略層洞見；缺口在於「如何把本專案既有 JSONL 日誌穩定轉成 OTel Logs/OTLP」的應用層指南。因此本文定位為 application 階段補齊。</p>
+<h2>核心發現（含三角佐證）</h2>
+<h3>核心主張 1：JSONL agent logs 不應直接等同 OTLP payload，應先映射到 OTel Logs Data Model，再決定輸出 OTLP/Collector 路徑。已驗證✅（3+ 來源）</h3>
+<p>OpenTelemetry 將 logs 視為有明確資料模型的 <code>LogRecord</code>，其穩定頂層欄位包含 <code>Timestamp</code>、<code>ObservedTimestamp</code>、<code>TraceId</code>、<code>SpanId</code>、<code>TraceFlags</code>、<code>SeverityText</code>、<code>SeverityNumber</code>、<code>Body</code>、<code>Resource</code>、<code>InstrumentationScope</code>、<code>Attributes</code>、<code>EventName</code> [來源：Logs Data Model, 2026]。官方 logging 規格進一步說明，既有 log format 可以被「明確映射」到這個模型，而 Collector 可以讀取現有文件/標準輸出日誌後翻譯成 OTel data model [來源：OpenTelemetry Logging, 2026]。因此，<code>daily-digest-prompt</code> 的 JSONL 應先映射到 <code>LogRecord</code> 語意，再由 exporter 或 Collector 決定是否輸出成 OTLP <code>/v1/logs</code>，而不是把原始 JSON 直接包成任意 OTLP JSON [來源：OTLP Specification, 2026]。</p>
+<h3>核心主張 2：要保留跨任務與跨服務關聯，至少需要在日誌中穩定維護 `TraceId`、`SpanId`、`TraceFlags`，並與 W3C Trace Context 對齊。已驗證✅（3+ 來源）</h3>
+<p>Logs Data Model 明確把 <code>TraceId</code>、<code>SpanId</code>、<code>TraceFlags</code> 視為頂層 trace context 欄位，其中 <code>TraceFlags</code> 對應 W3C Trace Context [來源：Logs Data Model, 2026]。OpenTelemetry Logging 也指出，若 logs 含 trace/span identifiers，便能把 logs 與 traces 直接關聯，並加強分散式系統不同元件間的日誌關聯 [來源：OpenTelemetry Logging, 2026]。W3C Recommendation 則定義了 <code>traceparent</code> 的標準格式，包含 <code>trace-id</code>、<code>parent-id</code> 與 <code>trace-flags</code>，這正是本專案在 JSONL 與 OTLP 雙寫時最穩定的跨系統契約 [來源：W3C Trace Context, 2021]。</p>
+<h3>核心主張 3：對 agent/LLM 事件，`EventName` 與結構化 attributes 才是長期穩定做法；大型 prompt/output 應預設節制蒐集。已驗證✅（4 來源）</h3>
+<p>一般事件語意規範指出，Event 是以 <code>LogRecord</code> 表示的特定事件型別，事件必須有能辨識結構的名稱，詳細內容應主要放在 attributes，且事件不應把 body 當成主要承載欄位，除非只是顯示用文字訊息 [來源：Semantic conventions for events, 2026]。Logs Data Model 也說明 <code>EventName</code> 用來識別事件類型，而 <code>Body</code> 與 <code>Attributes</code> 可分別承載可變內容與附加資訊 [來源：Logs Data Model, 2026]。GenAI Events 與 GenAI Attribute Registry 進一步要求 <code>gen_ai.input.messages</code>、<code>gen_ai.output.messages</code> 在 events 上應以 structured form 記錄，並反覆警告這些欄位可能包含敏感資訊與大量資料，因此不適合無節制預設全量記錄 [來源：GenAI Events, 2026] [來源：GenAI Attribute Registry, 2026]。</p>
+<h3>核心主張 4：Collector 很適合作為 JSONL→OTLP 的治理層，但 transform/filter 的靈活性會直接帶來效能與成本權衡。已驗證✅（3 來源）</h3>
+<p>Collector 官方定位是 vendor-agnostic 的 receive/process/export 中介層，推薦在一般環境把額外處理如 retries、batching、加密與敏感資料過濾交給 Collector，而不是每個服務自己做 [來源：Collector, 2026]。Transforming telemetry 文件指出，Collector processors 常被用於資料品質、治理、成本與安全，但 advanced transformations 會影響效能 [來源：Transforming telemetry, 2025]。OTLP 規格則顯示 logs 的匯出是 request/response 協定，HTTP 路徑固定為 <code>/v1/logs</code>，並有壓縮、部分成功、失敗與節流語意，因此若本專案未來走直送 OTLP，就需要正視傳輸層的 retry/backpressure；若走 Collector，這些複雜性可集中治理 [來源：OTLP Specification, 2026]。</p>
+<h2>核心概念與原理</h2>
+<p>將本專案 JSONL 轉成 OpenTelemetry 時，最容易犯的錯不是欄位少，而是語意層次混亂。比較穩定的分層如下：</p>
+<p><code>Timestamp</code>：使用事件實際發生時間。若原始日誌已有 <code>timestamp</code>，映射到 <code>Timestamp</code>；Collector 讀檔時自動觀測的時間則落到 <code>ObservedTimestamp</code> [來源：Logs Data Model, 2026]。</p>
+<p><code>SeverityText</code> / <code>SeverityNumber</code>：本專案若已有 <code>level</code> 或 <code>severity</code> 字串，應保留原字串作為 <code>SeverityText</code>，再做標準化映射，例如 <code>INFO -> 9</code>、<code>WARN -> 13</code>、<code>ERROR -> 17</code> [來源：Logs Data Model, 2026]。這比只留文字等級更利於跨工具查詢與比較。</p>
+<p><code>Body</code>：若原始 JSONL 有主訊息欄位，如 <code>message</code>、<code>summary</code>，可直接放在 <code>Body</code>。若整筆原始紀錄本身就是結構化事件，也可以放結構化 AnyValue，但不建議同時把所有欄位全部塞進 body 與 attributes，否則會造成重複與索引成本 [來源：Logs Data Model, 2026]。</p>
+<p><code>Attributes</code>：放每筆事件特有資訊，例如 <code>task_key</code>、<code>agent</code>、<code>status</code>、<code>session_id</code>、<code>tool_name</code>、<code>latency_ms</code>、<code>error.type</code>、<code>kb_imported</code>。例外/錯誤細節應跟隨 OTel exception/error 慣例，而不是自創混亂命名 [來源：Logs Data Model, 2026] [來源：Recording errors, 2026]。</p>
+<p><code>Resource</code>：放對同一來源穩定不變的屬性，例如 <code>service.name=daily-digest-prompt</code>、<code>service.namespace=todoist-auto</code>、<code>host.name</code>、<code>deployment.environment</code>。這些不應與每筆 event 細節混用 [來源：Logs Data Model, 2026] [來源：OpenTelemetry Logging, 2026]。</p>
+<p><code>EventName</code>：若日誌描述的是結構固定的事件，如 <code>agent.task.completed</code>、<code>agent.tool.invoked</code>、<code>agent.kb.import.failed</code>，應用 <code>EventName</code> 來固定事件類型，細節再放 <code>Attributes</code> [來源：Semantic conventions for events, 2026]。</p>
+<h2>實務應用建議</h2>
+<p>第一，短期內最務實的做法不是直接讓 Python/PowerShell 自己組 OTLP protobuf，而是維持 JSONL 輸出，先由 Collector <code>filelog</code> receiver 接入。<code>filelog</code> 支援 <code>json_parser</code>、offset 持久化、rotation 與 <code>on_truncate</code> 行為控制，對現有檔案式 logging 轉型成本最低 [來源：filelogreceiver README, 2026]。</p>
+<p>第二，若使用 <code>filelog</code>，要特別注意其預設 <code>start_at=end</code>，代表 Collector 啟動後不會回補舊檔；若要回放歷史研究日誌，必須明確改成 <code>beginning</code>，並搭配 storage extension 保存 offsets [來源：filelogreceiver README, 2026]。這點對本專案非常重要，否則重新啟動後會以為「Collector 正常」，但其實只吃到新產生的記錄。</p>
+<p>第三，檔案輪轉策略要與 receiver 對齊。若使用 copy-truncate，需要決定 <code>ignore</code>、<code>read_whole_file</code> 或 <code>read_new</code>，三者分別對應避免重複、保證完整或只讀截斷後新增資料的取捨 [來源：filelogreceiver README, 2026]。對本專案這種以追蹤與稽核為主的日誌，若下游能去重，<code>read_whole_file</code> 較安全；若以成本為優先且 rotate 為 rename/move，預設 <code>ignore</code> 較合理。這裡屬於工程判斷，不是規格硬性要求。</p>
+<p>第四，若要納入 GenAI/Agent 語意，建議分兩層做。底層先穩定輸出一般 <code>LogRecord</code>，例如 <code>agent.tool.invoked</code> 與 <code>agent.research.completed</code>；上層只對特定事件補 <code>gen_ai.<em></code>、<code>code.</em></code>、<code>error.type</code> 等欄位。這樣能兼顧穩定性與進化性，避免整套日誌直接綁死在仍屬 Development 的 GenAI semantic conventions 上 [來源：Semantic conventions for generative AI systems, 2026]。</p>
+<h2>與本專案的關聯</h2>
+<p>對 <code>daily-digest-prompt</code> 而言，可先從 <code>post_tool_logger.py</code> 或現有 JSONL 結構化日誌切入，建立以下最小 mapping：</p>
+<ul>
+<li><code>timestamp</code> → <code>Timestamp</code></li>
+<li><code>level</code> → <code>SeverityText</code> + 標準化 <code>SeverityNumber</code></li>
+<li><code>message</code> → <code>Body</code></li>
+<li><code>agent</code>、<code>task_key</code>、<code>status</code>、<code>tool</code>、<code>duration_ms</code> → <code>Attributes</code></li>
+<li><code>trace_id</code>、<code>span_id</code>、<code>sampled</code> → <code>TraceId</code>、<code>SpanId</code>、<code>TraceFlags</code></li>
+<li><code>service.name=daily-digest-prompt</code>、<code>deployment.environment=local</code> → <code>Resource</code></li>
+<li><code>event_name</code>（若有）→ <code>EventName</code></li>
+</ul>
+<p>這樣做的好處是三個。第一，將來可同時匯出到本機 KB、OTLP backend、甚至保留 JSONL 檔案，而不需要改變上游 agent 的業務邏輯。第二，查詢面可以統一用 <code>task_key</code>、<code>agent</code>、<code>error.type</code>、<code>TraceId</code> 做關聯。第三，若要把今天研究的 <code>otel-log-standardizer</code> Skill 推進到 v1.0，這份 mapping 就能作為最小產品規格。</p>
+<h2>程式碼範例</h2>
+<pre><code>
+receivers:
+  filelog/agents:
+    include: [D:/Source/daily-digest-prompt/logs/structured/*.jsonl]
+    start_at: beginning
+    storage: file_storage
+    operators:
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.timestamp
+          layout_type: gotime
+          layout: '2006-01-02T15:04:05.9999999K'
+        severity:
+          parse_from: attributes.level
+
+processors:
+  transform/agent_logs:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(resource.attributes["service.name"], "daily-digest-prompt")
+          - set(attributes["task_key"], attributes["task_key"])
+          - set(attributes["agent"], attributes["agent"])
+          - set(body, attributes["message"]) where attributes["message"] != nil
+
+exporters:
+  otlphttp:
+    endpoint: http://localhost:4318
+
+extensions:
+  file_storage:
+    directory: D:/Source/daily-digest-prompt/state/otel-filelog-offsets
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    logs:
+      receivers: [filelog/agents]
+      processors: [transform/agent_logs]
+      exporters: [otlphttp]
+</code></pre>
+<p>這份範例刻意保持簡化，重點在於先讓既有 JSONL 進入 OTel log pipeline，再逐步補欄位清洗與 GenAI 語意，而不是一次追求完整度。</p>
+<h2>常見陷阱</h2>
+<ul>
+<li>把整筆原始 JSON 同時放進 <code>Body</code>、<code>Attributes</code>、<code>log.record.original</code>，造成三份重複資料。</li>
+<li>只有 <code>trace_id</code> 字串，卻沒有對齊 W3C <code>traceparent</code> / <code>trace-flags</code>，導致跨系統關聯斷裂。</li>
+<li>直接把大型 prompt/output 全量塞進 telemetry，忽略敏感資訊與 backend 限制 [來源：GenAI Events, 2026] [來源：GenAI Attribute Registry, 2026]。</li>
+<li>使用 <code>filelog</code> 卻忘記 <code>start_at</code> 與 offset persistence，重啟後漏資料或重複 ingest [來源：filelogreceiver README, 2026]。</li>
+<li>在 Collector 做過多 transform/filter，卻未量測效能成本 [來源：Transforming telemetry, 2025]。</li>
+</ul>
+<h2>知識缺口與下一步</h2>
+<p>目前查到的官方資料能清楚回答資料模型、傳輸與 Collector 落地，但對於「PowerShell 生態下最佳 JSON timestamp layout」「Windows 路徑與檔案鎖在高頻 rotate 的實測基準」仍缺乏專案特定 benchmark。這部分應在下一輪以 PoC 驗證，而非臆測。</p>
+<p>下一步最值得深化的方向是：Collector 背壓、batch、retry 與成本優化，也就是把今天這篇 application 階段筆記，推進到 optimization 階段。</p>
+<h2>參考來源</h2>
+<ul>
+<li>OpenTelemetry. (2026). Logs Data Model. https://opentelemetry.io/docs/specs/otel/logs/data-model/</li>
+<li>OpenTelemetry. (2026). OpenTelemetry Logging. https://opentelemetry.io/docs/specs/otel/logs/</li>
+<li>OpenTelemetry. (2026). OTLP Specification 1.10.0. https://opentelemetry.io/docs/specs/otlp/</li>
+<li>OpenTelemetry. (2026). Semantic conventions for events. https://opentelemetry.io/docs/specs/semconv/general/events/</li>
+<li>OpenTelemetry. (2026). Semantic conventions for generative AI systems. https://opentelemetry.io/docs/specs/semconv/gen-ai/</li>
+<li>OpenTelemetry. (2026). Semantic conventions for Generative AI events. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/</li>
+<li>OpenTelemetry. (2026). Gen AI attribute registry. https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/</li>
+<li>OpenTelemetry. (2025). Transforming telemetry. https://opentelemetry.io/docs/collector/transforming-telemetry/</li>
+<li>OpenTelemetry. (2026). Collector. https://opentelemetry.io/docs/collector/</li>
+<li>open-telemetry/opentelemetry-collector-contrib. (2026). filelogreceiver README. https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/filelogreceiver/README.md</li>
+<li>W3C. (2021). Trace Context. https://www.w3.org/TR/trace-context/</li>
+<li>OpenTelemetry. (2026). Recording errors. https://opentelemetry.io/docs/specs/semconv/general/recording-errors/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

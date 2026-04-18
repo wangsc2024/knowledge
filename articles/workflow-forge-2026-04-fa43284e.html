@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge 執行報告：結果檔案診斷與修復工作流（2026-04-07）">
+  <title>workflow-forge 執行報告：結果檔案診斷與修復工作流（2026-04-07） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge 執行報告：結果檔案診斷與修復工作流（2026-04-07）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">結果檔診斷</span><span class="tag">自動任務</span><span class="tag">品質門檻</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge 執行報告：結果檔案診斷與修復工作流</h1>
+<h2>執行摘要</h2>
+<p><strong>執行時間</strong>：2026-04-07</p>
+<p><strong>選定缺口</strong>：result_file_missing_or_invalid 根因診斷流程補齊</p>
+<p><strong>產物類型</strong>：workflow_yaml</p>
+<p><strong>優先級</strong>：P0</p>
+<p><strong>評分</strong>：100/100（影響 40 + 可執行 35 + 信號 25）</p>
+<h2>問題背景</h2>
+<p>過去 24h 的 ntfy 通知中多次出現 <code>partial_success</code>，根因是 <strong>9/11 自動任務結果檔被標記為 result_file_missing_or_invalid</strong>。這些任務的 agent 可能正常執行但結果檔寫入不完整或被覆寫。</p>
+<p>受影響任務：</p>
+<ul>
+<li>fahua, git_push, github_scout, kb_insight_evaluation</li>
+<li>jiaoguangzong, podcast_create, podcast_jiaoguangzong</li>
+<li>shurangama, ntfy_review</li>
+</ul>
+<h2>缺口分析</h2>
+<p>共識別 8 個缺口，選定「結果檔案診斷與修復工作流」，原因：</p>
+<ol>
+<li><strong>影響範圍廣</strong>（40 分）：所有 39 個自動任務都受益</li>
+<li><strong>可執行性高</strong>（35 分）：僅需建立診斷 workflow，不修改 PS 核心邏輯</li>
+<li><strong>信號強度強</strong>（25 分）：來自 improvement-backlog critical 項目</li>
+<li><strong>開創性</strong>：補齊結果檔診斷標準化流程的空白</li>
+</ol>
+<h2>產出內容</h2>
+<h3>1. 工作流 YAML</h3>
+<p>路徑：<code>workflows/result-file-diagnostic-workflow.yaml</code></p>
+<p>定義 <strong>6 步驟診斷流程</strong>：</p>
+<ol>
+<li><strong>檔案存在性檢查</strong>：驗證 <code>results/todoist-auto-{task_key}.json</code> 是否存在</li>
+<li><strong>JSON 有效性驗證</strong>：解析 JSON，確認非損壞</li>
+<li><strong>必填欄位驗證</strong>：確認 <code>agent</code>、<code>task_key</code>、<code>status</code>、<code>summary</code> 欄位存在</li>
+<li><strong>診斷欄位驗證</strong>：確認 <code>cli_exit_note_zh</code>、<code>result_guard_zh</code> 欄位存在且非空</li>
+<li><strong>根因分類</strong>：依前 4 步結果，分類為 4 種根因</li>
+<li><strong>修復建議</strong>：依根因提供可執行修復步驟</li>
+</ol>
+<h3>2. 根因分類（4 種）</h3>
+<p>| 根因 | 條件 | 證據 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>backend_execution_failed</strong> | result_file_missing + backend_status != ok | cursor_cli stdout 無 Write 指令、backend_status 為 disabled/quota_exceeded |</p>
+<p>| <strong>file_overwritten</strong> | result_file_missing + backend_status = ok + stdout 有 Write | Phase 2 有多個任務寫同一 task_key（衝突）、Repair/備援流程覆寫原始結果 |</p>
+<p>| <strong>diagnostic_not_applied</strong> | diagnostics_missing + JSON valid + schema incomplete | PS 流程 try-catch 異常提早返回、佔位 JSON 跳過補全 |</p>
+<p>| <strong>json_corruption</strong> | json_invalid | 檔案尾缺 } 或 ]、timeout 或 Ctrl+C 中斷寫入 |</p>
+<h3>3. 追蹤機制</h3>
+<p>診斷結果寫入 <code>state/result-file-diagnostics.json</code>（保留 7 天），schema 包含：</p>
+<ul>
+<li><code>task_key</code>：自動任務識別碼</li>
+<li><code>timestamp</code>：診斷執行時間（ISO 8601）</li>
+<li><code>diagnostic_result</code>：ok | missing | invalid | incomplete | diagnostics_missing</li>
+<li><code>root_cause</code>：根因分類（若 ok 則為 null）</li>
+<li><code>repair_suggestion</code>：修復建議（若 ok 則為 null）</li>
+<li><code>evidence</code>：診斷證據清單</li>
+</ul>
+<h3>4. 整合路徑</h3>
+<p>觸發點：<code>run-todoist-agent-team.ps1</code> Phase 2 迴圈結束後，呼叫 <code>Invoke-ResultFileDiagnostic</code> 函數。</p>
+<p>本 workflow 定義流程規範，實際執行邏輯仍在 PowerShell 腳本中。</p>
+<h2>索引更新</h2>
+<p>已更新以下檔案：</p>
+<ol>
+<li><strong>workflows/index.yaml</strong></li>
+</ol>
+<p>   - 版本：1.0.1 → 1.0.2</p>
+<p>   - 新增 entry：wf-20260407-result-file-diagnostic</p>
+<p>   - task_types: ["all"]</p>
+<p>   - priority: P0</p>
+<ol>
+<li><strong>context/workflow-forge-registry.json</strong></li>
+</ol>
+<p>   - 新增 entry（總分 100，步驟數 6，根因數 4）</p>
+<p>   - 記錄信號來源、預期成果、新增檔案</p>
+<h2>預期成果</h2>
+<p>| 階段 | 指標 | 目標 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>立即</strong> | 診斷流程清晰度 | 6 步驟明確定義 |</p>
+<p>| <strong>中期</strong> | result_file_missing_or_invalid 比例 | 從 82%（9/11）下降至 20% 以下 |</p>
+<p>| <strong>長期</strong> | 結果檔完整性 | 保持在 95% 以上 |</p>
+<p>| <strong>長期</strong> | Phase 3 組裝成功率 | 提升至 98%+ |</p>
+<h2>未來優化方向</h2>
+<ol>
+<li>引入自動修復層級（Tier 1: 自動補全、Tier 2: 建議人工、Tier 3: 告警）</li>
+<li>整合至 Harness Gap Loop（診斷結果自動寫入 <code>state/harness-gaps.json</code>）</li>
+<li>建立診斷報告 Dashboard（可視化 7 天診斷趨勢）</li>
+<li>引入預測性診斷（分析歷史模式，提前預警高風險任務）</li>
+</ol>
+<h2>技術細節</h2>
+<ul>
+<li><strong>YAML 格式驗證</strong>：✅ 通過（python yaml.safe_load）</li>
+<li><strong>新增檔案</strong>：1 個（workflows/result-file-diagnostic-workflow.yaml）</li>
+<li><strong>修改檔案</strong>：2 個（workflows/index.yaml, context/workflow-forge-registry.json）</li>
+<li><strong>禁止修改檔案</strong>：符合約束（未修改 state/scheduler-state.json、config/frequency-limits.yaml 核心配置）</li>
+</ul>
+<h2>標籤</h2>
+<p><code>workflow-forge</code>, <code>流程標準化</code>, <code>結果檔診斷</code>, <code>Phase 2</code>, <code>品質門檻</code>, <code>根因分析</code>, <code>自動任務</code></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
