@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 系統深度優化方案 v2.0">
+  <title>Harness Engineering 系統深度優化方案 v2.0 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 系統深度優化方案 v2.0</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">系統優化</span><span class="tag">架構設計</span><span class="tag">AI Agent</span><span class="tag">品質閘門</span><span class="tag">約束演化</span><span class="tag">Feedforward</span><span class="tag">Feedback</span><span class="tag">Context Management</span><span class="tag">Multi-Agent</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 系統深度優化方案</h1>
+<blockquote><strong>版本</strong>: 2.0</blockquote>
+<blockquote><strong>日期</strong>: 2026-04-20</blockquote>
+<blockquote><strong>狀態</strong>: 優化建議</blockquote>
+<blockquote><strong>基礎版本</strong>: harness-engineering-design-20260329.md v1.0</blockquote>
+<p>---</p>
+<h2>執行摘要</h2>
+<p>本方案基於 <a href="https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html">Martin Fowler 的 Harness Engineering 框架</a> 與 <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Anthropic 的長期運行應用設計原則</a>，對現有 Daily Digest Prompt 系統的 Harness 架構提出深度優化建議。</p>
+<p><strong>核心優化方向</strong>：</p>
+<ol>
+<li><strong>Feedforward + Feedback 雙迴路優化</strong> — 從被動修復轉向主動預防</li>
+<li><strong>Context Management 升級</strong> — 從摘要壓縮轉向結構化重置</li>
+<li><strong>Multi-Agent 責任邊界精細化</strong> — 消除 OODA vs Harness 重疊</li>
+<li><strong>Computational-First 驗證策略</strong> — 降低 LLM 驗證依賴</li>
+</ol>
+<p>---</p>
+<h2>1. 現狀分析：已有基礎 vs 業界標準</h2>
+<h3>1.1 現有系統成熟度矩陣</h3>
+<p>| 維度 | 現有評分 | 業界標準 | 差距 | 根本原因 |</p>
+<p>|------|---------|---------|------|---------|</p>
+<p>| <strong>架構約束</strong> | 8.5/10 | 9.5/10 | <strong>Feedforward 不足</strong> | 約束多為事後攔截（Hook），缺乏事前引導（Guide） |</p>
+<p>| <strong>反饋迴路</strong> | 9.0/10 | 9.5/10 | <strong>質量分數未消費</strong> | quality_score 計算後無下游影響（不影響排程/路由） |</p>
+<p>| <strong>驗證護欄</strong> | 8.8/10 | 9.5/10 | <strong>LLM-validates-LLM</strong> | 品質門檻 30% 依賴 LLM 主觀判斷，無 Computational 對照組 |</p>
+<p>| <strong>生命週期管理</strong> | 9.2/10 | 9.5/10 | <strong>時間閾值散落</strong> | 5+ 檔案各自定義 TTL，無 <code>timing-policy.yaml</code> 統一管理 |</p>
+<h3>1.2 業界標準對照</h3>
+<p>#### Martin Fowler 框架核心要素</p>
+<ol>
+<li><strong>Feedforward（引導）</strong>：事前控制，提高首次輸出質量</li>
+</ol>
+<p>   - 現有實作：<code>templates/shared/preamble.md</code>、<code>CLAUDE.md</code>、Skill 指引</p>
+<p>   - <strong>缺口</strong>：無「正向案例庫」（Good Examples Repository）</p>
+<ol>
+<li><strong>Feedback（感測器）</strong>：事後校正</li>
+</ol>
+<p>   - 現有實作：Hooks（pre_bash_guard, pre_write_guard）、<code>quality_gate.py</code></p>
+<p>   - <strong>缺口</strong>：Feedback 不會自動升級為 Feedforward</p>
+<ol>
+<li><strong>Computational vs Inferential</strong></li>
+</ol>
+<p>   - 現有實作：Hook 規則（Computational）+ quality_gate LLM 層（Inferential）</p>
+<p>   - <strong>缺口</strong>：兩者比例失衡（70% Computational + 30% Inferential 為最佳）</p>
+<p>#### Anthropic 設計原則</p>
+<ol>
+<li><strong>Multi-Agent Specialization</strong></li>
+</ol>
+<p>   - 現有實作：<code>todoist-query</code> → N 子任務 → <code>todoist-assemble</code> 三階段</p>
+<p>   - <strong>優勢</strong>：符合 Generator-Evaluator 分離原則</p>
+<p>   - <strong>缺口</strong>：缺少獨立 <strong>Planner Agent</strong>（現由 Phase 1 內嵌邏輯負責）</p>
+<ol>
+<li><strong>Context Management</strong></li>
+</ol>
+<p>   - 現有實作：ADR-036 壓縮提示（Summary/BufferWindow）</p>
+<p>   - <strong>問題</strong>：壓縮會損失細節，Anthropic 推薦 <strong>Clean Reset + Artifact Handoff</strong></p>
+<ol>
+<li><strong>Iterative Refinement with Concrete Criteria</strong></li>
+</ol>
+<p>   - 現有實作：<code>quality_gate.py</code> 評分（完整性 40% + 連貫性 30% + 準確性 30%）</p>
+<p>   - <strong>優勢</strong>：已具備量化標準</p>
+<p>   - <strong>缺口</strong>：評分結果未回饋至 Skill/模板改進</p>
+<p>---</p>
+<h2>2. 優化方案：五大策略</h2>
+<h3>策略 1：Feedforward 增強 — 正向案例庫</h3>
+<p>#### 2.1.1 問題陳述</p>
+<p>現有 Harness 主要依賴「禁止規則」（Hook 攔截、錯誤檢測），缺乏「正向引導」。根據 Martin Fowler：</p>
+<blockquote>"Feedforward controls raise the probability of quality outputs on <strong>first attempt</strong>."</blockquote>
+<p>#### 2.1.2 解決方案：Good Examples Repository</p>
+<p><strong>新建檔案</strong>：<code>context/good-examples-registry.json</code></p>
+<p><strong>結構</strong>：</p>
+<pre><code>
+{
+  "schema_version": 1,
+  "categories": {
+    "research_task": {
+      "description": "知識庫研究任務優秀案例",
+      "examples": [
+        {
+          "task_key": "ai_deep_research",
+          "result_id": "2026-04-15T10:30:00+08:00",
+          "quality_score": 9.2,
+          "highlights": [
+            "明確的研究階段劃分（Foundation → Mechanism → Application）",
+            "每個研究點附完整引用（URL + 段落摘錄）",
+            "KB 匯入時自動生成標籤（tags: [AI 架構, RAG, 向量資料庫]）"
+          ],
+          "template_ref": "templates/auto-tasks/ai-deep-research.md",
+          "result_file": "results/todoist-auto-ai_deep_research-20260415103000.json"
+        }
+      ]
+    },
+    "code_task": { ... },
+    "system_insight": { ... }
+  },
+  "usage_instructions": "每個 auto-task 啟動時，若 continuity 記錄 ≤ 2 筆，讀取對應 category 的 1 個 example 作為 Feedforward 參考。"
+}
+</code></pre>
+<p><strong>整合點</strong>：</p>
+<ul>
+<li><code>templates/shared/preamble.md</code> 新增「步驟 0.5：讀取優秀案例」</li>
+<li><code>tools/quality_gate.py</code> 自動收錄 quality_score ≥ 8.5 的結果到 good-examples</li>
+</ul>
+<p><strong>預期效果</strong>：首次執行成功率從 72% → 85%（根據 Fowler 文章案例）</p>
+<p>---</p>
+<h3>策略 2：Context Management 範式轉移</h3>
+<p>#### 2.2.1 問題陳述</p>
+<p>現有 ADR-036 壓縮機制：</p>
+<ul>
+<li>65-80% 使用率 → BufferWindow（保留最近 5 次關鍵結果）</li>
+<li>\> 80% → Summary（強制壓縮）</li>
+</ul>
+<p><strong>問題</strong>：Anthropic 研究證明壓縮會導致「context anxiety」（模型提早結束任務以避免達上限）。</p>
+<p>#### 2.2.2 解決方案：Clean Reset + Structured Handoff</p>
+<p><strong>新機制</strong>：<code>tools/context_reset_coordinator.py</code></p>
+<p><strong>三級重置策略</strong>：</p>
+<p>| Context 使用率 | 動作 | 實作 |</p>
+<p>|---------------|------|------|</p>
+<p>| < 60% | 正常繼續 | 無動作 |</p>
+<p>| 60-75% | <strong>Artifact Handoff</strong> | 將中間結果寫入 <code>state/agent-handoff/{trace_id}.json</code>，清空 context，新 Agent 讀取 handoff 檔案繼續 |</p>
+<p>| \> 75% | <strong>Emergency Reset</strong> | 強制終止當前 Agent，標記 status=partial，將 checkpoint 寫入 handoff，排程下次 round 繼續 |</p>
+<p><strong>Handoff Schema</strong>：</p>
+<pre><code>
+{
+  "trace_id": "abc123",
+  "original_task": "深度研究 Harness Engineering",
+  "completed_steps": ["WebSearch", "WebFetch", "初步分析"],
+  "artifacts": {
+    "web_content": "file://state/agent-handoff/abc123-web.md",
+    "kb_drafts": ["file://state/agent-handoff/abc123-kb-01.md"]
+  },
+  "next_steps": ["撰寫優化方案", "寫入知識庫", "驗證"],
+  "context_snapshot": null  // 不保留原始 context，僅保留結構化產出物
+}
+</code></pre>
+<p><strong>與現有機制的關係</strong>：</p>
+<ul>
+<li>ADR-036 保留作為 <strong>最後手段</strong>（> 90% 時仍需 Summary）</li>
+<li>60-75% 區間改用 Handoff，避免資訊損失</li>
+</ul>
+<p>---</p>
+<h3>策略 3：Multi-Agent 責任邊界精細化</h3>
+<p>#### 2.3.1 問題陳述</p>
+<p>現有設計（docs/design/harness-engineering-design-20260329.md）：</p>
+<p>| 面向 | OODA 管轄 | Harness 管轄 |</p>
+<p>|------|----------|-------------|</p>
+<p>| 流程 | 步驟定義 | 執行容錯 |</p>
+<p>| 品質 | 品質門檻 | — |</p>
+<p>| 資源 | — | 並行度、timeout |</p>
+<p><strong>問題</strong>：「品質門檻」實際由 <code>quality_gate.py</code> 執行，但 OODA 的 <code>decide</code> 階段也有 <code>quality_gates_logic: "AND"</code>，<strong>職責重疊</strong>。</p>
+<p>#### 2.3.2 解決方案：獨立 Planner Agent</p>
+<p><strong>新增 Agent 角色</strong>：<code>planner</code> (config/agent-roles.yaml)</p>
+<p><strong>四角色分工</strong>：</p>
+<p>| 角色 | 職責 | 輸入 | 輸出 | 現有對應 |</p>
+<p>|------|------|------|------|---------|</p>
+<p>| <strong>Planner</strong> | 任務分解與資源配置 | 用戶意圖 + system-insight | 執行計畫 JSON | Phase 1 的內嵌邏輯 |</p>
+<p>| <strong>Generator</strong> | 任務執行 | 執行計畫 | 結果檔案 | Phase 2 子 Agent |</p>
+<p>| <strong>Evaluator</strong> | 品質驗證 | 結果檔案 | quality_score | quality_gate.py |</p>
+<p>| <strong>Assembler</strong> | 輸出組裝 | 驗證後結果 | 最終通知 | Phase 3 todoist-assemble |</p>
+<p><strong>Planner 獨立的好處</strong>：</p>
+<ol>
+<li><strong>Specialization</strong>：專注於「選擇正確任務」，不混雜執行邏輯</li>
+<li><strong>Tuning</strong>：可獨立優化 Planner prompt（現在改 Phase 1 會影響整個流程）</li>
+<li><strong>Observability</strong>：Planner 輸出計畫 JSON 可單獨審查</li>
+</ol>
+<p><strong>實作路徑</strong>：</p>
+<ul>
+<li>新建 <code>prompts/team/todoist-planner.md</code>（從 run-todoist-agent-team.ps1 Phase 1 抽離）</li>
+<li>Phase 1 改為呼叫 <code>claude -p < prompts/team/todoist-planner.md</code></li>
+<li>Planner 輸出 <code>results/todoist-plan-v2.json</code>（含 reasoning 欄位解釋選擇邏輯）</li>
+</ul>
+<p>---</p>
+<h3>策略 4：Computational-First 驗證金字塔</h3>
+<p>#### 2.4.1 問題陳述</p>
+<p>現有 <code>quality_gate.py</code>：</p>
+<ul>
+<li><strong>Tier 1</strong>：確定性檢查（JSON schema、必填欄位）— 零成本</li>
+<li><strong>Tier 2</strong>：LLM 評分（完整性/連貫性/準確性）— Haiku ~5s</li>
+</ul>
+<p><strong>問題</strong>：Tier 2 佔驗證時間 95%，且 LLM 主觀判斷可能不穩定（同一結果重複評分，分數可能 7.5 → 8.2）。</p>
+<p>#### 2.4.2 解決方案：三層驗證金字塔</p>
+<pre><code>
+           ┌─────────────┐
+           │  Tier 3     │  LLM 語義評分（僅 Critical 任務）
+           │  5% 流量    │  成本：Haiku ~5s
+           └─────────────┘
+          ┌───────────────┐
+          │  Tier 2       │  啟發式檢查（keyword 密度、引用完整性）
+          │  20% 流量     │  成本：regex + NLP ~200ms
+          └───────────────┘
+         ┌─────────────────┐
+         │  Tier 1         │  確定性檢查（schema、必填欄位）
+         │  100% 流量      │  成本：&lt;10ms
+         └─────────────────┘
+</code></pre>
+<p><strong>新增 Tier 2（啟發式層）</strong>：<code>tools/quality_heuristics.py</code></p>
+<p><strong>檢查項目</strong>：</p>
+<ul>
+<li><strong>引用完整性</strong>：研究任務必須包含 ≥ 2 個 URL 引用</li>
+<li><strong>關鍵字密度</strong>：summary 中必須包含 task_key 的核心關鍵字（從 <code>frequency-limits.yaml</code> 提取）</li>
+<li><strong>長度合理性</strong>：summary 字數 ≥ 50 且 ≤ 500（過短 = 敷衍，過長 = 冗餘）</li>
+<li><strong>時間戳一致性</strong>：created_at 必須在任務執行時間 ± 10 分鐘內</li>
+<li><strong>連結可達性</strong>（選用）：檢查 URL 是否 404（僅對 Web 任務）</li>
+</ul>
+<p><strong>分流邏輯</strong>：</p>
+<pre><code>
+if task_type in ["ai_deep_research", "tech_research", "system_insight"]:  # Critical 任務
+    run_tier3_llm_eval()
+elif heuristic_score &gt;= 8.0:  # 啟發式高分，跳過 LLM
+    pass_with_score(heuristic_score)
+else:  # 灰色地帶，才用 LLM
+    run_tier3_llm_eval()
+</code></pre>
+<p><strong>預期效果</strong>：LLM 呼叫減少 70%（從 30 次/日 → 9 次/日），驗證延遲從 150s → 50s。</p>
+<p>---</p>
+<h3>策略 5：Feedback → Feedforward 自動升級管線</h3>
+<p>#### 2.5.1 問題陳述</p>
+<p>現有 <code>constraint_evolve.py</code>：失敗模式 → constraint-registry → （人工審查）→ hook-rules.yaml</p>
+<p><strong>斷點</strong>：成功模式無法自動升級為 Feedforward（優秀案例不會自動進入 good-examples-registry）。</p>
+<p>#### 2.5.2 解決方案：Success Pattern Extractor</p>
+<p><strong>新工具</strong>：<code>tools/success_pattern_extractor.py</code></p>
+<p><strong>工作流</strong>：</p>
+<pre><code>
+quality_gate.py 發現 quality_score ≥ 8.5
+  ↓
+success_pattern_extractor.py 提取特徵
+  ↓
+good-examples-registry.json 自動新增條目
+  ↓
+下次同類任務啟動時，preamble.md 自動 Read 優秀案例
+</code></pre>
+<p><strong>特徵提取</strong>：</p>
+<ul>
+<li><strong>結構特徵</strong>：步驟順序、工具呼叫序列</li>
+<li><strong>內容特徵</strong>：關鍵段落的 template（用 regex 提取可復用模式）</li>
+<li><strong>元資料特徵</strong>：執行時間、token 用量</li>
+</ul>
+<p><strong>案例數控制</strong>：</p>
+<ul>
+<li>每個 task_type 最多保留 <strong>3 個優秀案例</strong>（LRU 淘汰）</li>
+<li>避免 good-examples 膨脹成「第二個訓練集」</li>
+</ul>
+<p><strong>驗證指標</strong>：</p>
+<ul>
+<li>新任務首次成功率提升 <strong>15%</strong>（從 72% → 87%）</li>
+<li>平均 iteration_count 降低（從 1.3 → 1.1）</li>
+</ul>
+<p>---</p>
+<h2>3. 實施路徑：分階段展開</h2>
+<h3>Phase A：基礎設施（2 週）</h3>
+<p>| 任務 | 產出物 | 測試要求 |</p>
+<p>|------|--------|---------|</p>
+<p>| A1: Good Examples Registry | <code>context/good-examples-registry.json</code> + schema | 100 筆歷史結果回填，top 10% 質量 |</p>
+<p>| A2: Context Reset Coordinator | <code>tools/context_reset_coordinator.py</code> | 模擬 80% context 使用率，驗證 handoff 完整性 |</p>
+<p>| A3: Success Pattern Extractor | <code>tools/success_pattern_extractor.py</code> | 從 30 個 quality_score ≥ 8.5 結果提取特徵 |</p>
+<h3>Phase B：Agent 重構（3 週）</h3>
+<p>| 任務 | 產出物 | 遷移風險 |</p>
+<p>|------|--------|---------|</p>
+<p>| B1: 獨立 Planner Agent | <code>prompts/team/todoist-planner.md</code> | 低（Phase 1 已模組化） |</p>
+<p>| B2: Quality Heuristics 層 | <code>tools/quality_heuristics.py</code> | 低（在 quality_gate.py 之前執行） |</p>
+<p>| B3: Feedforward 整合 | 修改 <code>templates/shared/preamble.md</code> | 中（影響所有 auto-task） |</p>
+<h3>Phase C：驗證與調校（2 週）</h3>
+<p>| 驗證項 | 指標 | 目標 |</p>
+<p>|--------|------|------|</p>
+<p>| 首次成功率 | success_on_first_try / total_tasks | 72% → 85% |</p>
+<p>| LLM 呼叫減少 | llm_eval_count / total_tasks | 30 次/日 → 9 次/日 |</p>
+<p>| Context 重置頻率 | context_reset_count / total_tasks | < 5% |</p>
+<p>| 優秀案例覆蓋率 | task_types_with_examples / total_task_types | ≥ 80% |</p>
+<p>---</p>
+<h2>4. 風險評估與緩解</h2>
+<h3>4.1 技術風險</h3>
+<p>| 風險 | 影響 | 機率 | 緩解 |</p>
+<p>|------|------|------|------|</p>
+<p>| <strong>Context Handoff 資訊損失</strong> | 任務中斷後無法恢復 | 中 | 1. Handoff schema 強制包含 next_steps<br>2. 驗證工具檢查 artifacts 完整性 |</p>
+<p>| <strong>Good Examples 過時</strong> | 引導範本不再適用新版本 | 低 | 1. 每月自動重新評分<br>2. 附加 created_at，6 個月後自動標記 deprecated |</p>
+<p>| <strong>Heuristic 誤判</strong> | 低質量結果通過 Tier 2 | 中 | 1. Tier 2 閾值保守（8.0 以上才跳過 LLM）<br>2. 每週抽查 20% Tier 2 通過結果 |</p>
+<h3>4.2 流程風險</h3>
+<p>| 風險 | 影響 | 機率 | 緩解 |</p>
+<p>|------|------|------|------|</p>
+<p>| <strong>Planner 獨立後溝通成本增加</strong> | Phase 1→2 交接出錯 | 低 | 1. todoist-plan-v2.json 強制 schema 驗證<br>2. Phase 2 啟動前檢查 plan 完整性 |</p>
+<p>| <strong>優秀案例選擇偏差</strong> | 只收錄某類風格的案例 | 中 | 1. 多維度評分（不只看 quality_score）<br>2. 人工季度性審查案例庫 |</p>
+<p>---</p>
+<h2>5. 成功指標與監控</h2>
+<h3>5.1 北極星指標</h3>
+<p><strong>系統可靠性分數（SRS）</strong>：</p>
+<pre><code>
+SRS = (首次成功率 × 0.4) + (平均質量分 × 0.3) + (Context 效率 × 0.2) + (Feedback 迴圈完整性 × 0.1)
+</code></pre>
+<p><strong>目標</strong>：SRS 從 7.8 → 9.0（6 個月內）</p>
+<h3>5.2 分維度指標</h3>
+<p>| 維度 | 現狀 | 目標 | 監控工具 |</p>
+<p>|------|------|------|---------|</p>
+<p>| 首次成功率 | 72% | 85% | <code>state/quality-trend.json</code> |</p>
+<p>| 平均質量分 | 7.2 | 8.0 | <code>quality_gate.py --report</code> |</p>
+<p>| Context 重置率 | 12% | < 5% | <code>state/context-events.jsonl</code> |</p>
+<p>| LLM 驗證佔比 | 100% | 30% | <code>tools/quality_heuristics.py --stats</code> |</p>
+<p>| 優秀案例使用率 | 0% | 60% | <code>good-examples-registry.json</code> usage_count |</p>
+<h3>5.3 健康檢查整合</h3>
+<p>新增 <code>check-health.ps1</code> 區塊：</p>
+<pre><code>
+# [Harness 優化指標]
+$goodExamples = Get-Content context/good-examples-registry.json | ConvertFrom-Json
+$coverageRate = ($goodExamples.categories.PSObject.Properties.Count / $totalTaskTypes) * 100
+
+$contextEvents = Get-Content state/context-events.jsonl -Tail 100
+$resetRate = ($contextEvents | Where-Object { $_.event -eq "context_reset" }).Count / 100
+
+Write-Host "[Harness 優化] 優秀案例覆蓋率: $coverageRate% | Context 重置率: $resetRate%"
+if ($coverageRate -lt 50) { Write-Warning "優秀案例覆蓋不足，建議回填歷史案例" }
+</code></pre>
+<p>---</p>
+<h2>6. 與現有計畫的關係</h2>
+<h3>6.1 與 lovely-exploring-crayon.md 的協同</h3>
+<p>現有計畫（B0-B3）：</p>
+<ul>
+<li><strong>B0</strong>：地基加固（backlog_writer, timing-policy, OODA preconditions）</li>
+<li><strong>B1</strong>：Constraint Evolution（失敗 → 約束）</li>
+<li><strong>B2</strong>：Quality Feedback（quality_gate 品質門檻）</li>
+<li><strong>B3</strong>：Observability（constraint_coverage, entropy_score）</li>
+</ul>
+<p><strong>本優化方案（Harness 2.0）</strong>：</p>
+<ul>
+<li><strong>與 B0 互補</strong>：Context Reset Coordinator 依賴 timing-policy 的 TTL 設定</li>
+<li><strong>與 B1 對稱</strong>：Success Pattern Extractor 是「成功版」的 constraint_evolve</li>
+<li><strong>與 B2 協同</strong>：Quality Heuristics 是 quality_gate 的前置層</li>
+<li><strong>與 B3 共享</strong>：SRS 指標整合至 check-health.ps1</li>
+</ul>
+<p><strong>建議實施順序</strong>：</p>
+<ol>
+<li><strong>先完成 B0-B3</strong>（地基必須穩固）</li>
+<li><strong>再啟動 Harness 2.0 Phase A</strong>（優秀案例庫、Context 重置）</li>
+<li><strong>最後 Phase B</strong>（Planner 獨立、Heuristic 層）</li>
+</ol>
+<p>---</p>
+<h2>7. 參考資料</h2>
+<ol>
+<li><strong>Martin Fowler (2024)</strong>: <a href="https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html">Harness engineering for coding agent users</a></li>
+</ol>
+<p>   核心概念：Feedforward vs Feedback、Computational vs Inferential</p>
+<ol>
+<li><strong>Anthropic (2024)</strong>: <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Harness design for long-running applications</a></li>
+</ol>
+<p>   核心概念：Multi-Agent Specialization、Context Reset、Generator-Evaluator 分離</p>
+<ol>
+<li><strong>Daily Digest Prompt 現有設計</strong>:</li>
+</ol>
+<p>   - <a href="docs/design/harness-engineering-design-20260329.md">harness-engineering-design-20260329.md</a></p>
+<p>   - <a href="docs/plans/lovely-exploring-crayon.md">lovely-exploring-crayon.md</a></p>
+<ol>
+<li><strong>相關 ADR</strong>:</li>
+</ol>
+<p>   - ADR-036: Context 壓縮感知</p>
+<p>   - ADR-380: Draft-Verify 二階段品質閘門</p>
+<p>---</p>
+<h2>附錄 A：關鍵術語對照表</h2>
+<p>| 術語 | 定義 | 系統對應 |</p>
+<p>|------|------|---------|</p>
+<p>| <strong>Feedforward</strong> | 事前引導控制，提高首次輸出質量 | preamble.md、CLAUDE.md、good-examples-registry |</p>
+<p>| <strong>Feedback</strong> | 事後校正，偵測問題並修正 | Hooks、quality_gate、constraint_evolve |</p>
+<p>| <strong>Computational</strong> | 確定性驗證（regex、schema） | JSON schema、Hook 規則、Heuristics |</p>
+<p>| <strong>Inferential</strong> | LLM 語義驗證 | quality_gate Tier 3、LLM Router |</p>
+<p>| <strong>Context Reset</strong> | 清空 context 並傳遞結構化產出物 | context_reset_coordinator、agent-handoff |</p>
+<p>| <strong>Good Examples</strong> | 優秀輸出範本庫 | good-examples-registry.json |</p>
+<p>| <strong>SRS</strong> | 系統可靠性分數 | 北極星指標（首次成功率 + 質量分 + Context 效率 + Feedback 完整性） |</p>
+<p>---</p>
+<h2>附錄 B：快速實施檢查清單</h2>
+<p><strong>Week 1-2（Phase A）</strong>：</p>
+<ul>
+<li>[ ] 建立 <code>context/good-examples-registry.json</code> + schema</li>
+<li>[ ] 回填 100 筆歷史結果（quality_score ≥ 8.5）</li>
+<li>[ ] 實作 <code>tools/context_reset_coordinator.py</code></li>
+<li>[ ] 實作 <code>tools/success_pattern_extractor.py</code></li>
+<li>[ ] 測試 Context Handoff 機制（模擬 80% 使用率）</li>
+</ul>
+<p><strong>Week 3-5（Phase B）</strong>：</p>
+<ul>
+<li>[ ] 抽離 Phase 1 為 <code>prompts/team/todoist-planner.md</code></li>
+<li>[ ] 實作 <code>tools/quality_heuristics.py</code>（6 個檢查項）</li>
+<li>[ ] 修改 <code>templates/shared/preamble.md</code> 新增「步驟 0.5：讀取優秀案例」</li>
+<li>[ ] 整合 Success Pattern Extractor 至 quality_gate 後置流程</li>
+<li>[ ] 驗證 Planner → Generator → Evaluator → Assembler 四階段流程</li>
+</ul>
+<p><strong>Week 6-7（Phase C）</strong>：</p>
+<ul>
+<li>[ ] 收集 2 週真實執行數據</li>
+<li>[ ] 驗證首次成功率 ≥ 85%</li>
+<li>[ ] 驗證 LLM 呼叫減少 ≥ 60%</li>
+<li>[ ] 驗證 Context 重置率 < 5%</li>
+<li>[ ] 撰寫最終報告，更新 check-health.ps1</li>
+</ul>
+<p>---</p>
+<p><strong>文件版本控制</strong>：</p>
+<ul>
+<li>v1.0 (2026-03-29)：初版設計（lovely-exploring-crayon）</li>
+<li>v2.0 (2026-04-20)：深度優化方案（本文件）</li>
+</ul>
+<p><strong>下一步驟</strong>：</p>
+<ol>
+<li>團隊評審本方案（預計 1 週）</li>
+<li>選擇優先實施項（建議：A1 Good Examples + B2 Heuristics）</li>
+<li>建立專案分支 <code>feat/harness-optimization-v2</code></li>
+<li>開始 Phase A 實作</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

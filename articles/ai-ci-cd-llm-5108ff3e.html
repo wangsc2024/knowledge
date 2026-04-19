@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動 CI/CD 優化：LLM 測試生成、ML 測試選擇與 flaky test 自動修復（2026-04-19）">
+  <title>AI 驅動 CI/CD 優化：LLM 測試生成、ML 測試選擇與 flaky test 自動修復（2026-04-19） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動 CI/CD 優化：LLM 測試生成、ML 測試選擇與 flaky test 自動修復（2026-04-19）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">CI-CD</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動 CI/CD 優化：LLM 測試生成、ML 測試選擇與 flaky test 自動修復（2026-04-19）</h1>
+<ul>
+<li>研究日期：2026-04-19</li>
+<li>研究主題：AI 驅動 CI/CD 優化：LLM 測試生成、ML 測試選擇與 flaky test 自動修復</li>
+<li>來源域名：docs.github.com、help.launchableinc.com、docs.trunk.io、learn.microsoft.com、docs.buildpulse.io</li>
+</ul>
+<h2>技術概述</h2>
+<p>2025 到 2026 年間，AI 在系統開發的重點已從「幫你寫程式」往「幫你縮短整個交付回饋迴圈」移動。最有效的做法不是只靠單一 LLM 產生測試，而是把三層能力串起來：第一層用 GitHub Copilot 類工具補齊單元測試與邊界案例；第二層用 Launchable 這類 Predictive Test Selection（PTS）模型，依變更內容與歷史失敗模式只先跑最有訊號的測試子集；第三層再用 Trunk、BuildPulse 或 Azure DevOps MCP Server 這類 CI／測試觀測能力，把 flaky test、分支差異、失敗模式與修復迭代整合成 agentic workflow。核心不是讓 AI 取代 CI，而是讓 AI 在「生成測試、挑測試、判斷失敗、回推根因、提交修補」每個節點都有上下文可用。</p>
+<h2>核心方法與工具</h2>
+<h3>1. LLM 先補測試，不直接碰整個流水線</h3>
+<ul>
+<li>GitHub Copilot 的官方 prompt file 範本要求：先分析目標函式，再依核心功能、輸入驗證、錯誤處理、side effects 分類產生測試。</li>
+<li>官方範本要求使用既有 testing framework、遵循 AAA pattern、寫 5-8 個 focused cases、以行為而非實作細節為主。</li>
+<li>這代表生成測試最適合放在 PR 前或 PR 初期，用來補足 regression safety net，而不是直接當最終驗證來源。</li>
+</ul>
+<h3>2. 用 ML 做 Predictive Test Selection</h3>
+<ul>
+<li>Launchable 的 <code>launchable subset</code> 會根據完整測試清單、變更內容、執行環境與 optimization target 產生測試子集。</li>
+<li>optimization target 有三種：<code>--confidence</code>、<code>--time</code>、<code>--target</code>。若每次測試總時長波動很大，官方建議用 <code>--target</code> 百分比模式。</li>
+<li>它的 confidence curve 本質上是在 evaluation dataset 上量化：如果只跑一部分測試，抓到 failing session 的機率有多高。</li>
+</ul>
+<h3>3. flaky test 偵測要 branch-aware，否則誤判很多</h3>
+<ul>
+<li>Trunk 的 flaky test detection 支援 pass-on-retry 與 threshold monitor。</li>
+<li>官方文件強調 branch-aware detection：<code>main</code>、PR branch、merge queue 應用不同偵測門檻，因為 PR branch 的失敗可能是開發中預期失敗，<code>main</code> 上的失敗則更像 flake 或 infra 異常。</li>
+<li>Trunk 另外提到以 stack trace embeddings 指紋化 failure mode，讓 quarantine 是對準「失敗型態」而非單純對準測試名稱。</li>
+</ul>
+<h3>4. 把失敗 triage 交給 MCP／agent</h3>
+<ul>
+<li>Azure DevOps MCP Server 提供 work items、pull requests、builds、pipelines、test plans 的本地安全存取，讓 agent 可以直接問「最近 7 天哪些 test runs pass rate 掉最多」或「哪個 run 的最慢 10 個 case 是什麼」。</li>
+<li>Trunk 也公開說正在與 Claude Code、Codex、Cursor 類 agent 做 MCP 整合，讓 flaky test 修復流程能在 failure data 與 CI context 完整可用時自動迭代。</li>
+</ul>
+<h3>5. 觀測與成本優化一起做</h3>
+<ul>
+<li>BuildPulse 把 flaky test detection、quarantining、reporting、root-cause analysis 放到同一個 CI analytics 層。</li>
+<li>若 CI 本身是瓶頸，BuildPulse Runners 以優化基礎設施、快取、remote docker builders 等方式加速 job，不需要替換既有 CI 平台。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li><strong>變更進來先補測試</strong>：對改動最大的 service/function 使用 Copilot prompt file 生成 focused unit tests。</li>
+<li><strong>本地或 PR 前先跑小集合</strong>：先執行 lint + smoke tests，確認 AI 產出的測試不是語法垃圾。</li>
+<li><strong>CI 只跑高訊號子集</strong>：在 PR pipeline 用 Launchable 先從完整測試清單切出 subset，優先捕捉最可能失敗的 session。</li>
+<li><strong>保留 defensive full run</strong>：對 <code>main</code> 或 nightly pipeline 保留完整回歸跑法，避免長期只跑 subset 導致 coverage 幻覺。</li>
+<li><strong>上傳測試結果做 flake 分析</strong>：把 JUnit XML／結果 metadata 丟到 BuildPulse 或 Trunk，建立 flaky history、impact metrics、quarantine 決策依據。</li>
+<li><strong>失敗 triage agent 化</strong>：用 Azure DevOps MCP Server 或 Trunk MCP 整合，讓 agent 讀 test runs、pipelines、artifacts、log，先分類為 product bug、infra failure、known flaky、new flaky。</li>
+<li><strong>只對安全範圍自動修復</strong>：對已知 flaky pattern 或非關鍵測試允許 agent 提 patch；對核心測試只允許提出 root cause 與修補建議，不直接自動 merge。</li>
+<li><strong>把結果回寫資料層</strong>：記錄 subset 命中率、flake rate、修復 lead time、false positive rate，作為下一輪 target tuning 依據。</li>
+</ol>
+<h2>程式碼／配置範例</h2>
+<h3>A. Copilot prompt file：產生 focused unit tests</h3>
+<pre><code>
+---
+agent: 'agent'
+description: 'Generate unit tests for selected functions or methods'
+---
+
+## Task
+Analyze the selected function/method and generate focused unit tests that thoroughly validate its behavior.
+
+## Test Structure Requirements
+- Use existing project testing framework and patterns
+- Follow AAA pattern: Arrange, Act, Assert
+- Generate 5-8 focused test cases
+- Focus on testing behavior, not implementation details
+</code></pre>
+<h3>B. GitHub Actions：Launchable subset + pytest + BuildPulse 回傳</h3>
+<pre><code>
+name: pr-tests
+
+on:
+  pull_request:
+
+jobs:
+  subset-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install tools
+        run: |
+          pip install launchable pytest
+
+      - name: Record build and request subset
+        env:
+          BUILD_NAME: ${ github.sha }
+        run: |
+          launchable record build --name "$BUILD_NAME"
+          pytest --collect-only -q &gt; test_list.txt
+          cat test_list.txt | launchable subset --build "$BUILD_NAME" --target 20% pytest &gt; launchable-subset.txt
+
+      - name: Run subset
+        env:
+          BUILD_NAME: ${ github.sha }
+        run: |
+          mkdir -p test-results
+          pytest --junit-xml=test-results/subset.xml $(cat launchable-subset.txt)
+          launchable record tests --build "$BUILD_NAME" pytest test-results/subset.xml
+
+      - name: Upload to BuildPulse
+        env:
+          BUILDPULSE_ACCESS_KEY_ID: ${ secrets.BUILDPULSE_ACCESS_KEY_ID }
+          BUILDPULSE_SECRET_ACCESS_KEY: ${ secrets.BUILDPULSE_SECRET_ACCESS_KEY }
+          BUILDPULSE_ACCOUNT_ID: ${ secrets.BUILDPULSE_ACCOUNT_ID }
+          BUILDPULSE_REPOSITORY_ID: ${ secrets.BUILDPULSE_REPOSITORY_ID }
+        run: |
+          buildpulse-test-reporter submit test-results/subset.xml             --account-id "$BUILDPULSE_ACCOUNT_ID"             --repository-id "$BUILDPULSE_REPOSITORY_ID"             --repository-dir "$GITHUB_WORKSPACE"
+</code></pre>
+<h3>C. Azure DevOps MCP：自然語言 triage 範例</h3>
+<pre><code>
+Show all test runs in project &lt;Contoso&gt; from the last 7 days
+Show the 10 test cases with the longest execution time in test run &lt;56789&gt;
+List test cases that passed in test run &lt;56789&gt; but failed in test run &lt;56790&gt;
+</code></pre>
+<h2>效果量化（官方文件／案例，非通用保證）</h2>
+<ul>
+<li><strong>Launchable</strong>：官方 optimization target 範例指出，90% confidence 可對應只跑約 10 分鐘測試；若以 25 分鐘為 target，可望抓到 95% failing sessions。FAQ 的客戶案例顯示，從原本要跑 45 分鐘才能達到 90% confidence，縮到跑 20% 測試、約 10 分鐘即可達到等效信心，並帶來相當於 8 名開發資源與 3 倍硬體效益的生產力提升。</li>
+<li><strong>BuildPulse</strong>：官方文件宣稱 Runners 可達 <strong>2x faster</strong>、<strong>half cost</strong>，且因分鐘數下降，常見情況會有 <strong>>50% CI cost savings</strong>。</li>
+<li><strong>Trunk</strong>：官方首頁案例顯示 Caseware 將 merge time 從 <strong>6 小時降到 90 分鐘</strong>；另外文件指出單次 flaky failure 常耗掉 <strong>10-15 分鐘</strong> 人工等待與重跑成本。</li>
+<li><strong>BuildPulse remote docker builders</strong>：官方另有客戶回報 <strong>2x 到 40x</strong> 的 build time improvement，但這更偏基礎設施層優化，不是測試選擇本身的效果。</li>
+</ul>
+<h2>與本專案應用場景</h2>
+<ol>
+<li><strong>先從 Python 工具鏈補測試</strong>：對 <code>tools/validate_results.py</code>、研究分析器、KB 匯入器等高風險腳本，用 Copilot prompt file 生成單元測試草稿，再人工收斂 assertions。</li>
+<li><strong>若未來建立 CI</strong>：把 research / import / validation 類流程切成 smoke subset 與 nightly full suite。PR 上先跑 subset，夜間跑 full run。</li>
+<li><strong>結果檔與研究任務最適合做 flaky 分析</strong>：自動任務常涉及 I/O、HTTP、時間與外部服務，這些正是 flaky test 的高風險來源。可把 JUnit XML 上傳到 BuildPulse 或 Trunk 追蹤不穩定模式。</li>
+<li><strong>若團隊採 Azure DevOps</strong>：可用 MCP Server 讓 agent 直接查 test runs、pipelines、builds，做失敗歸因與 rerun 建議；若採 GitHub Actions，則可先用 Trunk / BuildPulse 補足觀測層。</li>
+<li><strong>把 agent 限定在「診斷 + PR 建議」</strong>：本專案有結果檔、registry、KB 匯入等狀態面，直接全自動修補風險較高，較適合先採 human-in-the-loop。</li>
+</ol>
+<h2>風險與注意事項</h2>
+<ul>
+<li><strong>LLM 會生成看似合理但不夠有力的測試</strong>：若沒有 assertion 強度檢查、mutation testing 或 coverage review，容易出現「測了但沒真測到」。</li>
+<li><strong>PTS 不是 coverage 替代品</strong>：subset 只能加快回饋，不代表可以取消 full regression。關鍵流程仍要保留完整跑法。</li>
+<li><strong>訓練資料品質決定 PTS 品質</strong>：Launchable 建議完整測試每週至少跑 2-3 次，否則模型學不到穩定訊號。</li>
+<li><strong>quarantine 機制可能遮蔽真正回歸</strong>：必須對 business-critical tests 設禁止 quarantine，並對新 failure pattern 維持 fail-fast。</li>
+<li><strong>MCP 安全邊界要先定義</strong>：雖然 Azure DevOps MCP Server 強調本地執行、資料不離網，但 agent-mode 仍需明確權限、審計與操作範圍。</li>
+<li><strong>AI 修復要限制在可回滾範圍</strong>：建議只允許 agent 修改測試、retry policy、隔離設定或非關鍵輔助碼，避免直接改核心業務邏輯。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>GitHub Docs — Generate unit tests  </li>
+</ol>
+<p>   https://docs.github.com/en/enterprise-cloud@latest/copilot/tutorials/customization-library/prompt-files/generate-unit-tests</p>
+<ol>
+<li>GitHub Docs — Write tests with GitHub Copilot  </li>
+</ol>
+<p>   https://docs.github.com/en/enterprise-cloud@latest/copilot/tutorials/write-tests</p>
+<ol>
+<li>Launchable Docs — Choosing a subset optimization target  </li>
+</ol>
+<p>   https://help.launchableinc.com/features/predictive-test-selection/requesting-and-running-a-subset-of-tests/choosing-a-subset-optimization-target/</p>
+<ol>
+<li>Launchable Docs — Subsetting with the Launchable CLI  </li>
+</ol>
+<p>   https://help.launchableinc.com/features/predictive-test-selection/requesting-and-running-a-subset-of-tests/subsetting-with-the-launchable-cli/</p>
+<ol>
+<li>Launchable Docs — How a Confidence curve is generated  </li>
+</ol>
+<p>   https://help.launchableinc.com/features/predictive-test-selection/requesting-and-running-a-subset-of-tests/choosing-a-subset-optimization-target/how-a-confidence-curve-is-generated/</p>
+<ol>
+<li>Launchable Docs — FAQ  </li>
+</ol>
+<p>   https://help.launchableinc.com/features/predictive-test-selection/faq/</p>
+<ol>
+<li>Trunk Docs — Trunk Platform  </li>
+</ol>
+<p>   https://docs.trunk.io/</p>
+<ol>
+<li>Trunk Docs — Flaky test detection  </li>
+</ol>
+<p>   https://docs.trunk.io/flaky-tests/detection</p>
+<ol>
+<li>Microsoft Learn — Manage test runs in Azure DevOps Test Plans  </li>
+</ol>
+<p>   https://learn.microsoft.com/en-us/azure/devops/test/test-runs?view=azure-devops</p>
+<ol>
+<li>Microsoft Learn — Enable AI assistance with the Azure DevOps MCP Server  </li>
+</ol>
+<p>    https://learn.microsoft.com/en-us/azure/devops/mcp-server/mcp-server-overview?view=azure-devops</p>
+<ol>
+<li>BuildPulse Docs — Welcome  </li>
+</ol>
+<p>    https://docs.buildpulse.io/</p>
+<ol>
+<li>BuildPulse Docs — BuildPulse Runners Overview  </li>
+</ol>
+<p>    https://docs.buildpulse.io/runners/overview</p>
+<ol>
+<li>BuildPulse Docs — Flaky Tests Overview  </li>
+</ol>
+<p>    https://docs.buildpulse.io/flaky-tests/overview</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
