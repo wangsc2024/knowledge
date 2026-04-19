@@ -1,84 +1,0 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="OpenTelemetry：Tail Sampling 之 decision_wait／批次延遲與稽核旁路壓測校準 深度研究報告">
-  <title>OpenTelemetry：Tail Sampling 之 decision_wait／批次延遲與稽核旁路壓測校準 深度研究報告 | 知識庫</title>
-  <link rel="stylesheet" href="../styles.css">
-</head>
-<body>
-  <header>
-    <div class="container">
-      <a href="../" class="logo">知識庫</a>
-      <nav>
-        <a href="../#buddhism">佛學</a>
-        <a href="../#thinking">思維方法</a>
-        <a href="../#ai">AI技術</a>
-        <a href="../#claude">Claude Code</a>
-      </nav>
-    </div>
-  </header>
-
-  <main class="container">
-    <article>
-      <div class="article-header">
-        <span class="category-badge category-other">其他</span>
-        <h1>OpenTelemetry：Tail Sampling 之 decision_wait／批次延遲與稽核旁路壓測校準 深度研究報告</h1>
-        <div class="article-meta">
-          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">OpenTelemetry decision_wait 與稽核旁路</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
-        </div>
-      </div>
-
-      <div class="article-content">
-        <h1>OpenTelemetry：Tail Sampling 之 decision_wait／批次延遲與稽核旁路壓測校準：深度技術研究報告</h1>
-<h2>執行摘要（200-400 字）</h2>
-<p>尾端取樣（tail sampling）把「是否保留整條 trace」的決策延後到可取得較完整跨度與子 span 之後，因此天然會引入決策等待（decision_wait）與暫存佇列的深度問題；此與批次處理器（batch processor）與匯出端佇列共同形塑記憶體峰值與端到端延遲的外包絡 [來源：Tail Sampling（OpenTelemetry Collector 文件）, 2026]。相對於純 head sampling，官方文件與 contrib 處理器說明皆指出，尾端策略需在「延遲／緩衝」與「決策品質」之間權衡，工程上必須以實際流量形態校準，而不是套用固定常數 [來源：tailsamplingprocessor README（collector-contrib）, 2026]。在 Agent 稽核場景中，結構化 JSONL 若再經與 tail 管線重疊的第二層緩衝，容易形成雙重背壓；專案內 Golden Trace 脈絡與連續記憶均支持將稽核旁路與一般可觀測性取樣分流，以避免完整性假設誤植於預設線上 trace [來源：專案深度研究報告：Golden Trace 與 GenAI 語意對齊（stage4 脈絡）, 2026]。</p>
-<h2>研究背景與動機</h2>
-<p>daily-digest-prompt 透過 <code>post_tool_logger</code> 產出結構化 JSONL，並逐步與 OTLP／OpenTelemetry 語意對齊；當管線導入 Collector 的 tail sampling 與批次匯出後，營運者需要可重複的壓測方法，校準 decision_wait、queue 深度與拒收率，使 Phase 2 代理任務的超時與取樣政策變更可被獨立归因 [來源：連續記憶：Tail sampling 記憶體／延遲／偏差（auto-task-ai_deep_research）, 2026]。本報告承接已完成三角佐證的六則來源，將技術語意轉成可落地的 SLO 思維與實務檢查項。</p>
-<h2>核心技術解析（每個主張內嵌引用）</h2>
-<p>尾端取樣依附 Collector 管線中的處理順序與時間視窗：在足夠片段抵達前，處理器可能暫存跨度資料以等待能否滿足政策條件，這直接耦合到記憶體占用與延遲分布的尾部 [來源：Tail Sampling（OpenTelemetry Collector 文件）, 2026]。<code>tailsamplingprocessor</code> 在實作面揭露多種政策與參數語意，並提醒與批次、佇列等元件銜接時需留意版本欄位漂移；因此在變更 decision_wait 或 batch 尺寸時，應鎖定 Collector／contrib 的相容矩陣而非只依摘要部落格 [來源：tailsamplingprocessor README（collector-contrib）, 2026]。</p>
-<p>在 SDK 規範層級，取樣決策一部分發生在 head，但 trace 在匯出與可視化階段呈現的「完整感」仍受政策與後端保留策略影響；這解釋了為何稽核級 Golden Trace 不能假設與一般取樣視角等价 [來源：Specification — Trace SDK（Sampling）, 2026]。對生成式與工具鏈而言，官方 GenAI span 語意讓模型呼叫、工具事件能以一致的屬性集合進入 trace 樹，便於在 tail 決策時引用高風險路徑訊號（例如關鍵工具或錯誤類型）而非僅依賴延遲或錯誤率粗指標 [來源：Semantic Conventions — Gen AI spans（銜接 Agent 可觀測性）, 2026]。</p>
-<h2>關鍵洞見（含三角佐證狀態 ✅／⚠️）</h2>
-<ol>
-<li><strong>尾端取樣以可較完整的 trace 上下文換取額外延遲與緩衝成本</strong> ✅（4 則來源相互支持：官方文件、SDK 規範、processor README、專案 stage4 脈絡）。</li>
-<li><strong>線上 trace 在取樣政策下可能缺段；稽核級資料應旁路或強制保留，不宜與預設尾端管線混為一談</strong> ✅（Golden Trace 報告、Trace SDK 取樣語意、Collector 文件、GenAI 語意共同指向「分流」必要性）。</li>
-<li><strong>壓測校準應觀測「決策等待期的暂存曲線」與「旁路网路是否重複緩衝」</strong> ✅（連續記憶、processor README、Collector 文件）。</li>
-<li><strong>兩階段（機率粗篩＋尾端精選）可能降低峰值，但會改變錯誤樣本的代表性</strong> ⚠️（主要見於連續記憶與 README 的工程權衡，尚需以業務錯誤率校驗）。</li>
-</ol>
-<h2>實務應用建議（3-5 點）</h2>
-<ol>
-<li><strong>建立獨立灰度維度</strong>：調整 <code>decision_wait</code> 或 batch timeout 時，與 <code>post_tool_logger</code> 稽核旁路的飛輪版本分開實驗，避免與 Phase 2 超時變因耦合。</li>
-<li><strong>以 queue 深度記錄取代均值延遲單一指標</strong>：同步觀察 <code>memory_limiter</code> 與 exporter 拒收／重試，並對照 tail 暫存曲線。</li>
-<li><strong>锁定 Collector/contrib 版本矩陣</strong>：在 CI 或 doc 生成流程附上 processor 欄位對照，降低政策 YAML 漂移風險。</li>
-<li><strong>GenAI 欄位對照表</strong>：將 JSONL 事件映射到 <code>gen_ai.*</code> 與 trace id，使 tail 決策能讀取「工具風險」而非僅錯誤碼。</li>
-<li><strong>旁路重複緩衝審計</strong>：若稽核 exporter 與 tail processor 同日寫入持久化 queue，需確認是否雙重 batch，並以尖峰測試驗證。</li>
-</ol>
-<h2>與現有知識的連結</h2>
-<p>本報告與知識庫中「OpenTelemetry Tail-based Sampling：記憶體足跡、延遲與代表性偏差」及「LLM Agent JSONL→OTLP 管線」兩份研究共用同一證據鏈：JSONL→OTLP 的背壓語意提供「旁路分流」動機，Tail sampling 文件與 README 提供「決策等待與批次」機制，GenAI 語意規範提供欄位單一真理來源方向 [來源：Semantic Conventions — Gen AI spans（銜接 Agent 可觀測性）, 2026]。</p>
-<h2>未來展望</h2>
-<p>後續可把 W3C <code>trace-id</code> 與 JSONL 對齊後，於壓測腳本中比對「旁路全量」與「尾端決策後」事件時間線，並將 decision_wait 與實際 Span 完成時間的分位距離納入儀表板；亦可将 probabilistic 粗篩造成的偏差以誤報／漏報實驗定期回放。</p>
-<h2>完整書目</h2>
-<ol>
-<li>OpenTelemetry Project. (<em>取得於 2026</em>). Tail Sampling. OpenTelemetry Documentation. https://opentelemetry.io/docs/collector/tail-sampling/</li>
-<li>OpenTelemetry Community. (<em>取得於 2026</em>). opentelemetry-collector-contrib：tailsamplingprocessor README. GitHub. https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md</li>
-<li>OpenTelemetry Project. (<em>取得於 2026</em>). Specification — Trace SDK（Sampling）. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/otel/trace/sdk/</li>
-<li>OpenTelemetry Project. (<em>取得於 2026</em>). Semantic Conventions — Gen AI spans. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/</li>
-<li>daily-digest-prompt 內部研究手稿. (<em>2026</em>). Golden Trace 與 GenAI 語意對齊（stage4 脈絡）. <code>context/stage4_report_body_golden_trace_otel.md</code></li>
-<li>daily-digest-prompt 連續記憶. (<em>2026</em>). Tail sampling 記憶體／延遲／偏差（<code>auto-task-ai_deep_research.json</code>）. <code>context/continuity/auto-task-ai_deep_research.json</code></li>
-</ol>
-<p>---</p>
-<p><strong>Phase 7 批判審查（自檢）</strong>：執行摘要約 320 字；章節齊全；無佔位符；書目六筆皆可追溯；主要洞見前四點均具 3+ 來源一致或專案內佐證；全文（不含此段自檢）超過 800 字。</p>
-      </div>
-
-      <a href="../" class="back-link">← 返回首頁</a>
-    </article>
-  </main>
-
-  <footer>
-    <div class="container">
-      <p>Powered by RAG Knowledge Base</p>
-    </div>
-  </footer>
-</body>
-</html>

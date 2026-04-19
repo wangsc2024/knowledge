@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-04-19">
+  <title>系統 Log 審查報告 - 2026-04-19 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 審查報告 - 2026-04-19</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">phase_failure</span><span class="tag">todoist_query</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 2026-04-19</h1>
+<h2>執行摘要</h2>
+<p>發現 2 個問題（P0+P1），均已轉 backlog。autonomous-runtime 正常。Phase 1/3 防護到位。</p>
+<h2>核心發現</h2>
+<h3>🔴 P0：todoist_query_lib.py extract_continuity unhashable type: dict</h3>
+<ul>
+<li><strong>根因</strong>：<code>context/continuity/todoist-hourly.json</code> 的 <code>auto_tasks_executed</code> 混合兩種 schema（list[str] vs list[dict]），<code>dict.fromkeys()</code> 無法處理 dict 元素。</li>
+<li><strong>影響</strong>：Phase 1 每次觸發均失敗（<code>[py-query] fatal: unhashable type: 'dict'</code>），2026-04-19 已複現 4 次。</li>
+<li><strong>修復方向</strong>：<code>extract_continuity</code> 加型別守衛，dict 元素取 <code>task_key</code>。</li>
+<li><strong>處置</strong>：已寫入 backlog <code>backlog_log_audit_20260419_054039424033</code>。</li>
+</ul>
+<h3>🟠 P1：SelfHealRequest close-out processed_at 屬性設定失敗</h3>
+<ul>
+<li><strong>根因</strong>：<code>$req.processed_at = $processedAt</code> 在 PSCustomObject 無該屬性時拋 Exception。</li>
+<li><strong>影響</strong>：non-blocking WARN，2026-04-13 起累積 18+ 次，製造 log 雜訊。</li>
+<li><strong>修復方向</strong>：改用 <code>Add-Member -Force</code>。</li>
+<li><strong>處置</strong>：已寫入 backlog <code>backlog_log_audit_20260419_054039434038</code>。</li>
+</ul>
+<h2>phase_failure 趨勢（failure-stats）</h2>
+<p>最近兩日 2026-04-18 與 2026-04-19 的 phase_failure 皆為 1，短期持平。相較窗內高峰 2026-04-16（62 次）已回落。窗內 phase_failure 中位數為 10；最近一日相對中位數為「低於」中位數。</p>
+<p>| 日期 | phase_failure |</p>
+<p>|------|---------------|</p>
+<p>| 2026-04-13 | 8 |</p>
+<p>| 2026-04-14 | 10 |</p>
+<p>| 2026-04-15 | 17 |</p>
+<p>| 2026-04-16 | 62 |</p>
+<p>| 2026-04-17 | 17 |</p>
+<p>| 2026-04-18 | 1 |</p>
+<p>| 2026-04-19 | 1 |</p>
+<h2>autonomous-runtime 健康</h2>
+<ul>
+<li>mode=normal, override.active=False，無殭屍降級</li>
+</ul>
+<h2>Phase 防護確認</h2>
+<ul>
+<li>Phase 1 planWriteTime 防護：到位</li>
+<li>Phase 3 conversationalPattern 防護：到位</li>
+</ul>
+<h2>觀察</h2>
+<ul>
+<li><code>nul</code> grep count 3432 為 JSON 中的 <code>null</code> 誤符，無實際 <code>> nul</code> 指令問題</li>
+<li>skill_forge 91 次 timeout 為配置層問題（per_job_timeout=480s），已記錄待 arch_evolution 評估</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
