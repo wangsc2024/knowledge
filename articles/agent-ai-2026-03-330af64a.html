@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="多 Agent 委派式核准與人機協同閘道（AI 深度研究 2026-03-30）">
+  <title>多 Agent 委派式核准與人機協同閘道（AI 深度研究 2026-03-30） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>多 Agent 委派式核准與人機協同閘道（AI 深度研究 2026-03-30）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">多 Agent 委派式核准與人機協同閘道：從風險分級、聯簽策略到可追溯稽核</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>多 Agent 委派式核准與人機協同閘道：從風險分級、聯簽策略到可追溯稽核</h1>
+<h2>執行摘要</h2>
+<p>隨著編排框架把工作流、路由器與多子 Agent 並行常態化，<strong>高自主 LLM 系統的風險核心不再是「模型偶發胡說」，而是「在錯誤證據下仍被允許執行具副作用動作」</strong>。本研究以 OWASP LLM 應用威脅、NIST AI RMF、Anthropic 工程化 agent 形態、LangGraph 的人機協同中斷點、MCP 的分層授權模型，以及 ISO/IEC 42001 的管理系統要求做交叉佐證，提出一個可落地的治理骨架：<strong>把核准視為狀態轉移的必要條件</strong>（不是輸出審查尾巴），並用「工具的 P0 分類＋聯簽（AND / k-of-n）＋可重放 traces」把責任邊界縫回可稽核證據鏈。對 daily-digest-prompt 這類以 Phase JSON、hooks JSONL 與 scheduler-state 為骨架的系統，建議把核准事件結構化進既有 handoff 平面，優先攔截外送通知、遠端寫入與排程變更，並將 OWASP 所強調的 prompt injection、過度代理與外洩類風險明納入 threat model。</p>
+<h2>背景與動機</h2>
+<p>單一聊天代理可以把風險限縮在對話層；但當任務被拆成 Lead／Worker、平行研究子代理、以及對外 API／本機工具鏈，<strong>核准「誰能在哪個狀態承諾副作用」就成了系統安全與合規的共同瓶頸</strong>。[來源：OWASP Top 10 for Large Language Model Applications, 專案持續更新] 與 [Anthropic — Building effective agents, 2024] 都指向同一個工程事實：形塑 agent 的方式會直接改變人類監督應該介入的位置與頻率。NIST AI RMF 與 ISO 42001 則互補地要求治理循環與文件化證據，使「政策—執行—審查」可被第三方稽核追溯。[來源：NIST Artificial Intelligence Risk Management Framework (AI RMF 1.0), 2023]、[ISO/IEC 42001:2023 AI management system — overview page, 2023]</p>
+<h2>核心技術解析</h2>
+<h3>1. 威脅起點：過度代理與提示注入如何穿透「委派鏈」</h3>
+<p>OWASP Top 10 for LLM Applications 將 <strong>提示注入、敏感資訊外洩、不安全的插件與過度代理（excessive agency）</strong> 等列為高優先風險類別；重點不在於模型「懂不懂」，而在於工具是否允許在缺乏足夠證據下擴大授權範圍。[來源：OWASP Top 10 for Large Language Model Applications, 2023 起持續維護] 在多 Agent 場景中，子任務邊界若模糊，單一節點的錯誤信念會透過委派被放大，形成類似 <strong>confused deputy</strong> 的跨層誤用。</p>
+<h3>2. 治理語言：從 NIST「測量—管理」到 ISO「PDCA 閉環」</h3>
+<p>NIST AI RMF 以治理（Govern）、映射（Map）、測量（Measure）、管理（Manage）四功能提供可操作的風險生命週期；其中 <strong>人類監督</strong>被視為可信任系統的重要組成，而非附加選項。[來源：NIST Artificial Intelligence Risk Management Framework (AI RMF 1.0), 2023] ISO/IEC 42001 則把 AI 管理系統放在 PDCA 架構下，便於把多角色、多供應商的 agent 佈局對應到明確的紀錄與審查義務。[來源：ISO/IEC 42001:2023 standard overview, 2023]</p>
+<h3>3. 編排層：Human-in-the-Loop 作為「狀態機閘門」</h3>
+<p>LangGraph 將 human-in-the-loop 描述為可在圖編排中插入中斷與恢復的第一級概念，使 <strong>在關鍵工具呼叫前暫停</strong> 成為流程定義的一部分，而不是外掛腳本。[來源：LangGraph — Human-in-the-loop concepts, 2024 起文件] 這與 OWASP 對「過度代理」的關注形成互補：前者提供工程承載面，後者定義威脅與控制目標。</p>
+<h3>4. 工具邊界：MCP 的 host／client／server 與最低權限</h3>
+<p>Model Context Protocol 以 client、host、server 的分層抽象統一工具暴露方式；<strong>實際授權決策應在主機安全模型內完成</strong>，避免模型上下文與 OS 身分邊界混淆導致跨元件誤授權。[來源：Model Context Protocol — Specification（GitHub）, 2024 起]</p>
+<h3>5. Agent 形態與授權粒度：工作流切分 vs. 關鍵閘門</h3>
+<p>Anthropic 在 building effective agents 中區分工作流、路由器、多代理等形態，強調以清晰子任務分解降低模型「自作主張」幅度；這支持「<strong>粗切分工作流＋細粒度插閘</strong>」的混合策略。[來源：Anthropic — Building effective agents, 2024]</p>
+<h2>關鍵洞見（三角佐證）</h2>
+<ul>
+<li><strong>✅ 已驗證（4+ 來源）</strong>：高自主 agent 在具副作用工具與外連能力時，需要明確人類監督與分段授權；多節點委派會放大過度代理風險。[來源：OWASP LLM Top 10, 2023+]、[NIST AI RMF, 2023]、[Anthropic Building effective agents, 2024]、[LangGraph HIL, 2024+]</li>
+<li><strong>✅ 已驗證（3+ 來源）</strong>：核准應內建在可重入的編排狀態機／checkpoint 之內，才能與重試、回放與差異比對对齐。[來源：LangGraph HIL, 2024+]、[NIST AI RMF Measure/Manage, 2023]、[ISO 42001 PDCA, 2023]</li>
+<li><strong>✅ 已驗證（3+ 來源）</strong>：工具標準化（MCP）有助一致的能力與同意模型，但 <strong>host 侧策略仍是終實權限裁決點</strong>。[來源：MCP Specification, 2024+]、[OWASP LLM Top 10 供應鏈／插件風險, 2023+]、[Anthropic agent engineering, 2024]</li>
+<li><strong>✅ 已驗證（3+ 來源）</strong>：稽核平面應把「誰在何證據下批准了哪個 side-effect」結構化，而不是僅保存最終自然語言輸出。[來源：NIST AI RMF, 2023]、[ISO 42001, 2023]、[LangGraph 中斷／恢復語意, 2024+]</li>
+<li><strong>⚠️ 待驗證（單一／薄弱來源）</strong>：「動態信任衰減」（連續成功自動放寬核准）在實務上很誘人，但與審計框架偏好的 <strong>顯式重新驗證</strong> 存在張力；尚<strong>無充分共識標準</strong>可宣告最佳解。[需後續實證或組織政策釐清]</li>
+<li><strong>⚠️ 待驗證</strong>：跨供應商（強／弱模型混編）是否應採 <strong>模型級差分核准</strong> 仍缺乏公開大規模證據。[需後續實證]</li>
+</ul>
+<h2>實務應用建議（daily-digest-prompt／個人專案）</h2>
+<ol>
+<li><strong>以 task_key × Phase × run 綁定核准事件</strong>：在 <code>results/todoist-auto-*.json</code> 與 hooks JSONL 已有結構化證據的前提下，為「外送 ntfy／寫入敏感 context／變更排程」定義 P0 工具類並記錄 <code>approval_id、approver_role、evidence_hash</code>。</li>
+<li><strong>聯簽策略</strong>：Lead 產生子計畫可自動；任何觸及「專案外路徑寫入、公開網路 POST、憑證旋轉」者採 AND（人類＋Lead）或 k-of-n（多雙眼）。</li>
+<li><strong>MCP／工具層</strong>：若引入 MCP server，將秘密與 OS 級能力留在 host policy；禁止子 agent「借用」使用者 shell 身分執行未核准命令。</li>
+<li><strong>回放與回歸</strong>：延續 registry／KB 研究去重與 Phase handoff 思路，把核准決策納入可重放 traces，以便量測誤擋率與繞過率（呼應上一題 deep research 的 JIT 授權題材）。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本專案已有 <strong>Agent 自治度評測、沙盒回放、高風險工具 JIT 授權</strong> 等研究條目；本篇把焦點從「單一代理的工具模擬」延伸到「<strong>多代理委派鏈上的責任契約與核准狀態機</strong>」，並以 LangGraph／MCP 的工程語彙對齊到可實作的 hook／Phase 設計面。</p>
+<h2>未來展望</h2>
+<p>短期可實驗「P0 工具靜態分類＋JSONL 增量核准欄位」；中期將 ISO／NIST 對應到 <strong>內部稽核 checklist</strong>；長期可探索跨模型差分核准與動態信任策略，但需先建立組織可接受的 <strong>風險承受度與取證標準</strong>。</p>
+<h2>完整書目</h2>
+<ol>
+<li>OWASP Foundation.（專案持續更新）. <em>OWASP Top 10 for Large Language Model Applications</em>. 取用日期：2026-03-30. <code>https://owasp.org/www-project-top-10-for-large-language-model-applications/</code></li>
+<li>National Institute of Standards and Technology.（2023）. <em>Artificial Intelligence Risk Management Framework (AI RMF 1.0)</em>. 取用日期：2026-03-30. <code>https://www.nist.gov/itl/ai-risk-management-framework</code></li>
+<li>Anthropic.（2024）. <em>Building effective agents</em>（Engineering 文章）. 取用日期：2026-03-30. <code>https://www.anthropic.com/engineering/building-effective-agents</code></li>
+<li>LangChain AI.（2024 起）. <em>LangGraph — Human-in-the-loop concepts</em>（官方文件）. 取用日期：2026-03-30. <code>https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/</code></li>
+<li>Model Context Protocol.（2024 起）. <em>Model Context Protocol Specification</em>（GitHub）. 取用日期：2026-03-30. <code>https://github.com/modelcontextprotocol/specification</code></li>
+<li>International Organization for Standardization.（2023）. <em>ISO/IEC 42001:2023 — Artificial intelligence management system</em>（標準概述頁）. 取用日期：2026-03-30. <code>https://www.iso.org/standard/81230.html</code></li>
+</ol>
+<h2>批判審查自檢（Phase 7）</h2>
+<ul>
+<li>✅ 執行摘要約 300+ 字，落在 200–400 字區間內。</li>
+<li>✅ 必要章節齊備（摘要、背景、技術解析、洞見、實務、連結、展望、書目）。</li>
+<li>✅ 無 <code>[CITATION NEEDED]</code> 或未完成佔位。</li>
+<li>✅ 書目所列 URL 皆為可公開查證之長效網址；ISO 頁為官方標準導覽頁。</li>
+<li>✅ 主要「已驗證」洞見均對應 ≥3 份一階來源交叉支持。</li>
+<li>✅ 全文（不含本附錄）達 800 中文字以上。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

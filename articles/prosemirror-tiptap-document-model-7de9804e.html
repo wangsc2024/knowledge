@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ProseMirror/Tiptap 編輯器架構研究 — Document Model、擴展系統與 Markdown 轉換最佳實踐">
+  <title>ProseMirror/Tiptap 編輯器架構研究 — Document Model、擴展系統與 Markdown 轉換最佳實踐 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>ProseMirror/Tiptap 編輯器架構研究 — Document Model、擴展系統與 Markdown 轉換最佳實踐</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">ProseMirror</span><span class="tag">Tiptap</span><span class="tag">編輯器</span><span class="tag">Document Model</span><span class="tag">Rich Text</span><span class="tag">Markdown</span><span class="tag">JSON</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>ProseMirror/Tiptap 編輯器架構研究</h1>
+<blockquote>研究日期：2026-03-01</blockquote>
+<blockquote>研究範圍：ProseMirror 文件模型、Tiptap 擴展系統、Markdown 與 Tiptap JSON 雙向轉換機制、協作編輯原理</blockquote>
+<blockquote>來源品質：A 級 3 個（ProseMirror 官方文件、Tiptap 官方原始碼、tiptap-markdown 原始碼）</blockquote>
+<p>---</p>
+<h2>一、技術概述</h2>
+<p>ProseMirror 是一套模組化的富文本編輯器基礎框架，由 Marijn Haverbeke（CodeMirror 作者）開發。它的核心理念是：<strong>程式碼對文件擁有完全控制權</strong>——文件不是一坨 HTML，而是由 Schema 嚴格約束的自訂資料結構。所有更新都透過單一節點（Transaction）進行，使得狀態管理、協作編輯、撤銷歷史等進階功能成為可能。</p>
+<p>Tiptap 是建立在 ProseMirror 之上的高層抽象框架，提供更友善的 API 與擴展系統。它本質上是一個「帶有合理預設的 ProseMirror 配置器」，將 ProseMirror 的模組化元件（schema、plugins、commands 等）封裝成統一的 Extension 介面。Tiptap 是目前最流行的 ProseMirror 封裝層，廣泛用於知識庫、CMS、協作文件等場景。</p>
+<p>---</p>
+<h2>二、ProseMirror 核心概念</h2>
+<h3>2.1 四大核心模組</h3>
+<p>ProseMirror 分為四個必要模組，每個模組負責一個獨立關注點：</p>
+<p>| 模組 | 職責 |</p>
+<p>|------|------|</p>
+<p>| <code>prosemirror-model</code> | 定義文件模型（Document Model）——描述編輯器內容的資料結構 |</p>
+<p>| <code>prosemirror-state</code> | 管理編輯器完整狀態（文件 + 選區），提供 Transaction 系統 |</p>
+<p>| <code>prosemirror-view</code> | 渲染編輯器 UI，處理使用者互動 |</p>
+<p>| <code>prosemirror-transform</code> | 文件修改操作的記錄與重播，支撐撤銷歷史與協作編輯 |</p>
+<p>附加模組包括：prosemirror-commands（基本編輯命令）、prosemirror-keymap（鍵盤綁定）、prosemirror-history（撤銷歷史）、prosemirror-inputrules（輸入巨集）、prosemirror-collab（協作編輯）。</p>
+<h3>2.2 Document Model（文件模型）</h3>
+<p>ProseMirror 文件是一棵<strong>節點樹</strong>，與瀏覽器 DOM 類似但有關鍵差異：</p>
+<p><strong>與 DOM 的核心差異——扁平化行內內容</strong>：</p>
+<p>在 HTML 中，帶有標記的段落是巢狀樹結構：</p>
+<pre><code>
+&lt;p&gt;This is &lt;strong&gt;strong text with &lt;em&gt;emphasis&lt;/em&gt;&lt;/strong&gt;&lt;/p&gt;
+</code></pre>
+<p>在 ProseMirror 中，行內內容被建模為<strong>扁平序列</strong>，標記作為 metadata 附加在節點上：</p>
+<pre><code>
+paragraph
+  "This is "                         (無 marks)
+  "strong text with "                 (marks: [strong])
+  "emphasis"                          (marks: [strong, em])
+</code></pre>
+<p>這種扁平化設計的優勢：</p>
+<ul>
+<li>可以用字元偏移量（而非樹路徑）表示段落內的位置</li>
+<li>分割或修改內容樣式不需要複雜的樹操作</li>
+<li>每個文件只有<strong>一種</strong>合法表示（相鄰同 marks 的文字節點會自動合併）</li>
+</ul>
+<p><strong>Node 資料結構</strong>：</p>
+<pre><code>
+Node
+  type: NodeType      # 節點類型（名稱、有效屬性、渲染規則等）
+  content: Fragment   # 子節點序列
+  attrs: Object       # 額外屬性（如圖片的 src、alt）
+  marks: [Mark]       # 行內標記陣列（如粗體、連結）
+</code></pre>
+<p><strong>節點屬性判斷</strong>：</p>
+<ul>
+<li><code>isBlock</code> / <code>isInline</code>：區塊或行內</li>
+<li><code>inlineContent</code>：是否包含行內內容</li>
+<li><code>isTextblock</code>：包含行內內容的區塊節點（如 paragraph）</li>
+<li><code>isLeaf</code>：不允許任何子內容（如 horizontal_rule、image）</li>
+</ul>
+<h3>2.3 不可變性（Immutability）</h3>
+<p>ProseMirror 節點是<strong>不可變值</strong>（Persistent Data Structure），不是有狀態的物件：</p>
+<ul>
+<li>節點沒有父節點連結，可以同時出現在多個資料結構中</li>
+<li>更新文件會產生<strong>新的文件值</strong>，原文件保持不變</li>
+<li>新舊文件共享未變更的子節點，建立新文件的成本很低</li>
+<li>這使得狀態切換是瞬間完成的，也讓協作編輯和高效 DOM 差量更新成為可能</li>
+</ul>
+<h3>2.4 位置索引系統</h3>
+<p>ProseMirror 的位置系統用整數表示文件中的任何位置：</p>
+<pre><code>
+0   1 2 3 4    5
+ &lt;p&gt; O n e &lt;/p&gt;
+
+5            6   7 8 9 10    11   12            13
+ &lt;blockquote&gt; &lt;p&gt; T w o &lt;img&gt; &lt;/p&gt; &lt;/blockquote&gt;
+</code></pre>
+<p>規則：</p>
+<ul>
+<li>文件開頭是位置 0</li>
+<li>進入/離開非葉節點各計 1 個 token</li>
+<li>文字中每個字元計 1 個 token</li>
+<li>葉節點（如 image）計 1 個 token</li>
+</ul>
+<h3>2.5 Schema（模式）</h3>
+<p>每個 ProseMirror 文件都有一個 Schema，它定義了文件中可以出現哪些節點類型及其巢狀關係。</p>
+<p><strong>NodeSpec 定義範例</strong>：</p>
+<pre><code>
+const trivialSchema = new Schema({
+  nodes: {
+    doc: { content: "paragraph+" },     // 至少一個段落
+    paragraph: { content: "text*" },     // 零或多個文字
+    text: { inline: true },              // 行內節點
+  }
+})
+</code></pre>
+<p><strong>Content Expression（內容表達式）</strong>：</p>
+<ul>
+<li><code>"paragraph"</code> — 恰好一個段落</li>
+<li><code>"paragraph+"</code> — 一個或多個段落</li>
+<li><code>"paragraph*"</code> — 零個或多個段落</li>
+<li><code>"(paragraph | blockquote)+"</code> — 一個或多個段落或引用區塊</li>
+<li><code>"heading paragraph+"</code> — 先一個標題，再一或多個段落</li>
+<li><code>"inline*"</code> — 零或多個行內節點</li>
+</ul>
+<p><strong>MarkSpec 定義範例</strong>：</p>
+<pre><code>
+const schema = new Schema({
+  nodes: { /* ... */ },
+  marks: {
+    strong: {
+      toDOM() { return ["strong", 0] },
+      parseDOM: [{ tag: "strong" }, { tag: "b" }, { style: "font-weight=bold" }]
+    },
+    em: {
+      toDOM() { return ["em", 0] },
+      parseDOM: [{ tag: "em" }, { tag: "i" }, { style: "font-style=italic" }]
+    },
+    link: {
+      attrs: { href: {} },
+      toDOM(mark) { return ["a", { href: mark.attrs.href }, 0] },
+      parseDOM: [{ tag: "a[href]", getAttrs(dom) { return { href: dom.href } } }]
+    }
+  }
+})
+</code></pre>
+<p>每個 Schema 必須至少定義：頂層節點類型（預設 <code>doc</code>）和 <code>text</code> 文字類型。</p>
+<h3>2.6 Transaction 與 State</h3>
+<p>ProseMirror 的狀態管理採用<strong>函式式架構</strong>：</p>
+<ol>
+<li>使用者互動或程式操作產生 Transaction</li>
+<li>Transaction 描述對 State 的變更</li>
+<li>套用 Transaction 產生新的 State</li>
+<li>新 State 用來更新 View</li>
+</ol>
+<pre><code>
+let state = EditorState.create({ schema })
+let view = new EditorView(document.body, {
+  state,
+  dispatchTransaction(transaction) {
+    let newState = view.state.apply(transaction)
+    view.updateState(newState)
+  }
+})
+</code></pre>
+<p>---</p>
+<h2>三、Tiptap 擴展架構</h2>
+<h3>3.1 Extension 類型</h3>
+<p>Tiptap 將 ProseMirror 的所有可擴展點統一為三種 Extension 類型：</p>
+<p>| 類型 | 用途 | 對應 ProseMirror 概念 |</p>
+<p>|------|------|----------------------|</p>
+<p>| <strong>Node</strong> | 定義區塊或行內節點 | NodeSpec + NodeView |</p>
+<p>| <strong>Mark</strong> | 定義行內標記（粗體、連結等） | MarkSpec |</p>
+<p>| <strong>Extension</strong> | 功能擴展（鍵盤綁定、歷史等） | Plugin |</p>
+<h3>3.2 Tiptap JSON 格式</h3>
+<p>Tiptap JSON 是 ProseMirror Node JSON 表示的等價格式，是 Tiptap 儲存與操作內容的標準格式：</p>
+<pre><code>
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hello "
+        },
+        {
+          "type": "text",
+          "text": "world",
+          "marks": [{ "type": "bold" }]
+        }
+      ]
+    }
+  ]
+}
+</code></pre>
+<p><strong>JSONContent 型別定義</strong>：</p>
+<pre><code>
+type JSONContent = {
+  type?: string                           // 節點類型
+  attrs?: Record&lt;string, any&gt;             // 節點屬性
+  content?: JSONContent[]                 // 子節點
+  marks?: { type: string; attrs?: Record&lt;string, any&gt; }[]  // 標記
+  text?: string                           // 文字內容（僅 text 節點）
+}
+</code></pre>
+<h3>3.3 自訂 Extension 開發</h3>
+<p>Tiptap 的 <code>Extension.create()</code> / <code>Node.create()</code> / <code>Mark.create()</code> 提供統一的擴展定義介面：</p>
+<pre><code>
+import { Node } from '@tiptap/core'
+
+const CustomNode = Node.create({
+  name: 'customNode',
+  group: 'block',
+  content: 'inline*',
+  
+  addAttributes() {
+    return {
+      color: { default: null },
+    }
+  },
+  
+  parseHTML() {
+    return [{ tag: 'div[data-custom]' }]
+  },
+  
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { 'data-custom': '', ...HTMLAttributes }, 0]
+  },
+  
+  addCommands() {
+    return {
+      setCustomNode: () =&gt; ({ commands }) =&gt; {
+        return commands.setNode(this.name)
+      },
+    }
+  },
+})
+</code></pre>
+<h3>3.4 Editor 初始化</h3>
+<pre><code>
+import { Editor } from '@tiptap/core'
+import StarterKit from '@tiptap/starter-kit'
+
+const editor = new Editor({
+  element: document.querySelector('.editor'),
+  extensions: [StarterKit],
+  content: '&lt;p&gt;Hello World&lt;/p&gt;',  // 可以是 HTML 或 JSON
+})
+
+// 取得 JSON 內容
+const json = editor.getJSON()
+// 取得 HTML 內容
+const html = editor.getHTML()
+</code></pre>
+<p>---</p>
+<h2>四、Markdown 與 Tiptap JSON 轉換機制</h2>
+<h3>4.1 轉換管線</h3>
+<p><code>tiptap-markdown</code>（aguingand/tiptap-markdown）是最常用的 Markdown 支援擴展，其轉換管線為：</p>
+<p><strong>Markdown → Tiptap JSON（解析方向）</strong>：</p>
+<pre><code>
+Markdown 文字
+  → markdown-it 渲染為 HTML
+  → DOM 正規化（移除多餘換行、修正區塊嵌套）
+  → ProseMirror DOMParser 解析為 ProseMirror Node
+  → 等價於 Tiptap JSON
+</code></pre>
+<p><strong>Tiptap JSON → Markdown（序列化方向）</strong>：</p>
+<pre><code>
+ProseMirror Node（Tiptap JSON）
+  → 遍歷節點樹
+  → 每個 Node/Mark 透過 Extension 的 markdown.serialize 方法輸出
+  → 組裝為 Markdown 字串
+</code></pre>
+<h3>4.2 MarkdownParser 實作要點</h3>
+<pre><code>
+class MarkdownParser {
+  constructor(editor, { html, linkify, breaks }) {
+    this.editor = editor;
+    this.md = markdownit({ html, linkify, breaks });
+  }
+  
+  parse(content, { inline } = {}) {
+    if (typeof content === 'string') {
+      // 1. 讓每個 Extension 設定 markdown-it 外掛
+      this.editor.extensionManager.extensions.forEach(extension =&gt;
+        getMarkdownSpec(extension)?.parse?.setup?.call(..., this.md)
+      );
+      // 2. markdown-it 渲染為 HTML
+      const renderedHTML = this.md.render(content);
+      const element = elementFromString(renderedHTML);
+      // 3. 各 Extension 可修改 DOM
+      // 4. 正規化 DOM（修正區塊嵌套、移除多餘換行）
+      this.normalizeDOM(element, { inline, content });
+      return element.innerHTML;  // 回傳 HTML 供 ProseMirror 解析
+    }
+    return content;  // 已經是 JSON 則直接回傳
+  }
+}
+</code></pre>
+<h3>4.3 常見 Markdown → Tiptap JSON 對應</h3>
+<p>| Markdown 語法 | Tiptap JSON Node/Mark |</p>
+<p>|---------------|----------------------|</p>
+<p>| <code># 標題</code> | <code>{ type: 'heading', attrs: { level: 1 } }</code> |</p>
+<p>| <code><strong>粗體</strong></code> | <code>{ type: 'text', marks: [{ type: 'bold' }] }</code> |</p>
+<p>| <code><em>斜體</em></code> | <code>{ type: 'text', marks: [{ type: 'italic' }] }</code> |</p>
+<p>| <code><a href="url">連結</a></code> | <code>{ type: 'text', marks: [{ type: 'link', attrs: { href: url } }] }</code> |</p>
+<p>| `<code> </code>程式碼<code> </code><code> | </code>{ type: 'text', marks: [{ type: 'code' }] }` |</p>
+<p>| <code>- 列表</code> | <code>{ type: 'bulletList', content: [{ type: 'listItem', content: [...] }] }</code> |</p>
+<p>| <code>> 引用</code> | <code>{ type: 'blockquote', content: [...] }</code> |</p>
+<p>| <code> </code>`<code> </code> | <code>{ type: 'codeBlock', content: [{ type: 'text', text: '...' }] }</code> |</p>
+<p>| <code>---</code> | <code>{ type: 'horizontalRule' }</code> |</p>
+<p>| <code>!<a href="url">圖片</a></code> | <code>{ type: 'image', attrs: { src: url, alt: '圖片' } }</code> |</p>
+<p>| 表格 | <code>{ type: 'table', content: [{ type: 'tableRow', content: [...] }] }</code> |</p>
+<p>---</p>
+<h2>五、協作編輯（Yjs 整合）</h2>
+<h3>5.1 ProseMirror 協作編輯原理</h3>
+<p>ProseMirror 的協作編輯基於 <strong>OT（Operational Transformation）</strong> 概念：</p>
+<ol>
+<li>各客戶端的變更立即套用到本地文件</li>
+<li>變更（Steps）發送到中央權威（Authority）</li>
+<li>權威決定變更的應用順序</li>
+<li>被拒絕的變更需要在其他變更之上 <strong>rebase</strong> 後重新提交</li>
+<li>所有文件最終收斂到一致狀態</li>
+</ol>
+<h3>5.2 Yjs 與 Tiptap</h3>
+<p>Yjs 是最流行的 CRDT 框架，與 Tiptap 的整合透過 <code>@tiptap/extension-collaboration</code>：</p>
+<ul>
+<li>Yjs 使用 CRDT 而非 OT，無需中央權威</li>
+<li>支援離線編輯與自動合併</li>
+<li><code>y-prosemirror</code> 提供 ProseMirror 外掛</li>
+<li><code>y-websocket</code> / <code>y-webrtc</code> 提供傳輸層</li>
+</ul>
+<p>---</p>
+<h2>六、最佳實踐與常見陷阱</h2>
+<h3>6.1 Markdown 輸入最佳實踐</h3>
+<ol>
+<li><strong>使用標準 Markdown 語法</strong>：避免非標準擴展語法（如某些 Wiki 語法），markdown-it 預設不支援</li>
+<li><strong>正確的巢狀結構</strong>：列表內的段落需要正確縮排（4 空格或 1 tab）</li>
+<li><strong>避免 HTML 混合</strong>：除非 <code>html: true</code>，否則 HTML 標籤會被當作純文字</li>
+<li><strong>空行很重要</strong>：段落之間需要空行分隔，否則會被合併為單一段落</li>
+<li><strong>程式碼區塊用三個反引號</strong>：且反引號後可加語言標記（如 ```javascript）</li>
+</ol>
+<h3>6.2 常見陷阱</h3>
+<p>| 陷阱 | 原因 | 解決方案 |</p>
+<p>|------|------|----------|</p>
+<p>| 巢狀列表顯示錯誤 | 縮排不一致 | 統一使用 2 或 4 空格縮排 |</p>
+<p>| 表格無法解析 | Tiptap 預設不含 Table 擴展 | 需安裝 @tiptap/extension-table |</p>
+<p>| 連結屬性丟失 | Schema 未定義 target 等屬性 | 在 Link 擴展中添加自訂屬性 |</p>
+<p>| 圖片尺寸不保留 | Schema 未定義 width/height | 自訂 Image Node 添加尺寸屬性 |</p>
+<p>| 程式碼區塊語言丟失 | CodeBlock 未配置語言屬性 | 使用 CodeBlockLowlight 擴展 |</p>
+<p>| 換行被吃掉 | markdown-it 預設將單換行視為空格 | 設定 <code>breaks: true</code> 或使用雙空格換行 |</p>
+<h3>6.3 效能注意事項</h3>
+<ul>
+<li>大型文件（>10000 節點）應考慮虛擬渲染</li>
+<li>頻繁更新使用 <code>editor.chain().focus().insertContent().run()</code> 批次操作</li>
+<li>JSON 序列化/反序列化比 HTML 更高效</li>
+<li>避免在 Transaction handler 中進行重量級計算</li>
+</ul>
+<p>---</p>
+<h2>七、與 daily-digest-prompt 知識庫的應用建議</h2>
+<h3>7.1 當前架構分析</h3>
+<p>本專案知識庫（localhost:3000）的資料流為：</p>
+<pre><code>
+Agent 產出 Markdown (contentText)
+  → POST /api/import
+  → 後端自動 Markdown → Tiptap JSON (content)
+  → 儲存到資料庫
+  → 前端用 Tiptap Editor 渲染
+</code></pre>
+<p><strong>關鍵發現</strong>：匯入時只需填 <code>contentText</code>（Markdown），<code>content</code>（Tiptap JSON）由後端自動生成。這意味著 Markdown 的品質直接決定了最終渲染效果。</p>
+<h3>7.2 Markdown 品質優化建議</h3>
+<ol>
+<li><strong>標題層級規範</strong>：研究筆記使用 H1 為標題、H2 為主要章節、H3 為子章節，不跳級</li>
+<li><strong>表格格式化</strong>：對齊 | 分隔符，確保表格正確解析</li>
+<li><strong>程式碼區塊</strong>：始終標注語言（``<code>javascript、</code>``python 等），確保語法高亮</li>
+<li><strong>列表一致性</strong>：全部使用 <code>-</code> 或全部使用 <code>*</code>，不混用</li>
+<li><strong>連結格式</strong>：使用 <code><a href="URL">文字</a></code> 而非裸 URL</li>
+<li><strong>避免過長行</strong>：超過 200 字元的段落應適當分段</li>
+<li><strong>圖片替代文字</strong>：<code>!<a href="URL">描述</a></code> 始終填寫描述</li>
+</ol>
+<h3>7.3 支援的 Markdown 語法清單</h3>
+<p>後端會自動將以下語法轉為 Tiptap JSON：</p>
+<ul>
+<li>標題（# ## ###）</li>
+<li>段落（空行分隔）</li>
+<li>粗體（<strong>text</strong>）</li>
+<li>斜體（<em>text</em>）</li>
+<li>行內程式碼（<code>code</code>）</li>
+<li>程式碼區塊（```）</li>
+<li>連結（<a href="url">text</a>）</li>
+<li>項目列表（- item）</li>
+<li>數字列表（1. item）</li>
+<li>引用區塊（> text）</li>
+<li>分隔線（---）</li>
+<li>表格（| col | col |）</li>
+</ul>
+<p>---</p>
+<h2>八、參考來源</h2>
+<ol>
+<li><strong>ProseMirror 官方指南</strong>：https://prosemirror.net/docs/guide/ —— Document Model、Schema、Transform、Collaborative Editing 完整說明</li>
+<li><strong>Tiptap 官方文件</strong>：https://tiptap.dev/docs —— Extension 架構、API Reference、Core Concepts</li>
+<li><strong>Tiptap 原始碼（types.ts）</strong>：https://github.com/ueberdosis/tiptap —— JSONContent 型別定義、EditorOptions、Event 系統</li>
+<li><strong>tiptap-markdown 原始碼</strong>：https://github.com/aguingand/tiptap-markdown —— Markdown Parser/Serializer 實作</li>
+<li><strong>ProseMirror Schema Basic</strong>：https://github.com/prosemirror/prosemirror-schema-basic —— 基本 Schema 定義參考</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

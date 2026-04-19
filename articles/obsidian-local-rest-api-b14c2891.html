@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Obsidian Local REST API 設定指南 — 從安裝到專案整合的完整流程">
+  <title>Obsidian Local REST API 設定指南 — 從安裝到專案整合的完整流程 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Obsidian Local REST API 設定指南 — 從安裝到專案整合的完整流程</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Obsidian</span><span class="tag">API</span><span class="tag">Local REST API</span><span class="tag">設定指南</span><span class="tag">專案優化</span><span class="tag">自動化整合</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Obsidian Local REST API 設定指南</h1>
+<h2>概述</h2>
+<p>Obsidian Local REST API 是由 coddingtonbear 開發的社群插件，透過本機 REST API 讓外部程式（如 AI Agent、自動化腳本）安全地讀寫 Obsidian Vault 筆記。本專案（daily-digest-prompt）已建立完整的 Skill 支援（obsidian-api、obsidian-memory），但缺少實際的插件安裝與 API Key 設定。</p>
+<h2>安裝步驟</h2>
+<h3>1. 安裝 Local REST API 插件</h3>
+<ol>
+<li>開啟 Obsidian → Settings → Community Plugins</li>
+<li>關閉 Safe Mode（若尚未關閉）</li>
+<li>點擊 Browse，搜尋「Local REST API」</li>
+<li>找到 coddingtonbear 的版本，點擊 Install → Enable</li>
+</ol>
+<h3>2. 取得 API Key</h3>
+<ul>
+<li>安裝後進入 Settings → Local REST API</li>
+<li>插件首次載入時會自動生成 256-bit API Key（SHA-256 hash，64 字元十六進位字串）</li>
+<li>在設定頁面可直接複製 API Key</li>
+</ul>
+<h3>3. 網路配置</h3>
+<p>| 設定項 | 預設值 | 說明 |</p>
+<p>|--------|--------|------|</p>
+<p>| HTTPS Port | 27124 | 加密端口（預設啟用） |</p>
+<p>| HTTP Port | 27123 | 未加密端口（預設停用） |</p>
+<p>| Binding Host | 127.0.0.1 | 僅本機存取 |</p>
+<p>| Enable HTTPS | true | 使用自簽憑證 |</p>
+<p>| Enable HTTP | false | 需手動啟用 |</p>
+<h3>4. 憑證管理</h3>
+<ul>
+<li>自簽 X.509 憑證，RSA 2048-bit，有效期 365 天</li>
+<li>curl 需加 <code>-k</code>（<code>--insecure</code>）跳過憑證驗證</li>
+<li>可從 <code>https://127.0.0.1:27124/obsidian-local-rest-api-certificate.crt</code> 下載憑證並信任</li>
+</ul>
+<h2>專案整合設定（daily-digest-prompt）</h2>
+<h3>.env 設定</h3>
+<pre><code>
+OBSIDIAN_API_KEY=your-64-char-hex-key-here
+</code></pre>
+<h3>依賴配置（config/dependencies.yaml）</h3>
+<p>專案已配置完成：</p>
+<ul>
+<li><code>skills.obsidian_api.api.base_url</code>: <code>https://127.0.0.1:27124</code></li>
+<li><code>skills.obsidian_api.api.base_url_http</code>: <code>http://127.0.0.1:27123</code></li>
+<li><code>skills.obsidian_api.api.auth_env</code>: <code>OBSIDIAN_API_KEY</code></li>
+<li><code>skills.obsidian_api.memory_folder</code>: <code>daily-digest</code></li>
+</ul>
+<h3>可用性檢查（每次使用前必做）</h3>
+<pre><code>
+OBSIDIAN_BASE=$(uv run python -X utf8 -c \
+  "import yaml; d=yaml.safe_load(open('config/dependencies.yaml')); \
+   print(d['skills']['obsidian_api']['api']['base_url'])" 2&gt;/dev/null \
+  || echo "https://127.0.0.1:27124")
+OBSIDIAN_KEY=$(grep '^OBSIDIAN_API_KEY=' .env 2&gt;/dev/null | cut -d= -f2 | tr -d '\r')
+OBSIDIAN_OK=$(curl -sk --max-time 3 "$OBSIDIAN_BASE/" \
+  -H "Authorization: Bearer $OBSIDIAN_KEY" \
+  | grep -c '"ok":true' 2&gt;/dev/null || echo "0")
+</code></pre>
+<h3>Vault 記憶結構</h3>
+<pre><code>
+daily-digest/
+  memory/
+    research/     ← 研究記憶筆記
+    podcast/      ← Podcast 記憶筆記
+    tasks/        ← 任務記憶筆記
+    summaries/    ← 週/月彙整摘要
+</code></pre>
+<h2>API 端點速查</h2>
+<p>| 端點 | 方法 | 用途 |</p>
+<p>|------|------|------|</p>
+<p>| <code>/</code> | GET | 健康檢查（無需 auth） |</p>
+<p>| <code>/vault/{path}</code> | GET/PUT/POST/PATCH/DELETE | 筆記 CRUD |</p>
+<p>| <code>/vault/{dir}/</code> | GET | 列出目錄 |</p>
+<p>| <code>/search/simple/</code> | POST | 全文搜尋 |</p>
+<p>| <code>/search/</code> | POST | DQL/JsonLogic 搜尋 |</p>
+<p>| <code>/tags/</code> | GET | 所有標籤與使用次數 |</p>
+<p>| <code>/commands/</code> | GET | 可用命令列表 |</p>
+<p>| <code>/commands/{id}/</code> | POST | 執行命令 |</p>
+<p>| <code>/active/</code> | GET/PUT/PATCH/POST/DELETE | 當前開啟的筆記 |</p>
+<h2>認證方式</h2>
+<p>所有端點（除 <code>GET /</code>）需 Bearer Token：</p>
+<pre><code>
+Authorization: Bearer &lt;your-api-key&gt;
+</code></pre>
+<h2>進階設定（隱藏選項）</h2>
+<p>需在 Settings → Local REST API 中開啟「Show advanced settings」：</p>
+<ul>
+<li>自訂 HTTPS/HTTP 端口</li>
+<li>修改 API Key</li>
+<li>配置憑證 SAN（Subject Alternative Names）</li>
+<li>修改 Authorization Header 名稱</li>
+<li>修改 Binding Host（<code>0.0.0.0</code> 開放網路存取，有安全風險）</li>
+</ul>
+<h2>相關整合方案</h2>
+<ul>
+<li><strong>MCP 整合</strong>：使用 mcp-obsidian（MarkusPfundstein）或 Claudesidian MCP 將 Obsidian 接入 Claude</li>
+<li><strong>Dataview Plugin</strong>：安裝後可使用 DQL 進階查詢（本專案 obsidian-memory Skill 使用）</li>
+<li><strong>Obsidian MCP Server Enhanced</strong>：提供更全面的 MCP 存取功能</li>
+</ul>
+<h2>故障排除</h2>
+<p>| 問題 | 解決方式 |</p>
+<p>|------|----------|</p>
+<p>| 連線拒絕 | 確認 Obsidian 桌面 App 已開啟 |</p>
+<p>| 401 Unauthorized | 檢查 .env 中 OBSIDIAN_API_KEY 是否正確 |</p>
+<p>| 憑證錯誤 | curl 加 <code>-k</code> 或信任自簽憑證 |</p>
+<p>| HTTP 端口無回應 | 需在插件設定中手動啟用 HTTP Server |</p>
+<p>| DQL 查詢失敗 | 安裝 Dataview plugin 或改用 /search/simple/ |</p>
+<h2>來源</h2>
+<ul>
+<li>GitHub: coddingtonbear/obsidian-local-rest-api</li>
+<li>DeepWiki: Installation and Configuration</li>
+<li>Interactive API Documentation: coddingtonbear.github.io/obsidian-local-rest-api/</li>
+<li>Obsidian Forum: How to find your API Key</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

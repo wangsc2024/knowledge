@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenClaw — 開源個人 AI 助手深度洞察：Gateway Control Plane 六角架構、動態 Skill 注入、Hybrid Memory（JSONL+Markdown+SQLite Vector）、三層沙箱信任邊界與對 Daily-Digest-Prompt 系統的六大借鑑啟示（247K Stars, 2026-03）">
+  <title>OpenClaw — 開源個人 AI 助手深度洞察：Gateway Control Plane 六角架構、動態 Skill 注入、Hybrid Memory（JSONL+Markdown+SQLite Vector）、三層沙箱信任邊界與對 Daily-Digest-Prompt 系統的六大借鑑啟示（247K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>OpenClaw — 開源個人 AI 助手深度洞察：Gateway Control Plane 六角架構、動態 Skill 注入、Hybrid Memory（JSONL+Markdown+SQLite Vector）、三層沙箱信任邊界與對 Daily-Digest-Prompt 系統的六大借鑑啟示（247K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">OpenClaw</span><span class="tag">AI Agent</span><span class="tag">Gateway架構</span><span class="tag">Skill系統</span><span class="tag">Hybrid Memory</span><span class="tag">沙箱安全</span><span class="tag">六角架構</span><span class="tag">開源專案</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>OpenClaw — 開源個人 AI 助手深度洞察</h1>
+<h2>Gateway Control Plane 六角架構、動態 Skill 注入、Hybrid Memory（JSONL+Markdown+SQLite Vector）、三層沙箱信任邊界與對 Daily-Digest-Prompt 系統的六大借鑑啟示</h2>
+<p>研究日期：2026-03-10</p>
+<p>研究類型：GitHub 熱門專案深度分析</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p><strong>OpenClaw</strong>（<a href="https://github.com/openclaw/openclaw">openclaw/openclaw</a>）是由 Peter Steinberger 發起的開源個人 AI 助手平台，定位為「Your own personal AI assistant — Any OS, Any Platform」。截至 2026 年 3 月已累積 <strong>247,000+ Stars</strong>、47,700+ Forks，採用 MIT 授權，是 <strong>GitHub 史上成長最快的開源專案</strong>——60 天內從 9,000 飆升至 188,000 Stars。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 247,000+ |</p>
+<p>| Forks | 47,700+ |</p>
+<p>| 授權 | MIT |</p>
+<p>| 語言 | TypeScript（Node.js 22+） |</p>
+<p>| 支援通道 | 23+（WhatsApp、Telegram、Discord、Slack、Signal、iMessage、Teams 等） |</p>
+<p>| 社群 Skills | 100+（ClawHub 註冊表） |</p>
+<p>| 記憶體後端 | SQLite + sqlite-vec 向量擴充 |</p>
+<p>| 部署方式 | 本機 / VPS / Docker / Fly.io |</p>
+<h3>為何爆紅</h3>
+<p>OpenClaw 填補了一個市場空缺：<strong>將 AI Agent 能力注入用戶已在使用的通訊平台</strong>，而非要求用戶切換到新介面。它不是又一個 ChatGPT 替代品，而是一個<strong>自託管的 AI 閘道器（Gateway）</strong>，讓任何 LLM（Claude、GPT、Gemini、本地模型）都能透過你慣用的聊天 App 與你互動、替你執行任務。2026 年 2 月 14 日，創辦人 Steinberger 宣布加入 OpenAI，專案將移交開源基金會管理。</p>
+<p>---</p>
+<h2>二、核心架構：六角架構的 AI Agent 實踐</h2>
+<p>OpenClaw 的架構本質是一個 <strong>Hexagonal Architecture（六角架構 / Ports & Adapters）</strong>，將「AI 推理核心」與「外部通道」完全解耦。</p>
+<h3>2.1 架構四大層</h3>
+<pre><code>
+┌─────────────────────────────────────────────┐
+│  Channel Adapters（23+ 平台介面卡）          │
+│  WhatsApp │ Telegram │ Discord │ iMessage... │
+├─────────────────────────────────────────────┤
+│  Gateway Control Plane（WebSocket 中樞）     │
+│  路由 │ Session │ ACL │ Health │ Cron        │
+├─────────────────────────────────────────────┤
+│  Agent Runtime（PiEmbeddedRunner）           │
+│  Context Assembly │ LLM │ Tool Exec │ State │
+├─────────────────────────────────────────────┤
+│  Storage Layer                               │
+│  Sessions(JSON) │ Memory(SQLite) │ Creds     │
+└─────────────────────────────────────────────┘
+</code></pre>
+<p>#### 層一：Channel Adapters（通道介面卡）</p>
+<p>每個通訊平台有獨立介面卡，負責：</p>
+<ul>
+<li><strong>認證</strong>：WhatsApp 用 QR Code（Baileys）、Telegram/Discord 用 Bot Token、iMessage 用原生整合</li>
+<li><strong>訊息正規化</strong>：文字提取、媒體附件、執行緒上下文、表情反應</li>
+<li><strong>存取控制</strong>：白名單、DM 配對策略（pairing/open/disabled）、群組 @mention 要求</li>
+<li><strong>輸出格式化</strong>：Markdown 轉換、訊息分割、媒體上傳、打字指示器</li>
+</ul>
+<p>#### 層二：Gateway Control Plane</p>
+<p>核心中樞（<code>src/gateway/server.ts</code>），Node.js 22+ 運行，預設綁定 <code>127.0.0.1:18789</code>：</p>
+<ul>
+<li><strong>Typed WebSocket 協議</strong>：所有通訊框架經 JSON Schema 驗證</li>
+<li><strong>事件驅動</strong>：訂閱 <code>agent</code>、<code>presence</code>、<code>health</code>、<code>tick</code> 四類事件</li>
+<li><strong>冪等性保證</strong>：所有副作用操作需攜帶 idempotency key</li>
+<li><strong>Session 路由</strong>：DM → <code>main</code>（完整權限）、Channel DM → <code>dm:<channel>:<id></code>（沙箱）、群組 → <code>group:<channel>:<id></code>（沙箱）</li>
+</ul>
+<p>#### 層三：Agent Runtime</p>
+<p><code>PiEmbeddedRunner</code>（<code>src/agents/piembeddedrunner.ts</code>）執行 AI 迴圈：</p>
+<ol>
+<li><strong>Context Assembly</strong>：載入 session JSON → 組合動態 System Prompt → 注入相關 Skills + 記憶搜尋結果 → 自動壓縮舊 turns</li>
+<li><strong>System Prompt 組合順序</strong>：<code>AGENTS.md</code>（核心基線）→ <code>SOUL.md</code>（個性語調）→ <code>TOOLS.md</code>（工具慣例）→ <code>skills/<skill>/SKILL.md</code>（動態選擇）→ Memory 搜尋結果 → Tool 定義</li>
+<li><strong>串流執行</strong>：逐 token 串流 → 即時攔截 tool calls → Docker 沙箱執行 → 將 tool 結果串流回生成中的回應</li>
+</ol>
+<p>#### 層四：Storage Layer</p>
+<pre><code>
+~/.openclaw/
+├── openclaw.json          # 全域配置（JSON5）
+├── sessions/              # Session 狀態（append-only event log）
+├── memory/&lt;agentId&gt;.sqlite # 記憶（向量嵌入 + FTS5）
+├── credentials/           # 憑證（0600 權限）
+└── agents/&lt;agentId&gt;/
+    ├── MEMORY.md           # 長期記憶（策展事實）
+    └── memory/YYYY-MM-DD.md # 每日活動日誌
+</code></pre>
+<h3>2.2 六階段訊息處理管線</h3>
+<p>| 階段 | 名稱 | 延遲 |</p>
+<p>|------|------|------|</p>
+<p>| Phase 1 | <strong>Ingestion</strong>：Baileys/grammY/discord.js 接收平台事件，介面卡提取文字與元資料 | — |</p>
+<p>| Phase 2 | <strong>Access Control</strong>：白名單檢查、DM 配對驗證、Session 路由 | <10ms |</p>
+<p>| Phase 3 | <strong>Context Assembly</strong>：載入 Session、組合 Prompt、查詢記憶搜尋 | <100ms |</p>
+<p>| Phase 4 | <strong>Model Invocation</strong>：串流 context 至 LLM 提供者（Claude/GPT/Gemini/本地） | 200-500ms |</p>
+<p>| Phase 5 | <strong>Tool Execution</strong>：攔截並執行 bash/browser/file 操作，處理 Docker 沙箱 | 100ms-3s |</p>
+<p>| Phase 6 | <strong>Response Delivery</strong>：依平台限制格式化回應，持久化 Session 狀態 | — |</p>
+<p>---</p>
+<h2>三、三大技術亮點深度剖析</h2>
+<h3>3.1 動態 Skill 注入（Smart Skill Selection）</h3>
+<p>OpenClaw <strong>不會</strong>將所有 Skill 一次性注入 prompt。而是：</p>
+<ol>
+<li>Runtime 分析當前 turn 的語義意圖</li>
+<li>從 Skill 註冊表中選擇性注入<strong>僅相關的</strong> Skill</li>
+<li>避免 prompt 膨脹導致模型效能下降</li>
+</ol>
+<p>這解決了 Agent 系統的經典難題：<strong>Skill 數量增長 vs. Context Window 有限</strong>。當 Skill 從 10 個成長到 100+ 個時，全量注入會耗盡 context 並降低推理品質。OpenClaw 的動態注入策略讓 Skill 數量可以無限擴展而不犧牲效能。</p>
+<h3>3.2 Hybrid Memory 架構</h3>
+<p>OpenClaw 的記憶系統結合三種儲存機制：</p>
+<p>| 機制 | 格式 | 用途 |</p>
+<p>|------|------|------|</p>
+<p>| Event Log | JSONL | 每個事件的完整審計軌跡 |</p>
+<p>| Long-term Knowledge | Markdown | 策展後的長期知識（<code>MEMORY.md</code> + 每日日誌） |</p>
+<p>| Vector + FTS | SQLite + sqlite-vec + FTS5 | 混合搜尋（語義 + 關鍵字） |</p>
+<p><strong>Hybrid Search 權重配置</strong>：</p>
+<ul>
+<li><strong>向量搜尋</strong>（預設 70%）：cosine similarity，處理語義相近但措辭不同的查詢</li>
+<li><strong>BM25 關鍵字搜尋</strong>（預設 30%）：FTS5 全文搜尋，擅長錯誤碼、函式名稱、唯一識別符</li>
+</ul>
+<p><strong>QMD 本地推理引擎</strong>：透過 Bun + node-llama-cpp 全本地運行，自動從 HuggingFace 下載 GGUF 模型。每個 Agent 在 <code>~/.openclaw/agents/<agentId>/qmd/</code> 下有自己的 XDG home。</p>
+<h3>3.3 三層沙箱信任邊界</h3>
+<pre><code>
+信任等級高 ────────────────────────── 信任等級低
+  main（操作者）  →  dm（已配對聯絡人）  →  group（群組成員）
+  完整主機存取      Docker 沙箱           Docker 沙箱
+  所有工具          受限工具              受限工具
+</code></pre>
+<p><strong>沙箱模式三級</strong>：</p>
+<ol>
+<li><strong>Off</strong>：無容器隔離</li>
+<li><strong>Non-main</strong>（預設）：群組和次要 session 在隔離容器中執行，主 session 保留主機存取</li>
+<li><strong>All</strong>：所有 tool 執行皆容器化</li>
+</ol>
+<p><strong>Tool Policy 優先級鏈</strong>（7 層）：</p>
+<p>Tool Profile → Provider Profile → Global Policy → Provider Policy → Agent Policy → Group Policy → Sandbox Policy</p>
+<p><strong>Network 安全</strong>：</p>
+<ul>
+<li>預設只綁定 localhost（127.0.0.1）</li>
+<li>遠端存取建議 SSH Tunnel 或 Tailscale Serve</li>
+<li>非 loopback 連線需 challenge-response 簽章 + 明確核准</li>
+<li>DM 配對需一次性確認碼</li>
+</ul>
+<p>---</p>
+<h2>四、對 Daily-Digest-Prompt 系統的六大借鑑啟示</h2>
+<h3>啟示 1：Gateway Control Plane → 統一調度中樞</h3>
+<p><strong>OpenClaw 做法</strong>：單一 Gateway 管理所有通道路由、Session 生命週期、健康監控</p>
+<p><strong>我們可借鏡</strong>：目前 <code>run-agent-team.ps1</code>、<code>run-todoist-agent-team.ps1</code>、<code>run-system-audit-team.ps1</code> 各自獨立，缺乏統一的 Control Plane。可考慮抽象出一個「Gateway 調度層」，統一管理：</p>
+<ul>
+<li>Phase 0 預計算</li>
+<li>子 Agent 生命週期</li>
+<li>健康監控與斷路器</li>
+<li>結果收集與組裝</li>
+</ul>
+<p><strong>預期效益</strong>：減少 3 個 team 腳本的重複程式碼（目前 Set-FsmState、circuit-breaker 邏輯重複）。</p>
+<h3>啟示 2：動態 Skill 注入 → 智慧 Skill 路由</h3>
+<p><strong>OpenClaw 做法</strong>：根據當前 turn 語義，只注入相關 Skill 的 SKILL.md</p>
+<p><strong>我們可借鏡</strong>：目前 Skill-First 策略要求「先讀 SKILL_INDEX.md」，但所有 Skill 資訊都載入 context。可改為：</p>
+<ol>
+<li>SKILL_INDEX 只載入觸發關鍵字索引（輕量）</li>
+<li>根據任務 labels/keywords 動態決定載入哪些 SKILL.md</li>
+<li>特別適用於 Todoist 路由：目前 <code>routing.yaml</code> 已有模板選擇邏輯，可進一步延伸到 Skill 層面</li>
+</ol>
+<p><strong>預期效益</strong>：減少每次執行的 context 消耗（目前 26 個專案 Skill 全量載入相當浪費）。</p>
+<h3>啟示 3：Hybrid Memory → 增強跨次記憶</h3>
+<p><strong>OpenClaw 做法</strong>：JSONL event log + Markdown 長期知識 + SQLite 向量/FTS5 混合搜尋（70/30 權重）</p>
+<p><strong>我們可借鏡</strong>：目前系統的記憶分散在多處：</p>
+<ul>
+<li><code>context/digest-memory.json</code>（結構化 JSON）</li>
+<li><code>context/research-registry.json</code>（研究註冊表）</li>
+<li>知識庫 localhost:3000（SQLite + 向量搜尋）</li>
+<li><code>state/*.json</code>（各種狀態檔）</li>
+</ul>
+<p>可考慮引入 <strong>統一記憶層</strong>，將各 context JSON 的查詢統一為語義搜尋介面，讓 Agent 不需知道具體檔案位置就能檢索相關記憶。</p>
+<p><strong>預期效益</strong>：降低 prompt 中「必須 Read 特定檔案」的硬編碼依賴。</p>
+<h3>啟示 4：三層信任邊界 → Hook Security Preset 進化</h3>
+<p><strong>OpenClaw 做法</strong>：main/dm/group 三層，每層有獨立的 Tool Policy 和沙箱配置</p>
+<p><strong>我們可借鏡</strong>：目前 <code>hook-rules.yaml</code> 有 strict/normal/permissive 三個 preset，但切換是手動的（環境變數 <code>HOOK_SECURITY_PRESET</code>）。可改為：</p>
+<ol>
+<li><strong>排程任務</strong>（無人值守）→ 自動 strict</li>
+<li><strong>互動模式</strong>（用戶在線）→ normal</li>
+<li><strong>開發模式</strong>（本地測試）→ permissive</li>
+</ol>
+<p>自動根據執行環境決定信任等級，而非依賴手動設定。</p>
+<p><strong>預期效益</strong>：消除排程任務忘記設定 strict preset 的風險。</p>
+<h3>啟示 5：Typed Protocol + Idempotency → 可靠性提升</h3>
+<p><strong>OpenClaw 做法</strong>：所有 WebSocket 框架經 JSON Schema 驗證，副作用操作需 idempotency key</p>
+<p><strong>我們可借鏡</strong>：目前 <code>results/*.json</code> 的寫入沒有 schema 驗證，偶爾出現格式不一致。可引入：</p>
+<ol>
+<li>結果檔案 JSON Schema（<code>config/result-schema.json</code>）</li>
+<li>寫入前驗證，不合格則拒絕</li>
+<li>Phase 間交接的 idempotency 保證（防止重複執行同一任務）</li>
+</ol>
+<p><strong>預期效益</strong>：減少 Phase 3 組裝失敗的根因之一（結果檔格式不符）。</p>
+<h3>啟示 6：Plugin 熱載入 → Skill 即插即用</h3>
+<p><strong>OpenClaw 做法</strong>：<code>extensions/</code> 目錄 + <code>package.json</code> 的 <code>openclaw.extensions</code> 欄位，runtime 掃描並熱載入</p>
+<p><strong>我們可借鏡</strong>：目前新增 Skill 需要：修改 <code>skills/SKILL_INDEX.md</code> → 修改 <code>config/routing.yaml</code> → 修改 <code>config/frequency-limits.yaml</code> → 可能修改 team prompt。可改為：</p>
+<ol>
+<li>每個 Skill 目錄下的 <code>SKILL.md</code> frontmatter 就是完整的註冊資訊</li>
+<li>建立 Skill Discovery 機制，自動掃描 <code>skills/*/SKILL.md</code> 建立索引</li>
+<li>新增 Skill 只需放置目錄，無需修改其他配置</li>
+</ol>
+<p><strong>預期效益</strong>：從「新增 Skill 要改 4 個地方」降為「放好 SKILL.md 就生效」。</p>
+<p>---</p>
+<h2>五、品質自評</h2>
+<pre><code>
+{
+  "research_topic": "OpenClaw — 開源個人 AI 助手",
+  "queries_used": [
+    "GitHub trending repositories March 2026 most starred AI open source",
+    "OpenClaw GitHub AI assistant open source architecture 2026",
+    "OpenClaw architecture gateway skill system memory design technical deep dive"
+  ],
+  "sources_count": 6,
+  "grade_distribution": {"A": 3, "B": 2, "C": 1, "D": 0},
+  "cross_verified_facts": 5,
+  "unverified_claims": 0,
+  "research_depth": "thorough",
+  "confidence_level": "high"
+}
+</code></pre>
+<p>---</p>
+<h2>六、來源</h2>
+<ol>
+<li><a href="https://github.com/openclaw/openclaw">OpenClaw GitHub 官方 Repo</a> — 品質 A | 2026-03</li>
+<li><a href="https://ppaolo.substack.com/p/openclaw-system-architecture-overview">OpenClaw Architecture, Explained: How It Works</a> — 品質 B | 2026-02</li>
+<li><a href="https://nebius.com/blog/posts/openclaw-security">OpenClaw security: architecture and hardening guide</a> — 品質 A | 2026-03</li>
+<li><a href="https://www.digitalocean.com/resources/articles/what-is-openclaw">What is OpenClaw? (DigitalOcean)</a> — 品質 A | 2026</li>
+<li><a href="https://www.buildmvpfast.com/blog/best-open-source-ai-projects-github-2026">Top 10 Open-Source AI Projects Trending on GitHub 2026</a> — 品質 B | 2026-03</li>
+<li><a href="https://dextralabs.com/blog/what-is-openclaw-self-hosted-ai-agent-2026/">What Is OpenClaw? The Self-Hosted AI Agent (DextraLabs)</a> — 品質 C | 2026</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

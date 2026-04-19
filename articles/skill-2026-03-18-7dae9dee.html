@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-18）：pre-flight-check + todo-scanner 深度審查">
+  <title>Skill 品質審查報告（2026-03-18）：pre-flight-check + todo-scanner 深度審查 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-18）：pre-flight-check + todo-scanner 深度審查</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">pre-flight-check</span><span class="tag">todo-scanner</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-18）</h1>
+<h2>審查對象</h2>
+<ol>
+<li><strong>pre-flight-check</strong> — 執行前飛行檢查（草稿）</li>
+<li><strong>todo-scanner</strong> — TODO/FIXME 自動掃描與分類清理（草稿）</li>
+</ol>
+<h2>審查理由</h2>
+<p>兩個 Skill 均為草稿狀態，且在系統穩定性和程式碼品質方面扮演重要角色。pre-flight-check 負責預防性健康檢查，todo-scanner 支援 ADR-017 技術債清理計畫。</p>
+<p>---</p>
+<h2>pre-flight-check 深度審查</h2>
+<h3>審查結果</h3>
+<p>| 檢查項 | 狀態 | 備註 |</p>
+<p>|--------|------|------|</p>
+<p>| Frontmatter 規範性 | ✅ | name/description/allowed-tools/cache-ttl 正確 |</p>
+<p>| 內容品質 | ✅ | 步驟清晰（0-5）、範例完整、降級機制詳盡 |</p>
+<p>| 路由一致性 | ⚠️ | 觸發關鍵字正確，但需確認實際使用情況 |</p>
+<p>| 覆蓋度分析 | ⚠️ | 草稿狀態，可能未被排程腳本整合 |</p>
+<h3>發現問題</h3>
+<ol>
+<li><strong>depends-on 包含非 Skill 依賴</strong>：<code>config/dependencies.yaml</code> 不是 Skill，應移除</li>
+<li><strong>依賴注入未完全實施</strong>：文件提到依賴注入，但實際步驟中硬編碼端點 URL（http://localhost:3000、http://localhost:3002）</li>
+</ol>
+<h3>修正動作</h3>
+<p>#### 修正 1：移除非 Skill 依賴</p>
+<pre><code>
+ depends-on:
+   - scheduler-state
+   - api-cache
+-  - config/dependencies.yaml
+</code></pre>
+<p><strong>理由</strong>：depends-on 僅用於 Skill 間依賴，配置檔案依賴應在文件中說明即可。</p>
+<h3>建議改進</h3>
+<ol>
+<li><strong>實際整合測試</strong>：在 <code>run-todoist-agent-team.ps1</code> 中整合 Phase 0.5（pre-flight check）</li>
+<li><strong>端點依賴注入</strong>：步驟 1 的 curl 命令應從 <code>config/dependencies.yaml</code> 讀取端點，而非硬編碼</li>
+<li><strong>版本升級</strong>：完成整合測試後，升級至 v1.0.0（移除草稿標記）</li>
+</ol>
+<p>---</p>
+<h2>todo-scanner 深度審查</h2>
+<h3>審查結果</h3>
+<p>| 檢查項 | 狀態 | 備註 |</p>
+<p>|--------|------|------|</p>
+<p>| Frontmatter 規範性 | ⚠️ | cache-ttl 原為 N/A，應設定快取 |</p>
+<p>| 內容品質 | ⚠️ | Python 腳本有語法錯誤 |</p>
+<p>| 路由一致性 | ✅ | 觸發關鍵字完整，與 ADR-017 對應清晰 |</p>
+<p>| 覆蓋度分析 | ✅ | 支援 ADR-017 技術債清理計畫 |</p>
+<h3>發現問題</h3>
+<ol>
+<li><strong>cache-ttl 缺失</strong>：掃描結果可快取 30 分鐘，避免短時間內重複掃描</li>
+<li><strong>Python 腳本語法錯誤</strong>：步驟 2 中 <code>$(date -u ...)</code> 為 shell 語法，在 Python 字串中會失敗</li>
+<li><strong>depends-on 缺失</strong>：應依賴 system-insight（用於整合系統審查）</li>
+</ol>
+<h3>修正動作</h3>
+<p>#### 修正 1：設定快取策略</p>
+<pre><code>
+-cache-ttl: "N/A"
++cache-ttl: "30min"
+</code></pre>
+<p><strong>理由</strong>：掃描結果在 30 分鐘內不會有顯著變化，設定快取可減少重複計算。</p>
+<p>#### 修正 2：修正 Python 日期格式錯誤</p>
+<pre><code>
++from datetime import datetime, timezone
++
+ report = {
+-    'scan_date': '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
++    'scan_date': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+     'total': data['total'],
+</code></pre>
+<p><strong>理由</strong>：shell 語法 <code>$(...)</code> 在 Python 字串中無法執行，改用 datetime 模組。</p>
+<p>#### 修正 3：添加 Skill 依賴</p>
+<pre><code>
+-depends-on: []
++depends-on:
++  - system-insight
+</code></pre>
+<p><strong>理由</strong>：todo-scanner 結果應整合至 system-insight 的系統健康報告。</p>
+<h3>建議改進</h3>
+<ol>
+<li><strong>整合至 check-health.ps1</strong>：新增 <code>[TODO/FIXME 衛生]</code> 區塊</li>
+<li><strong>排程定期掃描</strong>：建議每週自動掃描，追蹤清理進度</li>
+<li><strong>版本升級</strong>：完成整合測試後，升級至 v1.0.0（移除草稿標記）</li>
+</ol>
+<p>---</p>
+<h2>品質自評</h2>
+<p>| 指標 | 結果 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| 具體修正動作 | ✅ | 4 處修正（depends-on × 2、cache-ttl、Python 語法） |</p>
+<p>| 修正後通過驗證 | ✅ | Frontmatter YAML 可解析、Python 語法正確 |</p>
+<p>| 審查報告字數 | ✅ | 超過 300 字（含修正前後對比） |</p>
+<p>---</p>
+<h2>總結</h2>
+<p>本次審查針對兩個草稿 Skill 進行深度品質檢查，發現並修正 4 處問題：</p>
+<ol>
+<li><strong>pre-flight-check</strong>：移除非 Skill 依賴（config/dependencies.yaml）</li>
+<li><strong>todo-scanner</strong>：設定快取策略（30min）、修正 Python 日期格式、添加 system-insight 依賴</li>
+</ol>
+<p>所有修正已通過驗證，YAML frontmatter 格式正確，Python 語法無誤。建議後續：</p>
+<ul>
+<li>將兩個 Skill 整合至排程腳本和健康檢查流程</li>
+<li>完成整合測試後升級至 v1.0.0，移除草稿標記</li>
+<li>在 SKILL_INDEX.md 中移除 <code>[草稿]</code> 標記</li>
+</ul>
+<p>---</p>
+<p><strong>審查日期</strong>：2026-03-18  </p>
+<p><strong>審查 Skills</strong>：pre-flight-check, todo-scanner  </p>
+<p><strong>修正數量</strong>：4  </p>
+<p><strong>品質評分</strong>：4/5（草稿完善，待整合測試）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

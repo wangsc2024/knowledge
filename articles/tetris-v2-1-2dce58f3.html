@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Tetris v2.1 優化心得：成就解鎖系統與遊戲統計追蹤實作">
+  <title>Tetris v2.1 優化心得：成就解鎖系統與遊戲統計追蹤實作 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Tetris v2.1 優化心得：成就解鎖系統與遊戲統計追蹤實作</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">Tetris</span><span class="tag">成就系統</span><span class="tag">HTML5</span><span class="tag">JavaScript</span><span class="tag">Canvas</span><span class="tag">復古遊戲</span><span class="tag">localStorage</span><span class="tag">UX</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Tetris v2.1 優化心得：成就解鎖系統與遊戲統計追蹤實作</h1>
+<p><em>優化日期：2026-02-25</em></p>
+<p><em>遊戲路徑：D:\Source\game\tetris</em></p>
+<h2>優化方向</h2>
+<p>社交元素 + 玩法機制：為經典俄羅斯方塊加入<strong>成就解鎖系統</strong>和<strong>遊戲統計追蹤面板</strong>，提升遊戲粘性與成就感。</p>
+<h2>技術實作重點</h2>
+<h3>1. 成就系統架構</h3>
+<ul>
+<li>定義 12 個成就，涵蓋消行、Tetris、Combo、分數、等級五大維度</li>
+<li>每個成就有 <code>check(sessionStats)</code> 函式，接收當前 session 統計數據判定是否解鎖</li>
+<li>成就狀態持久化到 <code>localStorage</code>（key: <code>tetris_achievements</code>），跨遊戲保留</li>
+<li>使用 session-scoped 追蹤（<code>sessionStats</code>），每次 <code>startGame()</code> 重置</li>
+</ul>
+<h3>2. 成就觸發時機</h3>
+<p><code>checkAchievements()</code> 在三個關鍵時機呼叫：</p>
+<ol>
+<li><strong>消行後</strong>（<code>checkLines</code>）：追蹤消行數、Tetris 次數、分數、Combo</li>
+<li><strong>升級後</strong>（<code>checkLines</code> 中 level up 段落）：追蹤等級</li>
+<li><strong>硬降後</strong>（<code>hardDrop</code>）：分數可能在硬降時跨越閾值</li>
+</ol>
+<h3>3. Toast 通知佇列</h3>
+<ul>
+<li>使用 <code>achToastQueue</code> 陣列管理多個成就同時解鎖的情況</li>
+<li>每個 Toast 顯示 2.5 秒後消失，400ms 間隔後顯示下一個</li>
+<li>CSS transition 實現平滑的滑入/滑出動畫</li>
+<li>不干擾遊戲操作（<code>pointer-events: none</code>）</li>
+</ul>
+<h3>4. 統計資料追蹤</h3>
+<ul>
+<li><code>tetris_stats</code> localStorage key 儲存跨遊戲累計數據</li>
+<li>8 個統計指標：總遊戲次數、總分數、總消行、Tetris 次數、最高分、最高等級、最佳消行、最大 Combo</li>
+<li><code>endSessionStats()</code> 在遊戲結束時一次性寫入</li>
+</ul>
+<h3>5. UI 整合</h3>
+<ul>
+<li>開始畫面新增「統計」按鈕，進入統計 & 成就總覽</li>
+<li>遊戲結束畫面新增：消行數、最大連擊、本局解鎖的成就列表</li>
+<li>成就卡片：已解鎖顯示彩色 icon + 金色邊框，未解鎖灰色鎖頭</li>
+<li>成就解鎖有專屬 8-bit 音效（升序五音符 C5-E6 + 延音）</li>
+</ul>
+<h2>設計決策</h2>
+<ol>
+<li><strong>Session-scoped 成就判定</strong>：成就在單局遊戲中判定（如「一次消4行」），而非跨遊戲累計。這樣每局遊戲都有機會觸發成就，保持激勵感。</li>
+<li><strong>一次解鎖永久保留</strong>：成就只需解鎖一次，符合傳統遊戲成就系統設計。</li>
+<li><strong>12 個成就的難度階梯</strong>：從「首次消行」（新手秒解鎖）到「消行王者 200 行」（需要高水準長時間遊玩），覆蓋全技能範圍。</li>
+</ol>
+<h2>成就列表</h2>
+<p>| ID | 名稱 | 條件 | 難度 |</p>
+<p>|-----|------|------|------|</p>
+<p>| first_line | 首次消行 | 消除第一行 | 入門 |</p>
+<p>| first_tetris | TETRIS! | 一次消4行 | 初級 |</p>
+<p>| combo3 | 三連擊 | COMBO x3 | 初級 |</p>
+<p>| combo5 | 五連擊 | COMBO x5 | 中級 |</p>
+<p>| combo8 | 運算全開 | COMBO x8 | 困難 |</p>
+<p>| score10k | 萬分新秀 | 10,000 分 | 初級 |</p>
+<p>| score50k | 高手過招 | 50,000 分 | 中級 |</p>
+<p>| level5 | 進階者 | 等級 5 | 初級 |</p>
+<p>| level10 | 大師級 | 等級 10 | 中級 |</p>
+<p>| lines50 | 半百行 | 消除 50 行 | 中級 |</p>
+<p>| lines100 | 百行大關 | 消除 100 行 | 困難 |</p>
+<p>| lines200 | 消行王者 | 消除 200 行 | 極難 |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

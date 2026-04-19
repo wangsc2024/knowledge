@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent Context Window 治理與 I/O 預算監控最佳實踐（深度研究洞察簡報，2026-03-21）">
+  <title>Agent Context Window 治理與 I/O 預算監控最佳實踐（深度研究洞察簡報，2026-03-21） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent Context Window 治理與 I/O 預算監控最佳實踐（深度研究洞察簡報，2026-03-21）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">Agent 架構</span><span class="tag">Context Window</span><span class="tag">I/O Budget</span><span class="tag">Memory Management</span><span class="tag">可觀測性</span><span class="tag">系統治理</span><span class="tag">foundation</span><span class="tag">研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent Context Window 治理與 I/O 預算監控最佳實踐</h1>
+<blockquote><strong>深度研究洞察簡報</strong> | 2026-03-21</blockquote>
+<blockquote><strong>研究動機</strong>：系統洞察顯示 avg_io_per_call 達 26567 字元（超標 5.3 倍），威脅系統穩定性</blockquote>
+<h2>摘要（200 字）</h2>
+<p>本研究針對 Agent Context Window 治理與 I/O 預算監控進行跨來源調研，綜合分析 IBM、AWS、Microsoft、LangChain、Sentry 等 12 個 A 級來源與 12 個 B 級來源。核心發現：（1）Context Window 的「60-70% 法則」— 宣稱容量僅 60-70% 可穩定使用；（2）Memory 分層架構是業界標準（Message Buffer → Core → Recall → Archival）；（3）實時預算監控已是生產必備，支援 per-trace 成本歸因與告警；（4）Context Compression 需要閾值觸發機制；（5）Memory Decay 防止無限增長與檢索品質下降。本研究為「agent-context-window-governance」系列的 foundation 階段，後續將進入 mechanism（監控與強制化）與 application（實作工具鏈）階段。</p>
+<p>---</p>
+<h2>一、關鍵洞見</h2>
+<h3>洞見 1：Context Window 的「60-70% 法則」</h3>
+<p><strong>核心發現</strong>：宣稱的 Context Window 容量僅有 60-70% 是穩定可用的。</p>
+<p><strong>證據來源</strong>（交叉驗證）：</p>
+<ul>
+<li><a href="https://www.ibm.com/think/topics/context-window">IBM - What is a context window</a>（A 級）：指出模型在接近容量極限時會出現突然的效能劣化，而非漸進下降</li>
+<li><a href="https://factory.ai/news/context-window-problem">The Context Window Problem - Factory.ai</a>（B 級）：提供具體數據：200K token 模型實際在 130K 就變得不穩定</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>設定「軟限制」為宣稱容量的 65%（如 200K × 0.65 = 130K tokens）</li>
+<li>在 config/budget.yaml 定義 per-phase token budget</li>
+<li>超過軟限制時強制觸發 Context Compression 或子 Agent 委派</li>
+</ul>
+<p>---</p>
+<h3>洞見 2：Memory 分層架構是業界標準</h3>
+<p><strong>核心發現</strong>：主流 Agent 框架採用四層 Memory 架構：Message Buffer → Core Memory → Recall Memory → Archival Memory。</p>
+<p><strong>證據來源</strong>（共識）：</p>
+<ul>
+<li>AWS、Microsoft、MongoDB（均為 A 級來源）</li>
+</ul>
+<p><strong>四層職責</strong>：</p>
+<ul>
+<li><strong>Message Buffer</strong>：即時對話上下文（最近 k 次交互）</li>
+<li><strong>Core Memory</strong>：焦點記憶（user/task/context），~5-10 KB</li>
+<li><strong>Recall Memory</strong>：完整歷史（可搜尋），永久保留</li>
+<li><strong>Archival Memory</strong>：外部知識庫（向量 DB），無限容量</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>新增 state/session-buffer.json（Message Buffer 層）</li>
+<li>為 logs/structured/*.jsonl 建立搜尋介面（Recall Memory 層）</li>
+<li>在 preamble.md 明確定義各層的讀寫權限與保留策略</li>
+</ul>
+<p>---</p>
+<h3>洞見 3：實時預算監控是生產必備</h3>
+<p><strong>核心發現</strong>：實時預算監控與 per-trace 成本歸因已是生產標準（Sentry、LangSmith、Datadog、Langfuse 一致支援）。</p>
+<p><strong>關鍵能力</strong>：</p>
+<ul>
+<li>實時預算告警</li>
+<li>Per-trace 成本歸因</li>
+<li>Token 分解（input vs output）</li>
+<li>模型成本比較</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>實作 tools/budget_guard.py</li>
+<li>在 results/*.json 新增 token_usage 欄位</li>
+<li>整合 Langfuse（開源方案）作為長期監控平台</li>
+</ul>
+<p>---</p>
+<h3>洞見 4：Context Compression 需要閾值觸發</h3>
+<p><strong>核心發現</strong>：Context Compression 應在接近窗口容量的閾值時自動觸發（LangChain Deep Agents SDK：0.75 × max_tokens）。</p>
+<p><strong>多策略組合</strong>：</p>
+<ul>
+<li><strong>BufferWindow</strong>：保留最近 k 次交互（高壓縮率）</li>
+<li><strong>Summary</strong>：持續更新對話摘要（中壓縮率）</li>
+<li><strong>SummaryBuffer</strong>：近期 verbatim + 舊摘要（混合）</li>
+<li><strong>KG</strong>：提取實體與關係圖譜（低壓縮率）</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>在 post_tool_logger.py 新增 context_usage_tracker</li>
+<li>實作 tools/context_compressor.py（BufferWindow + Summary）</li>
+</ul>
+<p>---</p>
+<h3>洞見 5：Memory Decay 防止無限增長</h3>
+<p><strong>核心發現</strong>：無 Decay 機制的 Memory 系統會無限增長，且檢索品質下降（Redis、Letta 確認）。</p>
+<p><strong>實作方式</strong>：</p>
+<ul>
+<li><strong>Timestamp + 權重衰減</strong>：檢索時近期記憶權重更高</li>
+<li><strong>Eviction Policy</strong>：達到容量上限時刪除最舊記憶</li>
+<li><strong>TTL</strong>：設定過期時間自動刪除</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>為 digest-memory.json 新增 last_accessed 與 access_count</li>
+<li>為知識庫 hybrid search 新增 recency boost（30 天內 ×1.2，90 天外 ×0.8）</li>
+<li>建立 config/memory-policy.yaml 統一定義 TTL 與 eviction 策略</li>
+</ul>
+<p>---</p>
+<h2>參考來源（14 個 A/B 級來源）</h2>
+<h3>Context Window 基礎</h3>
+<ul>
+<li>IBM、Elvex、Factory.ai</li>
+</ul>
+<h3>Memory 架構</h3>
+<ul>
+<li>AWS Bedrock、Microsoft Learn、MongoDB</li>
+</ul>
+<h3>I/O 預算監控</h3>
+<ul>
+<li>Sentry、LangSmith、Datadog、Langfuse</li>
+</ul>
+<h3>Context Optimization</h3>
+<ul>
+<li>LangChain、Pinecone</li>
+</ul>
+<h3>Memory Decay</h3>
+<ul>
+<li>Redis、Letta</li>
+</ul>
+<p>---</p>
+<p><strong>研究系列</strong>：agent-context-window-governance（foundation 階段）</p>
+<p><strong>後續階段</strong>：mechanism（監控與強制化）→ application（實作工具鏈）→ optimization（效能比較）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LangGraph 中斷節點之狀態恢復與工具調用重放：PoC 評測與 JSONL／error-object 追溯整合 深度研究報告">
+  <title>LangGraph 中斷節點之狀態恢復與工具調用重放：PoC 評測與 JSONL／error-object 追溯整合 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LangGraph 中斷節點之狀態恢復與工具調用重放：PoC 評測與 JSONL／error-object 追溯整合 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">LangGraph中斷與工具重放PoC</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LangGraph 中斷恢復與工具重放 PoC：評測設計與 JSONL／error-object 追溯整合（2026）</h1>
+<h2>執行摘要</h2>
+<p>本研究承接前次「MCP Host 與 LangGraph Interrupt」主軸之後續角度，聚焦 <strong>中斷節點之狀態恢復與工具調用重放</strong>，目標是把人機協同核准、可恢復編排與本儲庫既有 <strong>JSONL／error-object</strong> 觀測平面對齊成可落地的 PoC。綜合 LangGraph 官方對 <strong>Human-in-the-loop</strong>、<strong>Persistence／checkpoint</strong> 與 <strong>interrupt API</strong> 的說明 [來源：LangGraph Human-in-the-loop, 2025]、[來源：LangGraph Persistence, 2025]、[來源：LangGraph interrupt API, 2025]，共識是可中斷圖必須與執行緒狀態持久化並設計，否則核准與恢復將無法在長任務中穩定重入。MCP 規範則將 <strong>工具與資源邊界</strong> 置於 Host，使核准政策有明確掛點 [來源：MCP Specification, 2025]。OWASP LLM Top 10 亦反覆要求限制 <strong>過度代理</strong> 並保留審計軌跡 [來源：OWASP LLM Top 10, 2024]。對照 <code>docs/plans/github-scout-20260331-post-tool-logger-schema-linkage.md</code> 所描述之本專案 JSONL 與 error-object 聯動构想 [來源：儲庫架構計畫文件, 2026]，已形成「編排層 interrupt／Host 核准／觀測層 JSONL」三位一體的實務路線。待驗證項為：僅快照圖狀態而不記錄工具參數雜湊與模型版本指紋時，重放仍可能因上游漂移而失敗 [來源：內部分析, 2026]。</p>
+<h2>背景與動機</h2>
+<p><code>context/continuity/auto-task-ai_deep_research.json</code> 指出下一深化方向為 <strong>PoC 驗證 interrupt 恢復與工具重放</strong>；同時 <code>context/research-series.json</code> 中 <code>langgraph</code> 系列仍處 foundation／application 缺口。對 daily-digest-prompt 而言，Phase 1→2→3 管線與 Hooks 已提供 <strong>post_tool_logger</strong> 結構化事件；若 Agent 編排在 LangGraph／類圖框架下引入 interrupt，缺乏與 <strong>thread_id、tool_call_id、run_id</strong> 對齊的欄位，將使 <strong>self-heal 與 OODA 閉環</strong> 難以關聯到具體一次核准決策。</p>
+<h2>核心技術解析</h2>
+<p><strong>可中斷與恢復</strong>：LangGraph 將 human-in-the-loop 視為可在節點邊界暫停、待人類輸入後再恢復的機制；其可靠度依賴 persistence 所提供的 checkpoint／thread 語意，使執行不必從頭重建完整上下文 [來源：LangGraph Human-in-the-loop, 2025]、[來源：LangGraph Persistence, 2025]。</p>
+<p><strong>interrupt 的原語位置</strong>：Python API 層以 <code>interrupt</code> 暴露「帶著狀態切出」的行為，利於與表單收集、工具二次確認與多輪核准銜接 [來源：LangGraph interrupt API, 2025]。</p>
+<p><strong>工具邊界與治理</strong>：MCP 將 capabilities 暴露與 Host 端治理連結；高風險工具路徑應在 Host 進行 policy 與同意流程，而非下放到模型單方面決策 [來源：MCP Specification, 2025]。OWASP LLM 風險清單同樣將「不受控的工具使用」列為核心威脅類型之一，需技術與流程並重 [來源：OWASP LLM Top 10, 2024]。</p>
+<p><strong>與本 repo 對齊</strong>：儲庫內計畫文件已點出 <strong>error-object-schema</strong> 與 <strong>post_tool_logger</strong> JSONL 應與執行 metadata（如 trace／proposal）機讀對照 [來源：儲庫架構計畫文件, 2026]，與本研究所述 PoC 的事件模型是一致方向。</p>
+<h2>關鍵洞見（三角佐證）</h2>
+<ul>
+<li>✅ <strong>已驗證</strong>：持久化 checkpoint 與 interrupt 是人類核准後能否「無損重入」的前置條件；缺一事則 PoC 無法穩定觀測（4+ 方向文件與架構文件共識）。</li>
+<li>✅ <strong>已驗證</strong>：MCP Host 的政策層與 LangGraph 節點層可分工——前者管工具允許集合，後者管圖內控制流與恢復點（3+ 來源）。</li>
+<li>✅ <strong>已驗證</strong>：JSONL＋error-object 可作為 <strong>唯一真相來源（SSOT）</strong> 的稽核投影面；PoC 事件應優先映射至此平面而非另造日誌格式（3+ 來源：規範＋儲庫文件）。</li>
+<li>⚠️ <strong>待驗證</strong>：若未對工具輸入做 <strong>規範化雜湊</strong> 與 <strong>模型指紋</strong> 紀錄，「重放」可能僅能驗證控制路徑而無法驗證輸出品質一致性（目前主要為推理性延伸，待實驗）。</li>
+<li>⚠️ <strong>待驗證</strong>：除錯向 time-travel／子圖 API 對生產追蹤欄位的欄位映射表是否一次到位（待實驗）。</li>
+</ul>
+<h2>實務應用建議（daily-digest-prompt／個人專案）</h2>
+<ol>
+<li><strong>欄位契約</strong>：在 <code>post_tool_logger</code> 事件中加入 <code>thread_id</code>、<code>interrupt_id</code>（或節點序號）、<code>mcp_tool_name</code> 與 <code>approval_decision</code>，與現有 <code>task_key</code>／phase 並列；拒絕新增第三套追蹤鍵。</li>
+<li><strong>PoC 範圍</strong>：先做 <strong>deterministic stub tool</strong>（固定輸出）＋固定 <code>thread_id</code>，對 <code>interrupt → resume → 完成</code> 與 <code>中斷後取消</code> 兩條路徑量測 JSONL 事件數與順序。</li>
+<li><strong>對齊 error-object</strong>：當工具被拒或逾時，產生符合 <code>config/schemas/error-object-schema.json</code> 之 <code>instance</code>，指向對應 JSONL 行號或檔案偏移欄位（若已實作）。</li>
+<li><strong>與排程協調</strong>：PoC 任務列入低頻手動或 <code>run-todoist-agent-team</code> 實驗槽位，避免與生產 digest 搶佔資源；結果寫入 <code>results/</code> 與 <code>state/scheduler-state.json</code> 模式與其他自動任務一致。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本主題延續 registry 與 continuity 已涵蓋之 <strong>LangGraph interrupt／MCP Host</strong> 脈絡，但聚焦 <strong>重放評測與追溯契約</strong>，避免與前次長標題主題逐字重複；並補上 <code>langgraph</code> research-series 自 foundation 往 application 推進所需的實作型知識。</p>
+<h2>未來展望</h2>
+<p>下一步可將 <strong>approval 理由碼</strong> 與 <strong>工具调用重放 seed</strong> 固定化，並以 property-based 測試檢查「任一 interrupt 點恢復後工具序列仍與golden trace 一致」；另可評估與 OpenTelemetry GenAI semantic conventions 的 span 對齊（本專案 <code>未來計畫/待辦事項.md</code> 已提及相關方向）。</p>
+<h2>完整書目（依引用序）</h2>
+<ol>
+<li>LangChain. (2025). <em>LangGraph: Human-in-the-loop</em>. LangChain AI. https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/ （取用日期：2026-03-31）</li>
+<li>LangChain. (2025). <em>LangGraph Persistence — Python</em>. LangChain. https://docs.langchain.com/oss/python/langgraph/persistence （取用日期：2026-03-31）</li>
+<li>LangChain. (2025). <em>LangGraph interrupt — Python API</em>. LangChain. https://docs.langchain.com/oss/python/langgraph/interrupt （取用日期：2026-03-31）</li>
+<li>Model Context Protocol / Anthropic et al. (2025). <em>Model Context Protocol Specification (2025-06-18)</em>. https://spec.modelcontextprotocol.io/specification/2025-06-18/ （取用日期：2026-03-31）</li>
+<li>OWASP Foundation. (2024). <em>OWASP Top 10 for Large Language Model Applications</em>. https://owasp.org/www-project-top-10-for-large-language-model-applications/ （取用日期：2026-03-31）</li>
+<li>daily-digest-prompt 內部文件. (2026). <em>GitHub Scout post_tool_logger 與 error-object schema 聯動計畫</em>. <code>docs/plans/github-scout-20260331-post-tool-logger-schema-linkage.md</code> （取用日期：2026-03-31）</li>
+</ol>
+<p>---</p>
+<p><em>研究階段：Stage 4 交付；執行日：2026-03-31。因執行環境無法連線本機 KB，匯入步驟可能略過（詳見結果 JSON）。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

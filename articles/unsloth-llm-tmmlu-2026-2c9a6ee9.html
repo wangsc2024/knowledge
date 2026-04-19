@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 繁體中文 LLM 微調實戰 — 從基座模型選型、繁中資料集準備到 TMMLU+ 評估的完整指南（2026）">
+  <title>Unsloth 繁體中文 LLM 微調實戰 — 從基座模型選型、繁中資料集準備到 TMMLU+ 評估的完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 繁體中文 LLM 微調實戰 — 從基座模型選型、繁中資料集準備到 TMMLU+ 評估的完整指南（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">繁體中文</span><span class="tag">Traditional Chinese</span><span class="tag">Taiwan-LLM</span><span class="tag">FoxBrain</span><span class="tag">TMMLU</span><span class="tag">Qwen2.5</span><span class="tag">LoRA</span><span class="tag">QLoRA</span><span class="tag">資料集準備</span><span class="tag">台灣在地化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth 繁體中文 LLM 微調實戰</h1>
+<h2>概述</h2>
+<p>繁體中文（Traditional Chinese / 正體中文）LLM 微調是 Unsloth 生態系統中的重要應用場景，但相較英文微調，面臨三大獨特挑戰：(1) 基座模型的繁中 Tokenizer 效率差異巨大，(2) 高品質繁中指令資料集稀缺，(3) 評估基準需台灣在地化。本篇整合台灣 LLM 社群（Taiwan-LLM、FoxBrain）的實踐經驗，提供在 Unsloth 框架下進行繁中 LLM 微調的端到端指南 — 從模型選型、資料準備、訓練配置到評估部署。</p>
+<p>---</p>
+<h2>一、基座模型選型（繁中最佳化）</h2>
+<h3>1.1 推薦模型矩陣</h3>
+<p>| 模型 | 參數量 | 繁中支援度 | Unsloth 支援 | 推薦場景 |</p>
+<p>|------|--------|-----------|-------------|----------|</p>
+<p>| Qwen2.5-7B-Instruct | 7B | ★★★★★ | ✅ 完整 | 首選：29+ 語言含繁中，Tokenizer 效率最佳 |</p>
+<p>| Qwen2.5-14B-Instruct | 14B | ★★★★★ | ✅ 完整 | 品質優先：14B 在繁中任務上接近 70B 水準 |</p>
+<p>| Llama-3.1-8B-Instruct | 8B | ★★★☆☆ | ✅ 完整 | 社群資源豐富（Taiwan-LLM 基於此） |</p>
+<p>| Gemma-2-9B | 9B | ★★★★☆ | ✅ 完整 | 多語言平衡，Google 持續更新 |</p>
+<p>| Phi-4 | 14B | ★★★☆☆ | ✅ 完整 | 推理能力強，但繁中語料較少 |</p>
+<h3>1.2 選型關鍵因素</h3>
+<p><strong>Tokenizer 效率</strong>是繁中微調最關鍵的考量。同樣一段繁體中文文字：</p>
+<ul>
+<li>Qwen2.5 的 Tokenizer：~1.2 tokens/字（效率最佳，因為預訓練含大量中文語料）</li>
+<li>Llama 3.1 的 Tokenizer：~1.8-2.5 tokens/字（BPE 對中文切分較碎）</li>
+<li>Gemma 2 的 Tokenizer：~1.5 tokens/字（介於兩者之間）</li>
+</ul>
+<p><strong>影響</strong>：Tokenizer 效率直接影響有效上下文長度。Qwen2.5 的 8K context 約等於 Llama 的 12K context 處理相同中文內容。</p>
+<pre><code>
+# 驗證 Tokenizer 效率
+from transformers import AutoTokenizer
+
+text = "台灣的人工智慧發展策略涵蓋智慧製造、智慧醫療、智慧城市等關鍵領域"
+
+for model_name in ["unsloth/Qwen2.5-7B-Instruct", "unsloth/Meta-Llama-3.1-8B-Instruct"]:
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokens = tokenizer.encode(text)
+    print(f"{model_name}: {len(tokens)} tokens, {len(tokens)/len(text):.2f} tokens/char")
+</code></pre>
+<p>---</p>
+<h2>二、繁中資料集準備</h2>
+<h3>2.1 資料來源矩陣</h3>
+<p>| 資料集 | 語言 | 筆數 | 格式 | 用途 |</p>
+<p>|--------|------|------|------|------|</p>
+<p>| COIG-CQIA | 簡中（需轉換） | 48,375 | Instruction | 通用指令微調 |</p>
+<p>| Taiwan-LLM SFT Data | 繁中 | 490K+ | Conversation | 繁中對話微調 |</p>
+<p>| alpaca-gpt4-zh-tw | 繁中 | ~52K | Alpaca | 通用任務 |</p>
+<p>| oig-small-chip2-zh-tw | 繁中 | ~211K | Instruction | 大量通用指令 |</p>
+<p>| 自建 Domain Data | 繁中 | 自訂 | ShareGPT | 領域專用 |</p>
+<h3>2.2 簡繁轉換注意事項</h3>
+<p>許多中文資料集為簡體中文，需轉換為繁體中文。OpenCC（Open Chinese Convert）是標準工具，但需注意：</p>
+<pre><code>
+import opencc
+
+# 使用 s2twp 配置：簡體→繁體（台灣用語 + 片語轉換）
+converter = opencc.OpenCC('s2twp')  # s2t 僅轉字形，s2twp 轉用語
+
+# 範例：s2t vs s2twp 差異
+text = "计算机软件编程"
+print(converter.convert(text))  # 電腦軟體程式設計（台灣用語）
+# 若用 s2t：計算機軟體編程（僅轉字形，用語不變）
+
+# 批量轉換資料集
+def convert_dataset(dataset):
+    for item in dataset:
+        item['instruction'] = converter.convert(item['instruction'])
+        item['input'] = converter.convert(item['input'])
+        item['output'] = converter.convert(item['output'])
+    return dataset
+</code></pre>
+<p><strong>關鍵</strong>：務必使用 <code>s2twp</code>（Taiwan Phrase）而非 <code>s2t</code>，否則會產生「計算機」而非「電腦」等不自然的台灣中文。</p>
+<h3>2.3 資料清洗要點</h3>
+<p>繁中資料集常見問題與對策：</p>
+<ol>
+<li><strong>簡繁混用</strong>：同一筆資料中夾雜簡體字 → OpenCC 全文轉換後再用正則檢查</li>
+<li><strong>中國用語殘留</strong>：「視頻」→「影片」、「信息」→「資訊」、「網絡」→「網路」</li>
+<li><strong>格式不一致</strong>：全形/半形標點混用 → 統一為全形中文標點</li>
+<li><strong>低品質篩選</strong>：回答太短（<50 字）或太長（>2000 字）的過濾</li>
+</ol>
+<pre><code>
+import re
+
+def clean_traditional_chinese(text):
+    """繁中資料清洗管線"""
+    # 1. 簡繁轉換
+    converter = opencc.OpenCC('s2twp')
+    text = converter.convert(text)
+    
+    # 2. 中國用語替換（高頻詞）
+    replacements = {
+        '视频': '影片', '信息': '資訊', '网络': '網路',
+        '软件': '軟體', '硬件': '硬體', '数据库': '資料庫',
+        '服务器': '伺服器', '打印': '列印', '鼠标': '滑鼠',
+        '内存': '記憶體', '人工智能': '人工智慧',
+    }
+    for cn, tw in replacements.items():
+        text = text.replace(cn, tw)
+    
+    # 3. 標點正規化（半形→全形）
+    text = text.replace(',', '，').replace('!', '！').replace('?', '？')
+    
+    return text
+</code></pre>
+<h3>2.4 Unsloth 資料集格式化</h3>
+<pre><code>
+from unsloth import FastLanguageModel
+from unsloth.chat_templates import get_chat_template, standardize_sharegpt
+from datasets import load_dataset
+
+# 載入模型
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Qwen2.5-7B-Instruct",
+    max_seq_length=4096,
+    dtype=None,  # 自動偵測
+    load_in_4bit=True,  # QLoRA
+)
+
+# 套用 chat template（Qwen 原生 ChatML）
+tokenizer = get_chat_template(tokenizer, chat_template="qwen-2.5")
+
+# 格式化繁中資料集
+def format_tw_data(examples):
+    conversations = []
+    for inst, inp, out in zip(examples['instruction'], examples['input'], examples['output']):
+        prompt = f"{inst}\n{inp}" if inp else inst
+        conversations.append([
+            {"role": "system", "content": "你是一個專業的繁體中文AI助手，使用台灣慣用的正體中文回答。"},
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": out}
+        ])
+    return {"conversations": conversations}
+
+# 載入並處理資料集
+dataset = load_dataset("json", data_files="tw_instructions.json", split="train")
+dataset = dataset.map(format_tw_data, batched=True, remove_columns=dataset.column_names)
+</code></pre>
+<p>---</p>
+<h2>三、LoRA 微調配置（繁中最佳化）</h2>
+<h3>3.1 LoRA 參數建議</h3>
+<pre><code>
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=32,                    # Rank：繁中建議 32（比英文 16 高，因語義更複雜）
+    target_modules=[
+        "q_proj", "k_proj", "v_proj", "o_proj",
+        "gate_proj", "up_proj", "down_proj",
+    ],
+    lora_alpha=32,           # alpha = r 是常見設定
+    lora_dropout=0,          # Unsloth 最佳化：dropout=0 更穩定
+    bias="none",
+    use_gradient_checkpointing="unsloth",  # Unsloth 獨家：30% VRAM 節省
+    random_state=42,
+    use_rslora=True,         # Rank-Stabilized LoRA：r 較大時更穩定
+)
+</code></pre>
+<h3>3.2 訓練配置</h3>
+<pre><code>
+from trl import SFTTrainer
+from transformers import TrainingArguments
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=dataset,
+    max_seq_length=4096,
+    dataset_num_proc=4,
+    packing=True,           # Unsloth Packing：3x 加速，短對話特別有效
+    args=TrainingArguments(
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,  # 有效 batch size = 8
+        warmup_steps=50,
+        num_train_epochs=3,            # 繁中資料少，3 epoch 避免過擬合
+        learning_rate=2e-4,            # QLoRA 標準 LR
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        logging_steps=10,
+        optim="adamw_8bit",
+        weight_decay=0.01,
+        lr_scheduler_type="cosine",
+        seed=42,
+        output_dir="outputs/qwen25-7b-tw",
+        save_strategy="steps",
+        save_steps=200,
+    ),
+)
+
+# 顯示記憶體使用
+gpu_stats = torch.cuda.get_device_properties(0)
+start_gpu_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
+max_memory = round(gpu_stats.total_mem / 1024 / 1024 / 1024, 3)
+print(f"GPU: {gpu_stats.name}, VRAM: {max_memory}GB, 已用: {start_gpu_memory}GB")
+
+trainer.train()
+</code></pre>
+<h3>3.3 VRAM 需求估算</h3>
+<p>| 模型 | 量化 | LoRA r | 預估 VRAM | 適用 GPU |</p>
+<p>|------|------|--------|----------|----------|</p>
+<p>| Qwen2.5-7B | 4-bit QLoRA | 32 | ~8GB | RTX 3060 12GB / T4 16GB |</p>
+<p>| Qwen2.5-14B | 4-bit QLoRA | 16 | ~12GB | RTX 4070 12GB / A10G 24GB |</p>
+<p>| Llama-3.1-8B | 4-bit QLoRA | 32 | ~9GB | RTX 3070 8GB（緊繃） |</p>
+<p>| Qwen2.5-7B | 16-bit LoRA | 32 | ~18GB | RTX 4090 24GB / A100 40GB |</p>
+<p>---</p>
+<h2>四、繁中評估策略</h2>
+<h3>4.1 TMMLU+ 基準測試</h3>
+<p>TMMU（Taiwan Massive Multitask Language Understanding）是台灣在地化的 LLM 評估基準，涵蓋 37 個學科、2,981 道選擇題，分三個難度層級：</p>
+<ul>
+<li><strong>國中程度</strong>（14.56%）</li>
+<li><strong>高中程度</strong>（29.35%）</li>
+<li><strong>專業程度</strong>（56.09%）</li>
+</ul>
+<p>題目來源為台灣標準化考試（大學入學考試、公務員考試、駕照考試）。</p>
+<p><strong>主要模型 TMMLU+ 分數對照</strong>：</p>
+<p>| 模型 | TMMLU+ 分數 | 備註 |</p>
+<p>|------|------------|------|</p>
+<p>| Llama-3-Taiwan-70B-Instruct | 67.53% | 台灣 NTU 團隊，NeMo 訓練 |</p>
+<p>| FoxBrain-70B | >67.53% | 鴻海研究院，2025/03 發布 |</p>
+<p>| GPT-4-turbo | 70.42% | 商業模型基線 |</p>
+<p>| Qwen2.5-72B-Instruct | ~68% | 阿里巴巴，原生繁中支援 |</p>
+<p>| Claude-3-Opus | 73.59% | 最高分（但非開源） |</p>
+<h3>4.2 自定評估腳本</h3>
+<pre><code>
+import json
+from unsloth import FastLanguageModel
+
+# 載入微調後模型
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="outputs/qwen25-7b-tw/checkpoint-final",
+    max_seq_length=4096,
+    load_in_4bit=True,
+)
+FastLanguageModel.for_inference(model)
+
+# 繁中評估提示
+tw_eval_prompts = [
+    {"q": "請解釋台灣的全民健康保險制度的核心特色", "category": "台灣知識"},
+    {"q": "什麼是量子計算？請用繁體中文簡單解釋", "category": "科技知識"},
+    {"q": "請分析台積電在全球半導體供應鏈中的角色", "category": "產業分析"},
+    {"q": "用 Python 寫一個計算費波那契數列的函式，並加上繁中註解", "category": "程式碼"},
+]
+
+for item in tw_eval_prompts:
+    messages = [
+        {"role": "system", "content": "你是專業的繁體中文AI助手。"},
+        {"role": "user", "content": item['q']}
+    ]
+    inputs = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt").to("cuda")
+    outputs = model.generate(input_ids=inputs, max_new_tokens=512, temperature=0.7)
+    response = tokenizer.decode(outputs[0][inputs.shape[-1]:], skip_special_tokens=True)
+    print(f"[{item['category']}] Q: {item['q']}")
+    print(f"A: {response}\n{'='*60}")
+</code></pre>
+<h3>4.3 評估檢查清單</h3>
+<p>微調後的繁中模型應通過以下品質檢查：</p>
+<ol>
+<li><strong>語言正確性</strong>：輸出是否為純正繁體中文（無簡體字殘留）</li>
+<li><strong>用語在地化</strong>：是否使用台灣慣用語（「電腦」非「計算機」）</li>
+<li><strong>格式遵從</strong>：是否正確使用全形標點</li>
+<li><strong>知識準確性</strong>：台灣相關知識是否正確（如健保制度、地理等）</li>
+<li><strong>指令遵循</strong>：是否能正確理解並執行繁中指令</li>
+<li><strong>安全性</strong>：是否避免生成有害或偏見內容</li>
+</ol>
+<p>---</p>
+<h2>五、台灣 LLM 生態系統概覽</h2>
+<h3>5.1 代表性專案</h3>
+<p>| 專案 | 開發者 | 基座 | 參數量 | 特色 |</p>
+<p>|------|--------|------|--------|------|</p>
+<p>| Taiwan-LLM | 台大 MiuLab（林彥廷） | Llama 3 | 8B/70B | 學術開源先驅，TMMLU+ 基準 |</p>
+<p>| FoxBrain | 鴻海研究院 | Llama 3.1 | 70B | 產業級，98B 繁中 tokens 預訓練 |</p>
+<p>| Taiwan-LLaMa | 台大（唐鳳推廣） | Llama 2 | 7B/13B | 早期繁中 LLM，50 億 tokens |</p>
+<p>| Breeze | 聯發科 | Mistral | 7B | 台灣在地化，含 TMMBench |</p>
+<h3>5.2 FoxBrain 訓練洞見（2025/03）</h3>
+<p>鴻海研究院的 FoxBrain 提供了重要的繁中微調實踐參考：</p>
+<ul>
+<li><strong>資料規模</strong>：98B tokens 高品質繁中預訓練資料（24 類主題）</li>
+<li><strong>訓練流程</strong>：資料收集 → 清洗 → 增強 → 繼續預訓練 → SFT → RLAIF</li>
+<li><strong>硬體</strong>：120 張 NVIDIA H100 GPU，Quantum-2 InfiniBand 網路</li>
+<li><strong>訓練時間</strong>：約 4 週</li>
+<li><strong>評估</strong>：TMMLU+ 多數類別超越 Taiwan-LLM 70B</li>
+</ul>
+<h3>5.3 Unsloth 在繁中微調的優勢</h3>
+<p>相較 FoxBrain 的 120 張 H100 全參數訓練，Unsloth + QLoRA 讓個人開發者也能參與：</p>
+<ul>
+<li><strong>單卡 T4 16GB</strong>：可微調 Qwen2.5-7B-4bit（免費 Colab 即可）</li>
+<li><strong>單卡 RTX 4090</strong>：可微調 Qwen2.5-14B-4bit（家用級硬體）</li>
+<li><strong>訓練時間</strong>：1000 筆資料約 20-40 分鐘（vs 全參數的數天至數週）</li>
+<li><strong>品質</strong>：在特定領域（如法律、醫療繁中問答），LoRA 微調可接近全參數效果</li>
+</ul>
+<p>---</p>
+<h2>六、端到端實戰範例：繁中客服助手</h2>
+<pre><code>
+# 完整範例：用 Unsloth 微調繁中客服助手
+from unsloth import FastLanguageModel
+from unsloth.chat_templates import get_chat_template
+from datasets import Dataset
+from trl import SFTTrainer
+from transformers import TrainingArguments
+import torch
+
+# 1. 載入基座模型
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Qwen2.5-7B-Instruct-bnb-4bit",
+    max_seq_length=2048,
+    load_in_4bit=True,
+)
+
+# 2. 配置 LoRA
+model = FastLanguageModel.get_peft_model(
+    model, r=32, target_modules=["q_proj","k_proj","v_proj","o_proj",
+                                  "gate_proj","up_proj","down_proj"],
+    lora_alpha=32, lora_dropout=0, bias="none",
+    use_gradient_checkpointing="unsloth",
+)
+
+# 3. 準備繁中客服資料
+tw_service_data = [
+    {"conversations": [
+        {"role": "system", "content": "你是一個專業的繁體中文客服助手，服務台灣地區用戶。"},
+        {"role": "user", "content": "我的訂單什麼時候會到？"},
+        {"role": "assistant", "content": "您好！請提供您的訂單編號，我馬上為您查詢出貨及配送進度。一般來說，台灣本島配送約需 1-3 個工作天，離島地區約需 3-5 個工作天。"}
+    ]},
+    {"conversations": [
+        {"role": "system", "content": "你是一個專業的繁體中文客服助手，服務台灣地區用戶。"},
+        {"role": "user", "content": "可以用超商取貨付款嗎？"},
+        {"role": "assistant", "content": "可以的！我們支援全家、7-11、萊爾富、OK 四大超商的取貨付款服務。選購時在結帳頁面選擇「超商取貨付款」，再選擇您方便的門市即可。取貨時請攜帶簡訊通知和身分證件。"}
+    ]},
+]
+
+dataset = Dataset.from_list(tw_service_data)
+tokenizer = get_chat_template(tokenizer, chat_template="qwen-2.5")
+
+def apply_template(examples):
+    texts = [tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=False)
+             for c in examples["conversations"]]
+    return {"text": texts}
+
+dataset = dataset.map(apply_template, batched=True)
+
+# 4. 訓練
+trainer = SFTTrainer(
+    model=model, tokenizer=tokenizer, train_dataset=dataset,
+    max_seq_length=2048, packing=True,
+    args=TrainingArguments(
+        per_device_train_batch_size=2, gradient_accumulation_steps=4,
+        warmup_steps=10, num_train_epochs=3, learning_rate=2e-4,
+        bf16=True, logging_steps=5, optim="adamw_8bit",
+        output_dir="outputs/tw-service-bot",
+    ),
+)
+trainer.train()
+
+# 5. 匯出 GGUF（部署到 Ollama）
+model.save_pretrained_gguf("tw-service-bot-gguf", tokenizer, quantization_method="q4_k_m")
+print("匯出完成！使用 ollama create tw-service-bot -f Modelfile 部署")
+</code></pre>
+<p>---</p>
+<h2>七、常見問題與解法</h2>
+<h3>Q1：微調後模型回答變成簡體中文？</h3>
+<ul>
+<li><strong>原因</strong>：基座模型預訓練簡中語料遠多於繁中</li>
+<li><strong>解法</strong>：System prompt 明確指定「使用台灣繁體中文回答」+ 增加繁中 SFT 資料量</li>
+</ul>
+<h3>Q2：輸出中夾雜日文漢字？</h3>
+<ul>
+<li><strong>原因</strong>：Unicode 中繁中/日文漢字外觀相同但碼位不同（如 專 U+5C08 vs 專 U+5C02）</li>
+<li><strong>解法</strong>：PostToolUse hook 加入 CJK Guard 自動修正（本專案已實作 <code>cjk_guard.py</code>）</li>
+</ul>
+<h3>Q3：Tokenizer 把繁中字切太碎導致上下文不夠？</h3>
+<ul>
+<li><strong>解法</strong>：優先選 Qwen 系列（中文 Tokenizer 效率最佳）；或用 Unsloth 的 500K context 功能</li>
+</ul>
+<h3>Q4：如何評估繁中微調品質？</h3>
+<ul>
+<li><strong>量化</strong>：TMMLU+（台灣標準化考試）、MMLU-Pro 繁中翻譯版</li>
+<li><strong>質化</strong>：人工抽樣 50 題，評估語言正確性 + 用語在地化 + 知識準確性</li>
+</ul>
+<h3>Q5：資料集需要多少筆？</h3>
+<ul>
+<li><strong>最低</strong>：100 筆高品質繁中指令對（可微調出明顯差異）</li>
+<li><strong>建議</strong>：1,000-5,000 筆（領域微調的甜蜜點）</li>
+<li><strong>大規模</strong>：50,000+ 筆（接近 Taiwan-LLM SFT 規模）</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://github.com/MiuLab/Taiwan-LLM">Taiwan-LLM GitHub</a> — 台大 MiuLab 繁中 LLM 專案</li>
+<li><a href="https://www.honhai.com/en-us/press-center/press-releases/latest-news/1549">FoxBrain 鴻海新聞稿</a> — 鴻海繁中 LLM</li>
+<li><a href="https://unsloth.ai/docs/get-started/fine-tuning-llms-guide/datasets-guide">Unsloth Datasets Guide</a> — 官方資料集準備指南</li>
+<li><a href="https://arxiv.org/abs/2403.18058">COIG-CQIA</a> — 中文指令微調資料集</li>
+<li><a href="https://arxiv.org/abs/2309.08448">TMLU Benchmark</a> — 台灣國語理解基準</li>
+<li><a href="https://huggingface.co/unsloth/Qwen2.5-7B-Instruct">Unsloth Qwen2.5</a> — 4-bit 預量化模型</li>
+<li><a href="https://github.com/BYVoid/OpenCC">OpenCC</a> — 開源簡繁轉換工具</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

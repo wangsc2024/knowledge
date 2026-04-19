@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 系統熵增優化 Phase 2（2026-03-09）">
+  <title>Daily-Digest-Prompt 系統熵增優化 Phase 2（2026-03-09） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt 系統熵增優化 Phase 2（2026-03-09）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">熵增治理</span><span class="tag">品質量化</span><span class="tag">pytest</span><span class="tag">State管理</span><span class="tag">架構決策</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統熵增優化 Phase 2 — State 膨脹防護與品質量化</h1>
+<h2>優化背景</h2>
+<p>深度分析發現專案面臨三大熵增問題：</p>
+<ol>
+<li><strong>State 檔案膨脹</strong>：166 個 loop-state + 13 個 stop-alert 殭屍檔案（612KB），無自動清理</li>
+<li><strong>Context 膨脹</strong>：behavior-patterns.json 佔 context/ 目錄 67%（248KB，500 patterns）</li>
+<li><strong>測試覆蓋率無量化</strong>：682 個測試但無覆蓋率報告，無法追蹤品質趨勢</li>
+</ol>
+<h2>實施項目</h2>
+<h3>1. State 自動清理機制</h3>
+<p><strong>修改檔案</strong>：<code>run-agent-team.ps1</code>、<code>run-todoist-agent-team.ps1</code></p>
+<p>在兩個 team 腳本的清理區段新增三項清理邏輯：</p>
+<ul>
+<li><code>loop-state-*.json</code>：>48 小時自動刪除（每 session 產生一個，~83 個/天）</li>
+<li><code>stop-alert-*.json</code>：>7 天自動刪除（session 結束告警去重用）</li>
+<li><code>results/*</code>（排除 spans）：>7 天自動刪除（防 40MB/4天 → 300MB/月膨脹）</li>
+</ul>
+<p><strong>預期效果</strong>：state/ 目錄從 612KB 控制在 ~100KB 以內</p>
+<h3>2. behavior-patterns.json 瘦身</h3>
+<p><strong>修改檔案</strong>：<code>hooks/behavior_tracker.py</code></p>
+<ul>
+<li><code>MAX_PATTERNS</code>：500 → 200（每個 pattern ~500 bytes，200 個 ≈ 100KB）</li>
+<li><code>DECAY_DAYS</code>：30 → 14（加速淘汰低頻模式）</li>
+<li>一次性清理：248KB → 98KB（-60%，移除 300 個低信心 patterns）</li>
+</ul>
+<p><strong>設計決策</strong>：200 個 patterns 足以追蹤日常 Agent 行為模式（每日新增 ~10-20 個新 signature），14 天衰減確保資料新鮮度</p>
+<h3>3. pytest 覆蓋率量化</h3>
+<p><strong>修改檔案</strong>：<code>pyproject.toml</code></p>
+<p>pytest addopts 新增：</p>
+<ul>
+<li><code>--cov=hooks --cov=skills</code>：量測 hooks 和 skills 模組覆蓋率</li>
+<li><code>--cov-report=term-missing</code>：終端顯示未覆蓋行號</li>
+<li><code>--cov-fail-under=40</code>：基線門檻（當前 44.86%），防止覆蓋率回退</li>
+</ul>
+<p><strong>覆蓋率現狀</strong>（682 tests, 3183 statements）：</p>
+<ul>
+<li>agent_guardian: 83% | behavior_tracker: 83%</li>
+<li>pre_read_guard: 80% | pre_write_guard: 79%</li>
+<li>hook_utils: 75% | query_logs: 77%</li>
+<li>pre_bash_guard: 62% | cjk_guard: 35%</li>
+<li>on_stop_alert: 45% | post_tool_logger: 42%</li>
+<li>validate_config: 12%（最大改進空間）</li>
+</ul>
+<h2>驗證結果</h2>
+<ul>
+<li>682 個測試全部通過（0 failures）</li>
+<li>覆蓋率 44.86% > 40% 門檻（通過）</li>
+<li>behavior-patterns.json：248KB → 98KB</li>
+<li>無非預期的檔案變更</li>
+</ul>
+<h2>後續建議</h2>
+<ol>
+<li>validate_config.py 測試補強（12% → 50%+）</li>
+<li>覆蓋率門檻逐步提升（40 → 50 → 60 → 70）</li>
+<li>Tools 模組測試覆蓋（目前 0%，10 個 Python 檔案）</li>
+<li>GitHub Actions CI 整合覆蓋率檢查</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

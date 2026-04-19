@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊 深度研究報告">
+  <title>Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">OpenTelemetry GenAI Golden Trace</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊：LLM Span 屬性、重放測試與 daily-digest JSONL 平面整合：深度技術研究報告</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>企業導入 LLM Agent 後，同時面臨兩件事：一是線上追蹤要能回答「哪一步叫了什麼工具、輸入輸出是什麼指紋」；二是核准後的 Golden Trace 要能決定性重放，供稽核與迴歸。OpenTelemetry 的 GenAI 語意慣例把生成式呼叫拆成可组合的 span 樹，並用 events 承載較大或較敏感的片段，使「只記 hash、不記原文」成為可行策略 [來源：OpenTelemetry Semantic Conventions — Gen AI events, 2026]。本報告在既有共識上收斂：工具 I/O 雜湊與理由碼應掛在 tool／execute_tool 相關 span 的屬性或事件上，並以 W3C Trace Context 把 JSONL 平面與標準 trace-id 對齊，降低雙寫成本 [來源：W3C Trace Context, 2026]。分歧點在於 semconv 尚未涵蓋的欄位，應先以專案命名空間落在 JSONL，再經 exporter 映射，而非一次寫死到公版 schema [來源：OpenTelemetry — Registry of documented gen_ai attributes, 2026]。此外，線上取樣會讓「一般請求」的 trace 不完整；Golden Trace 應走可強制保留的稽核通路，避免與尾延遲丟棄策略衝突 [來源：OpenTelemetry Specification — Trace Sampler, 2026]。</p>
+<h2>研究背景與動機</h2>
+<p>daily-digest-prompt 已具 post_tool_logger JSONL、error-object 與 phase 語意；當觀測要跨工具與託管 backends 對齊時，需要一層供應商中立的 span／attribute 契約。GenAI semconv 提供 gen_ai.* 命名空間與操作型別（如工具執行），正好承接「模型呼叫—工具—人機核准」鏈路 [來源：OpenTelemetry Semantic Conventions — Gen AI spans, 2026]。本研究的動機是把 Golden Trace 所需的雜湊、理由碼與重放錨點，對照到可實作的 OTel 欄位，並保留遷移時的務實退路。</p>
+<h2>核心技術解析（每個主張內嵌引用）</h2>
+<p><strong>Span 樹與工具子節點。</strong> 生成式流程中的多步推理與工具呼叫，適合表達為父子 span；工具呼叫可作為子 span，便於在儀表上從某次對話逐步下鑽到單次工具 I/O [來源：OpenTelemetry Semantic Conventions — Gen AI spans, 2026]。這與 JSONL 中以 phase／task 分面聚合的習慣相容：映射時可把腳本或子 Agent 邊界對應為 scope 或 service 維度的區隔。</p>
+<p><strong>Events 與敏感性／大型 payload。</strong> 相較於把所有內容塞进 span attributes，規範路線倾向用 event 承載提示、輸出等較長或較敏感資料，並鼓勵最小必要欄位；實務上可改記錄雜湊、長度與壓縮後的指紋，避免原文外洩又保留稽核力 [來源：OpenTelemetry Semantic Conventions — Gen AI events, 2026]。</p>
+<p><strong>權威欄位索引。</strong> gen_ai.request.model、gen_ai.tool.name 等鍵位集中在 src 端 registry 文件，便於建立「JSONL 欄位 ↔ OTel 屬性」對照表，並在 semconv 升版時追漂移 [來源：OpenTelemetry — Registry of documented gen_ai attributes, 2026]。</p>
+<p><strong>取樣與可見性。</strong> SDK 取樣語意說明 head／關聯行為與邊界：線上追蹤未必完整；若 Golden Trace 仰賴「看得到完整因果邊」，必須在 policy 上標記高價值 span 或使用獨立匯出通道，而非假設預設取樣能還原稽核級 trace [來源：OpenTelemetry Specification — Trace Sampler, 2026]。</p>
+<p><strong>跨程序關聯。</strong> traceparent 與 trace-id／span-id 是跨服務拼接的底層契約；JSONL 若內嵌相同識別子，就能與 OTLP exporter 雙寫而不改讀者語意 [來源：W3C Trace Context, 2026]。</p>
+<p><strong>社群補強。</strong> OpenInference 對 LLM／RAG／工具鏈的慣例可與官方 gen_ai 並存；遷移策略常見作法是以 OTel 為長期主幹、OpenInference 為過渡映射層，避免被單一廠商儀表綁死 [來源：OpenInference — Semantic Conventions, 2026]。</p>
+<h2>關鍵洞見（含三角佐證狀態 ✅/⚠️）</h2>
+<ul>
+<li><strong>✅</strong> 工具 I/O 雜湊與理由碼的自然掛點在工具相關 span／event；semconv 未涵蓋時，用專案前綴屬性並在 exporter 收斂。[來源：OpenTelemetry Semantic Conventions — Gen AI spans, 2026；OpenTelemetry — Registry of documented gen_ai attributes, 2026]</li>
+<li><strong>✅</strong> Golden Trace 與核准決策應與 thread／checkpoint／tool_call_id 等同平面；對齊 OTel 時可把核准記為子 span 或 structured event。[來源：OpenTelemetry Semantic Conventions — Gen AI events, 2026；連結倉庫 HITL／Golden Trace 前序研究語境]</li>
+<li><strong>✅</strong> 線上 trace 不完整是取樣常態；稽核級 Golden Trace 應有「永遠採樣／旁路匯出」與一般請求分離。[來源：OpenTelemetry Specification — Trace Sampler, 2026]</li>
+<li><strong>✅</strong> service.name 可按排程腳本或 Phase 切分；GenAI 段落集中使用 gen_ai.*，非模型邏輯維持一般 HTTP／task 屬性，降低粒度爆炸。[來源：OpenTelemetry Semantic Conventions — Gen AI spans, 2026]</li>
+<li><strong>⚠️</strong> 推理後端「版本指紋」若超出 gen_ai.request.model／sdk.version，需要專案自訂鍵；公版覆蓋仍不完整，後續需對照 vendor 文件補強。[單一路線佐證不足，標待驗證]</li>
+<li><strong>⚠️</strong> post_tool_logger 在計算雜湊前必須完成 sanitize，避免秘密進入 span；細部執行順序需在 hook 契約中白紙黑字。[工程共識，待更多實作案例驗證]</li>
+</ul>
+<h2>實務應用建議（3-5 點）</h2>
+<ol>
+<li>先.publish「JSONL → OTLP」欄位對照表：gen_ai.<em> 優先、其餘 <code>daily_digest.</em></code> 前綴，附版本欄與範例 payload。  </li>
+<li>在 hook 層為含核准／高風險工具的路徑開啟旁路 trace（或 100% 取樣），與一般排程任務分離。  </li>
+<li>工具 span 上同時記錄輸入／輸出雜湊、位元組長度與理由碼；原文僅入受控儲存或乾脆不入库。  </li>
+<li>與 W3C trace-id 對齊：JSONL 新增 trace_id／span_id 欄位前，先定稿錯誤與 PII  redaction 規則。  </li>
+<li>若已使用 Arize／Langfuse 等生態，短期以 OpenInference 欄位對照，季度性向 semconv 靠攏。[來源：OpenInference — Semantic Conventions, 2026]</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本報告承接專案內 HITL、Golden Trace 與 LangGraph interrupt 系列研究：核准與重放錨點已論證應落於單一 JSONL／error-object 平面；此處補上與 OTel GenAI 的欄位級對齊與取樣分離策略，使同一證據鏈可對外匯出至中立 backends。</p>
+<h2>未來展望</h2>
+<p>下一步可實作最小 OTLP exporter：從單一 Todoist Phase 執行路徑產生 span，驗證 <code>gen_ai</code> 與自訂屬性在高基數下的成本；並以 golden replay 測試驗證「雜湊一致 + span 拓撲一致」是否足以取代全文比對。</p>
+<h2>完整書目</h2>
+<ol>
+<li>OpenTelemetry Project. (2026). <em>Semantic Conventions — Gen AI spans</em>. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/ （擷取 2026-04-01）</li>
+<li>OpenTelemetry Project. (2026). <em>Semantic Conventions — Gen AI events</em>. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/ （擷取 2026-04-01）</li>
+<li>OpenTelemetry Project. (2026). <em>Registry of documented gen_ai attributes</em>. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/ （擷取 2026-04-01）</li>
+<li>OpenTelemetry Project. (2026). <em>Trace SDK — Sampling</em>. OpenTelemetry Specification. https://opentelemetry.io/docs/specs/otel/trace/sdk/#sampling （擷取 2026-04-01）</li>
+<li>W3C. (2026). <em>Trace Context</em>. W3C Recommendation track. https://www.w3.org/TR/trace-context/ （擷取 2026-04-01）</li>
+<li>Arize AI. (2026). <em>OpenInference Semantic Conventions</em>（Markdown 規範）. https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md （擷取 2026-04-01）</li>
+<li>維基百科編者. (2026). <em>OpenTelemetry</em>. 維基百科（中文）. https://zh.wikipedia.org/wiki/OpenTelemetry （擷取 2026-04-01；入門參考，細節以官方規範為準）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

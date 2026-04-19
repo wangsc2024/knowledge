@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HTML5 Canvas 遊戲效能優化完整指南 — requestAnimationFrame 遊戲迴圈、渲染管線最佳實踐與物件池模式（2026）">
+  <title>HTML5 Canvas 遊戲效能優化完整指南 — requestAnimationFrame 遊戲迴圈、渲染管線最佳實踐與物件池模式（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>HTML5 Canvas 遊戲效能優化完整指南 — requestAnimationFrame 遊戲迴圈、渲染管線最佳實踐與物件池模式（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">HTML5 Canvas</span><span class="tag">遊戲效能優化</span><span class="tag">requestAnimationFrame</span><span class="tag">物件池</span><span class="tag">渲染管線</span><span class="tag">遊戲開發</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>HTML5 Canvas 遊戲效能優化完整指南</h1>
+<blockquote>研究日期：2026-02-27</blockquote>
+<blockquote>研究動機：daily-digest-prompt 專案的創意遊戲優化自動任務（Pac-Man v1.1、Frogger v2.1）大量使用 HTML5 Canvas 渲染引擎，需要建立系統性的效能優化知識，確保遊戲在各種設備上流暢運行。</blockquote>
+<p>---</p>
+<h2>一、技術概述</h2>
+<p>HTML5 Canvas 是瀏覽器原生的 2D 繪圖 API，透過 JavaScript 操作像素級渲染。在遊戲開發中，Canvas 2D Context 需要每幀重繪所有可見元素，因此效能優化直接決定遊戲的流暢度。以 60 FPS 為目標，每幀預算僅 16.67ms，包含物理更新、碰撞偵測、渲染繪製和垃圾回收。現代瀏覽器的 GPU 加速雖減輕部分負擔，但 Canvas 2D 的 draw call 開銷、狀態機切換成本和記憶體管理仍是效能瓶頸。</p>
+<p>---</p>
+<h2>二、核心概念與原理</h2>
+<h3>2.1 requestAnimationFrame 遊戲迴圈</h3>
+<p><code>requestAnimationFrame</code> (rAF) 是瀏覽器提供的動畫排程 API，相較 <code>setTimeout</code>/<code>setInterval</code> 有三大優勢：</p>
+<ol>
+<li><strong>與顯示器刷新同步</strong>：60Hz 螢幕每 16.67ms 回調一次，120Hz 每 8.33ms</li>
+<li><strong>背景標籤頁自動節流</strong>：不可見時暫停回調，節省電池</li>
+<li><strong>避免 macrotask 佇列衝突</strong>：不像 setTimeout 會與事件處理競爭</li>
+</ol>
+<p>#### 固定時間步長（Fixed Timestep）</p>
+<pre><code>
+const TARGET_FPS = 60;
+const FRAME_INTERVAL = 1000 / TARGET_FPS; // 16.67ms
+let previousTime = 0;
+
+function gameLoop(currentTime) {
+  requestAnimationFrame(gameLoop);
+  const deltaTime = currentTime - previousTime;
+
+  if (deltaTime &gt;= FRAME_INTERVAL) {
+    // 關鍵：校正累計誤差，防止「死亡螺旋」
+    previousTime = currentTime - (deltaTime % FRAME_INTERVAL);
+    updatePhysics(FRAME_INTERVAL);
+  }
+  // 渲染可以每幀都執行（插值平滑）
+  draw();
+}
+requestAnimationFrame(gameLoop);
+</code></pre>
+<p><strong>死亡螺旋（Spiral of Death）防護</strong>：若某幀因 GC 或複雜運算延遲，不校正的話後續所有幀都會偏移。<code>previousTime = currentTime - (deltaTime % FRAME_INTERVAL)</code> 用模運算「倒轉時鐘」，確保幀排程不會累計漂移。</p>
+<p>#### 輸入處理模式</p>
+<pre><code>
+// 正確：追蹤按鍵狀態，在遊戲迴圈中讀取
+const pressedKeys = new Set();
+document.addEventListener('keydown', (e) =&gt; pressedKeys.add(e.key));
+document.addEventListener('keyup', (e) =&gt; pressedKeys.delete(e.key));
+
+function updatePhysics() {
+  if (pressedKeys.has('ArrowLeft')) player.moveLeft();
+  if (pressedKeys.has('ArrowRight')) player.moveRight();
+}
+</code></pre>
+<h3>2.2 Canvas 渲染管線</h3>
+<p>Canvas 2D Context 是一個<strong>狀態機</strong>：每次修改 fillStyle、strokeStyle、globalAlpha 等屬性都有開銷。渲染管線的優化核心是<strong>減少 draw call 和狀態切換</strong>。</p>
+<p>---</p>
+<h2>三、最佳實踐與常見陷阱</h2>
+<h3>3.1 渲染優化（七大技巧）</h3>
+<p>#### 技巧 1：離屏 Canvas 預渲染</p>
+<p>對複雜但不常變化的圖形（如精靈動畫幀），先繪製到離屏 Canvas 快取，再用 <code>drawImage()</code> 貼到主畫布。</p>
+<pre><code>
+// 預渲染精靈到離屏 Canvas
+const spriteCache = document.createElement('canvas');
+spriteCache.width = 64;
+spriteCache.height = 64;
+const spriteCtx = spriteCache.getContext('2d');
+drawComplexSprite(spriteCtx); // 一次性繪製
+
+// 遊戲迴圈中直接貼圖（極快）
+function draw() {
+  ctx.drawImage(spriteCache, player.x, player.y);
+}
+</code></pre>
+<p><strong>注意</strong>：離屏 Canvas 尺寸要緊貼內容，過大會浪費 GPU 傳輸頻寬。</p>
+<p>#### 技巧 2：多層 Canvas 分離</p>
+<p>將遊戲場景分為靜態背景層、動態遊戲層、UI 覆蓋層：</p>
+<pre><code>
+&lt;div id="stage"&gt;
+  &lt;canvas id="bg-layer" style="z-index:1"&gt;&lt;/canvas&gt;
+  &lt;canvas id="game-layer" style="z-index:2"&gt;&lt;/canvas&gt;
+  &lt;canvas id="ui-layer" style="z-index:3"&gt;&lt;/canvas&gt;
+&lt;/div&gt;
+</code></pre>
+<p>背景層每關只繪製一次，遊戲層每幀更新，UI 層僅在分數/生命變化時重繪。這大幅減少每幀的像素操作量。</p>
+<p>#### 技巧 3：批次繪製呼叫</p>
+<pre><code>
+// 錯誤：每條線獨立 stroke — N 次 draw call
+for (let i = 0; i &lt; points.length - 1; i++) {
+  ctx.beginPath();
+  ctx.moveTo(points[i].x, points[i].y);
+  ctx.lineTo(points[i+1].x, points[i+1].y);
+  ctx.stroke();
+}
+
+// 正確：合併為單一路徑 — 1 次 draw call
+ctx.beginPath();
+for (let i = 0; i &lt; points.length - 1; i++) {
+  ctx.moveTo(points[i].x, points[i].y);
+  ctx.lineTo(points[i+1].x, points[i+1].y);
+}
+ctx.stroke();
+</code></pre>
+<p>#### 技巧 4：最小化狀態機切換</p>
+<pre><code>
+// 錯誤：交替切換 fillStyle
+for (let i = 0; i &lt; 100; i++) {
+  ctx.fillStyle = (i % 2) ? 'red' : 'blue';
+  ctx.fillRect(i * 10, 0, 10, 480);
+}
+
+// 正確：按顏色分組繪製
+ctx.fillStyle = 'red';
+for (let i = 0; i &lt; 50; i++) ctx.fillRect(i * 20, 0, 10, 480);
+ctx.fillStyle = 'blue';
+for (let i = 0; i &lt; 50; i++) ctx.fillRect(i * 20 + 10, 0, 10, 480);
+</code></pre>
+<p>#### 技巧 5：整數座標避免子像素渲染</p>
+<p>瀏覽器對浮點數座標會進行抗鋸齒插值運算，消耗額外效能：</p>
+<pre><code>
+// 錯誤：浮點座標觸發子像素渲染
+ctx.drawImage(sprite, 10.3, 20.7);
+
+// 正確：取整（位元運算最快）
+ctx.drawImage(sprite, (10.3 + 0.5) | 0, (20.7 + 0.5) | 0);
+</code></pre>
+<p>#### 技巧 6：關閉不需要的 Alpha 通道</p>
+<pre><code>
+// 不需要透明度時關閉 alpha，讓瀏覽器跳過合成運算
+const ctx = canvas.getContext('2d', { alpha: false });
+</code></pre>
+<p>#### 技巧 7：避免昂貴操作</p>
+<ul>
+<li><strong><code>shadowBlur</code></strong>：陰影模糊是最耗效能的屬性之一，遊戲中盡量用預渲染陰影替代</li>
+<li><strong>文字渲染</strong>：<code>fillText()</code> 比 <code>drawImage()</code> 慢 5-10 倍，頻繁更新的分數建議預渲染為圖片</li>
+<li><strong><code>getImageData()</code></strong>：像素級讀取觸發 GPU 到 CPU 回傳，極其昂貴</li>
+</ul>
+<h3>3.2 記憶體管理</h3>
+<p>#### 物件池模式（Object Pool）</p>
+<p>遊戲中頻繁建立/銷毀的物件（粒子、子彈、道具）會觸發 GC 暫停，造成卡頓。物件池預分配固定數量物件，用完歸還而非銷毀。</p>
+<pre><code>
+class ParticlePool {
+  constructor(size) {
+    this.pool = Array.from({ length: size }, () =&gt; ({
+      x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false
+    }));
+  }
+
+  acquire() {
+    const particle = this.pool.find(p =&gt; !p.active);
+    if (particle) particle.active = true;
+    return particle;
+  }
+
+  release(particle) {
+    particle.active = false;
+  }
+
+  update(dt) {
+    for (const p of this.pool) {
+      if (!p.active) continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if (p.life &lt;= 0) this.release(p);
+    }
+  }
+}
+
+// 預分配 200 個粒子，整場遊戲零 GC
+const particles = new ParticlePool(200);
+</code></pre>
+<p>#### Dirty Rectangles（髒矩形）</p>
+<p>只重繪變化的區域，而非每幀清除整個 Canvas：</p>
+<pre><code>
+function updateAndDraw() {
+  const prevBounds = { x: entity.x - 2, y: entity.y - 2, w: entity.w + 4, h: entity.h + 4 };
+  entity.update();
+  const newBounds = { x: entity.x - 2, y: entity.y - 2, w: entity.w + 4, h: entity.h + 4 };
+
+  ctx.clearRect(prevBounds.x, prevBounds.y, prevBounds.w, prevBounds.h);
+  ctx.clearRect(newBounds.x, newBounds.y, newBounds.w, newBounds.h);
+  entity.draw(ctx);
+}
+</code></pre>
+<p><strong>適用場景</strong>：物件數量少且移動幅度小的遊戲。物件密集的動作遊戲中，髒矩形重疊計算的開銷可能超過全屏重繪。</p>
+<h3>3.3 高 DPI 螢幕適配</h3>
+<pre><code>
+function setupHiDPI(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  canvas.style.width = `${rect.width}px`;
+  canvas.style.height = `${rect.height}px`;
+}
+</code></pre>
+<h3>3.4 CSS Transform 縮放（GPU 加速）</h3>
+<pre><code>
+const scale = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT);
+stage.style.transformOrigin = '0 0';
+stage.style.transform = `scale(${scale})`;
+</code></pre>
+<p>---</p>
+<h2>四、與本專案的關聯</h2>
+<h3>4.1 直接應用場景</h3>
+<p>daily-digest-prompt 的創意遊戲優化自動任務負責優化 D:\Source\game 目錄下的 HTML5 Canvas 遊戲。目前已優化的遊戲：</p>
+<p>| 遊戲 | 版本 | 已應用的技術 | 可進一步優化 |</p>
+<p>|------|------|-------------|-------------|</p>
+<p>| Pac-Man | v1.1 | rAF、精靈繪製 | 多層 Canvas（迷宮靜態層 + 角色動態層） |</p>
+<p>| Frogger | v2.1 | 道具系統、物件管理 | 物件池（道具粒子效果）、整數座標 |</p>
+<p>| Tetris | v2.1 | 成就系統、統計追蹤 | 離屏預渲染方塊圖案、alpha: false |</p>
+<p>| Space Invaders | v2.2 | CRT 濾鏡、動態音樂 | CRT 效果預渲染到離屏 Canvas |</p>
+<p>| Breakout | v1.1 | 物件池粒子（120個）、rAF 固定步長 | 已是最佳實踐標竿 |</p>
+<p>| Pong | v1.1 | AI 難度系統 | CSS transform 縮放適配 |</p>
+<h3>4.2 效能檢測工具</h3>
+<pre><code>
+let frameCount = 0;
+let lastFpsTime = 0;
+let currentFps = 0;
+
+function gameLoop(currentTime) {
+  requestAnimationFrame(gameLoop);
+  frameCount++;
+  if (currentTime - lastFpsTime &gt;= 1000) {
+    currentFps = frameCount;
+    frameCount = 0;
+    lastFpsTime = currentTime;
+  }
+  ctx.fillStyle = 'lime';
+  ctx.font = '12px monospace';
+  ctx.fillText(`FPS: ${currentFps}`, 10, 20);
+}
+</code></pre>
+<h3>4.3 效能預算參考</h3>
+<p>| 等級 | FPS | 幀預算 | 適用場景 |</p>
+<p>|------|-----|--------|--------|</p>
+<p>| 流暢 | 60 | 16.67ms | 所有遊戲的基準目標 |</p>
+<p>| 可接受 | 30 | 33.33ms | 低效能設備的降級方案 |</p>
+<p>| 卡頓 | <20 | >50ms | 需要立即優化 |</p>
+<p>---</p>
+<h2>五、程式碼範例：完整優化遊戲迴圈</h2>
+<pre><code>
+class Game {
+  constructor(canvas) {
+    this.ctx = canvas.getContext('2d', { alpha: false });
+    this.targetFps = 60;
+    this.frameInterval = 1000 / this.targetFps;
+    this.previousTime = 0;
+    this.particles = new ParticlePool(200);
+    this.pressedKeys = new Set();
+    this.fps = 0;
+    this.frameCount = 0;
+    this.lastFpsUpdate = 0;
+    this.bindInput();
+  }
+
+  bindInput() {
+    document.addEventListener('keydown', (e) =&gt; this.pressedKeys.add(e.key));
+    document.addEventListener('keyup', (e) =&gt; this.pressedKeys.delete(e.key));
+  }
+
+  start() {
+    requestAnimationFrame((t) =&gt; this.loop(t));
+  }
+
+  loop(currentTime) {
+    requestAnimationFrame((t) =&gt; this.loop(t));
+    const delta = currentTime - this.previousTime;
+
+    this.frameCount++;
+    if (currentTime - this.lastFpsUpdate &gt;= 1000) {
+      this.fps = this.frameCount;
+      this.frameCount = 0;
+      this.lastFpsUpdate = currentTime;
+    }
+
+    if (delta &gt;= this.frameInterval) {
+      this.previousTime = currentTime - (delta % this.frameInterval);
+      this.update(this.frameInterval / 1000);
+    }
+    this.draw();
+  }
+
+  update(dt) {
+    this.handleInput();
+    this.updateEntities(dt);
+    this.particles.update(dt);
+    this.checkCollisions();
+  }
+
+  draw() {
+    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.drawBackground();
+    this.drawEntities();
+    this.drawParticles();
+    this.drawUI();
+  }
+}
+</code></pre>
+<p>---</p>
+<h2>六、參考來源</h2>
+<ol>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas">MDN — Optimizing canvas</a> — 官方 Canvas 優化指南</li>
+<li><a href="https://web.dev/canvas-performance/">web.dev — Improving HTML5 Canvas performance</a> — Google 效能優化文章</li>
+<li><a href="https://www.aleksandrhovhannisyan.com/blog/javascript-game-loop/">Performant Game Loops in JavaScript — Aleksandr Hovhannisyan</a> — 遊戲迴圈深度解析</li>
+<li><a href="https://playgama.com/blog/general/mastering-debugging-optimizing-javascript-for-game-development/">JavaScript Game Debugging and Optimization Tips 2025 — Playgama</a> — 現代最佳實踐</li>
+<li><a href="https://gist.github.com/jaredwilli/5469626">Canvas Performance Tips — GitHub Gist</a> — 社群整理的效能技巧集</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

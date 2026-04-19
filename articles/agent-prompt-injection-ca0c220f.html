@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="政策感知 Agent 規劃與 Prompt Injection 防護下的自主性提升 深度研究報告">
+  <title>政策感知 Agent 規劃與 Prompt Injection 防護下的自主性提升 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>政策感知 Agent 規劃與 Prompt Injection 防護下的自主性提升 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">政策感知 Agent 規劃與 Prompt Injection 防護下的自主性提升</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>政策感知 Agent 規劃與 Prompt Injection 防護下的自主性提升：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>這份研究的核心結論是：對 Agent 而言，Prompt Injection 已不能再被視為單純的輸入過濾問題，而是必須被當成「不可信內容試圖改寫決策流程」的系統性風險來處理。[來源：Designing AI agents to resist prompt injection, 2026] 當 Agent 具備搜尋、讀取文件、調用工具與執行副作用操作的能力時，真正決定安全與自主性平衡的，不是模型多會拒答，而是 planning loop 是否能辨識來源、維持信任邊界、限制工具權限，並在高風險行動前觸發批准機制。[來源：LLM01:2025 Prompt Injection, 2025] [來源：在 Cloud Run 上托管 MCP 服务器, 2026]</p>
+<p>多個官方來源都指向同一個方向：安全內嵌於規劃，而不是外掛在規劃之後。OpenAI 強調 indirect prompt injection 更像 social engineering；OWASP 與 Google Cloud 強調最小權限、外部內容隔離與人類批准；Microsoft 則把 direct/indirect prompt 檢測與多層 mitigation 產品化，說明企業級落地已從單點模型防護走向端到端控制面。[來源：Designing AI agents to resist prompt injection, 2026] [來源：Text Operations - Shield Prompt - REST API, 2024] [來源：How Microsoft defends against indirect prompt injection attacks, 2025]</p>
+<p>對 daily-digest-prompt 這類多階段、自動化、具副作用的系統，最值得落地的模式不是一味降權，而是建立「政策感知規劃器 + 能力分級工具層 + 人工批准閘門 + 可觀測審計」的四段式架構。這樣做可以把自主性從「能不能做更多」改寫成「能不能在明確約束內做對的事」。</p>
+<h2>研究背景與動機</h2>
+<p>Agent 系統正在從單輪問答轉向持續規劃、工具使用與跨階段工作流。這種演進帶來兩個同時擴張的面向：一方面，Agent 的自主性更高，能自行決定下一步、選工具、執行命令；另一方面，外部內容也更容易透過網頁、文件、電子郵件與 MCP 工具回應滲入 Agent 的決策上下文。OpenAI 在 2026 年明確指出，真實世界的 prompt injection 已愈來愈像社交工程，而不是簡單的「忽略前文」字串攻擊。[來源：Designing AI agents to resist prompt injection, 2026]</p>
+<p>這個轉變很重要，因為它改寫了防禦位置。如果威脅是社交工程，問題就不在於某個 token 序列是否危險，而在於系統是否把不可信內容誤當成規劃依據、是否讓模型接觸超出任務需要的能力，以及是否把高風險動作交給了沒有審批的自治流程。OWASP 的 LLM01 將這種風險直接連到資料外洩、權限提升與未授權操作，說明 Agent 安全必須是架構議題，而非單一模型參數議題。[來源：LLM01:2025 Prompt Injection, 2025]</p>
+<h2>核心技術解析</h2>
+<p>第一個核心機制是「可信與不可信上下文分層」。Microsoft 的 Shield Prompt API 把 <code>userPrompt</code> 與 <code>documents</code> 分開分析，顯示工程上已不再把所有文字視為同質輸入，而是先做來源分層，再做風險判定。[來源：Text Operations - Shield Prompt - REST API, 2024] 這種結構化分層的價值在於，規劃器可以先知道哪段內容來自使用者意圖、哪段來自外部資料，進而在推理與決策時降低後者對目標函數的污染。[來源：How Microsoft defends against indirect prompt injection attacks, 2025]</p>
+<p>第二個核心機制是「規劃層安全內嵌」。OpenReview 論文指出，若在 agent planning 目標函數中直接納入安全約束，系統可以在安全與自主性之間取得更好的聯合最適，而不是只能透過事後封鎖換取安全。[來源：Optimizing Agent Planning for Security and Autonomy, 2026] 這與 OpenAI 的觀察相呼應：若 injection 本質上會扭曲 Agent 的理解與決策，那麼真正需要保護的就不是單次輸出，而是規劃器如何選擇下一步、是否接受外部指令、是否升級到高風險工具。[來源：Designing AI agents to resist prompt injection, 2026]</p>
+<p>第三個核心機制是「工具邊界與能力分級」。Google Cloud 在 MCP 部署文件中把 IAM、OIDC、service-to-service auth 與 sidecar 部署列為標準做法，這些不是雲端例行公事，而是把工具能力從「模型天然可得」轉為「受身份、拓撲與網路邊界約束的可授權能力」。[來源：在 Cloud Run 上托管 MCP 服务器, 2026] 對 Agent 來說，真正的自主性不是直接拿到所有工具，而是在明確授權的 action space 中高品質選擇。</p>
+<p>第四個核心機制是「高風險動作的人類批准與決定論補強」。OWASP 直接把 human approval 列為高風險操作必備控制，Microsoft 也把 user consent workflow 與 deterministic block 視為重要的一環。[來源：LLM01:2025 Prompt Injection, 2025] [來源：How Microsoft defends against indirect prompt injection attacks, 2025] 這表示成熟系統並不把 LLM 自身判斷當成最後一道安全保證，而是讓批准流程與決定論規則承接最危險的副作用。</p>
+<h2>關鍵洞見</h2>
+<p>第一，將 prompt injection 理解成社交工程，是目前最有解釋力的框架，且已由 OpenAI、OWASP、Microsoft 三方材料共同支撐，因此屬於已驗證洞見 ✅。這個框架直接推導出一個工程要求：規劃器必須帶有來源可信度與信任標記，而不是只看語意是否合理。[來源：Designing AI agents to resist prompt injection, 2026] [來源：LLM01:2025 Prompt Injection, 2025] [來源：How Microsoft defends against indirect prompt injection attacks, 2025]</p>
+<p>第二，安全若在規劃後補上，通常只會降低能力；安全若在規劃中共同優化，才可能提升「受約束自主性」，這也是本研究最值得採納的設計原則，屬於已驗證洞見 ✅。[來源：Optimizing Agent Planning for Security and Autonomy, 2026] [來源：Designing AI agents to resist prompt injection, 2026] [來源：LLM01:2025 Prompt Injection, 2025]</p>
+<p>第三，對多工具 Agent 而言，最小權限與工具邊界不是保守做法，而是自主性放大的必要條件，屬於已驗證洞見 ✅。若工具沒有邊界，任何 injection 都可能被放大成實際副作用；若工具被分級，規劃器就能在低風險空間內自由探索，把高風險操作留給明確批准。[來源：在 Cloud Run 上托管 MCP 服务器, 2026] [來源：LLM01:2025 Prompt Injection, 2025] [來源：How Microsoft defends against indirect prompt injection attacks, 2025]</p>
+<p>第四，對本專案而言，最可行的改造單位不是更長的 system prompt，而是「trusted user intent / untrusted retrieved content / tool policy / approval policy」四段顯式結構，屬於已驗證洞見 ✅。[來源：Text Operations - Shield Prompt - REST API, 2024] [來源：Designing AI agents to resist prompt injection, 2026] [來源：How Microsoft defends against indirect prompt injection attacks, 2025]</p>
+<p>第五，自治能力的評量仍是目前文獻與官方文件的薄弱點，較合理的實務作法是自建風險調整後完成率、批准命中率與誤阻擋率三項指標。這點目前主要來自研究推論與少量工程文件延伸，因此暫列待驗證洞見 ⚠️。[來源：Optimizing Agent Planning for Security and Autonomy, 2026] [來源：How Microsoft defends against indirect prompt injection attacks, 2025]</p>
+<h2>實務應用建議</h2>
+<p>第一，將現有多階段自動任務改為政策感知規劃器。每次進入 planning loop 前，先顯式輸入工具政策、資料來源標記與副作用風險級別，讓模型在生成計畫前就知道哪些操作需要批准、哪些只能讀不能寫。</p>
+<p>第二，為工具建立能力分級。建議至少切成 <code>read_only</code>、<code>bounded_write</code>、<code>privileged_action</code> 三層；其中 <code>privileged_action</code> 必須經人工批准，且批准紀錄要可追溯。</p>
+<p>第三，把外部內容與使用者意圖分槽。無論是 Web 內容、RAG 段落、MCP 回應還是第三方文件，都不應直接與使用者指令混為同一層文字；應先標記為 untrusted context，再交由規劃器判讀。</p>
+<p>第四，新增自治性觀測指標。除了成功率，還要追蹤因安全政策被阻擋的行動比例、真正需要批准的命中率，以及被政策誤擋的任務比例，才能判斷自主性是否被健康提升。</p>
+<p>第五，把高風險動作的批准邏輯抽出成獨立 policy layer，而不是散落在 prompt 中。這會讓後續維護更接近可測試、可審查、可版本化的工程資產。</p>
+<h2>與現有知識的連結</h2>
+<p>本研究與既有知識庫已有明顯連續性。先前的「Agentic AI 的 Human-in-the-Loop Durable Orchestration」已指出 HITL 的本質不是 UI 確認，而是 pause/resume 狀態機；本研究則補上在何種風險模型下應觸發該狀態機。另有「AI Security Testing Mechanism」與「Agent Tool Use 可靠性設計」兩篇既有研究，已分別覆蓋安全工具編排與工具可靠性；本報告則把兩者收斂到更高一層的 policy-aware planning，補齊「規劃前即納入安全策略」這個缺口。</p>
+<h2>未來展望</h2>
+<p>下一步最值得深化的方向有兩個。第一，是把 autonomy metric 做成實驗框架，直接比較「僅輸入過濾」與「policy-aware planning」在任務成功率、風險事件與人工批准負荷上的差異。第二，是將 prompt injection 防護與 durable orchestration 結合，把批准、回滾、補償交易與審計事件寫成可恢復 workflow，而不是只留在 prompt 約束層。若這兩條線落地，Agent 的自主性將不再依賴運氣，而能靠制度化設計穩定擴張。</p>
+<h2>完整書目</h2>
+<ul>
+<li>OpenAI. (2026). Designing AI agents to resist prompt injection. OpenAI. https://openai.com/index/designing-agents-to-resist-prompt-injection/</li>
+<li>OWASP Gen AI Security Project. (2025). LLM01:2025 Prompt Injection. OWASP. https://genai.owasp.org/llmrisk/llm01-prompt-injection/</li>
+<li>Microsoft. (2024). Text Operations - Shield Prompt - REST API. Microsoft Learn. https://learn.microsoft.com/en-us/rest/api/contentsafety/text-operations/shield-prompt?view=rest-contentsafety-2024-09-01</li>
+<li>Google Cloud. (2026). 在 Cloud Run 上托管 MCP 服务器. Google Cloud Documentation. https://docs.cloud.google.com/run/docs/host-mcp-servers?hl=zh-cn</li>
+<li>Anonymous Authors. (2026). Optimizing Agent Planning for Security and Autonomy. OpenReview. https://openreview.net/forum?id=g0aVCDY3gS</li>
+<li>Microsoft Security Response Center. (2025). How Microsoft defends against indirect prompt injection attacks. Microsoft. https://www.microsoft.com/en-us/msrc/blog/2025/07/how-microsoft-defends-against-indirect-prompt-injection-attacks-ja</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

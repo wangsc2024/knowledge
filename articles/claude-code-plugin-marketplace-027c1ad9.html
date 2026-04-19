@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code Plugin 生態系統完整指南 — Marketplace 架構、LSP 整合、Git Worktree 隔離與企業級治理（2026-02）">
+  <title>Claude Code Plugin 生態系統完整指南 — Marketplace 架構、LSP 整合、Git Worktree 隔離與企業級治理（2026-02） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code Plugin 生態系統完整指南 — Marketplace 架構、LSP 整合、Git Worktree 隔離與企業級治理（2026-02）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">Plugin</span><span class="tag">Marketplace</span><span class="tag">LSP</span><span class="tag">Git Worktree</span><span class="tag">Skills</span><span class="tag">企業治理</span><span class="tag">生態系統</span><span class="tag">2026</span><span class="tag">技術研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code Plugin 生態系統完整指南 — Marketplace 架構、LSP 整合、Git Worktree 隔離與企業級治理（2026-02）</h1>
+<h2>主題概述</h2>
+<p>Claude Code 在 2026 年初已從單一 CLI 工具演化為擁有 <strong>9,000+ 插件</strong>的完整開發平台。Plugin 系統是這個生態的核心骨架，它將 Slash Commands、Subagents、MCP Servers、Hooks 和 LSP Servers 五大擴展點統一封裝為可安裝、可分享、可治理的插件單元。本文深入解析 Plugin 架構的技術規格、Marketplace 分發機制、LSP 語言服務整合、Git Worktree 隔離，以及企業級管控策略。</p>
+<p>---</p>
+<h2>一、Plugin 架構五大擴展點</h2>
+<p>Claude Code Plugin 是五種擴展機制的統一封裝：</p>
+<h3>1.1 五大組件</h3>
+<p>| 擴展點 | 用途 | 範例 |</p>
+<p>|--------|------|------|</p>
+<p>| <strong>Slash Commands / Skills</strong> | 自定義 <code>/</code> 指令，用 SKILL.md 定義行為 | <code>/review</code>、<code>/deploy</code>、<code>/fix-issue 123</code> |</p>
+<p>| <strong>Subagents</strong> | 專用 Agent，支援 <code>context: fork</code> 隔離執行 | security-reviewer、compliance-checker |</p>
+<p>| <strong>MCP Servers</strong> | 透過 Model Context Protocol 連接外部工具與資料源 | 資料庫查詢、CI/CD 整合 |</p>
+<p>| <strong>Hooks</strong> | 在工具生命週期關鍵點自定義行為 | PreToolUse 驗證、PostToolUse 日誌 |</p>
+<p>| <strong>LSP Servers</strong> | Language Server Protocol 即時程式碼智能 | 型別檢查、go-to-definition、diagnostics |</p>
+<h3>1.2 Plugin 目錄結構</h3>
+<pre><code>
+my-plugin/
+├── .claude-plugin/
+│   └── plugin.json          # 插件清單（必須）
+├── skills/
+│   └── review/
+│       └── SKILL.md          # Skill 定義
+├── agents/
+│   └── security-reviewer.md  # Subagent 定義
+├── scripts/
+│   └── validate.sh           # Hook 腳本
+└── servers/
+    └── db-server              # MCP/LSP 伺服器
+</code></pre>
+<h3>1.3 plugin.json Schema</h3>
+<pre><code>
+{
+  "name": "review-plugin",
+  "description": "Adds a /review skill for quick code reviews",
+  "version": "1.0.0",
+  "author": { "name": "DevTools Team", "email": "dev@example.com" },
+  "commands": ["./commands/core/", "./commands/experimental/preview.md"],
+  "agents": ["./agents/security-reviewer.md"],
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Write|Edit",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh" }]
+    }]
+  },
+  "mcpServers": {
+    "enterprise-db": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/servers/db-server",
+      "args": ["--config", "${CLAUDE_PLUGIN_ROOT}/config.json"]
+    }
+  },
+  "lspServers": { ... }
+}
+</code></pre>
+<p><strong>關鍵變數</strong>：<code>${CLAUDE_PLUGIN_ROOT}</code> 在 Hook 和 Server 配置中引用插件安裝目錄（因為插件安裝時會被複製到 <code>~/.claude/plugins/cache</code>）。</p>
+<p>---</p>
+<h2>二、Marketplace 分發架構</h2>
+<h3>2.1 Marketplace 本質</h3>
+<p>Marketplace 是一個 Git 倉庫，根目錄下有 <code>.claude-plugin/marketplace.json</code> 索引檔。支援 GitHub、GitLab、Bitbucket 或自建 Git 服務託管。</p>
+<h3>2.2 marketplace.json Schema</h3>
+<pre><code>
+{
+  "name": "company-tools",
+  "owner": { "name": "DevTools Team", "email": "devtools@example.com" },
+  "metadata": {
+    "description": "Internal development tools",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "code-formatter",
+      "source": "./plugins/formatter",
+      "description": "Automatic code formatting",
+      "version": "2.1.0",
+      "category": "productivity",
+      "tags": ["formatting", "code-quality"],
+      "keywords": ["lint", "format"]
+    },
+    {
+      "name": "deploy-tools",
+      "source": { "source": "github", "repo": "company/deploy-plugin", "ref": "v2.0.0" }
+    }
+  ]
+}
+</code></pre>
+<h3>2.3 五種 Plugin Source 類型</h3>
+<p>| Source | 格式 | 適用場景 |</p>
+<p>|--------|------|----------|</p>
+<p>| <strong>相對路徑</strong> | <code>"./plugins/my-plugin"</code> | 同倉庫內的插件 |</p>
+<p>| <strong>GitHub</strong> | <code>{ "source": "github", "repo": "owner/repo", "ref": "v2.0", "sha": "abc123..." }</code> | GitHub 託管 |</p>
+<p>| <strong>Git URL</strong> | <code>{ "source": "url", "url": "https://gitlab.com/team/plugin.git" }</code> | 任意 Git 服務 |</p>
+<p>| <strong>npm</strong> | <code>{ "source": "npm", "package": "@acme/plugin", "version": "^2.0.0" }</code> | npm 分發 |</p>
+<p>| <strong>pip</strong> | <code>{ "source": "pip", "package": "my-plugin" }</code> | Python pip 分發 |</p>
+<h3>2.4 CLI 操作</h3>
+<pre><code>
+# 新增 Marketplace
+/plugin marketplace add owner/repo
+/plugin marketplace add https://gitlab.com/company/plugins.git
+/plugin marketplace add ./local-marketplace
+
+# 安裝插件
+/plugin install review-plugin@my-marketplace
+
+# 更新 Marketplace
+/plugin marketplace update
+
+# 驗證
+claude plugin validate .
+/plugin validate .
+</code></pre>
+<p>---</p>
+<h2>三、Skill 系統深度解析</h2>
+<h3>3.1 SKILL.md Frontmatter 完整欄位</h3>
+<p>| 欄位 | 用途 |</p>
+<p>|------|------|</p>
+<p>| <code>name</code> | Skill 名稱，成為 <code>/name</code> 指令 |</p>
+<p>| <code>description</code> | Claude 自動匹配的描述 |</p>
+<p>| <code>argument-hint</code> | 自動完成提示，如 <code>[issue-number]</code> |</p>
+<p>| <code>disable-model-invocation</code> | <code>true</code> = 僅手動觸發（如 <code>/deploy</code>） |</p>
+<p>| <code>user-invocable</code> | <code>false</code> = 僅 Claude 自動觸發（背景知識） |</p>
+<p>| <code>allowed-tools</code> | 限制 Skill 可用的工具 |</p>
+<p>| <code>model</code> | 指定執行模型 |</p>
+<p>| <code>context</code> | <code>fork</code> = 在隔離 subagent 中執行 |</p>
+<p>| <code>agent</code> | Subagent 類型（Explore / Plan / general-purpose） |</p>
+<p>| <code>hooks</code> | Skill 生命週期 Hooks |</p>
+<h3>3.2 動態上下文注入</h3>
+<p><code>!\</code>command\`` 語法在 Skill 送出前執行 Shell 命令，結果內嵌到 prompt 中：</p>
+<pre><code>
+---
+name: pr-summary
+context: fork
+agent: Explore
+---
+## PR 上下文
+- PR diff: !`gh pr diff`
+- 變更檔案: !`gh pr diff --name-only`
+</code></pre>
+<h3>3.3 字串替換變數</h3>
+<p>| 變數 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <code>$ARGUMENTS</code> | 所有引數 |</p>
+<p>| <code>$ARGUMENTS[N]</code> / <code>$N</code> | 第 N 個引數（0-indexed） |</p>
+<p>| <code>${CLAUDE_SESSION_ID}</code> | 當前 Session ID |</p>
+<h3>3.4 Skill 優先級</h3>
+<p>Enterprise > Personal (<code>~/.claude/skills/</code>) > Project (<code>.claude/skills/</code>) > Plugin（命名空間 <code>plugin-name:skill-name</code>）。</p>
+<p>---</p>
+<h2>四、Git Worktree 隔離</h2>
+<h3>4.1 核心概念</h3>
+<p>Git Worktree 讓多個 Agent 在同一 repo 上並行工作，互不干擾。每個 Agent 擁有獨立的工作目錄和分支。</p>
+<h3>4.2 使用方式</h3>
+<pre><code>
+# CLI 啟動隔離 worktree
+claude --worktree
+claude -w
+
+# 指定 worktree 名稱
+claude --worktree feature-auth
+
+# 搭配 tmux 背景執行
+claude --worktree --tmux
+</code></pre>
+<h3>4.3 Subagent 宣告式隔離</h3>
+<p>在 Agent 定義的 frontmatter 中加入：</p>
+<pre><code>
+---
+isolation: worktree
+---
+</code></pre>
+<p>Agent 自動在獨立 worktree 中執行，完成後根據是否有變更決定清理策略：</p>
+<ul>
+<li><strong>無變更</strong> → 自動刪除 worktree 和分支</li>
+<li><strong>有變更/提交</strong> → 提示用戶保留或移除</li>
+</ul>
+<h3>4.4 平行開發場景</h3>
+<ul>
+<li>Agent A 在 worktree-1 重寫 <code>src/auth.ts</code></li>
+<li>Agent B 在 worktree-2 用不同方案重寫同檔案</li>
+<li>開發者審查兩個分支，選擇最佳方案</li>
+</ul>
+<h3>4.5 非 Git VCS 支援</h3>
+<p>透過 <code>WorktreeCreate</code> 和 <code>WorktreeRemove</code> Hooks 自定義 worktree 建立/清理邏輯，支援 SVN、Perforce、Mercurial 等。</p>
+<p>---</p>
+<h2>五、LSP Server 整合</h2>
+<h3>5.1 支援語言</h3>
+<p>11 種語言：Python、TypeScript、Go、Rust、Java、C/C++、C#、PHP、Kotlin、Ruby、HTML/CSS。</p>
+<h3>5.2 提供的功能</h3>
+<ul>
+<li><strong>Go-to-definition</strong>：跳轉到定義位置</li>
+<li><strong>Find references</strong>：查找所有引用</li>
+<li><strong>Type checking</strong>：即時型別檢查</li>
+<li><strong>Diagnostics</strong>：錯誤與警告診斷</li>
+<li><strong>Symbol documentation</strong>：符號型別資訊與文件</li>
+</ul>
+<h3>5.3 配置方式</h3>
+<p>在 plugin.json 中設定 <code>lspServers</code>，指定伺服器執行檔、通訊協議、支援的副檔名和語言標識。</p>
+<p>---</p>
+<h2>六、企業級治理</h2>
+<h3>6.1 Managed Marketplace 限制</h3>
+<p>管理員透過 <code>strictKnownMarketplaces</code> 控制可安裝的 Marketplace：</p>
+<pre><code>
+{
+  "strictKnownMarketplaces": [
+    { "source": "github", "repo": "acme-corp/approved-plugins" },
+    { "source": "hostPattern", "hostPattern": "^github\\.example\\.com$" }
+  ]
+}
+</code></pre>
+<p>| 值 | 行為 |</p>
+<p>|----|------|</p>
+<p>| 未定義 | 無限制，可新增任何 Marketplace |</p>
+<p>| 空陣列 <code>[]</code> | 完全鎖定，不可新增 |</p>
+<p>| 來源清單 | 僅允許匹配的 Marketplace |</p>
+<h3>6.2 團隊自動安裝</h3>
+<p>在專案 <code>.claude/settings.json</code> 中配置：</p>
+<pre><code>
+{
+  "extraKnownMarketplaces": {
+    "company-tools": {
+      "source": { "source": "github", "repo": "your-org/claude-plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "code-formatter@company-tools": true
+  }
+}
+</code></pre>
+<p>協作者信任專案時自動提示安裝。</p>
+<h3>6.3 Release Channel（穩定/最新）</h3>
+<p>透過兩個 Marketplace 指向同一 repo 的不同 ref，實現穩定版和最新版分軌分發，透過 Managed Settings 分配給不同用戶群組。</p>
+<h3>6.4 Strict Mode</h3>
+<p>| 值 | 行為 |</p>
+<p>|----|------|</p>
+<p>| <code>true</code>（預設） | plugin.json 為權威，Marketplace 可補充 |</p>
+<p>| <code>false</code> | Marketplace 為完整定義，plugin 不得有衝突 |</p>
+<h3>6.5 私有倉庫驗證</h3>
+<p>| 平台 | 環境變數 |</p>
+<p>|------|----------|</p>
+<p>| GitHub | <code>GITHUB_TOKEN</code> / <code>GH_TOKEN</code> |</p>
+<p>| GitLab | <code>GITLAB_TOKEN</code> / <code>GL_TOKEN</code> |</p>
+<p>| Bitbucket | <code>BITBUCKET_TOKEN</code> |</p>
+<h3>6.6 ConfigChange Hook</h3>
+<p>新增 <code>ConfigChange</code> Hook 事件，在 Session 中配置檔變更時觸發，支援企業安全審計和選擇性阻止設定變更。</p>
+<p>---</p>
+<h2>七、與 daily-digest-prompt 專案的對比洞察</h2>
+<p>| 維度 | Claude Code Plugin 系統 | daily-digest-prompt |</p>
+<p>|------|------------------------|---------------------|</p>
+<p>| 擴展封裝 | 五合一 Plugin（Skills + Agents + MCP + Hooks + LSP） | Skills 自包含 + Hooks 獨立 |</p>
+<p>| 分發機制 | Marketplace + npm/pip/GitHub | 專案內 <code>skills/</code> 目錄 |</p>
+<p>| 版本管理 | plugin.json <code>version</code> + ref/sha 鎖定 | SKILL.md frontmatter <code>version</code> |</p>
+<p>| 隔離模式 | Git Worktree 原生支援 | PowerShell Start-Job 進程隔離 |</p>
+<p>| 企業治理 | strictKnownMarketplaces + Managed Settings | Hook 規則 + YAML Schema 驗證 |</p>
+<p>| 動態載入 | Skill 描述預載 → 觸發時才載全文 | SKILL_INDEX.md 索引 → 按需 Read |</p>
+<h3>可借鑑之處</h3>
+<ol>
+<li><strong>Plugin 化封裝</strong>：將 22 個 Skills + 6 個 Hooks 打包為 Plugin，支援跨專案複用</li>
+<li><strong>Git Worktree</strong>：Phase 2 並行執行 Agent 可改用 worktree 隔離取代 Start-Job</li>
+<li><strong>LSP 整合</strong>：為 Hook Python 腳本提供即時型別檢查和 diagnostics</li>
+<li><strong>Marketplace 分發</strong>：將本專案的 Skills 發布為公開 Marketplace</li>
+</ol>
+<p>---</p>
+<h2>八、生態系統現況（2026-02）</h2>
+<ul>
+<li><strong>9,000+ 插件</strong>：涵蓋 DevOps 自動化、AI/ML 工程、前端開發、安全審計等</li>
+<li><strong>官方 Marketplace</strong>：<code>anthropics/claude-plugins-official</code>，含 Anthropic 維護的高品質插件</li>
+<li><strong>社群 Marketplace</strong>：多個第三方市場（claude-plugins.dev、claudecodemarketplace.com 等）</li>
+<li><strong>Agent Skills 開放標準</strong>：Skills 遵循 <a href="https://agentskills.io">agentskills.io</a> 開放標準，跨多個 AI 工具共用</li>
+<li><strong>Superpowers 框架</strong>：60.7K stars 的官方 Marketplace 認證 Agentic Skills 框架</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://claude.com/blog/claude-code-plugins">Claude Code Plugins Blog</a></li>
+<li><a href="https://code.claude.com/docs/en/plugin-marketplaces">Plugin Marketplaces Documentation</a></li>
+<li><a href="https://code.claude.com/docs/en/slash-commands">Skills Documentation</a></li>
+<li><a href="https://www.ghacks.net/2026/02/25/anthropic-expands-claude-with-enterprise-plugins-and-marketplace/">Anthropic Enterprise Plugins (gHacks)</a></li>
+<li><a href="https://dev.to/klement_gunndu/how-git-worktrees-let-claude-code-agents-run-in-true-isolation-1m4d">Git Worktree Support for Claude Code</a></li>
+<li><a href="https://www.aifreeapi.com/en/posts/claude-code-lsp">Claude Code LSP Integration</a></li>
+<li><a href="https://aitoolanalysis.com/claude-code-plugins/">9,000+ Plugins Analysis</a></li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-26</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「研究 1 項 Claude Code 最新技術」。KB 已有 Hooks、Agent Teams、Agent SDK 等筆記，本次聚焦尚未涵蓋的 Plugin 生態系統、Marketplace 架構、LSP 整合與 Git Worktree 隔離。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

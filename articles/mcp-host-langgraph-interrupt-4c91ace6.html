@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MCP Host 與 LangGraph Interrupt：人機協同編排、工具核准與 JSONL／error-object 追溯對齊 深度研究報告">
+  <title>MCP Host 與 LangGraph Interrupt：人機協同編排、工具核准與 JSONL／error-object 追溯對齊 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>MCP Host 與 LangGraph Interrupt：人機協同編排、工具核准與 JSONL／error-object 追溯對齊 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">MCP Host 與 LangGraph Interrupt</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>MCP Host 與 LangGraph Interrupt：深度技術研究報告</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>本報告接續 <code>context/ai-research-plan.json</code> 中已完成三角佐證的分析，將 <strong>MCP Host</strong> 與 <strong>LangGraph Human-in-the-loop／interrupt</strong> 放在同一條「可暫停、可恢復、可稽核」治理鏈上檢視。共識面有三：其一，人機協同應內建在編排狀態與 checkpoint 語意，而不是只對最終輸出做人工審閱 [來源：LangGraph — Human-in-the-loop（官方概念文件）, 2024]。其二，MCP 規格在傳輸與能力協商層界定工具與資源邊界，但高風險工具仍須 Host 政策與上層圖編排節點共同治理 [來源：Model Context Protocol Specification 2024-11-05, 2024]。其三，daily-digest-prompt 已透過 JSONL、Phase handoff 與 error-object 契約朝向「單一觀測平面」，適合承接核准與中斷事件而不另立平行 schema [來源：共用前言與 Hook／結果檔契約（CLAUDE.md 節錄脈絡）, 2026]。分歧在於核准欄位應否進入 MCP 訊息本体：規格維持中立，本倉建議以 <code>post_tool_logger</code> 與可選巢狀欄位承載，維持協定解耦 [來源：GitHub Scout：post_tool_logger 與 error-object／trace 聯動（本 repo 計畫稿）, 2026]。待驗證項包括 checkpoint 後端與 session 逾時對「工具副作用是否重放」的組合影響，以及 Windows 排程下長時人因延遲的成本 [來源：連續記憶與暫存 break-glass 延伸觀點, 2026]。</p>
+<h2>研究背景與動機</h2>
+<p>自動任務管線在 PowerShell 排程與多 Phase Agent 之間來回，若核准發生在工具邊界（MCP）與圖節點（LangGraph interrupt）兩處卻無共用追溯鍵，審計與 self-heal 會分裂。本研究聚焦三問：控制流分工、既有 JSONL／error-object 承接方式、以及離線／短連線環境下可恢復中斷的落地形狀。</p>
+<h2>核心技術解析（每個主張內嵌引用）</h2>
+<p><strong>LangGraph 將「等待人類」建模為圖狀態的中斷與恢復</strong>，強調 durable state 而非純粹線上互動 UI；這與「只在最後一刻叫人來改稿」不同，後者難以重放與驗證 [來源：LangGraph — Human-in-the-loop（官方概念文件）, 2024]。</p>
+<p><strong>MCP 區分 Host／Client／Server</strong>：工具列表與資源宣告發生在會話能力協商之後，協定本身不取代應用層對「誰能在何種情境下呼叫何種工具」之政策 [來源：Model Context Protocol Specification 2024-11-05, 2024]。</p>
+<p><strong>本倉 Hook 與結果 JSON 契約</strong>將每次工具使用與階段交接留在可 grep 的平面；若在中斷節點寫入 <code>task_key</code>、<code>phase</code>、<code>run_id</code> 與 <code>proposal_id</code>（若適用），則與 GitHub Scout 計畫中之 error-object <code>instance</code> urn 可機讀對齊 [來源：GitHub Scout：post_tool_logger 與 error-object／trace 聯動（本 repo 計畫稿）, 2026][來源：共用前言與 Hook／結果檔契約（CLAUDE.md 節錄脈絡）, 2026]。</p>
+<p><strong>緊急覆寫（break-glass）與常態核准</strong>在運維上都要保留觀測；此與「可關閉日誌的捷徑」不相容，應在架構層明令禁止 [來源：AI 深度研究 break-glass／MCP 延伸觀點（工作區暫存稿）, 2026]。</p>
+<h2>關鍵洞見（含三角佐證狀態 ✅/⚠️）</h2>
+<ul>
+<li>*<em>待決狀態快照應與 <code>results/todoist-auto-</em></code> 與 <code>scheduler-state</code> 的日期／run 語意對齊**（✅；多源：LangGraph 持久化概念、CLAUDE 結果檔規範、Scout 計畫稿、連續記憶共識）。</li>
+<li><strong>核准事件映射到 error-object <code>instance</code> 空間，可維持單一 grep 平面</strong>（✅；Scout 計畫、error-object schema、CLAUDE）。</li>
+<li><strong>Host 靜態分級 × 圖節點動態覆寫須共用理由碼枚舉</strong>（✅；MCP 協定邊界＋本倉治理敘事＋多 Agent 研究連續記憶）。</li>
+<li><strong>Checkpoint 存儲與 MCP session 逾時對恢復時副作用是否重放</strong>（⚠️；本輪未對各發行預設做實測）。</li>
+<li><strong>Windows 短週期 CLI Agent 不應長阻塞等人；宜用 ntfy／Todoist 作人力佇列</strong>（⚠️；營運假設＋ break-glass 延伸）。</li>
+</ul>
+<h2>實務應用建議（3-5 點）</h2>
+<ol>
+<li>在 LangGraph interrupt 回復路徑寫入與 Phase 2 結果檔相同家族的鍵（<code>agent</code>、<code>task_key</code>、<code>status</code> 草案欄位），並由 <code>post_tool_logger</code> 附掛 <code>trace</code> metadata。</li>
+<li>MCP Host 側維護工具風險層級表；圖節點只在「動態情境」覆寫，不改層級表枚舉本身。</li>
+<li>核准通過／拒絕皆產生 JSONL 事件，錯誤型態沿用 <code>config/error-types.yaml</code> 命名空間，避免 ad-hoc 字串。</li>
+<li>排程任務遇人中斷時，優先將「待決摘要」推 ntfy，主進程釋出 worker；恢復時由新一輪 Phase 0 讀取快照。</li>
+<li>與現有 <code>github_scout</code> proposal 對齊 <code>proposal_id</code>，以便 OODA 閉環回溯。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>延續連續記憶中 break-glass 與 operator override 研究：理由碼、雙人覆核與 Harness 索引已現成；本主題補上 <strong>協定層（MCP）與編排層（LangGraph）交界</strong> 的具體掛點，並把「核准事件放哪裡」收斂為掛鉤平面 vs 協定 payload 的工程權衡。</p>
+<h2>未來展望</h2>
+<p>建議以最小 PoC 驗證：同一 trace 上 MCP <code>call_tool</code> 與 LangGraph interrupt 恢復後的工具重放行為，並測量 PowerShell 管線在 30–120 秒人因延遲下的排程堆疊成本。</p>
+<h2>完整書目</h2>
+<ol>
+<li>LangChain. <em>LangGraph — Human-in-the-loop（官方概念文件）</em>. <code>https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/</code>（查閱 2026-03）。</li>
+<li>Model Context Protocol. <em>Specification 2024-11-05</em>. <code>https://spec.modelcontextprotocol.io/specification/2024-11-05/</code>（2024-11）。</li>
+<li>daily-digest-prompt（本倉）. <code>docs/plans/github-scout-20260331-post-tool-logger-schema-linkage.md</code>（2026-03-31 計畫稿）。</li>
+<li>daily-digest-prompt（本倉）. <code>CLAUDE.md</code> — 共用前言、Hook 與結果檔契約（2026-03 版控快照）。</li>
+<li>daily-digest-prompt（本倉）. <code>.tmp_ai_deep_report_breakglass.md</code> — break-glass 與 MCP 延伸暫存稿（2026-03）。</li>
+<li>daily-digest-prompt（本倉）. <code>context/continuity/auto-task-ai_deep_research.json</code> — 連續記憶執行紀錄（2026-03）。</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

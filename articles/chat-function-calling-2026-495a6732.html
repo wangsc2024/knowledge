@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Chat 對話系統規劃報告（含 Function Calling）- 2026-02-19">
+  <title>Chat 對話系統規劃報告（含 Function Calling）- 2026-02-19 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Chat 對話系統規劃報告（含 Function Calling）- 2026-02-19</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Chat系統</span><span class="tag">專案規劃</span><span class="tag">API設計</span><span class="tag">Function Calling</span><span class="tag">FastAPI</span><span class="tag">React</span><span class="tag">架構設計</span><span class="tag">工具調用</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Chat 對話系統規劃報告（含 Function Calling 與工具調用能力）</h1>
+<p><strong>版本</strong>：v1.0</p>
+<p><strong>日期</strong>：2026-02-19</p>
+<p><strong>狀態</strong>：規劃完成，待確認後實作</p>
+<p>---</p>
+<h2>一、系統概述與目標</h2>
+<h3>1.1 系統定位</h3>
+<p>建構一套<strong>輕量級、可擴展的 AI Chat 對話系統</strong>，具備優質 RESTful API 與現代化前端介面。系統核心特色是內建 <strong>Function Calling（工具調用）</strong> 能力，使 LLM 不僅能回答文字問題，還能透過結構化的工具調用執行實際操作（如查詢天氣、搜尋資料庫、呼叫外部 API）。</p>
+<h3>1.2 目標用戶</h3>
+<ul>
+<li><strong>開發者</strong>：需要一個可自訂工具的 Chat 平台來整合內部服務</li>
+<li><strong>個人用戶</strong>：希望透過自然語言操控各種工具（知識庫查詢、日程管理、資料分析等）</li>
+<li><strong>團隊</strong>：需要共享對話歷史與工具配置的協作環境</li>
+</ul>
+<h3>1.3 核心功能</h3>
+<p>| 功能 | 描述 | 優先級 |</p>
+<p>|------|------|--------|</p>
+<p>| 即時對話 | 支援 SSE Token Streaming 的即時打字效果 | P0 |</p>
+<p>| Function Calling | LLM 自動判斷並調用已註冊工具 | P0 |</p>
+<p>| 工具註冊 | 透過 JSON Schema 定義並動態註冊工具 | P0 |</p>
+<p>| 對話管理 | 建立、列表、搜尋、刪除對話 | P0 |</p>
+<p>| 前端介面 | 現代化 React Chat UI，含工具調用視覺化 | P0 |</p>
+<p>| 多模型支援 | 支援 OpenAI / Anthropic / 本地模型切換 | P1 |</p>
+<p>| 對話匯出 | 匯出 Markdown / JSON 格式 | P2 |</p>
+<p>| MCP 相容 | 工具系統可升級為 MCP 協議 | P2 |</p>
+<p>---</p>
+<h2>二、技術架構</h2>
+<h3>2.1 整體架構（分層設計）</h3>
+<pre><code>
++--------------------------------------------------+
+|              前端層 (React + TypeScript)           |
+|  - Chat UI Components (對話、訊息、工具面板)       |
+|  - EventSource SSE Client (Token Streaming)       |
+|  - State Management (Zustand)                     |
+|  - HTTP Client (fetch / axios)                    |
++-------------------------+------------------------+
+                          | HTTP REST / SSE
++-------------------------v------------------------+
+|              後端層 (FastAPI + Python)             |
+|  - RESTful API Endpoints                          |
+|  - SSE Streaming Handler                          |
+|  - LLM Orchestration (多供應商抽象層)              |
+|  - Tool Registry + Execution Engine               |
+|  - Authentication Middleware (JWT)                 |
++-------------------------+------------------------+
+                          |
++-------------------------v------------------------+
+|              資料層                               |
+|  - SQLite (開發) / PostgreSQL (生產)              |
+|  - 對話、訊息、工具定義、調用記錄                   |
++--------------------------------------------------+
+</code></pre>
+<h3>2.2 前端技術棧</h3>
+<p>| 技術 | 用途 | 選型理由 |</p>
+<p>|------|------|----------|</p>
+<p>| React 18+ | UI 框架 | 生態豐富、元件化、hooks 模型成熟 |</p>
+<p>| TypeScript | 型別安全 | 編譯時錯誤檢查、IDE 支援佳 |</p>
+<p>| Vite | 建構工具 | HMR 極快、ESM 原生支援 |</p>
+<p>| Zustand | 狀態管理 | 輕量（< 1KB）、API 簡潔、無 Provider 嵌套 |</p>
+<p>| TailwindCSS | 樣式方案 | Utility-first、無需命名、響應式內建 |</p>
+<p>| EventSource API | SSE 客戶端 | 瀏覽器原生、自動重連、零依賴 |</p>
+<h3>2.3 後端技術棧</h3>
+<p>| 技術 | 用途 | 選型理由 |</p>
+<p>|------|------|----------|</p>
+<p>| FastAPI | Web 框架 | 原生 async、自動 OpenAPI 文件、SSE 支援 |</p>
+<p>| Pydantic v2 | 資料驗證 | 效能優異、JSON Schema 自動生成 |</p>
+<p>| SQLAlchemy 2.0 | ORM | async 支援、型別提示完善 |</p>
+<p>| python-jose | JWT 認證 | 輕量 JWT 實作 |</p>
+<p>| httpx | HTTP 客戶端 | async 支援、用於呼叫 LLM API |</p>
+<p>| uv | 套件管理 | 極速解析與安裝、取代 pip |</p>
+<h3>2.4 資料庫選型</h3>
+<p><strong>開發環境</strong>：SQLite（零配置、單檔案、適合原型開發）</p>
+<p><strong>生產環境</strong>：PostgreSQL + pgvector（支援向量搜尋，為未來 RAG 功能預留）</p>
+<p>兩者透過 SQLAlchemy ORM 抽象，切換只需修改連線字串。</p>
+<p>---</p>
+<h2>三、API 設計</h2>
+<h3>3.1 RESTful 端點設計</h3>
+<p>基礎 URL：<code>/api/v1</code></p>
+<p>#### 對話管理</p>
+<p>| Method | Endpoint | 描述 | 請求體 | 回應 |</p>
+<p>|--------|----------|------|--------|------|</p>
+<p>| POST | <code>/conversations</code> | 建立新對話 | <code>{"title": "string", "model": "string"}</code> | <code>{"id": "uuid", "title": "...", "created_at": "ISO8601"}</code> |</p>
+<p>| GET | <code>/conversations</code> | 列出對話 | Query: <code>?page=1&limit=20</code> | <code>{"items": [...], "total": int, "page": int}</code> |</p>
+<p>| GET | <code>/conversations/{id}</code> | 取得對話詳情 | - | <code>{"id": "uuid", "title": "...", "messages": [...]}</code> |</p>
+<p>| PATCH | <code>/conversations/{id}</code> | 更新對話標題 | <code>{"title": "string"}</code> | <code>{"id": "uuid", "title": "..."}</code> |</p>
+<p>| DELETE | <code>/conversations/{id}</code> | 刪除對話 | - | <code>204 No Content</code> |</p>
+<p>#### 訊息與對話</p>
+<p>| Method | Endpoint | 描述 | 請求體 | 回應 |</p>
+<p>|--------|----------|------|--------|------|</p>
+<p>| POST | <code>/conversations/{id}/messages</code> | 發送訊息（非串流） | <code>{"content": "string", "role": "user"}</code> | <code>{"id": "uuid", "role": "assistant", "content": "...", "tool_calls": [...]}</code> |</p>
+<p>| POST | <code>/conversations/{id}/stream</code> | 發送訊息（SSE 串流） | <code>{"content": "string"}</code> | SSE: <code>data: {"type": "token", "content": "..."}</code> |</p>
+<p>| GET | <code>/conversations/{id}/messages</code> | 取得訊息歷史 | Query: <code>?limit=50&before=uuid</code> | <code>{"items": [...], "has_more": bool}</code> |</p>
+<p>#### 工具管理</p>
+<p>| Method | Endpoint | 描述 | 請求體 | 回應 |</p>
+<p>|--------|----------|------|--------|------|</p>
+<p>| POST | <code>/tools</code> | 註冊新工具 | <code>{"name": "string", "description": "string", "parameters": {JSON Schema}, "handler_type": "http|script"}</code> | <code>{"id": "uuid", "name": "...", "status": "active"}</code> |</p>
+<p>| GET | <code>/tools</code> | 列出所有工具 | Query: <code>?status=active</code> | <code>{"items": [...], "total": int}</code> |</p>
+<p>| GET | <code>/tools/{id}</code> | 取得工具詳情 | - | <code>{"id": "uuid", "name": "...", "parameters": {...}, "invocation_count": int}</code> |</p>
+<p>| PATCH | <code>/tools/{id}</code> | 更新工具 | <code>{"description": "string", "parameters": {...}}</code> | <code>{"id": "uuid", ...}</code> |</p>
+<p>| DELETE | <code>/tools/{id}</code> | 停用工具 | - | <code>204 No Content</code> |</p>
+<p>| POST | <code>/tools/{id}/test</code> | 測試工具 | <code>{"arguments": {...}}</code> | <code>{"success": bool, "result": any, "execution_time_ms": int}</code> |</p>
+<p>#### 系統</p>
+<p>| Method | Endpoint | 描述 |</p>
+<p>|--------|----------|------|</p>
+<p>| GET | <code>/health</code> | 健康檢查 |</p>
+<p>| GET | <code>/models</code> | 列出可用 LLM 模型 |</p>
+<p>| GET | <code>/stats</code> | 系統統計（對話數、訊息數、工具調用次數） |</p>
+<h3>3.2 SSE 串流格式</h3>
+<pre><code>
+Event Stream Format:
+
+event: token
+data: {"content": "Hello"}
+
+event: token
+data: {"content": " world"}
+
+event: tool_call_start
+data: {"tool_name": "get_weather", "tool_call_id": "tc_001", "arguments": {"location": "Taipei"}}
+
+event: tool_call_result
+data: {"tool_call_id": "tc_001", "result": {"temp": 25, "condition": "sunny"}, "execution_time_ms": 150}
+
+event: token
+data: {"content": "The weather in Taipei is..."}
+
+event: done
+data: {"message_id": "uuid", "usage": {"input_tokens": 150, "output_tokens": 45}}
+
+event: error
+data: {"code": "TOOL_TIMEOUT", "message": "Tool execution timed out after 30s"}
+</code></pre>
+<h3>3.3 認證機制</h3>
+<p><strong>JWT Bearer Token 認證</strong>：</p>
+<ol>
+<li><strong>登入</strong>：<code>POST /api/v1/auth/login</code> -> 回傳 <code>access_token</code>（15 分鐘）+ <code>refresh_token</code>（7 天）</li>
+<li><strong>請求認證</strong>：<code>Authorization: Bearer <access_token></code></li>
+<li><strong>Token 刷新</strong>：<code>POST /api/v1/auth/refresh</code> -> 新的 <code>access_token</code></li>
+<li><strong>登出</strong>：<code>POST /api/v1/auth/logout</code> -> 將 refresh_token 加入黑名單</li>
+</ol>
+<p><strong>權限模型</strong>：</p>
+<ul>
+<li><code>user</code>：基本對話、使用已啟用工具</li>
+<li><code>admin</code>：管理工具定義、查看系統統計、管理用戶</li>
+</ul>
+<h3>3.4 錯誤回應格式（統一）</h3>
+<pre><code>
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid tool parameters",
+    "details": [
+      {"field": "parameters.location", "issue": "required field missing"}
+    ]
+  }
+}
+</code></pre>
+<p><strong>錯誤碼對照表</strong>：</p>
+<p>| HTTP Status | Error Code | 描述 |</p>
+<p>|-------------|------------|------|</p>
+<p>| 400 | VALIDATION_ERROR | 請求參數驗證失敗 |</p>
+<p>| 401 | UNAUTHORIZED | 未提供或無效 Token |</p>
+<p>| 403 | FORBIDDEN | 權限不足 |</p>
+<p>| 404 | NOT_FOUND | 資源不存在 |</p>
+<p>| 429 | RATE_LIMITED | 超出速率限制 |</p>
+<p>| 500 | INTERNAL_ERROR | 伺服器內部錯誤 |</p>
+<p>| 502 | LLM_ERROR | LLM API 呼叫失敗 |</p>
+<p>| 504 | TOOL_TIMEOUT | 工具執行超時 |</p>
+<p>---</p>
+<h2>四、Function Calling 機制</h2>
+<h3>4.1 工具定義格式（JSON Schema）</h3>
+<p>每個工具透過 JSON Schema 定義其輸入參數規格：</p>
+<pre><code>
+{
+  "name": "search_knowledge_base",
+  "description": "搜尋個人知識庫中的筆記，回傳最相關的結果",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "搜尋關鍵字或自然語言查詢"
+      },
+      "top_k": {
+        "type": "integer",
+        "description": "回傳結果數量",
+        "default": 5,
+        "minimum": 1,
+        "maximum": 20
+      },
+      "search_type": {
+        "type": "string",
+        "enum": ["hybrid", "keyword", "semantic"],
+        "default": "hybrid"
+      }
+    },
+    "required": ["query"]
+  },
+  "handler": {
+    "type": "http",
+    "method": "POST",
+    "url": "http://localhost:3000/api/search/hybrid",
+    "headers": {"Content-Type": "application/json"},
+    "body_template": {"query": "{{query}}", "topK": "{{top_k}}"}
+  },
+  "timeout_ms": 10000,
+  "permission_level": "read"
+}
+</code></pre>
+<h3>4.2 調用流程（6 步驟）</h3>
+<pre><code>
+Step 1: 用戶輸入
+  |  "幫我查一下知識庫裡關於 React Hooks 的筆記"
+  v
+Step 2: 建構 LLM 請求
+  |  messages=[用戶訊息] + tools=[已註冊工具定義]
+  v
+Step 3: LLM 判斷（模型決策）
+  |  模型分析意圖，決定是否需要工具調用
+  |  回傳：finish_reason="tool_calls"
+  |  tool_calls=[{name: "search_knowledge_base", arguments: {query: "React Hooks", top_k: 5}}]
+  v
+Step 4: 安全驗證
+  |  - 檢查工具是否存在且已啟用
+  |  - 驗證參數符合 JSON Schema
+  |  - 檢查用戶對該工具的權限
+  |  - 檢查速率限制（每分鐘調用上限）
+  v
+Step 5: 執行工具
+  |  - 在隔離環境中執行（timeout 控制）
+  |  - 記錄調用日誌（工具名、參數、耗時、結果摘要）
+  |  - 將結果以 tool_result 角色附加到對話
+  v
+Step 6: 模型整合回覆
+  |  將工具結果 + 對話歷史再送給 LLM
+  |  模型根據工具結果生成自然語言回覆
+  v
+最終回覆呈現給用戶
+</code></pre>
+<h3>4.3 多輪工具調用（遞迴機制）</h3>
+<p>模型可能需要連續調用多個工具。系統設定<strong>最大迭代上限為 5 次</strong>，防止無限迴圈：</p>
+<pre><code>
+async def process_with_tools(messages, tools, max_iterations=5):
+    for i in range(max_iterations):
+        response = await llm_client.chat(messages, tools)
+        
+        if response.finish_reason != "tool_calls":
+            return response  # 最終回覆
+        
+        for tool_call in response.tool_calls:
+            result = await execute_tool(tool_call)
+            messages.append({"role": "tool", "content": result, "tool_call_id": tool_call.id})
+    
+    # 超過上限，強制回覆
+    return await llm_client.chat(messages, tools=None)
+</code></pre>
+<h3>4.4 內建工具清單建議</h3>
+<p>| 工具名稱 | 描述 | 權限 | 類型 |</p>
+<p>|---------|------|------|------|</p>
+<p>| <code>get_current_time</code> | 取得當前時間與時區資訊 | read | 內建 |</p>
+<p>| <code>calculate</code> | 安全的數學運算（支援基本算術與科學計算） | read | 內建 |</p>
+<p>| <code>search_web</code> | 網路搜尋（整合搜尋引擎 API） | read | HTTP |</p>
+<p>| <code>search_knowledge_base</code> | 查詢個人知識庫 | read | HTTP |</p>
+<p>| <code>create_note</code> | 建立知識庫筆記 | write | HTTP |</p>
+<p>| <code>get_weather</code> | 取得天氣資訊 | read | HTTP |</p>
+<p>| <code>run_code</code> | 執行 Python 程式碼（沙箱環境） | privileged | Script |</p>
+<p>| <code>fetch_url</code> | 擷取網頁內容並摘要 | read | HTTP |</p>
+<h3>4.5 安全沙箱設計</h3>
+<p><strong>三層防護</strong>：</p>
+<ol>
+<li><strong>參數驗證層</strong>：JSON Schema 驗證所有輸入參數，拒絕不符合規格的調用</li>
+<li><strong>權限控制層</strong>：</li>
+</ol>
+<p>   - <code>read</code>：只讀操作，無需額外確認</p>
+<p>   - <code>write</code>：寫入操作，記錄審計日誌</p>
+<p>   - <code>privileged</code>：高風險操作（如執行程式碼），需用戶即時確認（Human-in-the-Loop）</p>
+<ol>
+<li><strong>執行隔離層</strong>：</li>
+</ol>
+<p>   - 每次工具調用設定 timeout（預設 30 秒）</p>
+<p>   - Script 類型工具在受限環境中執行（限制網路存取、檔案系統存取、記憶體上限 256MB）</p>
+<p>   - 結果大小限制（截斷超過 10KB 的回傳，避免撐爆 context window）</p>
+<p><strong>速率限制</strong>：</p>
+<ul>
+<li>全域：每分鐘最多 60 次工具調用</li>
+<li>每用戶：每分鐘最多 20 次</li>
+<li>每工具：每分鐘最多 30 次（可個別配置）</li>
+</ul>
+<p>---</p>
+<h2>五、前端介面設計</h2>
+<h3>5.1 頁面佈局</h3>
+<pre><code>
++-------+----------------------------------+----------+
+|       |         Chat Area                |          |
+| Side  |  +----------------------------+  |  Tool    |
+| bar   |  |  Message List (scrollable) |  |  Panel   |
+|       |  |  - User message            |  |  (可收合) |
+| - 對話 |  |  - Assistant message        |  |          |
+|   列表 |  |  - Tool call card          |  | - 工具列表|
+| - 新對話|  |  - Tool result card        |  | - 調用記錄|
+| - 設定 |  |                            |  | - 測試面板|
+|       |  +----------------------------+  |          |
+|       |  +----------------------------+  |          |
+|       |  | Input Area                 |  |          |
+|       |  | [Message input] [Send btn] |  |          |
+|       |  +----------------------------+  |          |
++-------+----------------------------------+----------+
+</code></pre>
+<h3>5.2 對話介面 UX</h3>
+<p><strong>訊息類型與呈現</strong>：</p>
+<ul>
+<li><strong>用戶訊息</strong>：右對齊，藍色背景氣泡，顯示發送時間</li>
+<li><strong>助手訊息</strong>：左對齊，灰色背景，支援 Markdown 渲染（程式碼高亮、列表、表格）</li>
+<li><strong>Streaming 效果</strong>：逐字顯示 + 閃爍游標動畫，token 到達即渲染</li>
+<li><strong>工具調用卡片</strong>：特殊樣式卡片，包含工具名稱、參數摘要、執行狀態指示器</li>
+</ul>
+<p><strong>互動功能</strong>：</p>
+<ul>
+<li>訊息輸入框支援 <code>Shift+Enter</code> 換行、<code>Enter</code> 發送</li>
+<li>對話標題可行內編輯</li>
+<li>支援鍵盤快捷鍵（<code>Ctrl+N</code> 新對話、<code>Ctrl+/</code> 切換工具面板）</li>
+<li>訊息長按可複製、引用、重新生成</li>
+</ul>
+<h3>5.3 工具調用視覺呈現</h3>
+<p>工具調用過程以<strong>可摺疊的卡片</strong>形式內嵌在對話流中：</p>
+<pre><code>
++------------------------------------------+
+| &gt; search_knowledge_base                   |
+|   Status: Completed (150ms)              |
+|   Arguments: {query: "React Hooks", ...} |
+|   +----- Result (click to expand) -----+ |
+|   | Found 3 relevant notes:             | |
+|   | 1. React Hooks 最佳實踐 (score: 0.92)| |
+|   | 2. useCallback 深入解析 (score: 0.85) | |
+|   +-------------------------------------+ |
++------------------------------------------+
+</code></pre>
+<p><strong>狀態指示器</strong>：</p>
+<ul>
+<li>Pending（旋轉圖示）：正在執行</li>
+<li>Completed（綠色勾）：成功完成</li>
+<li>Failed（紅色叉）：執行失敗，顯示錯誤訊息</li>
+<li>Timeout（橘色警告）：執行超時</li>
+</ul>
+<p>---</p>
+<h2>六、資料模型</h2>
+<h3>6.1 ER 關係圖</h3>
+<pre><code>
+User 1--* Conversation 1--* Message
+                                |--* ToolInvocation
+ToolDefinition 1--* ToolInvocation
+</code></pre>
+<h3>6.2 資料表定義</h3>
+<p>#### User（用戶）</p>
+<p>| 欄位 | 型別 | 約束 | 描述 |</p>
+<p>|------|------|------|------|</p>
+<p>| id | UUID | PK | 主鍵 |</p>
+<p>| username | VARCHAR(50) | UNIQUE, NOT NULL | 用戶名 |</p>
+<p>| email | VARCHAR(255) | UNIQUE, NOT NULL | 電子郵件 |</p>
+<p>| password_hash | VARCHAR(255) | NOT NULL | bcrypt 雜湊密碼 |</p>
+<p>| role | ENUM('user','admin') | DEFAULT 'user' | 角色 |</p>
+<p>| created_at | TIMESTAMP | NOT NULL | 建立時間 |</p>
+<p>| last_login_at | TIMESTAMP | NULL | 最後登入 |</p>
+<p>#### Conversation（對話）</p>
+<p>| 欄位 | 型別 | 約束 | 描述 |</p>
+<p>|------|------|------|------|</p>
+<p>| id | UUID | PK | 主鍵 |</p>
+<p>| user_id | UUID | FK -> User.id | 所屬用戶 |</p>
+<p>| title | VARCHAR(200) | NOT NULL | 對話標題 |</p>
+<p>| model | VARCHAR(50) | NOT NULL | 使用的 LLM 模型 |</p>
+<p>| system_prompt | TEXT | NULL | 自訂系統提示詞 |</p>
+<p>| created_at | TIMESTAMP | NOT NULL | 建立時間 |</p>
+<p>| updated_at | TIMESTAMP | NOT NULL | 最後更新 |</p>
+<p>| message_count | INTEGER | DEFAULT 0 | 訊息數量（快取欄位） |</p>
+<p>#### Message（訊息）</p>
+<p>| 欄位 | 型別 | 約束 | 描述 |</p>
+<p>|------|------|------|------|</p>
+<p>| id | UUID | PK | 主鍵 |</p>
+<p>| conversation_id | UUID | FK -> Conversation.id, INDEX | 所屬對話 |</p>
+<p>| role | ENUM('user','assistant','system','tool') | NOT NULL | 訊息角色 |</p>
+<p>| content | TEXT | NOT NULL | 訊息內容 |</p>
+<p>| token_count | INTEGER | NULL | Token 使用量 |</p>
+<p>| created_at | TIMESTAMP | NOT NULL, INDEX | 建立時間 |</p>
+<p>| metadata | JSON | NULL | 額外資訊（模型、usage 等） |</p>
+<p>#### ToolDefinition（工具定義）</p>
+<p>| 欄位 | 型別 | 約束 | 描述 |</p>
+<p>|------|------|------|------|</p>
+<p>| id | UUID | PK | 主鍵 |</p>
+<p>| name | VARCHAR(100) | UNIQUE, NOT NULL | 工具名稱（snake_case） |</p>
+<p>| description | TEXT | NOT NULL | 工具描述（供 LLM 理解） |</p>
+<p>| parameters | JSON | NOT NULL | JSON Schema 參數定義 |</p>
+<p>| handler_type | ENUM('http','script','builtin') | NOT NULL | 處理器類型 |</p>
+<p>| handler_config | JSON | NOT NULL | 處理器配置（URL/script path） |</p>
+<p>| permission_level | ENUM('read','write','privileged') | DEFAULT 'read' | 權限等級 |</p>
+<p>| timeout_ms | INTEGER | DEFAULT 30000 | 執行超時（毫秒） |</p>
+<p>| rate_limit | INTEGER | DEFAULT 30 | 每分鐘調用上限 |</p>
+<p>| status | ENUM('active','disabled') | DEFAULT 'active' | 啟用狀態 |</p>
+<p>| created_at | TIMESTAMP | NOT NULL | 建立時間 |</p>
+<p>| invocation_count | INTEGER | DEFAULT 0 | 累計調用次數 |</p>
+<p>#### ToolInvocation（工具調用記錄）</p>
+<p>| 欄位 | 型別 | 約束 | 描述 |</p>
+<p>|------|------|------|------|</p>
+<p>| id | UUID | PK | 主鍵 |</p>
+<p>| message_id | UUID | FK -> Message.id, INDEX | 觸發此調用的訊息 |</p>
+<p>| tool_id | UUID | FK -> ToolDefinition.id | 調用的工具 |</p>
+<p>| tool_call_id | VARCHAR(50) | NOT NULL | LLM 產生的調用 ID |</p>
+<p>| arguments | JSON | NOT NULL | 調用參數 |</p>
+<p>| result | JSON | NULL | 執行結果 |</p>
+<p>| status | ENUM('pending','success','failed','timeout') | NOT NULL | 執行狀態 |</p>
+<p>| execution_time_ms | INTEGER | NULL | 實際執行耗時 |</p>
+<p>| error_message | TEXT | NULL | 錯誤訊息（失敗時） |</p>
+<p>| created_at | TIMESTAMP | NOT NULL, INDEX | 調用時間 |</p>
+<h3>6.3 索引策略</h3>
+<ul>
+<li><code>Message.conversation_id + created_at</code>：對話內訊息排序查詢</li>
+<li><code>ToolInvocation.created_at</code>：調用記錄時序查詢</li>
+<li><code>ToolDefinition.name</code>：工具名稱快速查找</li>
+<li><code>Conversation.user_id + updated_at</code>：用戶對話列表排序</li>
+</ul>
+<p>---</p>
+<h2>七、安全考量</h2>
+<h3>7.1 認證與授權</h3>
+<ul>
+<li><strong>JWT Token</strong>：access_token 短效（15 分鐘）、refresh_token 長效（7 天）</li>
+<li><strong>密碼儲存</strong>：bcrypt（cost factor = 12）</li>
+<li><strong>Token 黑名單</strong>：登出時將 refresh_token 加入 Redis 黑名單</li>
+<li><strong>RBAC</strong>：基於角色的存取控制（user / admin）</li>
+</ul>
+<h3>7.2 輸入驗證</h3>
+<ul>
+<li><strong>所有 API 端點</strong>：Pydantic Model 驗證請求體（型別、長度、格式）</li>
+<li><strong>工具參數</strong>：JSON Schema 二次驗證（防止 LLM 產生超出規格的參數）</li>
+<li><strong>SQL Injection 防護</strong>：SQLAlchemy ORM 參數化查詢（不使用原生 SQL 拼接）</li>
+<li><strong>訊息長度限制</strong>：單則訊息最多 32,000 字元</li>
+</ul>
+<h3>7.3 XSS / CSRF 防護</h3>
+<ul>
+<li><strong>XSS</strong>：前端使用 React 預設的 JSX 自動轉義；Markdown 渲染使用 sanitize 處理（DOMPurify）</li>
+<li><strong>CSRF</strong>：SameSite Cookie 屬性 + 前後端分離（JWT 不受 CSRF 影響）</li>
+<li><strong>Content Security Policy</strong>：設定嚴格的 CSP header</li>
+</ul>
+<h3>7.4 Function Calling 權限控制</h3>
+<ul>
+<li><strong>工具分級</strong>：read（無需確認）/ write（記錄日誌）/ privileged（用戶確認）</li>
+<li><strong>Human-in-the-Loop</strong>：privileged 工具調用前，前端彈出確認對話框</li>
+<li><strong>審計日誌</strong>：所有工具調用記錄到 ToolInvocation 表（不可刪除）</li>
+<li><strong>結果消毒</strong>：工具回傳的 HTML/Script 內容一律消毒後才傳給 LLM</li>
+</ul>
+<h3>7.5 速率限制（Rate Limiting）</h3>
+<p>| 層級 | 限制 | 機制 |</p>
+<p>|------|------|------|</p>
+<p>| API 全域 | 1000 req/min | FastAPI middleware + 滑動窗口 |</p>
+<p>| 每用戶 | 60 req/min | JWT 識別 + Redis 計數 |</p>
+<p>| LLM 調用 | 20 req/min/user | 防止 Token 濫用 |</p>
+<p>| 工具調用 | 20 calls/min/user | 防止工具濫用 |</p>
+<p>| SSE 連線 | 5 concurrent/user | 防止連線耗盡 |</p>
+<h3>7.6 LLM API Key 保護</h3>
+<ul>
+<li>API Key 存於伺服器端環境變數，前端永不接觸</li>
+<li>使用 .env 管理（不納入版本控制）</li>
+<li>支援 Key 輪替（多 Key 負載均衡 + 故障轉移）</li>
+</ul>
+<p>---</p>
+<h2>八、實作優先順序</h2>
+<h3>Phase 1：核心對話（2 週）</h3>
+<p><strong>目標</strong>：可用的基本對話系統</p>
+<p><strong>交付物</strong>：</p>
+<ul>
+<li>後端：FastAPI 專案骨架、資料模型（User + Conversation + Message）、RESTful CRUD API、JWT 認證、SSE Token Streaming</li>
+<li>前端：React 專案骨架（Vite + TypeScript）、登入頁、對話列表頁、Chat 介面（含 SSE 串流顯示）</li>
+<li>整合：單一 LLM 供應商（如 Anthropic Claude）、CORS 配置、基本錯誤處理</li>
+</ul>
+<p><strong>驗收條件</strong>：</p>
+<ul>
+<li>用戶可登入、建立對話、發送訊息、看到 streaming 回覆</li>
+<li>API 文件自動生成（/docs）</li>
+</ul>
+<h3>Phase 2：Function Calling（2 週）</h3>
+<p><strong>目標</strong>：完整的工具調用系統</p>
+<p><strong>交付物</strong>：</p>
+<ul>
+<li>後端：ToolDefinition + ToolInvocation 資料模型、Tool Registry（註冊/啟用/停用）、工具執行引擎（HTTP/Script/Builtin）、JSON Schema 參數驗證、安全沙箱（timeout + 結果截斷）、SSE 工具調用事件（tool_call_start / tool_call_result）</li>
+<li>前端：工具管理面板（CRUD）、工具調用卡片（可摺疊、狀態指示器）、工具測試面板、Human-in-the-Loop 確認對話框</li>
+<li>內建工具：get_current_time、calculate、search_knowledge_base</li>
+</ul>
+<p><strong>驗收條件</strong>：</p>
+<ul>
+<li>LLM 能自動判斷並調用已註冊工具</li>
+<li>工具調用過程在前端即時可見</li>
+<li>privileged 工具需用戶確認</li>
+</ul>
+<h3>Phase 3：強化與擴展（2 週）</h3>
+<p><strong>目標</strong>：生產就緒</p>
+<p><strong>交付物</strong>：</p>
+<ul>
+<li>多模型支援（OpenAI + Anthropic + 本地 Ollama）</li>
+<li>速率限制（全域 + 每用戶 + 每工具）</li>
+<li>對話匯出（Markdown / JSON）</li>
+<li>對話搜尋（全文搜尋）</li>
+<li>系統統計儀表板</li>
+<li>效能優化（連接池、查詢優化、前端虛擬滾動）</li>
+<li>MCP 協議相容層（將工具系統適配為 MCP Server）</li>
+<li>部署文件與配置</li>
+</ul>
+<p><strong>驗收條件</strong>：</p>
+<ul>
+<li>切換 LLM 供應商無需修改前端</li>
+<li>100 輪對話後效能無明顯衰退</li>
+<li>完整的錯誤處理與降級機制</li>
+</ul>
+<p>---</p>
+<h2>九、技術風險與緩解</h2>
+<p>| 風險 | 可能性 | 影響 | 緩解措施 |</p>
+<p>|------|--------|------|----------|</p>
+<p>| LLM API 不穩定 / 限流 | 高 | 中 | 多供應商 fallback + 指數退避重試 + 快取常見回覆 |</p>
+<p>| Function Calling 產生非法參數 | 中 | 中 | JSON Schema 嚴格驗證 + 模型 prompt 優化 + 參數消毒 |</p>
+<p>| 工具執行超時或失敗 | 中 | 低 | timeout 強制終止 + graceful degradation + 告知用戶 |</p>
+<p>| SSE 連線中斷 | 中 | 低 | 前端 EventSource 自動重連 + 斷點續傳（message_id 追蹤） |</p>
+<p>| Token 用量爆增（成本風險） | 中 | 高 | 每用戶每日 Token 上限 + 對話歷史自動裁剪 + 工具結果摘要化 |</p>
+<p>| 安全漏洞（Prompt Injection） | 中 | 高 | 系統提示詞隔離 + 工具結果消毒 + 輸出監控 |</p>
+<p>| 並發連線過多（DoS） | 低 | 高 | 速率限制 + 連線數上限 + 反向代理（Nginx） |</p>
+<p>| 資料庫效能瓶頸 | 低 | 中 | 適當索引 + 分頁查詢 + 對話歷史定期歸檔 |</p>
+<p>---</p>
+<h2>十、與現有系統整合潛力</h2>
+<p>本系統設計充分考慮與 daily-digest-prompt 現有架構的整合：</p>
+<ol>
+<li><strong>知識庫整合</strong>：<code>search_knowledge_base</code> 工具直接呼叫 localhost:3000 API</li>
+<li><strong>Todoist 整合</strong>：可註冊 Todoist 查詢/建立任務工具</li>
+<li><strong>Skill 復用</strong>：現有 20 個 Skill 可封裝為 Chat 工具定義</li>
+<li><strong>MCP 升級路徑</strong>：工具系統設計相容 MCP 協議，未來可無縫升級</li>
+<li><strong>通知整合</strong>：ntfy 推送可作為工具調用的輸出管道</li>
+</ol>
+<p>---</p>
+<h2>附錄 A：專案目錄結構（建議）</h2>
+<pre><code>
+chat-system/
+  frontend/
+    src/
+      components/
+        Chat/           # ChatWindow, MessageList, MessageInput
+        Tools/          # ToolPanel, ToolCard, ToolForm
+        Layout/         # Sidebar, Header
+        Auth/           # LoginForm, RegisterForm
+      hooks/            # useChat, useSSE, useTools
+      stores/           # conversationStore, authStore
+      types/            # TypeScript 型別定義
+      utils/            # API client, formatters
+    package.json
+    vite.config.ts
+    tsconfig.json
+  backend/
+    app/
+      api/
+        v1/
+          conversations.py
+          messages.py
+          tools.py
+          auth.py
+      core/
+        config.py       # 環境變數、設定
+        security.py     # JWT、密碼雜湊
+        dependencies.py # FastAPI 依賴注入
+      llm/
+        base.py         # LLM 抽象介面
+        openai.py       # OpenAI 實作
+        anthropic.py    # Anthropic 實作
+        ollama.py       # 本地模型實作
+      tools/
+        registry.py     # Tool Registry
+        executor.py     # Tool Execution Engine
+        sandbox.py      # 安全沙箱
+        builtin/        # 內建工具實作
+      models/
+        user.py
+        conversation.py
+        message.py
+        tool.py
+      schemas/          # Pydantic 請求/回應 Schema
+    migrations/         # Alembic 資料庫遷移
+    tests/
+    main.py
+    pyproject.toml
+  docs/
+    api-reference.md
+    deployment.md
+</code></pre>
+<p>---</p>
+<h2>附錄 B：關鍵技術決策記錄</h2>
+<p>| 決策 | 選擇 | 替代方案 | 理由 |</p>
+<p>|------|------|---------|------|</p>
+<p>| 傳輸層 | SSE（Token Streaming）+ HTTP REST | WebSocket | SSE 以 10% 複雜度提供 90% 效果；雙向需求低（用戶訊息用 POST） |</p>
+<p>| 狀態管理 | Zustand | Redux / Jotai | 輕量（< 1KB）、無 boilerplate、支援 middleware |</p>
+<p>| ORM | SQLAlchemy 2.0 | Tortoise ORM | async 支援成熟、社群大、遷移工具（Alembic）完善 |</p>
+<p>| 認證 | JWT | Session Cookie | 前後端分離友好、無需伺服器端 session 儲存 |</p>
+<p>| 工具系統 | 自建 Registry + MCP 相容 | 純 LangChain Tools | 保持協議無關性、避免框架鎖定 |</p>
+<p>| 部署 | FastAPI 托管前端靜態檔 | 分離部署 | 簡化部署（單一進程）、適合個人/小團隊使用 |</p>
+<p>---</p>
+<p><strong>文件狀態</strong>：規劃完成，待確認後進入實作階段。</p>
+<p><strong>下一步</strong>：確認規劃報告 -> 建立專案骨架 -> Phase 1 TDD 實作。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

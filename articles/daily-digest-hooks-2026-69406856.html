@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily Digest Hooks 系統品質優化報告 (2026-02-28)">
+  <title>Daily Digest Hooks 系統品質優化報告 (2026-02-28) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily Digest Hooks 系統品質優化報告 (2026-02-28)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">hooks</span><span class="tag">品質改善</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily Digest Hooks 系統品質優化報告</h1>
+<h2>優化概覽</h2>
+<p>針對 daily-digest-prompt 專案的 Hooks 機器強制層（7 個 Python 模組）進行深度品質審查與優化，共完成 5 項程式碼改進，測試套件 532/532 全通過。</p>
+<h2>優化項目</h2>
+<h3>1. hook_utils.py — 消除重複開檔 + sys import 提升</h3>
+<ul>
+<li><strong>問題</strong>：<code>load_yaml_rules()</code> 和 <code>filter_rules_by_preset()</code> 各自獨立開啟 hook-rules.yaml，同一次 hook 呼叫中重複讀取</li>
+<li><strong>修正</strong>：提取 <code>_load_yaml_config()</code> 共用函式，將 <code>import sys</code> 從函式內部提升至模組頂層</li>
+<li><strong>效益</strong>：每次 hook 呼叫減少 1 次檔案 I/O，每日 44 次 Agent 執行 × 20-100 次工具呼叫的效能改善</li>
+</ul>
+<h3>2. post_tool_logger.py — 錯誤偵測誤判強化</h3>
+<ul>
+<li><strong>問題</strong>：BENIGN_PATTERNS 不足，agent_guardian 的 <code>error_category</code> 欄位、post_tool_logger 的 <code>error_classification</code> 變數名、JSONL 的 <code>error-</code> 標籤前綴、<code>"denied": false</code> JSON 布林值會被誤判為錯誤</li>
+<li><strong>修正</strong>：新增 5 個 BENIGN_PATTERNS 條目</li>
+<li><strong>效益</strong>：減少假陽性 error tag，提升 session 健康狀態判斷準確度</li>
+</ul>
+<h3>3. on_stop_alert.py — Gmail OAuth 狀態檔路徑安全性</h3>
+<ul>
+<li><strong>問題</strong>：<code>check_gmail_token_expiry()</code> 使用相對路徑 <code>os.path.join("key", "token.json")</code>，當 hook 的 cwd 與專案根目錄不同時找不到檔案</li>
+<li><strong>修正</strong>：改用 <code>__file__</code> 推算專案根目錄的絕對路徑</li>
+<li><strong>效益</strong>：無論 cwd 為何，都能正確定位 token.json 和 gmail-oauth-state.json</li>
+</ul>
+<h3>4. validate_config.py — timeouts.yaml 巢狀 schema 驗證</h3>
+<ul>
+<li><strong>問題</strong>：timeouts.yaml 驗證僅檢查 <code>version</code> 頂層鍵，缺少對 <code>daily_digest_team.phase1_timeout</code> 等巢狀必要鍵的驗證</li>
+<li><strong>修正</strong>：新增 <code>nested_required</code> schema 機制，驗證 daily_digest_team、todoist_team、audit_team 各自的必要鍵</li>
+<li><strong>效益</strong>：配置修改後可即時偵測缺少關鍵 timeout 設定，避免 Agent 執行時因缺少 timeout 值而失敗</li>
+</ul>
+<h3>5. agent_guardian.py — CircuitBreaker 競態條件防護</h3>
+<ul>
+<li><strong>問題</strong>：<code>_update_state()</code> 的 read-modify-write 操作無鎖保護，團隊模式多個並行 Agent 可能同時讀寫 api-health.json 導致狀態覆蓋</li>
+<li><strong>修正</strong>：新增 <code>_atomic_update()</code> 方法，使用 msvcrt/fcntl 跨平台檔案鎖保護狀態更新</li>
+<li><strong>效益</strong>：團隊模式下的 CircuitBreaker 狀態更新保證原子性</li>
+</ul>
+<h2>測試結果</h2>
+<ul>
+<li>基線：532 個測試</li>
+<li>修改後：532/532 全通過（6.81 秒）</li>
+<li>受影響測試更新：on_stop_alert 測試加 <code>__file__</code> monkeypatch、validate_config 最小配置測試更新</li>
+</ul>
+<h2>影響範圍</h2>
+<ul>
+<li>修改檔案：5 個 Python hooks + 2 個測試檔</li>
+<li>hooks/hook_utils.py、hooks/post_tool_logger.py、hooks/on_stop_alert.py、hooks/validate_config.py、hooks/agent_guardian.py</li>
+<li>tests/hooks/test_on_stop_alert.py、tests/hooks/test_validate_config.py</li>
+</ul>
+<h2>技術決策</h2>
+<ul>
+<li>CircuitBreaker 鎖機制採用 graceful degradation：Windows 用 msvcrt、Linux 用 fcntl、無鎖可用時退化為無鎖模式</li>
+<li>BENIGN_PATTERNS 採用子字串匹配而非正則，平衡精確度與效能</li>
+<li>路徑安全性使用 <code>__file__</code> 而非環境變數，確保 hook 的可攜性</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

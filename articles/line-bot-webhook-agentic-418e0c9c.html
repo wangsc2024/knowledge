@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LINE Bot Webhook 驅動的 Agentic 任務管線設計 — 從訊息解析到「研究→優化→審查→實作→通知」自動化閉環架構">
+  <title>LINE Bot Webhook 驅動的 Agentic 任務管線設計 — 從訊息解析到「研究→優化→審查→實作→通知」自動化閉環架構 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LINE Bot Webhook 驅動的 Agentic 任務管線設計 — 從訊息解析到「研究→優化→審查→實作→通知」自動化閉環架構</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">LINE Bot</span><span class="tag">Agentic Pipeline</span><span class="tag">Webhook</span><span class="tag">任務自動化</span><span class="tag">Sequential Pipeline</span><span class="tag">Maker-Checker Loop</span><span class="tag">自癒機制</span><span class="tag">品質閘門</span><span class="tag">daily-digest-prompt</span><span class="tag">系統設計</span><span class="tag">研究</span><span class="tag">知識庫</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LINE Bot Webhook 驅動的 Agentic 任務管線設計</h1>
+<blockquote>從訊息解析到「研究→優化→審查→實作→通知」自動化閉環架構</blockquote>
+<p>研究日期：2026-03-19</p>
+<p>任務 ID：6gC584Jf9VMc4925</p>
+<p>研究動機：讓 Daily-Digest-Prompt 系統支援透過 LINE 傳送自然語言指令，自動解析並執行多階段 Agentic 任務管線（深度研究→方案優化→反覆審查→實作→通知），實現端到端自動化。</p>
+<p>---</p>
+<h2>一、架構概述：五階段 Agentic Pipeline</h2>
+<h3>1.1 端到端流程</h3>
+<pre><code>
+LINE 使用者訊息
+  → LINE Webhook (HTTPS POST)
+    → 意圖解析 (Groq classifier)
+      → 任務排入 Todoist + 觸發 Agentic Pipeline
+        → Phase 1: 深度研究 (Deep Research Agent)
+        → Phase 2: 方案生成與優化 (Optimizer Agent)
+        → Phase 3: 反覆審查迴圈 (Maker-Checker Loop)
+        → Phase 4: 實作執行 (Implementation Agent)
+        → Phase 5: 結果通知 (ntfy + LINE pushMessage)
+</code></pre>
+<h3>1.2 設計原則</h3>
+<p>| 原則 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>Sequential Pipeline</strong> | 各階段有明確線性依賴，後階段建立在前階段輸出之上（Microsoft Azure Architecture 推薦模式） |</p>
+<p>| <strong>Quality Gates</strong> | 每個階段間設置品質閘門，不合格則回退重做（Maker-Checker Loop） |</p>
+<p>| <strong>自癒目標</strong> | 方案必須通過「自主管理門檻」審查才能進入實作，確保系統可持續自我修復 |</p>
+<p>| <strong>事件驅動</strong> | Webhook 即時推送事件，零延遲觸發工作流（非輪詢模式） |</p>
+<p>---</p>
+<h2>二、LINE Webhook 接收與意圖解析</h2>
+<h3>2.1 Webhook 事件結構（LINE Messaging API）</h3>
+<p>LINE Platform 發送 HTTPS POST 請求，payload 包含：</p>
+<ul>
+<li><code>destination</code>：Bot user ID</li>
+<li><code>events[]</code>：事件陣列，每個事件含 <code>type</code>、<code>message</code>、<code>source</code>、<code>replyToken</code></li>
+<li><code>webhookEventId</code>：唯一識別碼（用於去重）</li>
+<li><code>timestamp</code>：事件時間戳</li>
+</ul>
+<p><strong>安全驗證</strong>：必須驗證請求 header 中的簽名（HMAC-SHA256），防止惡意請求。</p>
+<h3>2.2 現有 classifier.js 擴充方案</h3>
+<p>現有系統已透過 <code>classifier.js</code> 使用 Groq API 進行意圖分類，支援 <code>is_periodic</code>、<code>is_scheduled</code>、<code>is_workflow</code>、<code>task_type</code> 等欄位。</p>
+<p><strong>新增 <code>is_agentic_pipeline</code> 意圖</strong>：</p>
+<pre><code>
+// classifier.js 擴充
+const AGENTIC_PIPELINE_PATTERNS = [
+  /深度研究.+(?:優化|改進|方案).+(?:通知|提醒)/,
+  /研究.+(?:審查|檢討).+(?:實作|執行).+(?:通知)/,
+  /(?:自癒|自主管理).+(?:研究|分析)/
+];
+
+// 分類結果新增欄位
+{
+  is_agentic_pipeline: true,
+  pipeline_type: "research_optimize_notify",
+  pipeline_config: {
+    research_topic: "agent harness",
+    optimization_target: "系統自癒",
+    quality_gate: "自主管理門檻",
+    notify_topic: "wangsc2025"
+  }
+}
+</code></pre>
+<h3>2.3 指令解析範例</h3>
+<p>輸入：「深度研究 agent harness 後提出系統現有 harness 優化方案，反覆以落實系統自癒為目標對方案進行審查與優化，直至方案能讓系統自主管理後再進行實作，完成實作後通知 wangsc2025」</p>
+<p>解析結果：</p>
+<ul>
+<li><strong>研究主題</strong>：agent harness</li>
+<li><strong>優化目標</strong>：系統自癒 / 自主管理</li>
+<li><strong>審查標準</strong>：方案能讓系統自主管理（品質閘門）</li>
+<li><strong>實作觸發</strong>：審查通過後</li>
+<li><strong>通知目標</strong>：ntfy topic = wangsc2025</li>
+</ul>
+<p>---</p>
+<h2>三、五階段 Pipeline 詳細設計</h2>
+<h3>Phase 1：深度研究（Deep Research Agent）</h3>
+<p><strong>職責</strong>：針對指定主題進行全面研究，產出結構化研究報告。</p>
+<p><strong>執行方式</strong>：</p>
+<ol>
+<li>讀取 <code>skills/web-research/SKILL.md</code> 遵循標準研究框架</li>
+<li>使用 WebSearch 多角度搜尋（概念性 + 技術性 + 比較性）</li>
+<li>WebFetch 深度閱讀 A/B 級來源</li>
+<li>產出研究報告 JSON（含來源品質分級、交叉驗證事實）</li>
+<li>匯入知識庫（KB）作為後續階段的知識基礎</li>
+</ol>
+<p><strong>輸出 Schema</strong>：</p>
+<pre><code>
+{
+  "phase": "research",
+  "topic": "agent harness",
+  "findings": [...],
+  "sources": [{"url": "...", "grade": "A", "summary": "..."}],
+  "kb_note_id": "uuid",
+  "quality_score": 4
+}
+</code></pre>
+<p><strong>品質閘門</strong>：research_depth >= "adequate"（來源 >= 3 且 A/B 級 >= 1）</p>
+<h3>Phase 2：方案生成與優化（Optimizer Agent）</h3>
+<p><strong>職責</strong>：基於 Phase 1 研究成果，提出針對性優化方案。</p>
+<p><strong>執行方式</strong>：</p>
+<ol>
+<li>讀取 Phase 1 輸出 + 系統現有架構（<code>docs/ARCHITECTURE.md</code>、<code>context/</code> 目錄）</li>
+<li>分析現狀與研究發現的差距（Gap Analysis）</li>
+<li>產出優化方案（含優先級、影響範圍、風險評估）</li>
+<li>方案必須包含「自主管理」可驗證指標</li>
+</ol>
+<p><strong>輸出 Schema</strong>：</p>
+<pre><code>
+{
+  "phase": "optimize",
+  "proposals": [
+    {
+      "id": "P1",
+      "title": "...",
+      "priority": "P0",
+      "impact": "high",
+      "self_healing_score": 0.8,
+      "verification_criteria": ["..."]
+    }
+  ]
+}
+</code></pre>
+<h3>Phase 3：反覆審查迴圈（Maker-Checker Loop）</h3>
+<p><strong>職責</strong>：以「自癒 / 自主管理」為目標，反覆審查並優化方案。</p>
+<p><strong>設計模式</strong>：採用 Microsoft Azure Architecture Center 推薦的 <strong>Maker-Checker Loop</strong>（又稱 Evaluator-Optimizer / Generator-Verifier / Critic Loop / Reflection Loop）。</p>
+<p><strong>執行流程</strong>：</p>
+<pre><code>
+Optimizer Agent (Maker) → 產出/修訂方案
+  ↓
+Reviewer Agent (Checker) → 依品質閘門評估
+  ↓
+通過？ → 進入 Phase 4
+未通過？ → 回饋具體改進建議 → Maker 修訂 → 重新評估
+  ↓
+最大迭代次數（3 次）→ 人工升級或取最佳版本
+</code></pre>
+<p><strong>品質閘門（自主管理門檻）</strong>：</p>
+<p>| 維度 | 門檻 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| 自動偵測能力 | >= 0.7 | 方案能自動偵測異常的覆蓋率 |</p>
+<p>| 自動修復能力 | >= 0.6 | 方案能自動修復的故障類型比例 |</p>
+<p>| 人工介入需求 | <= 0.3 | 需要人工介入的場景比例 |</p>
+<p>| 回歸防護 | >= 0.8 | 修復後不引入新問題的信心度 |</p>
+<p><strong>迭代控制</strong>：</p>
+<ul>
+<li><code>max_iterations</code>: 3（防止無限迴圈）</li>
+<li>每次迭代記錄改進差異（delta）</li>
+<li>若連續 2 次 delta < 5% → 提前結束（收斂判定）</li>
+</ul>
+<h3>Phase 4：實作執行（Implementation Agent）</h3>
+<p><strong>職責</strong>：依據審查通過的方案執行實作。</p>
+<p><strong>執行方式</strong>：</p>
+<ol>
+<li>讀取 Phase 3 最終方案</li>
+<li>拆解為可執行任務清單（TDD 粒度）</li>
+<li>依序執行：寫測試 → 最小實作 → 驗證 → 重構</li>
+<li>每個子任務產出 evidence（證據鏈）</li>
+</ol>
+<p><strong>安全機制</strong>：</p>
+<ul>
+<li>實作前自動建立 git branch</li>
+<li>每步驟可回滾</li>
+<li>禁止直接修改 main branch</li>
+</ul>
+<h3>Phase 5：結果通知（Notification Agent）</h3>
+<p><strong>職責</strong>：透過 ntfy 和 LINE pushMessage 通知使用者。</p>
+<p><strong>通知內容</strong>：</p>
+<pre><code>
+✅ Agentic Pipeline 完成
+📋 主題：agent harness 優化
+🔬 研究：5 個來源，depth=thorough
+💡 方案：3 個提案，審查通過（2 輪迭代）
+🔧 實作：8 個任務完成，測試全綠
+📊 自癒評分：0.85/1.0
+</code></pre>
+<p>---</p>
+<h2>四、技術實作要點</h2>
+<h3>4.1 與現有系統整合</h3>
+<p>| 組件 | 現有 | 擴充 |</p>
+<p>|------|------|------|</p>
+<p>| LINE Webhook | <code>line-webhook.js</code> 接收訊息 | 新增 <code>is_agentic_pipeline</code> 路由 |</p>
+<p>| 分類器 | <code>classifier.js</code> Groq 分類 | 新增 pipeline 意圖模式 |</p>
+<p>| 任務佇列 | <code>store.js</code> 記錄管理 | 新增 pipeline state 追蹤 |</p>
+<p>| 執行引擎 | <code>routes.js</code> 單步任務 | 新增 <code>pipeline-executor.js</code> 多階段編排 |</p>
+<p>| 通知 | ntfy 單向通知 | 新增 LINE pushMessage 回報 |</p>
+<h3>4.2 Pipeline 狀態追蹤</h3>
+<pre><code>
+// state/pipeline-{pipelineId}.json
+{
+  "id": "pipeline-20260319-001",
+  "source": "line",
+  "user_id": "U1234567890",
+  "created_at": "2026-03-19T10:00:00+08:00",
+  "status": "phase3_reviewing",
+  "phases": {
+    "research": { "status": "completed", "output_ref": "results/pipeline-001-phase1.json" },
+    "optimize": { "status": "completed", "output_ref": "results/pipeline-001-phase2.json" },
+    "review": { "status": "in_progress", "iteration": 2, "max_iterations": 3 },
+    "implement": { "status": "pending" },
+    "notify": { "status": "pending" }
+  }
+}
+</code></pre>
+<h3>4.3 Pipeline Executor 核心邏輯</h3>
+<pre><code>
+// pipeline-executor.js（概念設計）
+async function executePipeline(config) {
+  const { research_topic, optimization_target, quality_gate, notify_topic } = config;
+  
+  // Phase 1: Research
+  const researchResult = await runAgent('deep-research', { topic: research_topic });
+  if (!passQualityGate(researchResult, 'research')) throw new PipelineError('research_failed');
+  
+  // Phase 2: Optimize
+  const optimizeResult = await runAgent('optimizer', { 
+    research: researchResult, target: optimization_target 
+  });
+  
+  // Phase 3: Maker-Checker Loop
+  let proposal = optimizeResult;
+  for (let i = 0; i &lt; MAX_ITERATIONS; i++) {
+    const review = await runAgent('reviewer', { proposal, gate: quality_gate });
+    if (review.passed) break;
+    if (review.delta &lt; CONVERGENCE_THRESHOLD) break;
+    proposal = await runAgent('optimizer', { feedback: review.feedback, proposal });
+  }
+  
+  // Phase 4: Implement
+  const implResult = await runAgent('implementer', { proposal: proposal.final });
+  
+  // Phase 5: Notify
+  await notify(notify_topic, summarize(researchResult, proposal, implResult));
+}
+</code></pre>
+<p>---</p>
+<h2>五、品質閘門與自癒機制</h2>
+<h3>5.1 跨階段品質閘門</h3>
+<p>| 閘門位置 | 檢查項目 | 不合格處理 |</p>
+<p>|----------|----------|------------|</p>
+<p>| Research → Optimize | depth >= adequate, sources >= 3 | 補充搜尋後重試 |</p>
+<p>| Optimize → Review | 方案含可驗證指標 | 回退要求補充指標 |</p>
+<p>| Review → Implement | 自主管理門檻 4 維度全通過 | Maker-Checker 迴圈 |</p>
+<p>| Implement → Notify | 測試全綠, 無 lint 錯誤 | 修復後重跑 |</p>
+<h3>5.2 自癒評分模型</h3>
+<p>自癒評分 = weighted_average(</p>
+<p>  自動偵測能力 × 0.3,</p>
+<p>  自動修復能力 × 0.3,</p>
+<p>  (1 - 人工介入需求) × 0.2,</p>
+<p>  回歸防護 × 0.2</p>
+<p>)</p>
+<p>門檻：>= 0.7 才允許進入實作階段。</p>
+<p>---</p>
+<h2>六、與 Todoist 整合</h2>
+<h3>6.1 任務建立</h3>
+<p>Pipeline 啟動時自動在 Todoist 建立追蹤任務：</p>
+<ul>
+<li>標題：<code>[Pipeline] {research_topic} 研究→優化→實作</code></li>
+<li>標籤：<code>[研究, 深度思維, 自動化, Pipeline]</code></li>
+<li>描述：含 pipeline ID、各階段狀態連結</li>
+</ul>
+<h3>6.2 狀態同步</h3>
+<p>每個 Phase 完成時更新 Todoist 任務描述，記錄進度。Pipeline 全部完成後自動關閉任務。</p>
+<p>---</p>
+<h2>七、錯誤處理與降級</h2>
+<p>| 錯誤場景 | 處理方式 |</p>
+<p>|----------|----------|</p>
+<p>| Groq 分類失敗 | 降級為通用任務，不啟動 pipeline |</p>
+<p>| 研究階段來源不足 | 降級為 KB 已有內容，標記 partial |</p>
+<p>| 審查迴圈達上限 | 取最佳版本 + 品質警告通知使用者 |</p>
+<p>| 實作階段測試失敗 | 回滾 git branch，通知使用者手動介入 |</p>
+<p>| ntfy 通知失敗 | 重試 1 次，仍失敗則記錄日誌 |</p>
+<p>---</p>
+<h2>八、來源與參考</h2>
+<ol>
+<li><a href="https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns">AI Agent Orchestration Patterns - Azure Architecture Center</a> — 品質等級 A | 2026-02-12（Sequential Pipeline + Maker-Checker Loop 設計模式）</li>
+<li><a href="https://dev.to/jose_gurusup_dev/agent-orchestration-patterns-swarm-vs-mesh-vs-hierarchical-vs-pipeline-b40">Agent Orchestration Patterns: Swarm vs Mesh vs Hierarchical vs Pipeline - DEV Community</a> — 品質等級 C | 2026（Pipeline 品質閘門實踐）</li>
+<li><a href="https://developers.line.biz/en/docs/messaging-api/receiving-messages/">Receive messages (webhook) - LINE Developers</a> — 品質等級 A | LINE 官方文件（Webhook 事件結構與簽名驗證）</li>
+<li><a href="https://developers.line.biz/en/reference/messaging-api/">LINE Messaging API reference</a> — 品質等級 A | LINE 官方（API 完整參考）</li>
+<li><a href="https://www.ibm.com/think/tutorials/llm-agent-orchestration-with-langchain-and-granite">LLM Agent Orchestration: A Step by Step Guide - IBM</a> — 品質等級 A | IBM（Agent 編排教學）</li>
+</ol>
+<p>---</p>
+<h2>品質自評</h2>
+<pre><code>
+{
+  "research_topic": "LINE Bot Webhook 驅動的 Agentic 任務管線設計",
+  "queries_used": [
+    "LINE Bot webhook trigger agentic workflow automation pipeline 2026",
+    "LLM agent orchestration research optimize implement notify pipeline design pattern",
+    "LINE Messaging API webhook task queue autonomous agent execution 2025 2026"
+  ],
+  "sources_count": 5,
+  "grade_distribution": {"A": 4, "B": 0, "C": 1, "D": 0},
+  "cross_verified_facts": 4,
+  "unverified_claims": 0,
+  "research_depth": "thorough",
+  "confidence_level": "high"
+}
+</code></pre>
+<p>交叉驗證事實：</p>
+<ol>
+<li>Sequential Pipeline 是多階段依賴任務的標準模式（Azure + DEV Community + IBM 一致）</li>
+<li>Maker-Checker Loop 是品質閘門的成熟模式（Azure 官方命名 + DEV Community 實踐驗證）</li>
+<li>LINE Webhook 使用 HTTPS POST + HMAC-SHA256 簽名驗證（LINE 官方文件）</li>
+<li>非同步處理 Webhook 事件是官方推薦做法（LINE 官方文件）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-31）：pre-mortem Skill 深度審查與優化">
+  <title>Skill 品質審查報告（2026-03-31）：pre-mortem Skill 深度審查與優化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-31）：pre-mortem Skill 深度審查與優化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">pre-mortem</span><span class="tag">2026-03-31</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-31）</h1>
+<h2>審查對象</h2>
+<p><strong>pre-mortem</strong> Skill — 任務執行前自動診斷潛在失敗模式。</p>
+<h2>審查發現</h2>
+<h3>掃描結果</h3>
+<p>對專案內 76 個 Skill 進行 frontmatter 掃描，發現：</p>
+<ul>
+<li><strong>1 個 Skill 缺少 "Use when"</strong>：<code>pre-mortem</code></li>
+<li><strong>3 個 Skill 的 cache-ttl 為 null</strong>：<code>multi-agent-team-orchestrator</code>、<code>fairness-rebalancer</code>、<code>pre-mortem</code></li>
+</ul>
+<h3>深度審查（pre-mortem）</h3>
+<p>#### 問題清單</p>
+<p>| # | 問題 | 嚴重性 | 影響 |</p>
+<p>|---|------|--------|------|</p>
+<p>| 1 | frontmatter 缺少 "Use when:" 觸發條件描述 | 高 | 觸發時機不明確，路由邏輯難以判斷 |</p>
+<p>| 2 | cache-ttl 為 null（應為 "N/A" 或具體值）| 中 | 格式不一致，驗證腳本可能誤判 |</p>
+<p>| 3 | triggers 僅 4 個（少於平均值 8-10 個）| 低 | 覆蓋度不足，可能被遺漏 |</p>
+<p>| 4 | 缺少可執行範例（無 Bash curl 示範）| 低 | 實作時需推測，增加出錯風險 |</p>
+<p>#### 路由一致性</p>
+<ul>
+<li>✅ SKILL_INDEX.md 中有正確觸發關鍵字</li>
+<li>✅ 被 <code>prompts/team/todoist-query.md</code> 引用（作為 plan 欄位）</li>
+<li>⚠️ routing.yaml 中無明確路由（因為是內部 Skill，由 Phase 1 自動呼叫）</li>
+</ul>
+<h2>實施修正</h2>
+<h3>修正 1：補充 frontmatter</h3>
+<p><strong>修改前</strong>：</p>
+<pre><code>
+name: pre-mortem
+version: 1.0.0
+description: 任務執行前自動診斷潛在失敗模式，預防性識別風險
+triggers:
+  - pre-mortem
+  - 預防診斷
+  - 失敗預測
+  - 風險評估
+</code></pre>
+<p><strong>修改後</strong>：</p>
+<pre><code>
+name: pre-mortem
+version: 1.1.0
+description: |
+  任務執行前自動診斷潛在失敗模式，預防性識別風險。
+  Use when: 在 Phase 1 規劃階段對即將執行的任務進行風險評估，或手動執行前置診斷時。
+cache-ttl: "0min"
+triggers:
+  - pre-mortem
+  - 預防診斷
+  - 失敗預測
+  - 風險評估
+  - 前置檢查
+  - 風險分析
+  - 任務評估
+</code></pre>
+<p><strong>變更說明</strong>：</p>
+<ol>
+<li>版本升級：1.0.0 → 1.1.0（minor，因為加了 "Use when"）</li>
+<li>description 加入明確的 "Use when:" 觸發時機描述</li>
+<li>新增 cache-ttl: "0min"（診斷結果不快取）</li>
+<li>增加 3 個 triggers：前置檢查、風險分析、任務評估</li>
+</ol>
+<h3>修正 2：補充可執行範例</h3>
+<p>在 Step 1 後加入兩個實戰範例：</p>
+<p><strong>範例 1：檢查 KB 服務可用性</strong></p>
+<pre><code>
+curl -s --max-time 2 "http://localhost:3000/api/health" &gt; /dev/null 2&gt;&amp;1 &amp;&amp; echo "KB 可用" || echo "KB 不可用"
+</code></pre>
+<p><strong>範例 2：檢查快取狀態</strong></p>
+<pre><code>
+uv run python -c "import json,pathlib; cache=json.loads(pathlib.Path('cache/status.json').read_text()); print('有效' if cache.get('knowledge',{}).get('valid') else '過期')" 2&gt;/dev/null || echo "快取不存在"
+</code></pre>
+<h3>修正 3：更新 SKILL_INDEX.md</h3>
+<p>觸發關鍵字從 4 個增加到 7 個，與 SKILL.md 保持一致。</p>
+<h2>驗證結果</h2>
+<p>✅ <strong>全部驗證通過</strong>：</p>
+<ul>
+<li>YAML frontmatter 格式正確（yaml.safe_load 成功解析）</li>
+<li>含 "Use when" 描述</li>
+<li>cache-ttl 已修正為 "0min"（非 null）</li>
+<li>triggers 增加到 7 個</li>
+<li>版本升級到 1.1.0</li>
+<li>有可執行 Bash 範例</li>
+</ul>
+<h2>後續建議</h2>
+<h3>立即行動</h3>
+<ol>
+<li><strong>修正其他 2 個 cache-ttl 為 null 的 Skill</strong>：</li>
+</ol>
+<p>   - <code>multi-agent-team-orchestrator</code></p>
+<p>   - <code>fairness-rebalancer</code></p>
+<ol>
+<li><strong>統一 cache-ttl 格式規範</strong>：</li>
+</ol>
+<p>   - 不快取：<code>"0min"</code></p>
+<p>   - 不適用：<code>"N/A"</code></p>
+<p>   - 禁止使用 <code>null</code></p>
+<h3>長期優化</h3>
+<ol>
+<li><strong>建立 Skill 品質門檻</strong>：</li>
+</ol>
+<p>   - frontmatter 必須含 "Use when"</p>
+<p>   - triggers ≥ 5 個</p>
+<p>   - cache-ttl 不得為 null</p>
+<p>   - 必須有至少 1 個可執行範例</p>
+<ol>
+<li><strong>自動化驗證</strong>：</li>
+</ol>
+<p>   - 在 <code>hooks/validate_config.py --check-skills</code> 中加入上述檢查</p>
+<p>   - pre-commit hook 自動觸發</p>
+<h2>總結</h2>
+<p>本次審查發現並修正了 <code>pre-mortem</code> Skill 的 4 個品質問題，版本升級到 1.1.0。修正後的 Skill 符合專案規範，觸發條件明確，可執行性提升。</p>
+<p><strong>修正數量</strong>：4 項</p>
+<p><strong>驗證狀態</strong>：✅ 全部通過</p>
+<p><strong>知識庫匯入</strong>：✅ 完成</p>
+<p><strong>品質評分</strong>：4/5（已達標）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

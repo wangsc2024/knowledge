@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ORM Migration 最佳實踐 — 從 Raw SQL 安全遷移至 ORM 的模式、Timezone-Aware 日期處理與零停機策略（2026）">
+  <title>ORM Migration 最佳實踐 — 從 Raw SQL 安全遷移至 ORM 的模式、Timezone-Aware 日期處理與零停機策略（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>ORM Migration 最佳實踐 — 從 Raw SQL 安全遷移至 ORM 的模式、Timezone-Aware 日期處理與零停機策略（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">ORM Migration</span><span class="tag">SQLAlchemy</span><span class="tag">Raw SQL</span><span class="tag">Timezone-Aware</span><span class="tag">DateTime</span><span class="tag">Alembic</span><span class="tag">資料庫遷移</span><span class="tag">Python</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>ORM Migration 最佳實踐 — 從 Raw SQL 安全遷移至 ORM</h1>
+<h2>技術概述</h2>
+<p>ORM（Object-Relational Mapping）Migration 是將散落在程式碼中的原始 SQL 查詢，逐步替換為 ORM 抽象層的重構過程。這不是簡單的語法轉換，而是涉及型別安全、交易管理、效能調優與零停機部署的系統性工程。本文以 SQLAlchemy 2.0+ 為主軸，結合 timezone-aware datetime 處理與資料庫遷移安全策略，提供可操作的遷移指南。</p>
+<p>---</p>
+<h2>核心概念與原理</h2>
+<h3>1. ORM vs Raw SQL 的決策矩陣</h3>
+<p>| 場景 | 建議 | 原因 |</p>
+<p>|------|------|------|</p>
+<p>| CRUD 基本操作 | ORM | 型別安全、自動參數化、跨資料庫相容 |</p>
+<p>| 複雜報表/CTE/Window Function | Raw SQL | ORM 表達力不足，vendor-specific 語法 |</p>
+<p>| 批量更新（>1000 筆） | Raw SQL | 單一 SQL 取代數百次 ORM row mutation |</p>
+<p>| Migration 腳本 | Raw SQL | 靜態、可審計、不依賴 ORM model 當前狀態 |</p>
+<p>| 含使用者輸入的查詢 | ORM 或 text() 參數化 | 防止 SQL Injection |</p>
+<p><strong>核心原則</strong>：ORM 用於例行領域邏輯，Raw SQL 用於查詢密集或資料庫原生任務。</p>
+<h3>2. SQLAlchemy 2.0 關鍵變更</h3>
+<pre><code>
+# SQLAlchemy 1.x（已棄用）
+result = engine.execute("SELECT * FROM users")  # 移除於 2.0
+
+# SQLAlchemy 2.0+（必須使用 Connection）
+from sqlalchemy import text
+with engine.connect() as conn:
+    result = conn.execute(text("SELECT * FROM users WHERE id = :id"), {"id": 42})
+    conn.commit()
+</code></pre>
+<p><strong>重點</strong>：2.0 強制使用明確的 Connection 物件和交易管理，不再有隱式自動提交。</p>
+<h3>3. Enum 一致性問題（實戰案例）</h3>
+<p>這是本專案 QA System 今日修復的核心問題：</p>
+<pre><code>
+# 問題：raw SQL 寫入字串值
+conn.execute(text("UPDATE questions SET status = 'closed' WHERE id = :id"), {"id": qid})
+
+# ORM refresh 時觸發 Enum KeyError — 因為 ORM 期望 QuestionStatus.CLOSED
+db.refresh(question)  # ❌ KeyError: 'closed'
+
+# 修正：使用 ORM 的 Enum 常量
+question.status = QuestionStatus.CLOSED
+db.commit()  # ✅ ORM 與 DB 一致
+</code></pre>
+<p><strong>教訓</strong>：混用 raw SQL 與 ORM 時，Enum、DateTime 等型別的序列化/反序列化不一致是最常見的陷阱。</p>
+<p>---</p>
+<h2>Timezone-Aware DateTime 處理</h2>
+<h3>全域策略：UTC 儲存，本地顯示</h3>
+<pre><code>
+from datetime import datetime, timezone
+from sqlalchemy import DateTime
+from sqlalchemy.orm import Mapped, mapped_column
+
+class Event(Base):
+    __tablename__ = 'events'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # 使用 timezone=True 確保 DB 層支援時區
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+</code></pre>
+<h3>常見陷阱與修正</h3>
+<pre><code>
+# ❌ 錯誤：naive datetime（無時區資訊）
+closed_date = datetime.now()  # 系統可能用本地時區解讀
+
+# ✅ 正確：明確使用 UTC
+closed_date = datetime.now(timezone.utc)
+
+# ✅ 更佳：使用 server_default 讓 DB 管理時間戳
+# mapped_column(DateTime(timezone=True), server_default=func.now())
+</code></pre>
+<h3>SQLite TypeDecorator（無原生時區支援時）</h3>
+<pre><code>
+from sqlalchemy import TypeDecorator, DateTime
+
+class TZDateTime(TypeDecorator):
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            return value.astimezone(timezone.utc)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+</code></pre>
+<p>---</p>
+<h2>安全遷移策略</h2>
+<h3>1. 增量轉換（非一次性重寫）</h3>
+<p>遷移順序：</p>
+<ol>
+<li><strong>識別</strong>：找出所有 raw SQL 位置（grep <code>text(</code> 或 <code>execute(</code>）</li>
+<li><strong>分類</strong>：標記每個查詢為「可轉 ORM」或「保留 raw SQL」</li>
+<li><strong>隔離</strong>：將 raw SQL 集中到 repository 層</li>
+<li><strong>包裝</strong>：建立 wrapper 返回 ORM 相容物件</li>
+<li><strong>替換</strong>：逐一轉換，每次轉換後執行完整測試</li>
+</ol>
+<h3>2. 零停機資料庫遷移（Alembic）</h3>
+<p><strong>兩階段部署</strong>：</p>
+<p>| 操作類型 | 順序 |</p>
+<p>|---------|------|</p>
+<p>| 新增欄位 | 先 DB migration → 後部署應用 |</p>
+<p>| 移除欄位 | 先部署應用（停止使用）→ 後 DB migration |</p>
+<p>| 改名欄位 | 7 步漸進法（見下） |</p>
+<p><strong>欄位改名的 7 步漸進法</strong>：</p>
+<ol>
+<li>新增新欄位</li>
+<li>部署雙寫（寫入新舊兩欄）</li>
+<li>資料一致性驗證</li>
+<li>遷移既有資料</li>
+<li>讀取切換至新欄位</li>
+<li>移除舊欄位寫入</li>
+<li>刪除舊欄位</li>
+</ol>
+<h3>3. Migration 腳本安全規則</h3>
+<pre><code>
+# Alembic migration 最佳實踐
+def upgrade():
+    # ✅ 使用 Raw SQL，不依賴 ORM model
+    op.execute(sa.text("""
+        ALTER TABLE questions
+        ALTER COLUMN closed_date TYPE TIMESTAMP WITH TIME ZONE
+        USING closed_date AT TIME ZONE 'UTC'
+    """))
+
+    # ❌ 不要在 migration 中 import ORM model
+    # from models import Question  # 如果 model 變了，migration 會壞
+</code></pre>
+<p>---</p>
+<h2>與本專案（daily-digest-prompt）的關聯</h2>
+<h3>直接應用場景</h3>
+<ol>
+<li><strong>QA System 修復</strong>（今日實例）：</li>
+</ol>
+<p>   - <code>close_question</code> 從 raw SQL <code>UPDATE</code> 改為 ORM <code>question.status = QuestionStatus.CLOSED</code></p>
+<p>   - <code>datetime.now()</code> 改為 <code>datetime.now(timezone.utc)</code> — timezone-aware</p>
+<p>   - 測試從 raw SQL SELECT 驗證改為 ORM query + <code>expire_all()</code></p>
+<ol>
+<li><strong>hooks/post_tool_logger.py</strong>：</li>
+</ol>
+<p>   - 目前使用 JSON 檔案儲存日誌，若未來遷移至 SQLite/PostgreSQL</p>
+<p>   - 應直接採用 ORM + DateTime(timezone=True) 設計</p>
+<p>   - 避免重蹈 raw SQL / Enum 不一致覆轍</p>
+<ol>
+<li><strong>知識庫 API (localhost:3000)</strong>：</li>
+</ol>
+<p>   - 後端若使用 SQLAlchemy，Tiptap JSON 欄位應搭配 JSON Column Type</p>
+<p>   - 時間戳一律 UTC + timezone-aware</p>
+<h3>效能考量</h3>
+<ul>
+<li>Raw SQL 並非自動更快 — 速度來自 SQL 本身，非繞過 ORM</li>
+<li>使用參數化查詢讓 DB 快取查詢計畫</li>
+<li>批量 insert/update 減少 round trip</li>
+<li>交易範圍盡量縮小以減少鎖定</li>
+</ul>
+<p>---</p>
+<h2>程式碼範例：完整遷移模式</h2>
+<pre><code>
+# === 遷移前：raw SQL 混用 ===
+def close_question_v1(db, question_id, summary):
+    db.execute(text("""
+        UPDATE questions SET status = 'closed',
+        summary = :summary, closed_date = :now
+        WHERE id = :id
+    """), {"id": question_id, "summary": summary, "now": datetime.now()})
+    db.commit()
+
+# === 遷移後：ORM 型別安全 ===
+def close_question_v2(db: Session, question_id: int, summary: str):
+    question = db.query(Question).filter(Question.id == question_id).one()
+    question.status = QuestionStatus.CLOSED
+    question.summary = summary
+    question.closed_date = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(question)  # 安全：ORM Enum 一致
+    return question
+</code></pre>
+<p>---</p>
+<h2>檢查清單：遷移前自我審查</h2>
+<ul>
+<li>[ ] 所有 raw SQL 是否已用 <code>text()</code> 包裝並參數化？</li>
+<li>[ ] Enum 欄位是否在 raw SQL 和 ORM 間保持一致？</li>
+<li>[ ] 所有 datetime 是否使用 timezone-aware（<code>timezone.utc</code>）？</li>
+<li>[ ] Migration 腳本是否避免 import ORM model？</li>
+<li>[ ] 是否有完整的測試覆蓋（遷移前後對比）？</li>
+<li>[ ] 大型表格遷移是否考慮 gh-ost 或 CONCURRENTLY？</li>
+<li>[ ] 部署順序是否遵循兩階段原則？</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://thelinuxcode.com/executing-raw-sql-in-sqlalchemy-2026-a-senior-engineers-practical-guide/">Executing Raw SQL in SQLAlchemy 2026 — TheLinuxCode</a></li>
+<li><a href="https://www.slingacademy.com/article/sqlalchemy-how-to-store-datetime-with-timezone/">SQLAlchemy: How to Store DateTime with Timezone — Sling Academy</a></li>
+<li><a href="https://vadimkravcenko.com/shorts/database-migrations/">Database Migrations: Safe, Downtime-Free Strategies — Vadim Kravcenko</a></li>
+<li><a href="https://docs.sqlalchemy.org/en/21/changelog/migration_20.html">SQLAlchemy 2.0 Migration Guide — Official Docs</a></li>
+<li><a href="https://dev.to/welel/best-practices-for-alembic-and-sqlalchemy-3b34">Best Practices for Alembic and SQLAlchemy — DEV Community</a></li>
+<li><a href="https://martinfowler.com/articles/evodb.html">Evolutionary Database Design — Martin Fowler</a></li>
+<li><a href="https://www.geeksforgeeks.org/python/ensuring-timestamp-storage-in-utc-with-sqlalchemy/">Ensuring Timestamp Storage in UTC — GeeksforGeeks</a></li>
+</ul>
+<p>---</p>
+<p><em>研究日期：2026-02-27</em></p>
+<p><em>研究者：Tech Research Agent</em></p>
+<p><em>任務類型：tech_research</em></p>
+<p><em>觸發來源：今日 QA System close_question raw SQL → ORM 修復</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

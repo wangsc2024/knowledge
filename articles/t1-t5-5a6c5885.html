@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="T1-T5 靜態驗證測試詳細報告">
+  <title>T1-T5 靜態驗證測試詳細報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>T1-T5 靜態驗證測試詳細報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">測試報告</span><span class="tag">T1</span><span class="tag">T2</span><span class="tag">T3</span><span class="tag">T4</span><span class="tag">T5</span><span class="tag">靜態驗證</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>T1-T5 靜態驗證測試詳細報告</h1>
+<h2>T1: PowerShell 語法驗證</h2>
+<ul>
+<li><strong>測試方法</strong>: 使用 <code>[System.Management.Automation.PSParser]::Tokenize()</code> 解析</li>
+<li><strong>發現缺陷</strong>: <code>$agentName:</code> 被 PowerShell 解讀為磁碟驅動變數語法（如 <code>$env:PATH</code> 的語法）</li>
+<li><strong>修復方式</strong>: 改為 <code>${agentName} -</code>，用 <code>${}</code> 包裹變數名</li>
+<li><strong>影響範圍</strong>: run-agent-team.ps1 第 169、174 行</li>
+<li><strong>驗證結果</strong>: 修復後 run-agent-team.ps1 與 run-agent.ps1 語法均通過</li>
+</ul>
+<h2>T2: Todoist Filter 一致性</h2>
+<ul>
+<li><strong>測試方法</strong>: grep 搜尋所有 .md 檔案中的 filter 關鍵字</li>
+<li><strong>正確用法</strong>: <code>filter=today</code>（fetch-todoist.md、skills/todoist/SKILL.md 預設）</li>
+<li><strong>文件保留</strong>: <code>filter=today%20%7C%20overdue</code> 僅在 SKILL.md 自訂過濾器段落</li>
+<li><strong>驗證</strong>: prompts/team/fetch-todoist.md 行 28 確認使用 <code>filter=today</code></li>
+</ul>
+<h2>T3: Skill 路徑交叉參照</h2>
+<ul>
+<li><strong>測試方法</strong>: 從 6 個 prompt 檔案中提取所有 <code>skills/*/SKILL.md</code> 引用，逐一檢查檔案是否存在</li>
+<li><strong>檢查範圍</strong>: 4 個 team prompts + 2 個主 prompts</li>
+<li><strong>結果</strong>: 20+ 個路徑引用，全部存在</li>
+<li><strong>詳細列表</strong>:</li>
+</ul>
+<p>  - assemble-digest.md: 8 個 Skill 路徑（api-cache、atomic-habits、digest-memory、knowledge-query、learning-mastery、ntfy-notify、pingtung-policy-expert、scheduler-state）</p>
+<p>  - fetch-todoist.md: 2 個（api-cache、todoist）</p>
+<p>  - fetch-news.md: 2 個（api-cache、pingtung-news）</p>
+<p>  - fetch-hackernews.md: 2 個（api-cache、hackernews-ai-digest）</p>
+<p>  - daily-digest-prompt.md: 11 個（全部 Skill）</p>
+<p>  - hour-todoist-prompt.md: 3 個（todoist、ntfy-notify、knowledge-query）</p>
+<h2>T4: nul 禁令合規</h2>
+<ul>
+<li><strong>測試方法</strong>: grep 搜尋 <code>> nul|2>nul|> NUL</code> 在 .md 和 .ps1 檔案中</li>
+<li><strong>匹配數量</strong>: 10 處</li>
+<li><strong>全部為禁令說明文字</strong>: 每處都是「禁止使用 > nul」的警告文字，無實際違規</li>
+<li><strong>範圍</strong>: CLAUDE.md、daily-digest-prompt.md、hour-todoist-prompt.md、4 個 team prompts</li>
+</ul>
+<h2>T5: results JSON 格式一致性</h2>
+<ul>
+<li><strong>驗證統一欄位</strong>: agent、status、source、fetched_at、data、error</li>
+<li><strong>差異</strong>: fetch-news.md 多一個 retry_count 欄位（MCP 重試機制需要）</li>
+<li><strong>assemble-digest.md 讀取確認</strong>: 正確引用三個結果路徑</li>
+</ul>
+<h2>測試日期</h2>
+<p>2026-02-12</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

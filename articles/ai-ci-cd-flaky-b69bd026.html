@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動 CI/CD 優化進階實作：flaky test 治理、測試選擇與 build 預測工作流（2026）">
+  <title>AI 驅動 CI/CD 優化進階實作：flaky test 治理、測試選擇與 build 預測工作流（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動 CI/CD 優化進階實作：flaky test 治理、測試選擇與 build 預測工作流（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">CI/CD 智能化</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動 CI/CD 優化進階實作：flaky test 治理、測試選擇與 build 預測工作流（2026）</h1>
+<h2>技術概述</h2>
+<p>AI 驅動的 CI/CD 已從單純「重跑失敗測試」走向資料驅動的測試選擇、flaky quarantine 與 pipeline 排程協同。根據 Launchable 官方文件，Predictive Test Selection 會用歷史測試結果、變更檔案、測試特徵與環境資訊訓練模型，目標是在最短時間內優先跑出最可能失敗的測試。Buildkite Test Engine 則把 flaky 偵測、標記、隔離與 test splitting 產品化；Atlassian 進一步展示了大型 monorepo 中如何用 Flakinator 把偵測、隔離、通知、Jira 指派與恢復流程串成平台。對 daily-digest-prompt 這類自動化專案，這代表可以把 CI 從「全部都跑」升級為「先蒐集訊號，再針對風險變更跑最值錢的測試」。</p>
+<h2>核心方法與工具</h2>
+<ul>
+<li><strong>Predictive Test Selection（Launchable）</strong>：根據測試歷史、變更特徵、檔案相似度與環境 flavor，對完整測試集排序，再依 optimization target 切出子集。</li>
+<li><strong>Flaky Detection + Quarantine（Buildkite）</strong>：以 monitor 偵測 flaky，打上 <code>flaky</code> label，並將測試轉為 <code>muted</code> 或 <code>skipped</code>；<code>bktec</code> 可在執行時自動排除 quarantined tests。</li>
+<li><strong>平台化治理（Atlassian Flakinator）</strong>：收集 test run metadata、用多種偵測機制與 Bayesian scoring 建立 flakiness score，再自動建立 Jira/Slack 任務與恢復流程。</li>
+<li><strong>必要資料欄位</strong>：<code>test_id</code>、<code>suite</code>、<code>status</code>、<code>duration_ms</code>、<code>retry_count</code>、<code>commit_sha</code>、<code>branch</code>、<code>changed_files</code>、<code>runner</code>、<code>environment</code>、<code>owner</code>。</li>
+<li><strong>治理指標</strong>：build success rate、median feedback time、quarantined test count、false positive rate、recovered builds、test minutes saved。</li>
+</ul>
+<h2>實際工作流程</h2>
+<ol>
+<li><strong>蒐集測試遙測</strong></li>
+</ol>
+<p>   在 CI 中對每次測試上報測試名稱、結果、耗時、重試次數、commit SHA 與變更檔案。</p>
+<ol>
+<li><strong>建立 flaky 判定層</strong></li>
+</ol>
+<p>   先用規則法抓同一 commit 下 pass/fail flip，之後再加入歷史視窗、重試頻率、duration variance 等訊號。</p>
+<ol>
+<li><strong>自動標記與隔離</strong></li>
+</ol>
+<p>   對疑似 flaky 測試自動加 <code>flaky</code> label，先 <code>muted</code> 而非直接刪除，以保留資料並避免阻塞主線。</p>
+<ol>
+<li><strong>導入測試選擇</strong></li>
+</ol>
+<p>   對 pull request 先跑預測子集；main branch 或 nightly 再跑 full suite 以回補標籤資料與模型訓練資料。</p>
+<ol>
+<li><strong>回寫責任歸屬</strong></li>
+</ol>
+<p>   依 code owner 或 test owner 自動建立 issue / Slack 通知，要求在 SLA 內修復或解除 quarantine。</p>
+<ol>
+<li><strong>監控成效</strong></li>
+</ol>
+<p>   追蹤 CI 時間下降比例、retest 次數、誤隔離率與恢復後再犯率；若資料漂移，回退到較保守的規則模式。</p>
+<h2>程式碼 / 配置範例</h2>
+<h3>1. GitHub Actions 蒐集測試遙測並產生最小資料集</h3>
+<pre><code>
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Run unit tests with JUnit output
+        run: npm test -- --reporter=junit --reporter-options output=reports/junit.xml
+      - name: Export CI telemetry
+        run: python scripts/export_test_telemetry.py reports/junit.xml "$GITHUB_SHA" &gt; reports/test-telemetry.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-telemetry
+          path: reports/
+</code></pre>
+<h3>2. 最小 flaky 偵測腳本</h3>
+<pre><code>
+from collections import defaultdict
+
+def detect_flips(records):
+    by_test_commit = defaultdict(set)
+    for row in records:
+        key = (row["test_id"], row["commit_sha"])
+        by_test_commit[key].add(row["status"])
+    return [
+        {"test_id": test_id, "commit_sha": sha, "is_flaky": True}
+        for (test_id, sha), statuses in by_test_commit.items()
+        if {"passed", "failed"}.issubset(statuses)
+    ]
+</code></pre>
+<h3>3. Buildkite Test Engine quarantine 工作流概念</h3>
+<pre><code>
+steps:
+  - label: ":test_tube: test"
+    command: bktec
+    env:
+      BUILDKITE_TEST_ENGINE_TEST_RUNNER: playwright
+    parallelism: 6
+</code></pre>
+<h3>4. Predictive Test Selection 的本地決策資料結構</h3>
+<pre><code>
+{
+  "commit_sha": "abc123",
+  "changed_files": ["tools/validate_results.py", "prompts/team/todoist-auto-ai_sysdev.md"],
+  "tests": [
+    {"id": "tests/test_validate_results.py::test_schema", "duration_ms": 920, "historical_fail_rate": 0.07},
+    {"id": "tests/test_registry.py::test_cleanup", "duration_ms": 410, "historical_fail_rate": 0.01}
+  ],
+  "target_duration_ratio": 0.25
+}
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li><strong>Atlassian（2025-12-08）</strong>：Jira Frontend 曾有 <strong>21%</strong> master build failures 來自 flaky tests；Jira backend 約 <strong>15%</strong> repo failures 與 flaky tests 有關；每年浪費 <strong>150,000+ 小時</strong>；Flakinator 已恢復 <strong>22,000+ builds</strong>，識別 <strong>7,000</strong> 個獨特 flaky tests，系統處理量超過 <strong>350 million test executions/day</strong>。</li>
+<li><strong>Launchable 官方文件</strong>：其模型明確以「在最短測試時間內找出最可能失敗的測試」為目標；這不是單純檔案對映，而是結合變更特徵、歷史失敗關聯與測試行為的排序問題。</li>
+<li><strong>Buildkite 官方文件</strong>：透過 <code>bktec</code> 可同時做 intelligent test splitting 與 quarantined test 排除。依文件描述，這會直接帶來更快且更穩定的 pipeline。  </li>
+</ul>
+<p>以上數值為來源直接提供；若推估 daily-digest-prompt 的效益，我的推論是先做 flaky 隔離與測試分層，通常比直接導入完整 ML 模型更快見效。</p>
+<h2>與本專案的應用場景</h2>
+<ul>
+<li><code>tools/validate_results.py</code>、<code>tools/research_series_advisor.py</code>、各種 prompt schema 驗證可先被標為「高價值快速測試」，PR 階段優先執行。</li>
+<li>若 Playwright 或整合測試偶發失敗，可先建立 <code>flaky-tests.json</code> 或 <code>state/quarantined-tests.json</code>，在主線上 soft-fail，但 nightly 持續收集資料。</li>
+<li><code>logs/structured/*.jsonl</code> 已有可觀測性基礎，可擴充成測試遙測來源，先做規則式 flip 偵測，再考慮 ML 排序。</li>
+<li>round-robin / result validation 相關腳本變更頻繁，適合先導入 change-based test selection，縮短每次自動任務修改後的回饋時間。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li><strong>資料品質不足</strong>：缺少穩定的 test ID、重試資訊或 changed files，模型與規則都會失真。</li>
+<li><strong>過度隔離</strong>：把真正的產品缺陷誤判成 flaky，會讓主線品質假性變好。</li>
+<li><strong>樣本偏差</strong>：只在 PR 跑子集會造成訓練資料偏掉，因此必須保留 main / nightly full suite。</li>
+<li><strong>治理成本</strong>：quarantine 若沒有 owner、SLA 與解除條件，只會把測試債務藏起來。</li>
+<li><strong>工具綁定風險</strong>：Buildkite、Launchable 屬平台能力；若本專案短期不採購，應先做自建規則版最小閉環。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>Launchable Docs, How Launchable selects tests: https://help.launchableinc.com/features/predictive-test-selection/how-launchable-selects-tests/</li>
+<li>Buildkite Docs, Buildkite Test Engine: https://buildkite.com/docs/test-engine</li>
+<li>Buildkite Docs, Reduce flaky tests: https://buildkite.com/docs/test-engine/reduce-flaky-tests</li>
+<li>Buildkite Docs, Test state and quarantine: https://buildkite.com/docs/test-engine/test-suites/test-state-and-quarantine</li>
+<li>Atlassian Engineering, Taming Test Flakiness: https://www.atlassian.com/blog/atlassian-engineering/taming-test-flakiness-how-we-built-a-scalable-tool-to-detect-and-manage-flaky-tests/amp</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

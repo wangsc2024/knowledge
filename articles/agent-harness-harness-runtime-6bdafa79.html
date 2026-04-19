@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent Harness 自主管理優化與雙 Harness runtime policy 接管（2026-03-20）">
+  <title>Agent Harness 自主管理優化與雙 Harness runtime policy 接管（2026-03-20） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent Harness 自主管理優化與雙 Harness runtime policy 接管（2026-03-20）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">agent-harness</span><span class="tag">autonomous-management</span><span class="tag">runtime-policy</span><span class="tag">daily-digest</span><span class="tag">todoist</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent Harness 自主管理優化</h1>
+<p>日期：2026-03-20</p>
+<h2>核心成果</h2>
+<ul>
+<li>建立 <code>tools/autonomous_harness.py</code> 作為控制面，統一彙整 run FSM、scheduler state、failure stats、failed auto tasks、API health、fairness、token budget、heartbeat 與資源快照。</li>
+<li><code>run-todoist-agent-team.ps1</code> 已依 <code>state/autonomous-runtime.json</code> 對 auto-task 實施動態降載。</li>
+<li>本次再把 <code>run-agent-team.ps1</code> 納入同一份 runtime policy，讓 daily-digest Phase 1 fetch agent 也能在 degraded / recovery 模式下降載。</li>
+</ul>
+<h2>新增自治策略</h2>
+<ul>
+<li>runtime policy 新增 <code>max_parallel_fetch_agents</code>、<code>blocked_fetch_agents</code>、<code>allowed_fetch_agents</code>。</li>
+<li><code>config/autonomous-harness.yaml</code> 定義核心 fetch agent：<code>todoist</code>、<code>news</code>、<code>hackernews</code>。</li>
+<li>degraded 模式封鎖 <code>security</code>、<code>chatroom</code>；recovery 模式再封鎖 <code>gmail</code>，只保留三個核心 fetch agent。</li>
+</ul>
+<h2>驗證結果</h2>
+<ul>
+<li><code>python tools/autonomous_harness.py --format json</code> 成功，實際輸出 <code>mode=degraded</code>、<code>max_parallel_auto_tasks=2</code>、<code>max_parallel_fetch_agents=4</code>。</li>
+<li>手動隔離情境驗證顯示 recovery 模式下只允許 <code>todoist/news/hackernews</code>，且 recovery queue 會寫入待處理項目。</li>
+<li><code>pytest</code> 因 Windows ACL 阻斷 tmp cleanup 而失敗，屬環境問題，不是 harness 邏輯錯誤。</li>
+</ul>
+<h2>已知限制</h2>
+<ul>
+<li>Cursor CLI 依 <code>skills/cursor-cli/SKILL.md</code> 實際執行 <code>agent -p</code> 時回傳 <code>Error: [internal]</code>，本輪採本地 fallback 完成實作。</li>
+<li><code>run-agent-team.ps1</code> 的 Phase 2 assembly 尚未接入自治 gate。</li>
+</ul>
+<h2>後續方向</h2>
+<ul>
+<li>增加 recovery worker 消費 <code>state/autonomous-recovery-queue.json</code>。</li>
+<li>將 done_cert 成功率與 recovery 成功率納入長期調參指標。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-21：State 膨脹治理與配置碎片化統一 — loop-state 清理自動化、kb-note-scores 增量化架構與 YAML 單一真相源方案">
+  <title>專案RAG優化日報 2026-03-21：State 膨脹治理與配置碎片化統一 — loop-state 清理自動化、kb-note-scores 增量化架構與 YAML 單一真相源方案 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-21：State 膨脹治理與配置碎片化統一 — loop-state 清理自動化、kb-note-scores 增量化架構與 YAML 單一真相源方案</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">State膨脹治理</span><span class="tag">YAML碎片化</span><span class="tag">loop-state清理</span><span class="tag">單一真相源</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-03-21</h1>
+<p><strong>State 膨脹治理與配置碎片化統一 — loop-state 清理自動化、kb-note-scores 增量化架構與 YAML 單一真相源方案</strong></p>
+<p><em>研究日期</em>：2026-03-21</p>
+<p><em>任務 ID</em>：6g2FfvWmxqhCWx85</p>
+<p><em>標籤</em>：專案優化、深度思維、知識庫</p>
+<p><em>適用對象</em>：daily-digest-prompt 專案</p>
+<p>---</p>
+<h2>一、執行摘要（300 字）</h2>
+<p>本次對 daily-digest-prompt 專案進行了系統性的 State 膨脹與配置碎片化診斷。透過兩個並行子 Agent 的深度掃描，發現三大結構性問題：（1）state/ 目錄累積 150 個 loop-state 廢棄檔案，佔用無謂 I/O；（2）kb-note-scores.json 單檔 432KB 且每次全量覆寫，造成寫入瓶頸；（3）29 個 YAML 配置檔共 4525 行，存在 timeout 重複定義、task_key 需跨檔同步等碎片化風險。</p>
+<p>已實施 P0 修復：在 run-agent-team.ps1 與 run-todoist-agent-team.ps1 啟動階段加入 loop-state 自動清理（保留 3 天），預期隨時間推移可持續清理累積的廢棄狀態檔。同時規劃了 P1/P2 優化路線圖，包含 kb-note-scores 增量化、config 統一真相源架構、模板參數化去冗餘等 7 項改善方案。</p>
+<p>---</p>
+<h2>二、現況診斷：三大結構性問題</h2>
+<h3>2.1 State 目錄膨脹（P0 — 已修復）</h3>
+<p><strong>現象</strong>：state/ 目錄包含 150 個 <code>loop-state-*.json</code> 檔案，每個 Agent 執行 session 都會建立一個新檔（以 session UUID 命名），但無任何清理機制。</p>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>檔案系統碎片化：150+ 小檔案增加目錄掃描時間</li>
+<li>Git 追蹤負擔：若不在 .gitignore 中，每次 commit 都會包含大量變更</li>
+<li>診斷困難：無法快速識別哪些是活躍 session</li>
+</ul>
+<p><strong>已實施修復</strong>：在兩個主要排程腳本的啟動階段加入自動清理邏輯：</p>
+<pre><code>
+$loopStateFiles = Get-ChildItem "state/loop-state-*.json" |
+    Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-3) }
+if ($loopStateFiles.Count -gt 0) {
+    $loopStateFiles | Remove-Item -Force
+}
+</code></pre>
+<p><strong>設計決策</strong>：保留 3 天（而非 7 天）是因為 loop-state 僅用於單次 session 的迴圈偵測，session 結束後即無用。3 天可覆蓋週末無執行的情境。</p>
+<h3>2.2 kb-note-scores.json 全量覆寫瓶頸（P1 — 待實施）</h3>
+<p><strong>現象</strong>：單檔 432KB（442,055 bytes），記錄知識庫中每筆筆記的品質分數。每次 kb-curator Skill 執行時全量重算並覆寫。</p>
+<p><strong>問題分析</strong>：</p>
+<ul>
+<li>寫入延遲：432KB JSON 的序列化/反序列化耗時約 50-100ms</li>
+<li>無增量機制：新增一筆筆記就需重寫整個檔案</li>
+<li>無分片策略：隨知識庫成長（目前 700+ 筆），檔案將線性膨脹</li>
+</ul>
+<p><strong>建議方案（增量化）</strong>：</p>
+<ol>
+<li>改為 dirty-flag 機制：僅重算 last_modified > last_scored 的筆記</li>
+<li>引入月度 snapshot：<code>state/kb-note-scores-2026-03.json</code>，按月分片</li>
+<li>在 digest-memory.json 加入 <code>cache_stats.kb_scores_dirty_count</code> 追蹤</li>
+</ol>
+<h3>2.3 YAML 配置碎片化（P2 — 待實施）</h3>
+<p><strong>現象</strong>：29 個 YAML 檔案共 4525 行，分散定義 routing、timeout、frequency、scoring 等邏輯。</p>
+<p><strong>核心問題 — 重複定義</strong>：</p>
+<ul>
+<li><code>timeouts.yaml</code> 的 <code>phase2_timeout_by_task</code> 與 <code>run-todoist-agent-team.ps1</code> 的 <code>$AutoTaskTimeoutOverride</code> 完全重複（30+ 個 key）</li>
+<li>修改 timeout 需同時更新兩處，且無自動驗證</li>
+</ul>
+<p><strong>核心問題 — 跨檔同步</strong>：</p>
+<ul>
+<li><code>frequency-limits.yaml</code> 的 task_key 必須與 <code>prompts/team/todoist-auto-{task_key}.md</code> 檔名一致</li>
+<li>歷史上已因連字號/底線不一致導致三次 Phase 2 結果缺失 bug</li>
+</ul>
+<p><strong>建議方案（單一真相源）</strong>：</p>
+<ol>
+<li>新建 <code>config/tasks.yaml</code> 統一定義每個自動任務的 key、timeout、frequency、prompt 檔名</li>
+<li>PowerShell 腳本改為從 <code>config/tasks.yaml</code> 動態讀取，移除 hardcoded override</li>
+<li>新增 <code>tools/validate_task_config.py</code> 交叉驗證 task_key 一致性</li>
+</ol>
+<p>---</p>
+<h2>三、深度分析：YAML Sprawl 的產業最佳實踐</h2>
+<h3>3.1 YAML Sprawl 定義與成因</h3>
+<p>根據 Octopus Deploy 的定義，YAML Sprawl 是指「隨著 GitOps 規模擴展，需要更新和維護的 YAML 配置檔案數量迅速增長的現象」[Octopus Deploy, 2025]。本專案的 29 個 YAML 恰好符合此模式 — 每新增一個 Skill 或自動任務，就可能需要在 3-4 個 YAML 中新增對應 entry。</p>
+<h3>3.2 單一真相源原則</h3>
+<p>根據 TechTarget 的分析，Single Source of Truth 的核心是「在組織中建立統一的數據中心，讓所有系統都參照同一個權威數據庫」[TechTarget, 2025]。應用到本專案：</p>
+<p>| 當前狀態 | 目標狀態 |</p>
+<p>|---------|--------|</p>
+<p>| timeout 定義在 YAML + PS1 兩處 | 統一在 tasks.yaml |</p>
+<p>| task_key 分散在 YAML + prompt 檔名 + result JSON | tasks.yaml 為唯一真相源 |</p>
+<p>| Skill depends-on 在各 SKILL.md 獨立宣告 | skill-registry.json 自動掃描驗證 |</p>
+<h3>3.3 AI Agent 狀態管理最佳實踐</h3>
+<p>根據 FlowHunt 的研究，Agent 檔案狀態管理的三大原則是 [FlowHunt, 2025]：</p>
+<ol>
+<li><strong>定期清理</strong>：刪除舊檔案或歸檔結果，保持系統可管理性</li>
+<li><strong>增量更新</strong>：使用 reducer 模式（左右合併），而非全量覆寫</li>
+<li><strong>檔案即通訊</strong>：Agent 間透過檔案系統非同步傳遞狀態</li>
+</ol>
+<p>本專案的 <code>results/*.json</code> 已實踐第三點（Phase 2 寫入、Phase 3 讀取），但第一、二點仍有改善空間。</p>
+<p>---</p>
+<h2>四、完整優化路線圖（7 項）</h2>
+<p>| 等級 | 項目 | 工作量 | 預期收益 | 狀態 |</p>
+<p>|------|------|--------|---------|------|</p>
+<p>| <strong>P0</strong> | loop-state 自動清理（3 天 TTL） | 30min | 清理累積廢棄檔 | <strong>已完成</strong> |</p>
+<p>| <strong>P1</strong> | kb-note-scores 增量化 | 2h | 減少 I/O 50%、加快啟動 | 待實施 |</p>
+<p>| <strong>P1</strong> | config/tasks.yaml 統一真相源 | 3h | 消除重複定義與跨檔同步風險 | 待實施 |</p>
+<p>| <strong>P1</strong> | Skill depends-on 補全（12 個） | 1.5h | 防止循環依賴、完善依賴圖 | 待實施 |</p>
+<p>| <strong>P2</strong> | podcast/research 模板參數化 | 4h | 減少 20 個冗餘檔案 | 待實施 |</p>
+<p>| <strong>P2</strong> | 統一重試框架（hook_utils.py） | 2h | 消除分散的重試邏輯 | 待實施 |</p>
+<p>| <strong>P3</strong> | research-series 180 天 TTL + 歸檔 | 1.5h | context/ 膨脹控制 | 待實施 |</p>
+<p>---</p>
+<h2>五、已實施修復的驗證結果</h2>
+<h3>5.1 loop-state 清理驗證</h3>
+<ul>
+<li><strong>修改檔案</strong>：<code>run-agent-team.ps1</code>、<code>run-todoist-agent-team.ps1</code></li>
+<li><strong>清理策略</strong>：每次排程啟動時，刪除 LastWriteTime > 3 天的 <code>state/loop-state-*.json</code></li>
+<li><strong>當前狀態</strong>：150 個檔案全部在 3 天內（2026-03-21），清理邏輯已就位等待觸發</li>
+<li><strong>預期效果</strong>：未來每次執行自動清理過期檔案，state/ 目錄長期維持在 20-30 個檔案</li>
+</ul>
+<p>---</p>
+<h2>六、實務應用建議</h2>
+<ol>
+<li><strong>下一步優先實施 P1-a</strong>：kb-note-scores 增量化 — 這是當前最大的單檔 I/O 瓶頸</li>
+<li><strong>config/tasks.yaml 設計</strong>：建議在新增下一個自動任務時一併重構，避免獨立重構的回歸風險</li>
+<li><strong>Skill depends-on 補全</strong>：可結合 skill-registry-sync Skill 自動掃描，而非手動修改 12 個 SKILL.md</li>
+<li><strong>定期指標追蹤</strong>：使用 <code>analyze-config.ps1</code> 監控配置行數趨勢，設定 5000 行警戒線</li>
+</ol>
+<p>---</p>
+<h2>七、參考來源</h2>
+<ul>
+<li>[1] Octopus Deploy. (2025). YAML Sprawl. Octopus Deploy DevOps Glossary. https://octopus.com/devops/glossary/yaml-sprawl/ (retrieved 2026-03-21)</li>
+<li>[2] FlowHunt. (2025). Advanced AI Agents with File Access: Mastering Context Offloading and State Management. FlowHunt Blog. https://www.flowhunt.io/blog/advanced-ai-agents-with-file-access-mastering-context-offloading-and-state-management/ (retrieved 2026-03-21)</li>
+<li>[3] TechTarget. (2025). Avoid data sprawl with a single source of truth. TechTarget SearchDataManagement. https://www.techtarget.com/searchdatamanagement/opinion/Avoid-data-sprawl-with-a-single-source-of-truth (retrieved 2026-03-21)</li>
+<li>[4] Wibowo, P. (2025). YAML Sprawl: The Hidden Complexity in Modern Software Development. Medium. https://pandhuwibowo.medium.com/yaml-sprawl-the-hidden-complexity-in-modern-software-development-154392fbf75c (retrieved 2026-03-21)</li>
+<li>[5] ServiceNow. (2025). Optimizing ServiceNow Data Lifecycle: Archiving, Rotation, and Cleanup Strategies. ServiceNow Community. https://www.servicenow.com/community/developer-blog/optimizing-servicenow-data-lifecycle-archiving-rotation-and/ba-p/3406294 (retrieved 2026-03-21)</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

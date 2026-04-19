@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Circuit Breaker Pattern 完整指南 — API 彈性架構、三態狀態機與故障降級最佳實踐（2026）">
+  <title>Circuit Breaker Pattern 完整指南 — API 彈性架構、三態狀態機與故障降級最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Circuit Breaker Pattern 完整指南 — API 彈性架構、三態狀態機與故障降級最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Circuit Breaker</span><span class="tag">熔斷器模式</span><span class="tag">API彈性</span><span class="tag">微服務</span><span class="tag">故障降級</span><span class="tag">分散式系統</span><span class="tag">Python</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Circuit Breaker Pattern 完整指南 — API 彈性架構、三態狀態機與故障降級最佳實踐</h1>
+<h2>技術概述</h2>
+<p>Circuit Breaker（熔斷器）模式源自 Michael T. Nygard 的《Release It!》一書，是分散式系統中防止級聯故障（cascading failures）的核心彈性模式。正如實際電路中的斷路器在偵測到過載時自動斷電保護電路一樣，軟體中的 Circuit Breaker 在偵測到下游服務異常時，自動停止發送請求，避免資源耗盡與雪崩效應。Martin Fowler 將其描述為「將受保護的函數呼叫包裝在熔斷器物件中，由該物件監控失敗狀況」。此模式在微服務架構中尤為關鍵 — 單一服務故障可透過同步呼叫鏈擴散至整個系統。</p>
+<p>---</p>
+<h2>一、核心概念：三態狀態機</h2>
+<p>Circuit Breaker 本質上是一個有限狀態機（FSM），具有三個明確的狀態，每個狀態有清晰的轉換規則：</p>
+<h3>1.1 Closed（關閉 = 正常運作）</h3>
+<ul>
+<li>請求正常傳遞至下游服務</li>
+<li>內部維護失敗計數器，成功呼叫將計數器重置為零</li>
+<li>計數器為<strong>時間視窗制</strong>（非累計制），在固定間隔自動重置，防止偶發故障誤觸發</li>
+<li>當指定時間內的失敗次數超過閾值時 → 轉為 Open</li>
+</ul>
+<h3>1.2 Open（開啟 = 阻斷請求）</h3>
+<ul>
+<li><strong>所有請求立即失敗</strong>，不實際呼叫下游服務（fail fast）</li>
+<li>可返回預設回應（fallback）、快取資料、或錯誤訊息</li>
+<li>同時啟動一個<strong>逾時計時器</strong>（reset timeout）</li>
+<li>計時器到期 → 轉為 Half-Open</li>
+<li>核心價值：保護已故障的服務不被繼續轟炸，給予恢復空間</li>
+</ul>
+<h3>1.3 Half-Open（半開 = 試探恢復）</h3>
+<ul>
+<li>允許<strong>有限數量</strong>的試探性請求通過</li>
+<li>維護成功計數器，若連續成功達到閾值 → 轉為 Closed（恢復正常）</li>
+<li>任何失敗立即 → 轉回 Open，重新啟動逾時計時器</li>
+<li>核心價值：防止剛恢復的服務被瞬間洪水請求再度壓垮</li>
+</ul>
+<h3>狀態轉換圖</h3>
+<pre><code>
+     ┌─成功──→ 重置計數器 ┐
+     │                    │
+  [Closed] ←─────────────┘
+     │
+     │ 失敗超過閾值
+     ▼
+  [Open] ──逾時到期──→ [Half-Open]
+     ▲                     │
+     │                     │
+     └──任何失敗───────────┘
+     │                     │
+     │                     │
+     │     連續成功達閾值   │
+     │          ┌──────────┘
+     │          ▼
+     │       [Closed]
+     │
+</code></pre>
+<p>---</p>
+<h2>二、關鍵配置參數</h2>
+<p>| 參數 | 典型值 | 說明 |</p>
+<p>|------|--------|------|</p>
+<p>| failure_threshold | 5 | 觸發 Open 狀態的失敗次數 |</p>
+<p>| failure_rate_threshold | 50% | 滑動視窗內的失敗率閾值 |</p>
+<p>| sliding_window_size | 100 calls | 統計視窗大小 |</p>
+<p>| reset_timeout | 30-60 秒 | Open 狀態持續時間 |</p>
+<p>| half_open_max_calls | 3-5 | Half-Open 允許的試探請求數 |</p>
+<p>| success_threshold | 3 | Half-Open 轉 Closed 所需連續成功次數 |</p>
+<p>| timeout_duration | 5000ms | 單次呼叫逾時 |</p>
+<p><strong>進階配置：</strong></p>
+<ul>
+<li><strong>漸增逾時（Increasing Timeout）</strong>：Open 狀態每次觸發延長等待時間（如 30s → 60s → 120s）</li>
+<li><strong>錯誤篩選（Error Selectivity）</strong>：並非所有錯誤都應觸發熔斷 — 僅服務不可用（HTTP 503）、逾時等應計入失敗，業務邏輯錯誤（HTTP 400）不應觸發</li>
+<li><strong>健康端點探測</strong>：在 Open 狀態主動 ping 下游服務的 <code>/health</code> 端點，而非單純等待計時器</li>
+</ul>
+<p>---</p>
+<h2>三、與其他彈性模式的搭配</h2>
+<h3>3.1 Circuit Breaker + Retry Pattern</h3>
+<p>兩者互補但目的不同：</p>
+<ul>
+<li><strong>Retry</strong>：處理暫態故障（transient faults），預期操作最終會成功</li>
+<li><strong>Circuit Breaker</strong>：阻止對持續性故障服務的無謂呼叫</li>
+</ul>
+<p>最佳實踐：在 Retry 中嵌入 Circuit Breaker 感知 — 當 Circuit Breaker 回報故障非暫態時，停止 Retry。</p>
+<h3>3.2 搭配 Exponential Backoff + Jitter</h3>
+<p>重試公式：<code>sleep = min(base × 2^attempt, MAX_BACKOFF) + random_jitter</code></p>
+<p>加入隨機抖動（jitter）防止所有客戶端同步重試（thundering herd 問題）。</p>
+<h3>3.3 搭配 Bulkhead Pattern</h3>
+<p>將資源（執行緒、連線池）隔離，確保一個下游服務的故障不會耗盡所有資源。Circuit Breaker 配合 Bulkhead 可更精細地控制故障影響範圍。</p>
+<h3>3.4 搭配 Fallback Pattern</h3>
+<p>在 Open 狀態提供降級策略：</p>
+<ul>
+<li>返回快取資料（最常用）</li>
+<li>切換到備用服務</li>
+<li>返回預設值</li>
+<li>將請求排入佇列待後處理</li>
+</ul>
+<p>---</p>
+<h2>四、主流實作工具（2026）</h2>
+<p>| 工具 | 語言/平台 | 特色 |</p>
+<p>|------|-----------|------|</p>
+<p>| <strong>Resilience4j 2.2.0</strong> | Java | Hystrix 的現代替代，輕量、函數式 API，Spring Boot 整合 |</p>
+<p>| <strong>Polly 8.6.5</strong> | .NET | 策略組合（Retry + CB + Timeout），Fluent API |</p>
+<p>| <strong>PyBreaker</strong> | Python | 基於 Nygard 原著，支援 Listener 監聽狀態變化 |</p>
+<p>| <strong>circuitbreaker</strong> | Python | 裝飾器模式，<code>@circuit</code> 一行啟用 |</p>
+<p>| <strong>gobreaker 1.1.0</strong> | Go | 可配置閾值百分比與休眠視窗 |</p>
+<p>| <strong>Istio 1.16.0</strong> | Service Mesh | 網路層級 Circuit Breaker，無需修改應用程式碼 |</p>
+<p>| <strong>resilience 1.6.0</strong> | Python | 裝飾器 + 自定義 fallback 函數 |</p>
+<h3>Python 實作範例（PyBreaker）</h3>
+<pre><code>
+import pybreaker
+import requests
+
+# 定義熔斷器
+api_breaker = pybreaker.CircuitBreaker(
+    fail_max=5,           # 5 次失敗觸發 Open
+    reset_timeout=30,     # 30 秒後嘗試 Half-Open
+    exclude=[ValueError], # 業務錯誤不計入
+)
+
+# 監聽狀態變化
+class BreakerListener(pybreaker.CircuitBreakerListener):
+    def state_change(self, cb, old_state, new_state):
+        print(f"[Circuit Breaker] {old_state.name} → {new_state.name}")
+
+api_breaker.add_listener(BreakerListener())
+
+@api_breaker
+def call_api(url):
+    response = requests.get(url, timeout=5)
+    response.raise_for_status()
+    return response.json()
+
+# 使用（含 fallback）
+def get_data_safe(url, fallback_data=None):
+    try:
+        return call_api(url)
+    except pybreaker.CircuitBreakerError:
+        print("[Fallback] 服務暫時不可用，使用快取資料")
+        return fallback_data
+</code></pre>
+<p>---</p>
+<h2>五、與 Daily-Digest-Prompt 專案的關聯</h2>
+<p>本專案（daily-digest-prompt）已在 <code>circuit-breaker-utils.ps1</code> 中實作了 Circuit Breaker 模式，管理 5 個 API 的健康狀態：</p>
+<h3>5.1 現有實作分析</h3>
+<pre><code>
+狀態檔案：state/api-health.json
+追蹤 API：todoist / pingtung-news / hackernews / gmail / knowledge
+三態：healthy → degraded → failed
+</code></pre>
+<p>| 面向 | 現有實作 | 業界最佳實踐 | 差距 |</p>
+<p>|------|---------|-------------|------|</p>
+<p>| 狀態機 | ✅ 三態（healthy/degraded/failed） | 三態（Closed/Open/Half-Open） | 命名不同但語義一致 |</p>
+<p>| 失敗計數 | ✅ consecutive_failures 追蹤 | 滑動視窗計數 | 目前為累計制，可考慮時間視窗 |</p>
+<p>| 自動恢復 | ✅ Phase 完成後更新狀態 | Half-Open 自動試探 | 依賴排程觸發，非主動探測 |</p>
+<p>| 降級策略 | ✅ 過期快取作為 fallback | 快取/預設值/備用服務 | 已覆蓋最常用策略 |</p>
+<p>| 監控 | ✅ check-health.ps1 儀表板 | 日誌 + 告警 + 儀表板 | 已覆蓋 |</p>
+<p>| 錯誤分類 | ⚠️ 所有錯誤一視同仁 | 區分暫態 vs 持續性錯誤 | 可加入 HTTP 狀態碼分類 |</p>
+<h3>5.2 可優化方向</h3>
+<ol>
+<li><strong>時間視窗計數</strong>：將 <code>consecutive_failures</code> 改為滑動視窗（如「5 分鐘內 3 次失敗」）</li>
+<li><strong>錯誤分類</strong>：HTTP 429（限流）vs 503（不可用）vs timeout 分別處理，429 自帶 Retry-After</li>
+<li><strong>主動健康探測</strong>：在 failed 狀態定期 ping API health 端點，而非等待下次排程</li>
+<li><strong>漸增冷卻時間</strong>：首次故障等 1 分鐘、第二次 5 分鐘、第三次 15 分鐘</li>
+<li><strong>AI 自適應閾值</strong>：根據歷史流量模式動態調整閾值（Azure 文件提及的 2026 趨勢）</li>
+</ol>
+<p>---</p>
+<h2>六、常見陷阱與避免方法</h2>
+<h3>6.1 閾值設定不當</h3>
+<ul>
+<li><strong>過低</strong>：正常流量中的偶發錯誤就觸發熔斷，導致可用性下降</li>
+<li><strong>過高</strong>：故障已擴散才觸發，失去保護意義</li>
+<li><strong>最佳實踐</strong>：初始值設為 50% 失敗率 + 最少 10 次呼叫，再根據監控數據微調</li>
+</ul>
+<h3>6.2 單一熔斷器覆蓋多個獨立資源</h3>
+<ul>
+<li>問題：多個 shard/region 共用一個 Circuit Breaker，導致健康的 shard 也被阻斷</li>
+<li>解法：每個獨立資源一個 Circuit Breaker 實例</li>
+</ul>
+<h3>6.3 忽略 Half-Open 洪水問題</h3>
+<ul>
+<li>問題：Half-Open 允許太多試探請求，壓垮剛恢復的服務</li>
+<li>解法：嚴格限制 <code>half_open_max_calls</code>（3-5 次），且用健康端點替代真實請求</li>
+</ul>
+<h3>6.4 不當的逾時配置</h3>
+<ul>
+<li>問題：reset_timeout 太短導致服務還沒恢復就嘗試重連</li>
+<li>解法：根據下游服務的恢復特性設定，並使用漸增逾時</li>
+</ul>
+<h3>6.5 缺乏監控</h3>
+<ul>
+<li>Martin Fowler 特別強調：「熔斷器是監控的最佳切入點」</li>
+<li>必須記錄所有狀態變化、暴露詳細狀態資訊、支援手動觸發/重置</li>
+</ul>
+<p>---</p>
+<h2>七、2026 年趨勢：AI 自適應 Circuit Breaker</h2>
+<p>Microsoft Azure 文件指出，傳統 Circuit Breaker 依賴預先配置的固定閾值，行為確定但可能非最佳。2026 年的新趨勢是引入 AI/ML 動態調整：</p>
+<ul>
+<li><strong>即時流量分析</strong>：根據當前流量模式自動調整失敗率閾值</li>
+<li><strong>異常偵測</strong>：ML 模型識別非典型故障模式（如漸進式退化 vs 突發崩潰）</li>
+<li><strong>歷史學習</strong>：從過去的故障事件學習最佳恢復時間</li>
+<li><strong>Service Mesh 整合</strong>：Istio/Envoy 層級的 Circuit Breaker 可跨服務統一管理，無需修改應用程式碼</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Martin Fowler, <a href="https://martinfowler.com/bliki/CircuitBreaker.html">Circuit Breaker</a> — 模式原始定義</li>
+<li>Microsoft Azure, <a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker">Circuit Breaker Pattern</a> — Azure Architecture Center 完整指南</li>
+<li>Michael T. Nygard, <em>Release It!</em> — 模式首次提出的著作</li>
+<li>DasRoot, <a href="https://dasroot.net/posts/2026/01/building-resilient-systems-circuit-breakers-retry-patterns/">Building Resilient Systems: Circuit Breakers and Retry Patterns</a> — 2026 實作指南</li>
+<li>OneUptime, <a href="https://oneuptime.com/blog/post/2026-02-20-microservices-circuit-breaker/view">How to Implement Circuit Breaker Pattern in Microservices</a> — 2026 微服務實作</li>
+<li>PyBreaker GitHub, <a href="https://github.com/danielfm/pybreaker">danielfm/pybreaker</a> — Python Circuit Breaker 實作</li>
+<li>AWS, <a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/circuit-breaker.html">Circuit Breaker Pattern</a> — AWS 雲端設計模式</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-26</em></p>
+<p><em>研究動機：今日 Todoist 完成任務涉及 Circuit Breaker 儀表板優化與 API 健康狀態管理。本專案 <code>circuit-breaker-utils.ps1</code> 已實作此模式但知識庫尚無系統性研究。本文整理三態狀態機原理、配置參數、Python 實作、與本專案的對照分析及可優化方向。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

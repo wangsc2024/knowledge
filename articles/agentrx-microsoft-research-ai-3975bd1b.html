@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AgentRx — Microsoft Research 的 AI Agent 自動除錯框架：六階段診斷管線、九類失敗分類法與關鍵失敗步驟定位">
+  <title>AgentRx — Microsoft Research 的 AI Agent 自動除錯框架：六階段診斷管線、九類失敗分類法與關鍵失敗步驟定位 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AgentRx — Microsoft Research 的 AI Agent 自動除錯框架：六階段診斷管線、九類失敗分類法與關鍵失敗步驟定位</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">Agent</span><span class="tag">除錯</span><span class="tag">Microsoft Research</span><span class="tag">AgentRx</span><span class="tag">失敗分類</span><span class="tag">根因分析</span><span class="tag">開源框架</span><span class="tag">2026</span><span class="tag">可觀測性</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AgentRx — AI Agent 自動除錯框架</h1>
+<h2>概述</h2>
+<p>AgentRx 是 Microsoft Research 於 2026 年 3 月 12 日發布的開源框架，專門用於<strong>自動診斷 AI Agent 在複雜任務中失敗的根因</strong>。隨著 AI Agent 從簡單聊天機器人演進為能管理雲端事件、導航複雜網頁介面、執行多步驟 API 工作流的自主系統，AgentRx 解決了其中最關鍵的<strong>可觀察性與透明度</strong>問題。</p>
+<p>論文：<em>AgentRx: Diagnosing AI Agent Failures from Execution Trajectories</em>（arXiv: 2602.02475）</p>
+<p>---</p>
+<h2>核心架構：六階段診斷管線</h2>
+<p>AgentRx 將 Agent 執行視為需要驗證的系統軌跡（trajectory），採用結構化的六階段管線進行診斷：</p>
+<h3>1. Trajectory IR（軌跡中間表示）</h3>
+<p>將來自不同領域的異質性執行日誌正規化為通用中間表示格式，消除跨平台差異。</p>
+<h3>2. Static Invariants（靜態不變量）</h3>
+<p>從任務規格中識別預期的行為模式，建立「應該發生什麼」的約束條件。</p>
+<h3>3. Dynamic Invariants（動態不變量）</h3>
+<p>從實際 Agent 執行過程中推導運行時約束，捕捉「實際發生了什麼」。</p>
+<h3>4. Checker（檢查器）</h3>
+<p>交叉比對靜態預期與觀察到的實際行為，逐步評估約束條件，僅在守衛條件（guard conditions）適用時執行，產出可審計的違規證據日誌。</p>
+<h3>5. Judge（LLM 判定器）</h3>
+<p>LLM 分析驗證日誌與九類失敗分類法，判定偏差是否構成真正的失敗，識別<strong>關鍵失敗步驟（Critical Failure Step）</strong>——軌跡變得不可恢復的第一個錯誤點。</p>
+<h3>6. Report（報告生成）</h3>
+<p>綜合診斷結果，輸出定位到具體步驟的失敗報告與根因分析。</p>
+<p>---</p>
+<h2>九類失敗分類法（Failure Taxonomy）</h2>
+<p>AgentRx 定義了九個失敗類別，幫助開發者區分 Agent 出錯的細微差異：</p>
+<ol>
+<li><strong>計畫遵守失敗（Plan Adherence Failure）</strong>：Agent 偏離既定計畫</li>
+<li><strong>資訊虛構（Invention of New Information）</strong>：Agent 幻覺產生不存在的資訊</li>
+<li><strong>工具調用錯誤（Tool Invocation Error）</strong>：API 呼叫參數錯誤或選錯工具</li>
+<li><strong>規劃崩潰（Planning Breakdown）</strong>：多步驟推理鏈斷裂</li>
+<li><strong>幻覺能力（Hallucinated Capabilities）</strong>：Agent 呼叫不存在的工具或功能</li>
+<li><strong>上下文遺失（Context Loss）</strong>：長對話中遺忘關鍵資訊</li>
+<li><strong>約束違反（Constraint Violation）</strong>：違反領域策略或安全規則</li>
+<li><strong>迴圈行為（Looping Behavior）</strong>：重複執行相同失敗動作</li>
+<li><strong>提前終止（Premature Termination）</strong>：未完成任務即停止</li>
+</ol>
+<p>---</p>
+<h2>基準測試與效能</h2>
+<h3>AgentRx Benchmark</h3>
+<ul>
+<li><strong>115 個人工標注的失敗軌跡</strong>，跨三個領域：</li>
+</ul>
+<p>  - <strong>tau-bench</strong>：結構化 API 工作流</p>
+<p>  - <strong>Flash</strong>：真實世界事件管理</p>
+<p>  - <strong>Magentic-One</strong>：多 Agent 網頁任務</p>
+<h3>效能提升（vs. prompting baselines）</h3>
+<ul>
+<li><strong>失敗定位準確率 +23.6%</strong></li>
+<li><strong>根因歸因準確率 +22.9%</strong></li>
+</ul>
+<h3>關鍵創新</h3>
+<p>核心突破在於<strong>約束合成（Constraint Synthesis）</strong>——自動從工具 schema 和領域策略生成可執行的驗證規則，而非依賴單一語言模型做錯誤偵測。</p>
+<p>---</p>
+<h2>已知限制與改進方向</h2>
+<h3>無跨 Session 記憶</h3>
+<p>AgentRx 最大的限制是<strong>每次分析都從零開始</strong>，不會跨部署累積失敗模式知識：</p>
+<ul>
+<li>反覆出現的失敗模式無法跨部署識別</li>
+<li>九類分類法保持靜態，無法從經驗中擴展</li>
+<li>團隊重複推導相同的根因</li>
+<li>無法累積關於失敗預防的制度知識</li>
+</ul>
+<h3>潛在整合方向</h3>
+<ul>
+<li>搭配 Agent Memory 系統（如 MemU）將診斷結果轉為可查詢的知識圖譜</li>
+<li>跨部署趨勢偵測，識別系統性問題</li>
+<li>解決方案記憶，將過去的修復方案連結到反覆出現的失敗</li>
+</ul>
+<p>---</p>
+<h2>對本專案的啟示</h2>
+<ol>
+<li><strong>Guardian 系統對齊</strong>：AgentRx 的九類分類法可與本專案 <code>agent_guardian.py</code> 的 ErrorClassifier 對照，考慮擴展分類維度</li>
+<li><strong>軌跡日誌標準化</strong>：hooks/post_tool_logger.py 的 JSONL 日誌可作為 AgentRx Trajectory IR 的輸入格式</li>
+<li><strong>約束合成思路</strong>：從 tool schema 自動生成驗證規則的思路，可應用於 Hook 規則自動化生成</li>
+<li><strong>關鍵失敗步驟</strong>：trace_analyzer.py 的根因分析可借鑑 AgentRx 的「不可恢復點」概念</li>
+</ol>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li>Microsoft Research Blog: Systematic debugging for AI agents: Introducing the AgentRx framework (2026-03-12)</li>
+<li>arXiv 論文: AgentRx: Diagnosing AI Agent Failures from Execution Trajectories (2602.02475)</li>
+<li>StartupHub.ai: Microsoft Debugs AI Agents with AgentRx</li>
+<li>MemU Blog: Microsoft AgentRx — Debugging Without Persistent Insights</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

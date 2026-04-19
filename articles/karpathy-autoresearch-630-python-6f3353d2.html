@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Karpathy/autoresearch — 630 行 Python 實現 AI 自主 ML 實驗：單 GPU 一夜百次迭代、val_bpb 統一度量與 Shopify 19% 品質提升的研究自動化範式（30K Stars, 2026-03）">
+  <title>Karpathy/autoresearch — 630 行 Python 實現 AI 自主 ML 實驗：單 GPU 一夜百次迭代、val_bpb 統一度量與 Shopify 19% 品質提升的研究自動化範式（30K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Karpathy/autoresearch — 630 行 Python 實現 AI 自主 ML 實驗：單 GPU 一夜百次迭代、val_bpb 統一度量與 Shopify 19% 品質提升的研究自動化範式（30K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">autoresearch</span><span class="tag">Karpathy</span><span class="tag">ML實驗自動化</span><span class="tag">AI Agent</span><span class="tag">研究自動化</span><span class="tag">PyTorch</span><span class="tag">單GPU訓練</span><span class="tag">val_bpb</span><span class="tag">開源專案</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Karpathy/autoresearch — AI Agent 驅動的自主 ML 實驗框架</h1>
+<h2>概述</h2>
+<p>autoresearch 是 Andrej Karpathy（前 Tesla AI 負責人、OpenAI 共同創辦人）於 2026 年 3 月 6 日開源的研究自動化工具。核心理念極其精簡：<strong>一個 GPU、一個檔案、一個度量指標</strong>。AI Agent 自主修改訓練腳本、執行實驗、評估結果，人類只需撰寫高層研究方向，即可在一夜之間完成約 100 次自主 ML 實驗。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 30,000+（發布一週） |</p>
+<p>| 程式碼量 | 630 行 Python |</p>
+<p>| 授權 | MIT |</p>
+<p>| 實驗速率 | ~12 次/小時、~100 次/夜 |</p>
+<p>| 技術棧 | Python 3.10+、PyTorch、uv 套件管理 |</p>
+<p>| GPU 需求 | 單一 NVIDIA GPU（H100 驗證） |</p>
+<p>| 創建者 | Andrej Karpathy |</p>
+<p>---</p>
+<h2>架構設計：三個核心檔案</h2>
+<p>autoresearch 的設計哲學是<strong>極簡主義</strong>——整個框架僅由三個關鍵檔案構成：</p>
+<h3>1. prepare.py（固定基礎設施）</h3>
+<ul>
+<li>負責 tokenizer 訓練與資料集載入</li>
+<li>僅執行一次，不參與實驗迴圈</li>
+<li>提供標準化的資料前處理管線</li>
+</ul>
+<h3>2. train.py（Agent 修改目標）</h3>
+<ul>
+<li><strong>唯一被 AI Agent 修改的檔案</strong></li>
+<li>包含完整 GPT 模型定義、Muon + AdamW 優化器、訓練迴圈</li>
+<li>630 行的設計確保完整程式碼可放入現代 LLM 上下文窗口（128K+ tokens）</li>
+<li>一切皆可修改：架構、超參數、優化器、batch size</li>
+</ul>
+<h3>3. program.md（人類研究指令）</h3>
+<ul>
+<li>Markdown 格式的高層研究方向</li>
+<li>人類撰寫並迭代優化</li>
+<li>引導 Agent 的實驗策略與探索方向</li>
+</ul>
+<p>---</p>
+<h2>自主實驗迴圈（Agentic Loop）</h2>
+<p>Agent 執行一個持續的自主迴圈：</p>
+<pre><code>
+1. 讀取 program.md → 理解研究方向
+2. 修改 train.py → 提出改進假說（如調整學習率、架構深度）
+3. 執行訓練 → 固定 5 分鐘時間預算（wall clock，排除啟動/編譯）
+4. 評估結果 → 使用 val_bpb 驗證指標
+5. 決策 → 保留改進、回退失敗
+6. 規劃下一次實驗 → 基於累積結果調整策略
+</code></pre>
+<h3>為何是 5 分鐘固定預算？</h3>
+<ul>
+<li><strong>公平比較</strong>：無論 Agent 修改了架構還是超參數，時間預算完全一致</li>
+<li><strong>平台無關</strong>：不同 GPU 上都能得到可比較的結果</li>
+<li><strong>高頻迭代</strong>：每小時約 12 次實驗，一夜可完成約 100 次</li>
+</ul>
+<h3>val_bpb（Validation Bits Per Byte）</h3>
+<ul>
+<li>驗證集上的 bits per byte，越低越好</li>
+<li><strong>詞彙表大小無關</strong>：即使更換 tokenizer 或完全替換架構，仍可一致比較</li>
+<li>這是唯一的評估指標，確保 Agent 的每次修改都有明確的量化回饋</li>
+</ul>
+<p>---</p>
+<h2>實際成果</h2>
+<h3>Karpathy 初始實驗</h3>
+<ul>
+<li>Agent 自主將驗證損失從 <strong>1.0 降至 0.97 BPB</strong></li>
+<li>透過持續的程式碼迭代自動完成</li>
+</ul>
+<h3>Shopify CEO Tobi Lutke 的應用</h3>
+<ul>
+<li>將 autoresearch 指向內部 <strong>0.8B 參數模型</strong></li>
+<li>8 小時過夜運行，共 <strong>37 次實驗</strong></li>
+<li>最終達成 <strong>19% 模型品質提升</strong></li>
+<li>展示了框架在工業級模型上的適用性</li>
+</ul>
+<h3>Hyperspace 大規模驗證</h3>
+<ul>
+<li>2026 年 3 月 8-9 日</li>
+<li><strong>35 個 Agent</strong> 在 Hyperspace 網路上</li>
+<li>執行 <strong>333 次實驗</strong>，完全無人值守</li>
+<li>驗證了多 Agent 並行實驗的可行性</li>
+</ul>
+<p>---</p>
+<h2>設計哲學分析</h2>
+<h3>1. 極簡約束驅動創新</h3>
+<p>autoresearch 刻意限制在 630 行、單 GPU、5 分鐘預算。這些約束不是缺陷，而是設計特徵——它們確保了：</p>
+<ul>
+<li>完整程式碼可被 LLM 一次性理解</li>
+<li>實驗結果可跨平台比較</li>
+<li>進入門檻極低（一張 GPU 即可）</li>
+</ul>
+<h3>2. 人機分工重定義</h3>
+<ul>
+<li><strong>人類</strong>：設定研究方向（program.md）、解讀結果、規劃大戰略</li>
+<li><strong>AI Agent</strong>：執行「修改→訓練→評估」的重複性迴圈</li>
+<li>Karpathy 稱之為「迭代的自動化，而非思考的自動化」</li>
+</ul>
+<h3>3. Git 原生版本控制</h3>
+<ul>
+<li>每次成功的實驗修改都透過 Git commit 保存</li>
+<li>形成完整的實驗歷史追蹤</li>
+<li>可回溯任何改進的具體程式碼變更</li>
+</ul>
+<p>---</p>
+<h2>與現有工具的比較</h2>
+<p>| 特性 | autoresearch | MLflow/W&B | AutoML (AutoKeras) |</p>
+<p>|------|-------------|-----------|--------------------|</p>
+<p>| 程式碼量 | 630 行 | 數萬行 | 數千行 |</p>
+<p>| 修改範圍 | 任意（架構+超參數+優化器） | 僅追蹤 | 超參數為主 |</p>
+<p>| Agent 驅動 | 是（LLM 推理） | 否 | 否 |</p>
+<p>| 外部依賴 | PyTorch only | 大量 | 大量 |</p>
+<p>| 學習曲線 | 極低 | 中等 | 中等 |</p>
+<p>---</p>
+<h2>社群影響與未來展望</h2>
+<h3>爆發式增長</h3>
+<ul>
+<li>發布一週即突破 30,000 Stars</li>
+<li>已出現社群分支（如 jsegov/autoresearch-win-rtx for Windows RTX）</li>
+<li>多個教學文章與實踐指南湧現</li>
+</ul>
+<h3>潛在影響</h3>
+<ol>
+<li><strong>研究民主化</strong>：單 GPU 即可進行系統性 ML 實驗</li>
+<li><strong>Agent-Native 研究範式</strong>：AI Agent 不只是工具，而是研究夥伴</li>
+<li><strong>可複製性提升</strong>：固定時間預算 + val_bpb 確保結果可比較</li>
+<li><strong>社群驅動的模型改進</strong>：Leaderboard 機制鼓勵公開競爭</li>
+</ol>
+<h3>限制</h3>
+<ul>
+<li>目前僅針對小型語言模型訓練（nanochat）</li>
+<li>需要 NVIDIA GPU（暫不支援 AMD/Apple Silicon 原生）</li>
+<li>Agent 品質依賴外部 LLM（Claude/Codex）</li>
+<li>5 分鐘預算可能限制大型架構探索</li>
+</ul>
+<p>---</p>
+<h2>對 Daily-Digest 系統的啟示</h2>
+<ol>
+<li><strong>Agent 自主迭代模式</strong>：autoresearch 的「假說→實驗→評估」迴圈可借鏡至自動任務優化</li>
+<li><strong>極簡約束設計</strong>：630 行限制確保 LLM 可完全理解，類似本系統的 Skill-First 精簡原則</li>
+<li><strong>固定預算機制</strong>：5 分鐘時間盒與本系統的 timeout 機制異曲同工</li>
+<li><strong>Git 原生追蹤</strong>：每次改進都有版本記錄，與本系統的 research-registry 理念一致</li>
+</ol>
+<p>---</p>
+<h2>來源</h2>
+<ol>
+<li><a href="https://github.com/karpathy/autoresearch">GitHub - karpathy/autoresearch</a> — 官方倉庫</li>
+<li><a href="https://venturebeat.com/technology/andrej-karpathys-new-open-source-autoresearch-lets-you-run-hundreds-of-ai">VentureBeat — Andrej Karpathy's autoresearch</a> — 深度報導</li>
+<li><a href="https://www.marktechpost.com/2026/03/08/andrej-karpathy-open-sources-autoresearch/">MarkTechPost — 630-Line Python Tool</a> — 技術分析</li>
+<li><a href="https://jangwook.net/en/blog/en/karpathy-autoresearch-overnight-ml-experiments/">Karpathy's autoresearch: 100 Overnight Experiments</a> — 架構拆解</li>
+<li><a href="https://www.shareuhack.com/en/posts/github-trending-weekly-2026-03-11">GitHub Open Source Weekly 2026-03-11</a> — 趨勢追蹤</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-16</em></p>
+<p><em>研究者：GitHub 研究 Agent</em></p>
+<p><em>研究動機：知識庫已有 CLI-Anything、OpenClaw、n8n、Mastra 等 GitHub 熱門專案研究，但缺乏 AI 驅動研究自動化框架的深度分析。autoresearch 代表了一個全新的範式——讓 AI Agent 成為 ML 研究的自主實驗者，而非僅是程式碼生成工具。本文填補此方向的知識缺口。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

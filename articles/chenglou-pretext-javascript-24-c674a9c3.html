@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="chenglou/pretext — 純 JavaScript 高效能文字測量與排版引擎（24.6K Stars, 2026-03 Trendshift #1）：二階段架構、零 DOM Reflow 與多語系支援深度解析">
+  <title>chenglou/pretext — 純 JavaScript 高效能文字測量與排版引擎（24.6K Stars, 2026-03 Trendshift #1）：二階段架構、零 DOM Reflow 與多語系支援深度解析 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>chenglou/pretext — 純 JavaScript 高效能文字測量與排版引擎（24.6K Stars, 2026-03 Trendshift #1）：二階段架構、零 DOM Reflow 與多語系支援深度解析</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">開源專案</span><span class="tag">pretext</span><span class="tag">文字排版</span><span class="tag">TypeScript</span><span class="tag">效能優化</span><span class="tag">Canvas API</span><span class="tag">國際化</span><span class="tag">CJK</span><span class="tag">虛擬滾動</span><span class="tag">研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>chenglou/pretext — 純 JavaScript 高效能文字測量與排版引擎</h1>
+<h2>二階段架構、零 DOM Reflow 與多語系支援深度解析</h2>
+<p>研究日期：2026-03-31</p>
+<p>研究類型：GitHub 熱門專案分析</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p><strong>Pretext</strong>（<a href="https://github.com/chenglou/pretext">chenglou/pretext</a>）是由 Cheng Lou（Meta React 團隊前成員、Reason 語言創始人）開發的純 JavaScript/TypeScript 文字測量與排版庫。截至 2026 年 3 月底已累積 <strong>24,600+ Stars</strong>、1,000+ Forks，採用 <strong>MIT 授權</strong>，登上 Trendshift 週趨勢排行 <strong>#1</strong>，並在 Hacker News 首頁引發熱烈討論。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 24,600+ |</p>
+<p>| Forks | 1,000+ |</p>
+<p>| 授權 | MIT |</p>
+<p>| 語言 | TypeScript 89.8%、HTML 10.2% |</p>
+<p>| 建構工具 | Bun |</p>
+<p>| npm 套件 | @chenglou/pretext |</p>
+<p>| 首次發佈 | 2026 年 3 月 |</p>
+<p>| 展示頁 | chenglou.me/pretext/ |</p>
+<p>---</p>
+<h2>二、解決的核心問題：瀏覽器文字測量的 30 年痛點</h2>
+<h3>傳統做法的問題</h3>
+<p>在瀏覽器中測量文字尺寸（如 <code>getBoundingClientRect()</code>、<code>offsetHeight</code>）會觸發 <strong>Layout Reflow</strong>——這是瀏覽器最昂貴的操作之一。每次讀取元素幾何屬性時，瀏覽器必須重新計算整個頁面佈局。在虛擬滾動（virtual scrolling）場景中，這個問題特別嚴重：需要預測數百行文字的高度，而每次 DOM 測量都會導致效能瓶頸。</p>
+<h3>Pretext 的解法</h3>
+<p>Pretext <strong>完全繞過 DOM 測量</strong>，改用 Canvas API 的 <code>measureText()</code> 直接查詢瀏覽器字型引擎。Canvas 測量不觸發 reflow，因為它只需要字型資料，不涉及佈局計算。</p>
+<p>---</p>
+<h2>三、核心架構：二階段分離設計</h2>
+<p>Pretext 的核心洞察是：<strong>文字測量與排版計算有不同的成本特性</strong>。測量（分段、Canvas 呼叫）昂貴但不頻繁；排版（寬度累加、斷行）便宜但頻繁。因此架構分為兩個階段：</p>
+<h3>Phase 1：prepare()（昂貴階段，執行一次）</h3>
+<pre><code>
+輸入文字 + 字型
+  ↓
+analyzeText() → Intl.Segmenter 分段
+  ↓
+CJK 偵測 → 逐字拆分或標點合併
+  ↓
+measureAnalysis() → canvas.measureText() + 快取查詢
+  ↓
+computeSegmentLevels() → 雙向文字嵌入層級
+  ↓
+PreparedText: {widths[], kinds[], segLevels, breakableWidths[]}
+</code></pre>
+<p><strong>效能</strong>：500 段文字約 17-19ms</p>
+<h3>Phase 2：layout()（便宜階段，重複執行）</h3>
+<p>純算術運算，零 DOM/Canvas 存取。走訪快取的分段寬度，累加至溢出時斷行。</p>
+<p><strong>效能</strong>：同樣 500 段文字僅需 <strong>0.09-0.10ms</strong>（相比 DOM 測量快約 <strong>500-1500 倍</strong>）</p>
+<h3>快取系統</h3>
+<p>三個模組級單例在多次 <code>prepare()</code> 呼叫間共享：</p>
+<ol>
+<li><strong>分段度量快取</strong>：<code>Map<font, Map<segment, SegmentMetrics>></code></li>
+<li><strong>Emoji 修正快取</strong>：針對 macOS Chrome/Firefox 的寬度膨脹修正</li>
+<li><strong>引擎特徵檔</strong>：瀏覽器特定常數（如 <code>lineFitEpsilon</code>）</li>
+</ol>
+<p>---</p>
+<h2>四、API 設計</h2>
+<h3>主要函式</h3>
+<p>| 函式 | 用途 | 回傳 |</p>
+<p>|------|------|------|</p>
+<p>| <code>prepare(text, font)</code> | 文字分析與測量 | <code>PreparedText</code>（不透明控制代碼） |</p>
+<p>| <code>layout(prepared, maxWidth, lineHeight)</code> | 高度預測 | <code>{lineCount, height}</code> |</p>
+<p>| <code>layoutWithLines(prepared, maxWidth, lineHeight)</code> | 取得每行文字 | 行陣列含文字/座標 |</p>
+<p>| <code>layoutNextLine(prepared, cursor, maxWidth)</code> | 動態寬度迭代 | 單行結果或 null |</p>
+<p>| <code>walkLineRanges(prepared, maxWidth, lineHeight, cb)</code> | 零分配迭代 | 透過回呼返回 |</p>
+<h3>使用範例</h3>
+<pre><code>
+import { prepare, layout } from '@chenglou/pretext'
+
+// 基本高度測量
+const prepared = prepare('AGI 春天到了. بدأت الرحلة 🚀', '16px Inter')
+const { height, lineCount } = layout(prepared, textWidth, 20)
+
+// 動態寬度排版（文繞圖）
+let cursor = { segmentIndex: 0, graphemeIndex: 0 }
+while (true) {
+  const width = y &lt; image.bottom ? columnWidth - image.width : columnWidth
+  const line = layoutNextLine(prepared, cursor, width)
+  if (line === null) break
+  ctx.fillText(line.text, 0, y)
+  cursor = line.end
+  y += 26
+}
+</code></pre>
+<p>---</p>
+<h2>五、多語系與國際化支援</h2>
+<p>| 語系類型 | 處理方式 |</p>
+<p>|---------|----------|</p>
+<p>| 拉丁文/預設 | <code>Intl.Segmenter</code> 詞邊界，標點合併 |</p>
+<p>| CJK（中日韓） | 逐字拆分 + 禁則處理（kinsoku shori） |</p>
+<p>| RTL（阿拉伯文、希伯來文） | UAX #9 雙向演算法計算嵌入層級 |</p>
+<p>| 泰文 | <code>Intl.Segmenter</code> 字典邊界 |</p>
+<p>| Emoji | 字素簇 + macOS 特定寬度修正 |</p>
+<p>---</p>
+<h2>六、適用場景</h2>
+<ol>
+<li><strong>虛擬滾動</strong>：預測行高度而無需掛載 DOM（最核心場景）</li>
+<li><strong>Canvas/SVG 渲染</strong>：<code>layoutWithLines()</code> 提供每行座標，直接繪製</li>
+<li><strong>Shrinkwrap 佈局</strong>：<code>walkLineRanges()</code> 找出最緊密的容器寬度</li>
+<li><strong>文繞圖</strong>：<code>layoutNextLine()</code> 迭代器支援每行不同寬度</li>
+</ol>
+<p>---</p>
+<h2>七、已知限制</h2>
+<ol>
+<li><strong>system-ui 字型問題</strong>：macOS 上 Canvas 與 DOM 解析為不同光學變體（SF Pro Text vs Display）</li>
+<li><strong>泰文字典不一致</strong>：Intl.Segmenter 與 CSS 斷行字典可能不同</li>
+<li><strong>lineHeight 需明確指定</strong>：不推斷 <code>line-height: normal</code></li>
+<li><strong>CSS 假設固定</strong>：硬編碼為 <code>white-space: normal</code> + <code>word-break: normal</code> + <code>overflow-wrap: break-word</code></li>
+</ol>
+<p>---</p>
+<h2>八、設計影響與靈感</h2>
+<ul>
+<li><strong>Sebastian Markbåge 的 text-layout</strong>：架構靈感來源，特別是 Canvas <code>measureText</code> 用於字形成型</li>
+<li><strong>pdf.js 的 bidi 實作</strong>：雙向文字算法的參考實作</li>
+<li><strong>HarfBuzz 後端</strong>：用於無頭環境驗證 100% 詞寬精度</li>
+</ul>
+<p>---</p>
+<h2>九、對本專案的啟示</h2>
+<ol>
+<li><strong>二階段分離模式</strong>：「昂貴初始化 + 便宜重複查詢」的架構模式可借鏡到知識庫搜尋（向量計算 vs 快取查詢）</li>
+<li><strong>快取策略</strong>：三層快取（分段→Emoji→引擎特徵）的精細化設計值得學習</li>
+<li><strong>瀏覽器差異處理</strong>：針對不同瀏覽器的修正策略（epsilon 容差、寬度膨脹修正）</li>
+<li><strong>國際化</strong>：CJK 禁則處理（kinsoku shori）對處理中文排版的前端專案有參考價值</li>
+</ol>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li>GitHub 倉庫：github.com/chenglou/pretext</li>
+<li>DeepWiki 技術分析：deepwiki.com/chenglou/pretext</li>
+<li>Hacker News 討論：news.ycombinator.com/item?id=47556290</li>
+<li>Trendshift 趨勢追蹤：trendshift.io</li>
+</ul>
+<p>---</p>
+<p><em>研究日期：2026-03-31</em></p>
+<p><em>標籤：GitHub, 開源專案, 文字排版, TypeScript, 效能優化, Canvas API, 國際化, CJK, 虛擬滾動</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

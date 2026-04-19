@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-30：RAG 管線效率優化與語義搜尋品質提升 — Embedding 快取、查詢路由智慧化與 Chunk 策略調優">
+  <title>專案RAG優化日報 2026-03-30：RAG 管線效率優化與語義搜尋品質提升 — Embedding 快取、查詢路由智慧化與 Chunk 策略調優 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-30：RAG 管線效率優化與語義搜尋品質提升 — Embedding 快取、查詢路由智慧化與 Chunk 策略調優</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">RAG</span><span class="tag">知識庫</span><span class="tag">語義搜尋</span><span class="tag">Embedding快取</span><span class="tag">查詢路由</span><span class="tag">Reranking</span><span class="tag">Chunk策略</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-30</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-03-30</h1>
+<h2>概述</h2>
+<p>針對 daily-digest-prompt 專案的 RAG（Retrieval-Augmented Generation）管線進行深度分析，結合 2026 年最新 RAG 優化實踐，提出五大優化方向：語義查詢快取層、查詢路由智慧化、Chunk 策略升級、輕量 Reranking 引入、查詢改寫機制。本次聚焦於「檢索品質提升」而非安全性或程式碼品質（前兩次已涵蓋）。</p>
+<p>---</p>
+<h2>一、專案 RAG 管線現況分析</h2>
+<h3>1.1 架構概況</h3>
+<p>本專案採用<strong>本機知識庫（localhost:3000）+ Qdrant 向量引擎 + HTTP 多層快取降級</strong>的混合 RAG 架構：</p>
+<ul>
+<li><strong>知識庫服務</strong>：Node.js + Qdrant（向量索引）+ SQLite FTS5（全文索引）</li>
+<li><strong>搜尋 API</strong>：hybrid（RRF 融合）、semantic（純向量）、keyword（BM25）、retrieve（格式化上下文）</li>
+<li><strong>快取策略</strong>：API-level TTL + SWR 寬限期（<code>config/cache-policy.yaml</code>）</li>
+<li><strong>去重防護</strong>：三層機制（registry + KB 搜尋 + 冷卻期）</li>
+</ul>
+<h3>1.2 關鍵配置現值</h3>
+<p>| 配置項 | 目前值 | 來源 |</p>
+<p>|--------|--------|------|</p>
+<p>| Knowledge TTL | 480 分鐘（8h） | cache-policy.yaml |</p>
+<p>| SWR Grace Period | 120 分鐘 | cache-policy.yaml |</p>
+<p>| 預設 topK | 15 | dedup-policy.yaml |</p>
+<p>| 快取命中率 | 25.5%（目標 40%+） | 2026-03-29 調整後 |</p>
+<p>| 混合搜尋權重 | 系統預設（α 未外部化） | KB 服務內建 |</p>
+<h3>1.3 使用頻率分析</h3>
+<p>29 個自動任務中至少 <strong>8+ 個任務</strong>觸發 KB hybrid search（每日 47-57 次執行，估計 15-20 次 KB 查詢）。搜尋場景分布：</p>
+<ul>
+<li><strong>去重查詢</strong>（80%）：score > 0.85 判定重複，0.4-0.85 深度分析</li>
+<li><strong>知識策略分析</strong>（15%）：kb-research-strategist 五階段評估</li>
+<li><strong>RAG 回答</strong>（5%）：POST /api/search/retrieve 取 formattedContext</li>
+</ul>
+<p>---</p>
+<h2>二、五大優化建議（基於 2026 最新實踐）</h2>
+<h3>優化 1：語義查詢快取層（P0 — 預計降低 25-40% KB 查詢延遲）</h3>
+<p><strong>問題</strong>：目前快取僅在 API response level（cache/knowledge.json，TTL=480min），相同語義但不同措辭的查詢無法命中快取。</p>
+<p><strong>建議方案</strong>：引入 L1 語義查詢快取，使用 cosine similarity > 0.98 判定相同查詢。</p>
+<p><strong>實作路徑</strong>：</p>
+<ol>
+<li>在 <code>skills/api-cache/SKILL.md</code> 新增語義快取層說明</li>
+<li>KB 服務端（localhost:3000）新增 <code>/api/cache/semantic</code> 端點，或在 Agent 端用 Python 實現 embedding 快取</li>
+<li>快取結構：<code>{query_embedding_hash: {results, cached_at, hit_count}}</code></li>
+<li>TTL 建議：60 分鐘（比 API 快取短，因查詢語義可能演變）</li>
+</ol>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>去重查詢場景：語義相近的研究主題查詢可複用結果，減少 50% 重複查詢</li>
+<li>RAGFlow v3.2 實測 embedding 快取可降低 25% 延遲 [來源：dasroot.net, 2026]</li>
+<li>Redis v7.0 多層快取從 2.5s 降至 400ms [來源：dasroot.net, 2026]</li>
+</ul>
+<h3>優化 2：查詢路由智慧化（P1 — 提升檢索精準度 15-20%）</h3>
+<p><strong>問題</strong>：目前模板多數硬編碼使用 hybrid search，未根據查詢意圖動態選擇最佳搜尋方式。</p>
+<p><strong>建議方案</strong>：在 <code>config/</code> 新增 <code>kb-query-router.yaml</code>，定義查詢意圖→搜尋方式映射。</p>
+<p><strong>路由規則</strong>：</p>
+<p>| 查詢意圖 | 推薦搜尋方式 | 理由 |</p>
+<p>|----------|-------------|------|</p>
+<p>| 精確名稱/ID/代碼 | keyword（BM25） | 向量搜尋會稀釋精確 token |</p>
+<p>| 概念模糊/探索性 | semantic | 捕捉同義詞與語義近似 |</p>
+<p>| 通用去重/一般查詢 | hybrid（預設） | 兼顧精確與語義 |</p>
+<p>| 事實查詢 | retrieve + 快取 | 不需完整 pipeline |</p>
+<p><strong>實作路徑</strong>：</p>
+<ol>
+<li>新建 <code>config/kb-query-router.yaml</code>（路由規則外部化）</li>
+<li>在去重查詢前加入輕量意圖分類（可用 Groq 快速推理或規則式）</li>
+<li>LangChain v0.26 的意圖分類器準確率 92% [來源：dasroot.net, 2026]</li>
+</ol>
+<h3>優化 3：Chunk 策略升級（P1 — 匯入品質提升）</h3>
+<p><strong>問題</strong>：目前 KB 匯入使用 contentText 整段寫入，未做語義分段。長文筆記的向量化效果可能因內容混雜而降低。</p>
+<p><strong>建議方案</strong>：匯入時採用 Semantic Chunking + Metadata Enrichment。</p>
+<p><strong>關鍵技術</strong>：</p>
+<ul>
+<li><strong>Semantic Chunking</strong>：依語義相似度分段（embedding 聚類），比 fixed-size 提升 70% 準確率 [來源：Weaviate, 2026]</li>
+<li><strong>Adaptive Chunking</strong>：依內容結構動態調整大小，臨床決策場景達 87% 準確率 vs baseline 50% [來源：PMC, 2026]</li>
+<li><strong>Contextual Retrieval</strong>（Anthropic 提出）：每個 chunk 前加入文件級上下文前綴</li>
+<li><strong>Metadata Enrichment</strong>：每個 chunk 附加來源、標籤、日期等 metadata</li>
+</ul>
+<p><strong>實作路徑</strong>：</p>
+<ol>
+<li>在 KB 服務端擴充 <code>/api/import</code> 支援 <code>chunkStrategy</code> 參數</li>
+<li>或在 Agent 端用 Python 預處理：<code>tools/kb_chunk_preprocessor.py</code></li>
+<li>長文（>2000 字）自動啟用 semantic chunking，短文維持整段</li>
+</ol>
+<h3>優化 4：輕量 Reranking 引入（P2 — MRR 提升 +9.3pp）</h3>
+<p><strong>問題</strong>：目前 hybrid search 回傳結果的排序僅依靠 RRF 融合分數，無二階段精排。</p>
+<p><strong>建議方案</strong>：在 KB 查詢後加入輕量 cross-encoder reranking。</p>
+<p><strong>候選方案</strong>：</p>
+<p>| Reranker | 延遲 | 精度 | 部署方式 |</p>
+<p>|----------|------|------|----------|</p>
+<p>| FlashRank | 極低 | 中高 | 本地 Python |</p>
+<p>| bge-reranker-v2 | 中等 | 高 | 本地 Python |</p>
+<p>| RAGatouille v2.1 | 15ms/query | MAP 93.2% | 本地 Python |</p>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>混合搜尋 + Reranking MRR 從 56.72% 提升至 66.43%（+9.3pp）[來源：Medium, 2026]</li>
+<li>去重判定更精準：減少 false positive（非重複被判為重複）</li>
+</ul>
+<p><strong>實作路徑</strong>：</p>
+<ol>
+<li><code>pip install flashrank</code> 或 <code>bge-reranker-v2</code></li>
+<li>在 <code>tools/kb_reranker.py</code> 實現 rerank wrapper</li>
+<li>修改 knowledge-query SKILL.md，查詢後加 rerank 步驟</li>
+</ol>
+<h3>優化 5：查詢改寫機制（P2 — 提升召回率 15-25%）</h3>
+<p><strong>問題</strong>：去重查詢的搜尋詞由 LLM 直接生成，可能與 KB 中實際用語不匹配。</p>
+<p><strong>建議方案</strong>：對複雜查詢啟用 Query Expansion（多查詢擴展）。</p>
+<p><strong>技術選項</strong>：</p>
+<ul>
+<li><strong>Multi-query Expansion</strong>：為同一問題生成 2-3 個變體查詢，合併結果（最簡單有效）</li>
+<li><strong>HyDE</strong>：先生成假想答案再搜尋（概念型查詢效果佳，但增加一次 LLM 呼叫）</li>
+<li><strong>Step-back Prompting</strong>：退一步生成更廣泛問題（需要背景知識的深度問題）</li>
+</ul>
+<p><strong>實作路徑</strong>：</p>
+<ol>
+<li>在 <code>templates/shared/kb-depth-check.md</code> 的 Phase A 加入 multi-query 步驟</li>
+<li>對去重查詢生成 2 個同義變體，合併 topK 結果後去重</li>
+<li>簡單查詢跳過改寫（用意圖分類器判斷），避免增加不必要延遲</li>
+</ol>
+<p>---</p>
+<h2>三、優先級與實施建議</h2>
+<p>| 優化項 | 優先級 | 預估收益 | 實施難度 | 建議時程 |</p>
+<p>|--------|--------|---------|---------|----------|</p>
+<p>| 語義查詢快取層 | P0 | 延遲 -25~40% | 中 | 1-2 天 |</p>
+<p>| 查詢路由智慧化 | P1 | 精準度 +15~20% | 低 | 0.5 天 |</p>
+<p>| Chunk 策略升級 | P1 | 匯入品質提升 | 中 | 1-2 天 |</p>
+<p>| 輕量 Reranking | P2 | MRR +9.3pp | 中 | 1 天 |</p>
+<p>| 查詢改寫機制 | P2 | 召回率 +15~25% | 低 | 0.5 天 |</p>
+<p>---</p>
+<h2>四、與前次優化的延續性</h2>
+<p>| 日期 | 優化焦點 | 本次關聯 |</p>
+<p>|------|---------|----------|</p>
+<p>| 2026-03-21 | 異常處理收窄、快取淘汰 | 本次 P0 語義快取層建立在其 TTL 機制之上 |</p>
+<p>| 2026-03-29 | 安全性強化、狀態膨脹治理 | 本次 P1 查詢路由可整合 security_utils 驗證 |</p>
+<p>| 2026-03-30 | <strong>RAG 管線效率與檢索品質</strong> | 新增維度：從「防護」轉向「效能提升」 |</p>
+<p>---</p>
+<h2>五、參考來源</h2>
+<ul>
+<li>[1] dasroot.net. (2026). RAG Latency Optimization End-to-End. https://dasroot.net/posts/2026/02/rag-latency-optimization-vector-database-caching-hybrid-search/</li>
+<li>[2] n1n.ai. (2026). Beyond Prompt Caching: 5 More Things You Should Cache in RAG Pipelines. https://explore.n1n.ai/blog/beyond-prompt-caching-rag-pipeline-optimization-2026-03-21</li>
+<li>[3] Superlinked/VectorHub. (2026). Optimizing RAG with Hybrid Search & Reranking. https://superlinked.com/vectorhub/articles/optimizing-rag-with-hybrid-search-reranking</li>
+<li>[4] PMC. (2026). Advanced Chunking for Clinical Decision Support. https://pmc.ncbi.nlm.nih.gov/articles/PMC12649634/</li>
+<li>[5] Weaviate. (2026). Chunking Strategies for RAG. https://weaviate.io/blog/chunking-strategies-for-rag</li>
+<li>[6] RAGFlow. (2025). From RAG to Context - 2025 Review. https://ragflow.io/blog/rag-review-2025-from-rag-to-context</li>
+<li>[7] Neo4j. (2026). Advanced RAG Techniques. https://neo4j.com/blog/genai/advanced-rag-techniques/</li>
+<li>[8] PremAI. (2026). Building Production RAG Systems in 2026. https://blog.premai.io/building-production-rag-architecture-chunking-evaluation-monitoring-2026-guide/</li>
+<li>[9] Medium/Hitendra Patel. (2026). Hybrid Search System Beats Standard RAG by 35%. https://medium.com/@hitendra.patel2986/</li>
+<li>[10] Azure. (2026). Agentic Retrieval - Azure AI Search. https://docs.azure.cn/en-us/search/agentic-retrieval-overview</li>
+<li>[11] arXiv. (2024). RAGCache: Efficient Knowledge Caching for RAG. https://arxiv.org/pdf/2404.12457</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

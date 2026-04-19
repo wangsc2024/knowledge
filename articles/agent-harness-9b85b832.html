@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent Harness 自主管理最終報告">
+  <title>Agent Harness 自主管理最終報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent Harness 自主管理最終報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">agent-harness</span><span class="tag">autonomous-management</span><span class="tag">runtime-policy</span><span class="tag">control-plane</span><span class="tag">research</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent Harness 自主管理最終報告</h1>
+<p>日期：2026-03-20</p>
+<p>範圍：<code>daily-digest-prompt</code> 既有 harness 與本輪自主管理優化</p>
+<h2>1. 執行摘要</h2>
+<ul>
+<li>完成 <code>tools/autonomous_harness.py</code> 控制面擴充，將既有的 state、fairness、token budget、heartbeat、resource signal 收斂為單一自治 supervisor。</li>
+<li>新增 agent 自動發現 registry 與資源快照輸出，並讓 <code>run-todoist-agent-team.ps1</code> 直接讀取 supervisor 產生的動態 policy，實際限制 auto-task 併發與高成本任務。</li>
+<li>已產出可部署的研究/實作/操作文件，並完成本機腳本驗證；<code>pytest</code> 仍受本機 ACL 限制，屬環境問題而非邏輯錯誤。</li>
+</ul>
+<h2>2. 研究結論</h2>
+<h3>2.1 agent harness 的核心機制</h3>
+<ol>
+<li><code>control plane</code></li>
+</ol>
+<p>   - 將狀態、事件、回復策略與資源政策集中管理，而不是散落在單支腳本。</p>
+<ol>
+<li><code>durable state</code></li>
+</ol>
+<p>   - harness 不能只記錄結果，必須能用 state 決定 resume、restart、degrade。</p>
+<ol>
+<li><code>observability-first</code></li>
+</ol>
+<p>   - trace、span、tool call、guardrail、handoff、failure queue 必須內建，而不是事後拼湊。</p>
+<ol>
+<li><code>policy-driven recovery</code></li>
+</ol>
+<p>   - 故障恢復要由閾值與規則驅動，而不是靠人工看 log。</p>
+<ol>
+<li><code>resource-aware scheduling</code></li>
+</ol>
+<p>   - 併發量、重型任務與研究任務必須隨 CPU / 記憶體 / GPU / token budget 動態調整。</p>
+<h3>2.2 外部實作模式比對</h3>
+<p>| 模式 | 代表來源 | 優點 | 代價 | 對本系統啟示 |</p>
+<p>|---|---|---|---|---|</p>
+<p>| Durable workflow | LangGraph、Temporal | 可 checkpoint / resume / recover | 設計複雜度較高 | <code>run-fsm.json</code> 要從紀錄升級為控制輸入 |</p>
+<p>| Agent trace + guardrail | OpenAI Agents SDK | handoff、tool、guardrail、trace 一體化 | 需要較清楚的 runtime 邊界 | 本系統應以 supervisor 統一 gate |</p>
+<p>| Event-driven multi-agent | AutoGen 0.4 | 非同步、可擴充、可觀測 | 調度與除錯成本上升 | 狀態與 tracing 要先標準化 |</p>
+<p>| Self-healing orchestrator | Kubernetes / Operator | desired state、自癒、重排程 | 偏 infra 導向 | 可借鏡 reconciliation loop |</p>
+<h3>2.3 近兩年來源清單（至少 10 項）</h3>
+<ol>
+<li>LangGraph 1.0 GA, 2025-10-22  </li>
+</ol>
+<p>   https://changelog.langchain.com/announcements/langgraph-1-0-is-now-generally-available</p>
+<ol>
+<li>LangGraph Interrupts / Checkpointing docs  </li>
+</ol>
+<p>   https://docs.langchain.com/oss/python/langgraph/interrupts</p>
+<ol>
+<li>OpenAI Agents SDK overview  </li>
+</ol>
+<p>   https://platform.openai.com/docs/guides/agents-sdk/</p>
+<ol>
+<li>OpenAI Agents SDK tracing  </li>
+</ol>
+<p>   https://openai.github.io/openai-agents-python/tracing/</p>
+<ol>
+<li>OpenAI Agents SDK guardrails  </li>
+</ol>
+<p>   https://openai.github.io/openai-agents-python/guardrails/</p>
+<ol>
+<li>OpenAI Agents SDK handoffs  </li>
+</ol>
+<p>   https://openai.github.io/openai-agents-python/handoffs/</p>
+<ol>
+<li>OpenAI function calling / tool calling guide  </li>
+</ol>
+<p>   https://platform.openai.com/docs/guides/function-calling/how-do-i-ensure-the-model-calls-the-correct-function</p>
+<ol>
+<li>OpenAI Help: Agents platform update, 2025-03-11  </li>
+</ol>
+<p>   https://help.openai.com/en/articles/8555517-function-calling-updates</p>
+<ol>
+<li>AutoGen 0.4 launch, 2025-01-17  </li>
+</ol>
+<p>   https://devblogs.microsoft.com/autogen/autogen-reimagined-launching-autogen-0-4/</p>
+<ol>
+<li>AutoGen tracing and observability docs  </li>
+</ol>
+<p>   https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tracing.html</p>
+<ol>
+<li>Temporal docs: Durable Execution  </li>
+</ol>
+<p>   https://docs.temporal.io/</p>
+<ol>
+<li>Temporal OpenAI Agents SDK integration preview, 2025-07-30  </li>
+</ol>
+<p>   https://temporal.io/change-log/open-ai-agents-sdk-integration-pp</p>
+<ol>
+<li>Kubernetes self-healing docs, 2025-12 更新頁面  </li>
+</ol>
+<p>   https://kubernetes.io/docs/concepts/architecture/self-healing/</p>
+<ol>
+<li>DEVIL'S ADVOCATE: Anticipatory Reflection for LLM Agents, 2024-05  </li>
+</ol>
+<p>   https://arxiv.org/pdf/2405.16334</p>
+<ol>
+<li>MIRAI: Evaluating LLM Agents for Event Forecasting, 2024-07  </li>
+</ol>
+<p>   https://arxiv.org/pdf/2407.01231</p>
+<h2>3. 現有系統審查</h2>
+<h3>3.1 已落地能力</h3>
+<ul>
+<li><code>run-agent-team.ps1</code></li>
+</ul>
+<p>  - 有 phase orchestration、circuit breaker、cache precheck、span logging。</p>
+<ul>
+<li><code>run-todoist-agent-team.ps1</code></li>
+</ul>
+<p>  - 有 phase1/2/3、timeout、failure stats、failed auto-task tracking。</p>
+<ul>
+<li><code>tools/autonomous_harness.py</code></li>
+</ul>
+<p>  - 已整合 stale run、scheduler failure、failed auto task、open circuit、fairness、token budget、heartbeat。</p>
+<ul>
+<li><code>state/autonomous-runtime.json</code></li>
+</ul>
+<p>  - 已輸出 <code>normal / degraded / recovery</code> 模式與實際調度政策。</p>
+<h3>3.2 本輪新增能力</h3>
+<ul>
+<li>自動發現 agent</li>
+</ul>
+<p>  - 掃描 <code>prompts/team/fetch-<em>.md</code> 與 <code>templates/auto-tasks/</em>.md</code></p>
+<p>  - 輸出 <code>state/autonomous-agent-registry.json</code></p>
+<ul>
+<li>資源感知</li>
+</ul>
+<p>  - 收集 CPU / memory / GPU snapshot</p>
+<p>  - 輸出 <code>state/autonomous-resource-snapshot.json</code></p>
+<ul>
+<li>動態封鎖任務</li>
+</ul>
+<p>  - supervisor 輸出 <code>heavy_task_keys</code>、<code>research_task_keys</code>、<code>blocked_task_keys</code></p>
+<p>  - <code>run-todoist-agent-team.ps1</code> 直接套用，不再只靠硬編碼</p>
+<h3>3.3 仍有缺口</h3>
+<ul>
+<li><code>run-agent-team.ps1</code> 尚未接入相同等級的 runtime policy。</li>
+<li>CPU / memory 指標在部分 Windows 權限情境下可能取不到，需排程帳號驗證。</li>
+<li>restart / recovery 目前仍以本機命令與 queue 為主，尚未升級成獨立守護程序或服務。</li>
+</ul>
+<h2>4. 目標架構</h2>
+<pre><code>
+flowchart TD
+    A[run-agent-team.ps1 / run-todoist-agent-team.ps1] --&gt; B[state/*.json]
+    B --&gt; C[tools/autonomous_harness.py]
+    C --&gt; D[state/autonomous-harness-plan.json]
+    C --&gt; E[state/autonomous-runtime.json]
+    C --&gt; F[state/autonomous-agent-registry.json]
+    C --&gt; G[state/autonomous-resource-snapshot.json]
+    E --&gt; A
+    D --&gt; H[state/autonomous-recovery-queue.json]
+    H --&gt; I[self-heal / restart / rebalance]
+</code></pre>
+<h2>5. 預期效能與可靠性指標</h2>
+<ul>
+<li>資源使用率</li>
+</ul>
+<p>  - 目標：高壓時將 auto-task 併發從 4 降到 2 或 1，避免重型任務擠壓。</p>
+<ul>
+<li>故障恢復時間</li>
+</ul>
+<p>  - 目標：stale run / heartbeat stale / repeated failure 在 1 分鐘內進入 recovery queue。</p>
+<ul>
+<li>自動化成功率</li>
+</ul>
+<p>  - 目標：測試環境 auto-task 通過率 >= 95%。</p>
+<ul>
+<li>可維護性</li>
+</ul>
+<p>  - 目標：新增 fetch agent 或 auto-task template 後，不需修改 supervisor 程式即可被發現並納入 policy。</p>
+<h2>6. 驗證結果</h2>
+<ul>
+<li><code>python tools/autonomous_harness.py --format json</code></li>
+</ul>
+<p>  - 成功，已生成 plan / runtime / registry / resource snapshot。</p>
+<ul>
+<li>本次實際輸出</li>
+</ul>
+<p>  - <code>mode=degraded</code></p>
+<p>  - <code>max_parallel_auto_tasks=2</code></p>
+<p>  - <code>blocked_task_keys</code> 已由 registry 自動計算。</p>
+<ul>
+<li><code>python -m pytest tests/tools/test_autonomous_harness.py</code></li>
+</ul>
+<p>  - 測試收集成功，但建立/清理 pytest 暫存目錄時遭遇 ACL 拒絕。</p>
+<p>  - 判定：環境限制，不是本次邏輯變更的語法或匯入錯誤。</p>
+<h2>7. 交付物</h2>
+<ul>
+<li>程式</li>
+</ul>
+<p>  - <code>tools/autonomous_harness.py</code></p>
+<p>  - <code>run-todoist-agent-team.ps1</code></p>
+<p>  - <code>config/autonomous-harness.yaml</code></p>
+<p>  - <code>tests/tools/test_autonomous_harness.py</code></p>
+<ul>
+<li>狀態輸出</li>
+</ul>
+<p>  - <code>state/autonomous-runtime.json</code></p>
+<p>  - <code>state/autonomous-agent-registry.json</code></p>
+<p>  - <code>state/autonomous-resource-snapshot.json</code></p>
+<p>  - <code>state/autonomous-harness-plan.json</code></p>
+<ul>
+<li>文件</li>
+</ul>
+<p>  - 部署手冊：<code>docs/deployment/agent-harness-autonomy-deployment_20260320.md</code></p>
+<p>  - 故障排除：<code>docs/agent-harness-autonomy-troubleshooting_20260320.md</code></p>
+<h2>8. 後續建議</h2>
+<ol>
+<li>將 <code>run-agent-team.ps1</code> 也接入同一套 runtime policy 與 blocked task policy。</li>
+<li>以 Task Scheduler 或常駐 service 每 1-5 分鐘執行一次 <code>tools/autonomous_harness.py</code>。</li>
+<li>將 <code>resource_snapshot</code> 與 <code>done_cert</code> 成功率寫入長期趨勢檔，用於自治調優。</li>
+<li>若要更完整的自動恢復，可把 recovery queue 的消費者獨立成 <code>autonomous_recovery_worker</code>。</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

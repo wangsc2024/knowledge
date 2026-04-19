@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Context Engineering 完整指南 — 從 Prompt Engineering 到系統級上下文架構的演進（2026-02）">
+  <title>Context Engineering 完整指南 — 從 Prompt Engineering 到系統級上下文架構的演進（2026-02） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Context Engineering 完整指南 — 從 Prompt Engineering 到系統級上下文架構的演進（2026-02）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Context Engineering</span><span class="tag">LLM</span><span class="tag">AI Agent</span><span class="tag">記憶架構</span><span class="tag">Prompt Engineering</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Context Engineering 完整指南 — 從 Prompt Engineering 到系統級上下文架構的演進</h1>
+<h2>技術概述</h2>
+<p>Context Engineering（上下文工程）是 2025-2026 年 AI Agent 開發領域最重要的範式轉移。Anthropic 將其定義為「策劃和維護 LLM 推論時最佳 token 集合的策略」。與 Prompt Engineering 聚焦「怎麼問」不同，Context Engineering 聚焦「模型在推論時能存取什麼資訊」，是一門設計動態系統的學科 — 在正確的時間、以正確的格式，提供正確的資訊與工具。</p>
+<p>核心洞見：Agent 成功的關鍵主要取決於上下文品質，而非模型精細度。大多數失敗源於不充分的上下文，而非模型本身的限制。</p>
+<p>---</p>
+<h2>一、Prompt Engineering vs Context Engineering</h2>
+<p>| 維度 | Prompt Engineering | Context Engineering |</p>
+<p>|------|-------------------|--------------------|</p>
+<p>| 核心問題 | 「我該怎麼措辭？」 | 「模型現在需要存取什麼資訊？」 |</p>
+<p>| 作用範圍 | 單次輸入-輸出對 | 模型看到的所有內容（記憶、歷史、工具、系統提示） |</p>
+<p>| 本質 | 撰寫靜態指令 | 設計動態資訊系統 |</p>
+<p>| 關係 | Context Engineering 的子集 | 包含 Prompt Engineering + 更多 |</p>
+<p>| 產出 | 一段最佳化的 prompt 文字 | 一套完整的上下文架構系統 |</p>
+<p><strong>關鍵區別</strong>：Prompt Engineering 是離散任務（寫好一段指令），Context Engineering 是迭代式的系統設計（什麼上下文配置最可能產生模型的期望行為）。</p>
+<p>---</p>
+<h2>二、七大上下文組件</h2>
+<p>一個完整的 Context Engineering 系統包含七個組件：</p>
+<ol>
+<li><strong>Instructions / System Prompt</strong> — 行為準則與範例</li>
+<li><strong>User Prompt</strong> — 即時任務或問題</li>
+<li><strong>State / History</strong> — 當前對話線程</li>
+<li><strong>Long-Term Memory</strong> — 跨 session 持久化知識</li>
+<li><strong>Retrieved Information (RAG)</strong> — 外部、即時更新的知識來源</li>
+<li><strong>Available Tools</strong> — 工具定義與能力描述</li>
+<li><strong>Structured Output</strong> — 回應格式規範</li>
+</ol>
+<p>---</p>
+<h2>三、四大核心策略</h2>
+<h3>3.1 Scratchpads（暫存筆記）</h3>
+<p>Agent 使用暫存筆記保存資訊供未來參考。類似人類的「工作備忘錄」，在多步驟任務中維持連貫性。</p>
+<h3>3.2 Context Trimming（上下文修剪）</h3>
+<p>使用硬編碼啟發式規則修剪上下文 — 移除舊訊息、按重要性過濾、或使用訓練過的修剪器。核心原則：每個 token 都消耗模型的「注意力預算」，Transformer 架構需要 n-squared 成對 token 關係計算。</p>
+<h3>3.3 Isolation（隔離策略）</h3>
+<p>不同任務需要不同資訊，隔離技術將上下文分散到專門化系統中，而非將所有上下文塞入單一模型視窗。子 Agent 架構是典型實現 — 專門化子 Agent 以乾淨的上下文視窗處理聚焦任務，返回精煉摘要（1,000-2,000 tokens）給協調主 Agent。</p>
+<h3>3.4 State Object Isolation（狀態物件隔離）</h3>
+<p>Agent 的執行時狀態設計為結構化 schema，多個欄位中只有一個（如 messages）在每步暴露給 LLM，其他欄位保持隔離供選擇性使用。</p>
+<p>---</p>
+<h2>四、長期任務技術</h2>
+<h3>4.1 Compaction（壓縮）</h3>
+<p>對話接近上下文限制時進行摘要，保留關鍵細節（架構決策、未解決的 bug），丟棄冗餘工具輸出。實施建議：先最大化召回率，再迭代改善精確度。</p>
+<h3>4.2 Structured Note-Taking（結構化筆記）</h3>
+<p>Agent 持久化外部記憶（如 NOTES.md 檔案、記憶工具），可在後續檢索。這使得跨多次上下文重置仍能維持連貫性，支援多小時任務序列。</p>
+<h3>4.3 Sub-Agent Architecture（子 Agent 架構）</h3>
+<p>專門化子 Agent 以乾淨的上下文視窗處理聚焦任務，返回精煉摘要給協調主 Agent。這將詳細搜尋上下文與高階綜合工作隔離開來。</p>
+<p>---</p>
+<h2>五、三層記憶架構</h2>
+<h3>5.1 Short-term Memory（短期記憶）</h3>
+<p>活躍上下文視窗，保存「最近對話/推理、工具輸出、和檢索到的文件」。</p>
+<h3>5.2 Long-term Memory（長期記憶）</h3>
+<p>外部儲存（通常是向量資料庫），保存：</p>
+<ul>
+<li><strong>情節記憶</strong>：過去事件、用戶互動、偏好</li>
+<li><strong>語義記憶</strong>：通用和領域知識</li>
+<li><strong>程序記憶</strong>：例行程序、工作流、決策步驟</li>
+</ul>
+<h3>5.3 Working Memory（工作記憶）</h3>
+<p>任務專屬的暫時空間，如在旅行訂票過程中維持日期資訊，不永久儲存。</p>
+<p><strong>核心原則</strong>：「最糟的記憶系統是忠實儲存所有內容的系統。」系統應在儲存前過濾互動，通常透過模型反思指派重要性分數。</p>
+<p>---</p>
+<h2>六、四大上下文失敗模式</h2>
+<p>| 失敗模式 | 說明 | 對策 |</p>
+<p>|---------|------|------|</p>
+<p>| Context Poisoning | 幻覺資訊透過 Agent 重複使用而複合 | 驗證工具輸出、交叉比對 |</p>
+<p>| Context Distraction | 過多歷史淹沒推理能力 | 主動修剪、摘要壓縮 |</p>
+<p>| Context Confusion | 不相關工具擁擠決策空間 | 動態工具註冊、最小工具集 |</p>
+<p>| Context Clash | 矛盾資訊造成推理停滯 | 優先級規則、衝突解決機制 |</p>
+<p>---</p>
+<h2>七、Context Rot（上下文腐爛）</h2>
+<p>2026 年最受關注的挑戰之一：隨著上下文視窗中 token 數量增加，模型準確回憶該上下文資訊的能力下降。即使現代模型支援 100K-1M token 視窗，並不代表填滿它是最佳策略。</p>
+<p><strong>應對原則</strong>：尋找「最小高訊號 token 集合，最大化期望結果的可能性」。</p>
+<p>---</p>
+<h2>八、與 Daily-Digest-Prompt 專案的關聯</h2>
+<p>本專案（daily-digest-prompt）已在多個維度實踐了 Context Engineering 的核心理念：</p>
+<p>| CE 概念 | 本專案實踐 |</p>
+<p>|---------|----------|</p>
+<p>| <strong>七大組件</strong> | System Prompt (SKILL.md) + User Input (Todoist API) + State (digest-memory.json) + Long-term Memory (context/) + RAG (KB API) + Tools (22 Skills) + Structured Output (config/digest-format.md) |</p>
+<p>| <strong>Isolation</strong> | 子 Agent 架構（Phase 1 並行 - Phase 2 組裝），各 Agent 只看自己需要的上下文 |</p>
+<p>| <strong>Compaction</strong> | Phase 1 Agent 返回精煉 JSON，而非原始 API 回應 |</p>
+<p>| <strong>Structured Note-Taking</strong> | digest-memory.json、research-registry.json 跨 session 持久化 |</p>
+<p>| <strong>Context Trimming</strong> | scheduler-state.json 保留最近 200 筆、JSONL 日誌 50MB 輪轉 |</p>
+<p>| <strong>State Object Isolation</strong> | 配置層（YAML）與模板層（Markdown）分離，按需載入不預載 |</p>
+<h3>可改進方向</h3>
+<p>基於 Context Engineering 理論，本專案可進一步優化：</p>
+<ol>
+<li><strong>Context Pressure 監控</strong>：在 post_tool_logger 追蹤 context token 累積量，在 agent_guardian 加入 context_pressure 警告（已列入 improvement-backlog P0）</li>
+<li><strong>動態工具註冊</strong>：目前 22 個 Skill 全列在 SKILL_INDEX.md，可改為按任務類型動態載入相關 Skill 子集</li>
+<li><strong>三層記憶正式化</strong>：將現有的 digest-memory.json（短期）+ research-registry.json（工作記憶）+ KB（長期）明確對齊三層記憶架構</li>
+<li><strong>Context Rot 防護</strong>：為長時間執行的任務（如 tech-research）加入上下文品質監控，主動摘要而非累積</li>
+</ol>
+<p>---</p>
+<h2>九、最佳實踐摘要</h2>
+<ol>
+<li><strong>從最小開始</strong>：先用基本 prompt 測試，根據觀察到的失敗再增加指令</li>
+<li><strong>系統性組織</strong>：使用 XML 標籤或 Markdown 標題結構化 prompt</li>
+<li><strong>視上下文為有限資源</strong>：每個 token 消耗注意力預算</li>
+<li><strong>優先訊號雜訊比</strong>：寧可精煉 500 token 也不要 5000 token 的雜訊</li>
+<li><strong>工具設計自包含</strong>：工具描述清楚、參數明確、返回 token 高效</li>
+<li><strong>Just-In-Time 載入</strong>：Agent 維持輕量識別符，動態載入資料而非預載所有內容</li>
+<li><strong>監控 Context Health</strong>：追蹤上下文使用率、失敗模式、記憶品質</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Anthropic Engineering Blog — Effective Context Engineering for AI Agents</li>
+<li>Philipp Schmid — The New Skill in AI is Not Prompting, It's Context Engineering</li>
+<li>Weaviate — Context Engineering: LLM Memory and Retrieval for AI Agents</li>
+<li>FlowHunt — Context Engineering: The Definitive 2025 Guide</li>
+<li>Context Studios — From Mode Collapse to Context Engineering (2026)</li>
+<li>Elastic — Context Engineering vs. Prompt Engineering</li>
+<li>GitHub: Meirtz/Awesome-Context-Engineering</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-25</em></p>
+<p><em>研究者：Claude Code Agent（技術研究自動任務）</em></p>
+<p><em>任務類型：tech_research（今日任務技術分析）</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

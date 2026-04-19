@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 系統成熟度評估與 Phase 3 演進路線圖 — 從 26 Skill 自動化到智慧化自適應 Agent 的架構演進策略（2026-03-06）">
+  <title>Daily-Digest-Prompt 系統成熟度評估與 Phase 3 演進路線圖 — 從 26 Skill 自動化到智慧化自適應 Agent 的架構演進策略（2026-03-06） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt 系統成熟度評估與 Phase 3 演進路線圖 — 從 26 Skill 自動化到智慧化自適應 Agent 的架構演進策略（2026-03-06）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">系統成熟度</span><span class="tag">自適應Agent</span><span class="tag">架構演進</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-06</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 系統成熟度評估與 Phase 3 演進路線圖</h1>
+<blockquote>研究日期：2026-03-06</blockquote>
+<blockquote>分析方法：RAG 知識庫交叉分析 + 專案結構量化審計 + 外部 Agentic AI 成熟度模型對標</blockquote>
+<blockquote>差異化：本報告聚焦「系統成熟度定位」與「下一階段演進」，與 2/15 報告（Hooks/可觀測性）和 2/28 報告（Hooks 品質）互補</blockquote>
+<p>---</p>
+<h2>一、系統成熟度量化評估</h2>
+<h3>1.1 Agentic AI 成熟度對標（6 級模型）</h3>
+<p>依據 Salesforce Agentic Maturity Model 和 nexocode Crawl-Walk-Run-Scale 框架，本系統定位：</p>
+<p>| 等級 | 描述 | 本系統達成度 |</p>
+<p>|------|------|------------|</p>
+<p>| Level 0 | 規則自動化（無推理） | 100% — Hook 規則層 |</p>
+<p>| Level 1 | 檢索增強（RAG） | 100% — KB hybrid search |</p>
+<p>| Level 2 | 推理與行動（ReAct） | 100% — Skill-First + TDD |</p>
+<p>| Level 3 | 多 Agent 協作 | <strong>90%</strong> — Team 並行模式 |</p>
+<p>| Level 4 | 自適應優化 | <strong>25%</strong> — 部分回饋迴圈 |</p>
+<p>| Level 5 | 組織級 AGI | 0% — 超出當前範疇 |</p>
+<p><strong>評估結論</strong>：系統處於 <strong>Level 3.25</strong>，多 Agent 協作成熟但自適應能力不足。主要差距在於系統缺乏基於執行結果的自動策略調整機制。</p>
+<h3>1.2 量化健康指標（截至 2026-03-06）</h3>
+<p>| 維度 | 指標 | 當前值 | 健康判定 |</p>
+<p>|------|------|--------|----------|</p>
+<p>| 配置複雜度 | YAML 檔案數 / 總行數 | 22 / 2,862 | 可控 |</p>
+<p>| Skill 覆蓋 | 核心 Skill 數 | 26（19 核心 + 7 工具） | 充足 |</p>
+<p>| 模板體系 | 模板總數 | 32（19 auto + 8 sub + 4 shared + 1 report） | 完善 |</p>
+<p>| 防護強度 | Hook 模組 / 規則數 / 測試數 | 11 / 20 / 496 | 強 |</p>
+<p>| 自動化密度 | 每日任務執行次數 | 45 次/日 | 高 |</p>
+<p>| 狀態管理 | state/ 檔案數 | <strong>282 個（含 264 個 loop-state）</strong> | 需清理 |</p>
+<p>| Context 膨脹 | behavior-patterns.json | <strong>236 KB</strong> | 需治理 |</p>
+<p>| Token 效率 | 日均 / 峰值 | ~500K / 3.75M | 峰值過高 |</p>
+<p>| API 穩定性 | 斷路器狀態 | 5/5 closed | 優 |</p>
+<p>---</p>
+<h2>二、六大優化建議（P0-P2 優先級）</h2>
+<h3>P0-A：State 目錄資源洩漏治理</h3>
+<p><strong>問題</strong>：<code>state/</code> 目錄累積 264 個 <code>loop-state-*.json</code> 檔案，每個 Session 產生一個但從未清理。按每日 44 次執行計算，每月新增 ~1,320 個檔案。</p>
+<p><strong>建議方案</strong>：</p>
+<ol>
+<li>在 <code>run-agent-team.ps1</code> 和 <code>run-todoist-agent-team.ps1</code> 的 Phase 0 加入清理邏輯：</li>
+</ol>
+<p>   ```powershell</p>
+<p>   # 清理超過 3 天的 loop-state 檔案</p>
+<p>   Get-ChildItem state/loop-state-*.json |</p>
+<p>     Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-3) } |</p>
+<p>     Remove-Item -Force</p>
+<p>   ```</p>
+<ol>
+<li>在 <code>check-health.ps1</code> 新增 loop-state 檔案數量監控（警戒閾值：200）</li>
+<li>考慮將 LoopDetector 改為單一檔案 + session key 索引，避免檔案碎片化</li>
+</ol>
+<p><strong>預期效益</strong>：state/ 檔案數從 282 降至 ~20，減少磁碟 I/O 和目錄掃描時間。</p>
+<h3>P0-B：Context 檔案膨脹治理</h3>
+<p><strong>問題</strong>：<code>context/behavior-patterns.json</code>（236KB）持續成長，無滾動清理機制。<code>context/improvement-backlog.json</code>（25KB）和 <code>context/research-series.json</code>（26KB）同樣缺少大小控制。</p>
+<p><strong>建議方案</strong>：</p>
+<ol>
+<li><code>behavior-patterns.json</code>：實施 90 天滾動窗口，超齡 entry 歸檔至 <code>context/archive/behavior-YYYY-MM.json</code></li>
+<li><code>improvement-backlog.json</code>：已完成的 backlog item 移至 <code>done</code> 陣列，定期清理已完成超過 30 天的項目</li>
+<li>在 <code>config/benchmark.yaml</code> 新增 context 膨脹閾值：</li>
+</ol>
+<p>   ```yaml</p>
+<p>   context_size_limits:</p>
+<p>     behavior_patterns_kb: 300</p>
+<p>     improvement_backlog_kb: 50</p>
+<p>     research_series_kb: 50</p>
+<p>   ```</p>
+<p><strong>預期效益</strong>：context/ 總大小控制在 500KB 以下，避免 LLM 讀取時的 token 浪費。</p>
+<h3>P1-A：Token 經濟性優化（Tiered Model Strategy）</h3>
+<p><strong>問題</strong>：2026-03-04 出現 3.75M token 峰值（10.8M 字元輸出），超出 1.5M 警戒線 2.5 倍。部分自動任務（如研究類）消耗大量 token 但產出可用小型模型處理。</p>
+<p><strong>建議方案</strong>：基於 <code>config/llm-router.yaml</code> 擴展分層模型策略</p>
+<ol>
+<li><strong>分級任務 Token 預算</strong>：</li>
+</ol>
+<p>   - 研究類任務（research-task, tech-research）：上限 200K tokens/次</p>
+<p>   - 系統維護類（self-heal, system-insight）：上限 100K tokens/次</p>
+<p>   - 簡單操作類（git-push, log-audit）：上限 50K tokens/次</p>
+<ol>
+<li><strong>Prompt 壓縮</strong>：共用前言 <code>templates/shared/preamble.md</code> 考慮條件載入，非研究任務省略 KB 策略分析段落</li>
+<li><strong>Token 追蹤增強</strong>：<code>state/token-usage.json</code> 新增 <code>by_task_type</code> 細分統計，支援成本歸因</li>
+</ol>
+<p><strong>預期效益</strong>：日均 token 消耗降低 30-40%，峰值控制在 2M 以內。</p>
+<h3>P1-B：自適應回饋迴圈（向 Level 4 邁進）</h3>
+<p><strong>問題</strong>：系統已有 OODA 閉環架構（ADR-008），但缺乏基於執行結果的<strong>自動策略調整</strong>。例如：</p>
+<ul>
+<li>研究任務反覆產出低品質筆記（quality_score ≤ 2）但未自動調整搜尋策略</li>
+<li>自動任務某群組連續失敗但輪轉策略不變</li>
+<li>Token 消耗超標但未觸發降級機制</li>
+</ul>
+<p><strong>建議方案</strong>：實施三個自適應回饋機制</p>
+<ol>
+<li><strong>品質驅動的任務調整</strong>：</li>
+</ol>
+<p>   - 在 <code>results/</code> 寫入後，統計近 7 天同 task_type 的平均 quality_score</p>
+<p>   - 若平均 < 3.0 → 自動在下次執行時加載替代搜尋策略（如更換搜尋引擎、調整 topK）</p>
+<ol>
+<li><strong>失敗感知的輪轉調整</strong>：</li>
+</ol>
+<p>   - <code>frequency-limits.yaml</code> 新增 <code>adaptive_cooldown</code> 欄位</p>
+<p>   - 連續失敗 3 次的任務自動延長冷卻時間（1h → 2h → 4h）</p>
+<ol>
+<li><strong>Token 預算自動降級</strong>：</li>
+</ol>
+<p>   - 當日 token 消耗達警戒線 80% 時，後續任務自動切換至 Groq（快速推理模型）</p>
+<p>   - 需擴展 <code>config/llm-router.yaml</code> 支援動態路由</p>
+<p><strong>預期效益</strong>：系統從「按規則執行」進化為「按結果學習」，Agentic 成熟度提升至 Level 3.75。</p>
+<h3>P2-A：腳本生態整合與 DX 改善</h3>
+<p><strong>問題</strong>：根目錄有 34 個 .ps1 腳本，認知負擔日增。5 個 kb-<em> 腳本功能重疊，3 個 create-</em>-tasks.ps1 可合併。</p>
+<p><strong>建議方案</strong>：</p>
+<ol>
+<li><strong>KB 工具整合</strong>：5 個 kb-*.ps1 合併為 <code>kb-manager.ps1 -Action backup|export|verify|git-backup|backup-all</code></li>
+<li><strong>任務建立工具整合</strong>：3 個 create-*-tasks.ps1 合併為 <code>create-tasks.ps1 -Type audit|github|research</code></li>
+<li><strong>CLI 入口統一</strong>：建立 <code>ddp.ps1</code> 作為統一入口（類似 git 子命令模式）：</li>
+</ol>
+<p>   ```powershell</p>
+<p>   ./ddp.ps1 run digest       # = run-agent-team.ps1</p>
+<p>   ./ddp.ps1 run todoist       # = run-todoist-agent-team.ps1</p>
+<p>   ./ddp.ps1 check health      # = check-health.ps1</p>
+<p>   ./ddp.ps1 kb backup         # = kb-manager.ps1 -Action backup</p>
+<p>   ```</p>
+<p><strong>預期效益</strong>：根目錄腳本從 34 個減至 ~20 個，新使用者上手時間降低 50%。</p>
+<h3>P2-B：可觀測性儀表板化</h3>
+<p><strong>問題</strong>：系統已有完善的 JSONL 日誌、健康檢查、Token 追蹤，但全部透過 CLI 查詢，缺乏視覺化儀表板。結合 KB 中已有的 Langfuse（LLM 觀測平台）和 n8n（工作流自動化）研究，可建構更強的觀測能力。</p>
+<p><strong>建議方案</strong>：</p>
+<ol>
+<li><strong>輕量級 HTML 儀表板</strong>：利用 <code>check-health.ps1</code> 輸出產生 <code>output/dashboard.html</code></li>
+</ol>
+<p>   - 排程健康度熱力圖（近 7 天 × 24 小時）</p>
+<p>   - Token 消耗趨勢圖（日均 / 峰值 / 預算線）</p>
+<p>   - Skill 使用頻率分布圖</p>
+<p>   - 研究去重覆蓋度視覺化</p>
+<ol>
+<li><strong>Langfuse 整合評估</strong>：參考 KB 中 Langfuse 研究筆記，評估是否值得引入 OpenTelemetry 追蹤</li>
+<li><strong>ntfy 告警分級</strong>：基於 <code>config/notification.yaml</code> 細化告警等級</li>
+</ol>
+<p>   - Critical：API 斷路器觸發、系統崩潰</p>
+<p>   - Warning：Token 超標、連續失敗</p>
+<p>   - Info：任務完成、daily digest 發送</p>
+<p><strong>預期效益</strong>：營運可見性從 CLI-only 提升至視覺化，問題發現時間從分鐘級降至秒級。</p>
+<p>---</p>
+<h2>三、知識庫交叉引用（RAG 驅動洞察）</h2>
+<p>本報告基於 KB 中以下筆記的交叉分析：</p>
+<ol>
+<li><strong>YAML 配置驅動架構完整指南</strong>（2026-03-04）→ 驗證本專案 22 個 YAML 的配置驅動策略正確性，但提醒需防範 Configuration Drift</li>
+<li><strong>gemini-cli 專案深度研究與架構洞察</strong> → 對比發現本專案在研究去重、自動任務輪轉、跨次記憶方面具獨有優勢</li>
+<li><strong>AI 程式碼審查的內部機制</strong> → 多 Agent 並行審查模式可借鑑至 code-task 子 Agent</li>
+<li><strong>Daily Digest Hooks 系統品質優化報告</strong>（2026-02-28）→ Hook 品質已達高水準（532/532 通過），優化方向應轉向智慧化（LLM 上下文推理）</li>
+<li><strong>深度思維洞見報告：認知基礎設施的三重架構同構性</strong>（2026-03-03）→ 本報告的自適應回饋迴圈建議，延續了「OODA 架構同構性」的思路</li>
+<li><strong>n8n 開源 AI 工作流自動化平台深度研究</strong>（2026-03-06）→ n8n 的 Queue Mode 水平擴展概念可啟發未來多機部署</li>
+<li><strong>AI Agent 記憶架構完整指南</strong>（2026-03-06）→ Mem0 的分層記憶管理可啟發 context/ 檔案的分層治理策略</li>
+</ol>
+<p>---</p>
+<h2>四、Phase 3 演進路線圖</h2>
+<h3>階段 3.1：穩固基礎（1-2 週）</h3>
+<ul>
+<li>P0-A：清理 264 個 loop-state 檔案 + 自動清理機制</li>
+<li>P0-B：context 檔案滾動清理 + 大小監控</li>
+<li>修復 Token 追蹤精度（by_task_type 細分）</li>
+</ul>
+<h3>階段 3.2：智慧化升級（2-4 週）</h3>
+<ul>
+<li>P1-A：分層 Token 預算 + 條件式 Prompt 載入</li>
+<li>P1-B：三個自適應回饋機制實施</li>
+<li>評估 Groq 動態路由的可行性</li>
+</ul>
+<h3>階段 3.3：體驗優化（4-6 週）</h3>
+<ul>
+<li>P2-A：腳本整合 + CLI 統一入口</li>
+<li>P2-B：HTML 儀表板 + 告警分級</li>
+<li>評估 Langfuse 整合 ROI</li>
+</ul>
+<h3>成熟度目標</h3>
+<ul>
+<li>階段 3.1 完成後：Level 3.5（資源治理成熟）</li>
+<li>階段 3.2 完成後：Level 3.75（自適應初步實現）</li>
+<li>階段 3.3 完成後：Level 4.0（全面自適應 + 視覺化觀測）</li>
+</ul>
+<p>---</p>
+<h2>五、風險與限制</h2>
+<p>| 風險 | 等級 | 緩解措施 |</p>
+<p>|------|------|----------|</p>
+<p>| Token 預算機制可能過度限制深度研究品質 | 中 | 設立研究類任務的例外閾值 |</p>
+<p>| 自適應策略可能導致系統行為不可預測 | 中 | 所有自動調整均記錄至 JSONL 日誌 |</p>
+<p>| 腳本整合可能影響現有排程 | 低 | 保持原腳本路徑不變，新入口僅作轉發 |</p>
+<p>| Loop-state 清理可能刪除進行中的 session 狀態 | 低 | 僅清理超過 3 天的檔案 |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Salesforce Agentic Maturity Model — 4 階段 CIO 路線圖</li>
+<li>nexocode Agentic AI Maturity Model — Crawl, Walk, Run, Scale 框架</li>
+<li>Google Cloud Architecture — Choose a design pattern for agentic AI system</li>
+<li>SitePoint — Agentic Design Patterns: The 2026 Guide（Reflection, Tool Use, Planning, Multi-Agent, Orchestrator-Worker, Evaluator-Optimizer）</li>
+<li>The Agentic Brief — Scaling Challenges: Latency, Orchestration, Cost, and Error Handling</li>
+<li>OneReach.ai — Best Practices for AI Agent Implementations: Enterprise Guide 2026</li>
+<li>Sema4.ai — Master the AI Maturity Model for 2026</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-06</em></p>
+<p><em>研究者：daily-digest-prompt 深度思維模組</em></p>
+<p><em>任務類型：todoist_research（專案優化 + 深度思維）</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

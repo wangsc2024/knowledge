@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge：結果檔案格式驗證清單產出（2026-03-19）">
+  <title>workflow-forge：結果檔案格式驗證清單產出（2026-03-19） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge：結果檔案格式驗證清單產出（2026-03-19）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">輸出格式規範</span><span class="tag">系統一致性</span><span class="tag">驗證清單</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge 執行報告（2026-03-19）</h1>
+<h2>缺口識別</h2>
+<p><strong>選定缺口</strong>：validate_results.py 未自動化執行（優先級評分 100/100）</p>
+<p><strong>根因分析</strong>：</p>
+<ul>
+<li>雖有 <code>tools/validate_results.py</code> 與 <code>config/schemas/results-auto-task-schema.json</code>，但未整合至任何自動化流程</li>
+<li>30 個自動任務結果 JSON 依賴 Agent 自律而非機器強制驗證</li>
+<li>導致格式漂移風險、失敗率偏高（daily_success_rate=83.5%）</li>
+</ul>
+<p><strong>信號來源</strong>：</p>
+<ol>
+<li>system-insight.json: daily_success_rate=0.835（低於 95% 目標）</li>
+<li>improvement-backlog.json: P1「輸入驗證強化」</li>
+<li>validate_results.py grep 結果：未被任何 .ps1/.yml 引用</li>
+</ol>
+<p>---</p>
+<h2>產出物</h2>
+<p><strong>產物類型</strong>：validation_checklist</p>
+<p><strong>產物路徑</strong>：<code>docs/workflows/results-validation-checklist.md</code></p>
+<p><strong>產物內容</strong>：</p>
+<ul>
+<li><strong>5 個核心驗證項目</strong>：Schema 可讀性、結果檔案格式驗證、必填欄位完整性、agent 欄位命名一致性、status 取值規範</li>
+<li><strong>3 個整合點</strong>：Phase 3 assemble 後驗證、check-health.ps1 每日檢查、手動驗證指令</li>
+<li><strong>失敗處理流程</strong>：5 步標準流程（記錄錯誤→定位來源→修正 prompt→重新執行→再次驗證）</li>
+<li><strong>維護規則</strong>：新增任務/修改 schema/驗證失敗率監控</li>
+</ul>
+<p>---</p>
+<h2>整合狀態</h2>
+<p><strong>登記位置</strong>：</p>
+<ol>
+<li><code>config/README.md</code>：新增速查表條目</li>
+<li><code>context/workflow-forge-registry.json</code>：新增產物條目（版本 1.0.0）</li>
+</ol>
+<p><strong>下一步行動</strong>：</p>
+<ol>
+<li>在 <code>prompts/team/todoist-assemble.md</code> 步驟 6 加入驗證步驟</li>
+<li>在 <code>check-health.ps1</code> 新增 [結果格式驗證] 區塊</li>
+<li>在 <code>docs/OPERATIONS.md</code> 新增「結果格式驗證」段落</li>
+</ol>
+<p>---</p>
+<h2>價值評估</h2>
+<p><strong>影響範圍</strong>：30 個自動任務（所有 <code>results/todoist-auto-*.json</code>）</p>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>降低格式錯誤導致的失敗率</li>
+<li>提升 daily_success_rate（目標從 83.5% → 95%）</li>
+<li>減少人工排查格式錯誤的時間成本</li>
+<li>建立機器強制驗證機制，取代 Agent 自律</li>
+</ul>
+<p><strong>可執行性</strong>：高（僅需整合既有工具，無需修改核心邏輯）</p>
+<p>---</p>
+<h2>技術細節</h2>
+<p><strong>驗證工具</strong>：<code>tools/validate_results.py</code>（已存在）</p>
+<p><strong>驗證標準</strong>：<code>config/schemas/results-auto-task-schema.json</code> (v1.1.0)</p>
+<p><strong>必填欄位</strong>：<code>task_key</code>, <code>status</code>, <code>agent</code>（或 <code>task_type</code>）</p>
+<p><strong>status 合法值</strong>：<code>success</code>, <code>partial</code>, <code>failed</code>, <code>format_failed</code></p>
+<p><strong>agent 命名規範</strong>：<code>todoist-auto-{task_key}</code>（底線命名，與 task_key 保持同步）</p>
+<p>---</p>
+<h2>相關參考</h2>
+<ul>
+<li>ADR-003：Agent Result Schema 標準化</li>
+<li>ADR-026：results/todoist-auto-*.json 格式驗證工具</li>
+<li>system-insight (2026-03-19)：daily_success_rate=0.835</li>
+<li>improvement-backlog：P0「自動任務公平輪轉修復」、P1「輸入驗證強化」</li>
+</ul>
+<p>---</p>
+<p><strong>產出時間</strong>：2026-03-19T05:45:00+08:00</p>
+<p><strong>產出者</strong>：todoist-auto-workflow_forge (workflow-forge Skill)</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

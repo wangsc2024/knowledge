@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="多 Agent 委派式核准與人機協同閘道 深度研究報告">
+  <title>多 Agent 委派式核准與人機協同閘道 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>多 Agent 委派式核准與人機協同閘道 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">多 Agent 委派式核准與人機協同閘道</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>多 Agent 委派式核准與人機協同閘道：從風險分級、聯簽策略到可追溯稽核：深度技術研究報告</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>在企業與個人自動化管線中，多 Agent 編排讓「誰有權讓模型對外寫入、呼叫工具、變更排程」成為新的治理核心。綜合 OWASP 對 LLM 應用「過度代理」與提示注入的警示、NIST AI RMF 與 ISO/IEC 42001 對人類監督與文件化證據的要求，以及 Anthropic、LangGraph、MCP 在工程實務上的邊界切分，可得一個一致結論：<strong>核准不能只靠最後輸出審稿，而必須在狀態機／圖編排層就把高風險副作用綁定到人類或明確角色</strong>。本報告將「委派式核准」抽象為在 DAG 上定義「誰可在何種證據下提交哪類副作用」，並說明聯簽可用 AND／k-of-n 策略建模；同時指出 MCP host 才是真實授權劃界點，以免 confused deputy 在委派鏈末端放大。對 daily-digest-prompt 這類 PowerShell 驅動、Phase 交接 JSON 與 Hook JSONL 已存在的專案，建議把核准事件結構化寫入交接平面，與 <code>task_key</code>／run 識別符綁定，即可在不大改架構下提升稽核可追溯性。兩項待驗證議題為「動態信任衰減」與「跨模型差分核准」，仍缺公開大規模實證。</p>
+<h2>研究背景與動機</h2>
+<p>研究問題聚焦在三組張力：其一，Lead／Worker／Human 的核准責任如何分割，才能兼顧吞吐與可否認性；其二，Prompt injection、tool poisoning、confused deputy 在「跨 Agent 委派」語境下如何被放大；其三，對命令列與排程驅動的多階段 Agent（如本專案），如何以最小工程面落地「高風險動作核准＋稽核日誌」。前一階段已以六份公開權威來源完成蒐集與三角佐證；本階段將材料綜合為可審計的敘事與可落地的控制論述。</p>
+<h2>核心技術解析（每個主張內嵌引用）</h2>
+<p><strong>風險類別必須從「內容安全」擴展到「代理行為與供應鏈」</strong>。OWASP LLM Top 10 將提示與非預期資料外洩、過度代理等列為高優先說明：當模型能觸發工具或存取敏感資料時，單純輸入過濾無法涵蓋完整攻擊面 [來源：OWASP Top 10 for Large Language Model Applications, 2023–持續更新]。</p>
+<p><strong>可信任 AI 的治理語言可對應到「映射—測量—管理」循環</strong>。NIST AI RMF 以治理、映射、測量、管理四功能包覆風險生命週期，並把人类監督視為制度要件，這為多 Agent 場景提供了可追溯分工與證據链的「上位架構」 [來源：NIST Artificial Intelligence Risk Management Framework (AI RMF 1.0), 2023]。</p>
+<p><strong>工程上必須區分編排形態並為工具／資料邊界寫契約</strong>。Anthropic 對 effective agents 的整理指出：工作流、路由器與並行編排會直接影響「何時需要人介入」；子任務愈清晰，模型自作主張的空間愈小 [來源：Anthropic — Building effective agents, 2024]。</p>
+<p><strong>核准應是一級編排概念，而不是事後 QC</strong>。LangGraph 的 human-in-the-loop 文件把中斷、恢復與_checkpoint_ 視為一級能力，使「在關鍵工具呼叫前插卡」成為圖上的自然節點，而非外掛腳本 [來源：LangGraph — Human-in-the-loop concepts, 2024]。</p>
+<p><strong>工具標準化改變授權邊界的位置</strong>。Model Context Protocol 以 client／host／server 分層；若 host 未落實最小權限與同意模型，跨元件委派极易出現 confused deputy——代理以錯身分執行正當但其實越權的操作 [來源：Model Context Protocol — Specification（GitHub）, 2024–2025]。</p>
+<p><strong>管理系統標準提供稽核條款的「可對照表」</strong>。ISO/IEC 42001 以 PDCA 定義 AI 管理系統，能把角色、紀錄、審查要求對應到實際流程，與 NIST 取向互補 [來源：ISO/IEC 42001:2023 — AI management system standard (overview hub), 2023]。</p>
+<h2>關鍵洞見（含三角佐證狀態 ✅／⚠️）</h2>
+<ul>
+<li><strong>高自主度 Agent 在具副作用工具與連網能力下，需要分段授權与人类監督；多 Agent 編排會放大過度代理面</strong>（✅；四份以上來源共识）[[[1]](#書目)]。</li>
+<li><strong>聯簽可建模為 AND／k-of-n：Lead 分解、Worker 執行，人类僅對 P0 類工具（外寄、寫檔到外埠、排程變更）強制 gate</strong>（✅）[[[2]](#書目)]。</li>
+<li><strong>沒有 trace／checkpoint 就無法做 differential replay，也就無法驗證「核准是否真實阻擋了錯副作用」</strong>（✅）[[[3]](#書目)]。</li>
+<li><strong>MCP 的 host 是實際劃界點；多 Agent 共用工具時，禁止把「使用者 OS 身分」與「模型擬定身分」混用</strong>（✅）[[[4]](#書目)]。</li>
+<li>*<em>對本專案：<code>results/</em>.json</code>、hooks JSONL、<code>scheduler-state.json</code> 已是證據平面；將核准事件與 <code>task_key</code>／run_id 綁定即可對齊 OODA 閉環**（✅）[[[5]](#書目)]。</li>
+<li><strong>「動態信任衰減」（連續成功即放寬核准）與 OWASP／審計框架偏好的「顯式重新驗證」存在張力</strong>（⚠️；待補強實證）[[[6]](#書目)]。</li>
+<li><strong>跨供應商模型混用時，是否要做模型級差分核准，仍缺公開大規模證據</strong>（⚠️）[[[6]](#書目)]。</li>
+</ul>
+<h2>實務應用建議（3-5 點）</h2>
+<ol>
+<li>以<strong>工具分類學</strong>（讀取／寫入／對外 POST／排程／付費）定義 P0～P2，並只在 P0 強制人类 gate；其餘層級用速率限制、雙人覆核或事後抽審。</li>
+<li>在編排層（圖或狀態機）為每個 P0 節點加入<strong>可恢復的中斷點</strong>，並把「核准決策 ID」寫入 run state。</li>
+<li>對 MCP：<strong>host  policy</strong> 必須是單一真理來源；子 Agent 不繞過 host 直接拿憑證。</li>
+<li>對 daily-digest-prompt：<strong>延伸現有 JSONL／results 格式</strong>，新增 <code>approval</code> 區塊（who/when/decision/tool_class/run_id），避免另起一套日誌系統。</li>
+<li>以 <strong>NIST 映射表</strong> 把「代理編排」填入風險登錄，讓每次變更工具權限都有變更紀錄與回滾點。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本專案已具備 Phase 交接、Hook 強制層與 scheduler-state 獨佔寫入等 ADR；本研究所述的「核准閘道」不是取代既有機制，而是把 <strong>人機協同決策</strong>顯式化，並與 <code>todoist-auto-*</code> 自動任務的 results Schema、錯誤物件標準化（RFC 7807 風格）對齊，使稽核可機器讀取。</p>
+<h2>未來展望</h2>
+<p>後續可針對「動態信任衰減是否可寫成可證明的風險上界」與「多模型編排時的核准委派」各做一輪補充檢索；並以小規模實驗衡量 <strong>誤擋率／繞過率／完成率</strong> 三省制指標，連動 LangGraph／Checkpoint 設計做 closed-loop 評估。</p>
+<h2>完整書目</h2>
+<p><a id="書目"></a></p>
+<ol>
+<li>OWASP Foundation. (2023–). <em>OWASP Top 10 for Large Language Model Applications</em>. https://owasp.org/www-project-top-10-for-large-language-model-applications/</li>
+<li>National Institute of Standards and Technology. (2023). <em>Artificial Intelligence Risk Management Framework (AI RMF 1.0)</em>. https://www.nist.gov/itl/ai-risk-management-framework</li>
+<li>Anthropic. (2024). <em>Building effective agents</em>. https://www.anthropic.com/engineering/building-effective-agents</li>
+<li>LangChain AI. (2024). <em>LangGraph — Human-in-the-loop concepts</em>. https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/</li>
+<li>Model Context Protocol contributors. (2024–). <em>Model Context Protocol Specification</em>. https://github.com/modelcontextprotocol/specification</li>
+<li>International Organization for Standardization / IEC. (2023). <em>ISO/IEC 42001:2023 — Artificial intelligence management system</em>（概覽頁）. https://www.iso.org/standard/81230.html</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

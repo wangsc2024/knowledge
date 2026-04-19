@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Hook 安全加固：MD5→SHA-256 遷移 + 日誌摘要消毒（2026-03-04）">
+  <title>Hook 安全加固：MD5→SHA-256 遷移 + 日誌摘要消毒（2026-03-04） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Hook 安全加固：MD5→SHA-256 遷移 + 日誌摘要消毒（2026-03-04）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">資訊安全</span><span class="tag">Hook加固</span><span class="tag">SHA-256</span><span class="tag">憑證防護</span><span class="tag">日誌消毒</span><span class="tag">系統優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Hook 安全加固：MD5→SHA-256 遷移 + 日誌摘要消毒</h1>
+<h2>日期</h2>
+<p>2026-03-04</p>
+<h2>概述</h2>
+<p>對 <code>hooks/behavior_tracker.py</code> 與 <code>hooks/post_tool_logger.py</code> 進行資訊安全加固，修復兩個憑證外洩風險漏洞。</p>
+<h2>優化項目 1：behavior_tracker.py 安全加固</h2>
+<h3>問題</h3>
+<ol>
+<li><strong>MD5 雜湊不一致</strong>：<code>_compute_signature()</code> 使用 MD5 計算模式簽名，而同專案的 <code>agent_guardian.py</code> 已統一使用 SHA-256。MD5 存在碰撞風險，不符安全最佳實踐。</li>
+<li><strong>summary_sample 憑證外洩</strong>：<code>track()</code> 函數將原始摘要直接寫入 <code>context/behavior-patterns.json</code> 的 <code>summary_sample</code> 欄位，若 curl 指令包含 Authorization header 或 API Token，敏感資訊會被持久化到磁碟。</li>
+</ol>
+<h3>修正</h3>
+<ol>
+<li><strong>MD5→SHA-256</strong>：<code>hashlib.md5</code> 改為 <code>hashlib.sha256</code>，與 <code>agent_guardian.py</code> 一致。</li>
+<li><strong>新增 <code>_sanitize_summary()</code> 函數</strong>：在寫入 <code>summary_sample</code> 前自動消毒，移除：</li>
+</ol>
+<p>   - <code>Authorization: Bearer/Basic</code> header 值</p>
+<p>   - <code>X-<em>-Token</code>、<code>X-</em>-Key</code>、<code>X-*-Secret</code> header 值</p>
+<p>   - <code>$TODOIST_API_TOKEN</code>、<code>$env:API_KEY</code> 等環境變數展開值</p>
+<ol>
+<li><strong>正則模式</strong>：<code>re.IGNORECASE</code> 確保大小寫不敏感匹配。</li>
+</ol>
+<h3>測試</h3>
+<p>新增 <code>tests/hooks/test_behavior_tracker.py</code>：20 個測試（13 消毒 + 7 簽名），全部通過。</p>
+<h2>優化項目 2：post_tool_logger.py 摘要消毒</h2>
+<h3>問題</h3>
+<p><code>classify_bash()</code> 將原始 curl 指令截斷後直接作為 JSONL 日誌的 summary 欄位，可能包含 Authorization header 等敏感資訊，導致憑證外洩至 <code>logs/structured/*.jsonl</code>。</p>
+<h3>修正</h3>
+<ol>
+<li><strong>新增 <code>_sanitize_bash_summary()</code> 函數</strong>：使用預編譯模組級正則（<code>_RE_AUTH_HEADER</code>、<code>_RE_TOKEN_HEADER</code>）消毒 Bash 指令摘要。</li>
+<li><strong>修改 <code>classify_bash()</code></strong>：在回傳 summary 前套用消毒，但 tags 分類仍使用原始 command（確保 API 來源偵測不受影響）。</li>
+<li><strong>效能考量</strong>：正則在模組載入時預編譯（<code>re.compile</code>），避免每次工具呼叫重複編譯。</li>
+</ol>
+<h3>測試</h3>
+<p>更新 <code>tests/hooks/test_post_tool_logger.py</code>：新增 10 個測試（8 消毒 + 2 整合），總計 60 個測試全部通過。</p>
+<h2>影響範圍</h2>
+<ul>
+<li><code>hooks/behavior_tracker.py</code>：<code>_compute_signature()</code>（SHA-256）+ <code>_sanitize_summary()</code>（新函數）+ <code>track()</code>（呼叫消毒）</li>
+<li><code>hooks/post_tool_logger.py</code>：<code>_sanitize_bash_summary()</code>（新函數）+ <code>classify_bash()</code>（套用消毒）</li>
+<li><code>tests/hooks/test_behavior_tracker.py</code>：新建 20 個測試</li>
+<li><code>tests/hooks/test_post_tool_logger.py</code>：新增 10 個測試（50→60）</li>
+</ul>
+<h2>驗證結果</h2>
+<ul>
+<li>修改檔案測試：80/80 通過</li>
+<li>全套件回歸測試：586/586 通過（無回歸）</li>
+</ul>
+<h2>技術決策</h2>
+<ul>
+<li>SHA-256 統一：所有 hook 模組一致使用 SHA-256，避免混用不同雜湊演算法</li>
+<li>消毒不影響分類：tags 分類邏輯使用原始命令判斷，消毒僅影響持久化的 summary</li>
+<li>預編譯正則：hot path（每次工具呼叫觸發）使用模組級編譯，降低效能開銷</li>
+<li><code>output_chars</code> 始終為 0：Claude Code PostToolUse 協定限制，tool_output 可能不傳入，已於文件中記錄</li>
+</ul>
+<h2>標籤</h2>
+<p>資訊安全, Hook加固, SHA-256, 憑證防護, 日誌消毒, behavior-tracker, post-tool-logger</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

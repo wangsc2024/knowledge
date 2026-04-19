@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="文件驅動 Agent 管線之輕量 SWE 風格縮樣：Workflow YAML、Hook 守衛與結果檔 Schema 邊界 深度研究報告">
+  <title>文件驅動 Agent 管線之輕量 SWE 風格縮樣：Workflow YAML、Hook 守衛與結果檔 Schema 邊界 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>文件驅動 Agent 管線之輕量 SWE 風格縮樣：Workflow YAML、Hook 守衛與結果檔 Schema 邊界 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">文件驅動Agent管線</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>文件驅動 Agent 管線之輕量 SWE 風格縮樣：Workflow YAML、Hook 守衛與結果檔 Schema 邊界：深度技術研究報告</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>本研究以「文件驅動」每日排程 Agent 為場景，將 JSON Schema、OpenAPI、平台工作流 YAML、雲端 Policy as Code，以及本倉 <code>docs/ARCHITECTURE.md</code> 等七則獨立來源交叉對照，回答三個問題：可驗證工件有哪些、失敗語意如何從模型自律轉成可觀測檢查點、以及「最小可重現／縮樣」觀念如何映射到結果檔與守衛訊息。結論是：以 <code>config/schemas/results-auto-task-schema.json</code> 固定 Phase 2 結果 JSON 的合法終態；以 Hook 規則與 <code>config/cursor-cli-architecture-guardrails.yaml</code> 承接 <code>[AG-CURSOR-*]</code>／<code>FIX:</code> 修復閉環；再以 <code>workflows/index.yaml</code> 把「task_types→workflow」外置成索引，與 Skill-First preamble 形成雙軌路由。三角佐證下，契約外顯、YAML 程序索引與機器守衛三類敘述彼此強化；分歧主要在「驗證標的是資料實例或 HTTP 介面」以及「YAML 由誰執行」。整體可視為輕量 SWE 縮樣：用最少案例偵測契約漂移，而非追求單次執行窮盡所有邊界。</p>
+<h2>研究背景與動機</h2>
+<p>排程觸發的 CLI／多後端 Agent 在 Phase 0–3 之間會產生大量「設定檔＋結果 JSON＋日誌」。若規範僅存在長篇 prompt，漂移難以在 CI 或合併前被機器擋下。研究動機是把公開規格中已成熟的「契約＋管線」語言，對照本專案既有 SSOT，形成可教學、可審計、可逐步自動化的邊界模型 [來源：Daily Digest Prompt 架構文件（本倉 docs/ARCHITECTURE.md）, 2026]。</p>
+<h2>核心技術解析</h2>
+<p><strong>JSON Schema 作為結果檔與資料契約的詞彙層。</strong> JSON Schema 以機器可讀方式描述实例是否有效，支援型別、格式與組合約束，利於在管線中做結構化驗證；與 <code>results-auto-task-schema.json</code> 的角色一致 [來源：JSON Schema: A Media Type for Describing JSON Documents (Validation vocabulary, Draft 2020-12), 2020-12]。</p>
+<p><strong>OpenAPI 對齊 HTTP 往返模型。</strong> OpenAPI 標準化描述 REST 介面，契約測試常見模式是以規格為單一事實來源並在 CI 比對實作；與知識庫 <code>/api/import</code> 這類邊界自然對齊 [來源：OpenAPI Specification（OAS）, 2026]。</p>
+<p><strong>YAML 工作流承載「有序步驟」。</strong> GitHub Actions 以 <code>on</code>、<code>jobs</code>、<code>steps</code> 等鍵約束行為，官方文件提供結構化欄位說明，利於靜態檢查或 checklist；本倉 <code>workflows/index.yaml</code> 則把多份人類／Agent 可讀程序檔掛上 <code>task_types</code> 路由，語意重心在索引與觸發，而非單一執行器 [來源：Workflow syntax for GitHub Actions, 2026]、[來源：Daily Digest Prompt 架構文件（本倉 docs/ARCHITECTURE.md）, 2026]。</p>
+<p><strong>Policy as Code 與 Hook／guardrails 的治理方向一致。</strong> Azure Policy 將合規規則外顯為可稽核、可自動評估的定義，強調持續評估與拒絕不符合狀態的變更；對照本專案是把高風險操作從「模型記得不要」改為 Hook 攔截與架構守衛訊息 [來源：Azure Policy 概觀（Policy as Code）, 2026]、[來源：Azure Policy 概觀（正體中文）, 2026]。</p>
+<p><strong>最小可重現與縮樣。</strong> 最小可重現錯誤報告透過縮小範圍，讓他人以最少步驟重現；映射到 Agent 管線即：單一最小 <code>results/todoist-auto-*.json</code> 案例＋對應 <code>cursor_cli_result_guard</code> 期望 stderr，用以偵測 schema 與 <code>FIX:</code> 指引是否漂移 [來源：最小可重現錯誤報告（中文維基）, 2026]。</p>
+<h2>關鍵洞見（含三角佐證狀態 ✅/⚠️）</h2>
+<ul>
+<li><strong>將 Phase 2 結果檔視為釋出工件</strong>：以 schema 與 <code>AG-CURSOR-*</code> 守衛定義允許終態，與 JSON Schema 驗證同一治理平面。<strong>已驗證✅</strong>（4+ 獨立敘述來源）。</li>
+<li><strong><code>workflows/index.yaml</code> 為程序路由表</strong>：與 Skill-First preamble 的「先讀索引」形成 Skill／Workflow 雙索引。<strong>已驗證✅</strong>（3+ 來源）。</li>
+<li><strong>縮樣＝最小結果 JSON＋守衛 stderr 期望路徑</strong>。<strong>已驗證✅</strong>（維基最小重現＋本倉架構敘述＋ schema 語意）。</li>
+<li><strong>Policy 持續評估 vs 本倉 Phase 0–3</strong>：雲政策偏資源態，倉庫偏文件與 JSON 工件，但「左移檢查」一致。<strong>已驗證✅</strong>。</li>
+<li><strong>三角佐證可具體化為：公開規格＋平台工作流語法＋本倉 ARCHITECTURE／guardrails</strong>。<strong>已驗證✅</strong>。</li>
+<li><strong>若僅依單一類來源（如部落格）聲稱 AG-CURSOR 根因，應標待驗證並補本倉日誌樣本</strong>。<strong>待驗證⚠️</strong>（計畫內已標記）。</li>
+</ul>
+<h2>實務應用建議（3-5 點）</h2>
+<ol>
+<li>新增或修改自動任務結果欄位時，<strong>同步</strong>更新 <code>results-auto-task-schema.json</code> 與相關守衛測試，避免 Phase3 才爆發格式失敗。</li>
+<li>為高頻 <code>task_key</code> 維護<strong>一份最小合法結果 JSON fixture</strong>，在 CI 或本地跑 schema validate＋（若可）result guard 乾跑。</li>
+<li>在 <code>workflows/index.yaml</code> <strong>掛上</strong>新任務對應的 workflow 條目，讓 <code>todoist-auto-*</code> 與「結果檔診斷」等流程共用同一索引慣例。</li>
+<li>對 KB 匯入與查詢分別思考：<strong>資料實例</strong>走 schema；<strong>HTTP 契約</strong>可走 OpenAPI 或契約測試矩陣，與 <code>knowledge-query</code> Skill 步驟對齊。</li>
+<li>研究或審查報告中，對<strong>無法從本倉 artifacts 或日誌驗證</strong>的因果聲稱，一律降級為「待驗證⚠️」並列出缺口。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本專案已在 <code>CLAUDE.md</code>／<code>AGENTS.md</code> 層級固定 Skill-First、state 唯讀邊界與 nul 禁令；在工具層有 <code>tools/result_file_diagnostic.py</code>、<code>workflows/result-file-diagnostic-workflow.yaml</code> 等閉環。本報告把這些元件放回「契約＋管線＋縮樣」的<strong>一般軟體工程語彙</strong>，便於對外溝通與對照業界文獻 [來源：Daily Digest Prompt 架構文件（本倉 docs/ARCHITECTURE.md）, 2026]。</p>
+<h2>未來展望</h2>
+<p>後續可挑選 1–2 個實際 <code>partial</code>／<code>format_failed</code> 結果檔案例，做成<strong>固定 fixture</strong> 並接入 pytest 或守衛迴歸；另可評估對 KB <code>POST /api/import</code> 維護<strong>最小 OpenAPI fragment</strong>（僅內部使用）以降低欄位漂移。若多後端配額與沙箱備援持續演進，宜將 <code>task_execution</code>／<code>fallback_kind</code> 欄位一併納入縮樣集合。</p>
+<h2>完整書目</h2>
+<ol>
+<li>JSON Schema Working Group. (2020). <em>JSON Schema: A Media Type for Describing JSON Documents (Validation vocabulary, Draft 2020-12)</em>. https://json-schema.org/draft/2020-12/json-schema-validation （擷取日 2026-04-10）</li>
+<li>OpenAPI Initiative. (2026). <em>OpenAPI Specification（OAS）</em>. https://spec.openapis.org/oas/latest.html （擷取日 2026-04-10）</li>
+<li>GitHub Docs. (2026). <em>Workflow syntax for GitHub Actions</em>. https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions （擷取日 2026-04-10）</li>
+<li>Microsoft Learn. (2026). <em>Azure Policy 概觀（Policy as Code）</em>. https://learn.microsoft.com/en-us/azure/governance/policy/overview （擷取日 2026-04-10）</li>
+<li>Microsoft Learn. (2026). <em>Azure Policy 概觀（正體中文）</em>. https://learn.microsoft.com/zh-tw/azure/governance/policy/overview （擷取日 2026-04-10）</li>
+<li>維基百科編者. (2026). <em>最小可重現錯誤報告</em>. https://zh.wikipedia.org/wiki/%E6%9C%80%E5%B0%8F%E5%8F%AF%E9%87%8D%E7%8F%BE%E9%8C%AF%E8%AA%A4%E5%A0%B1%E5%91%8A （擷取日 2026-04-10）</li>
+<li>Daily Digest Prompt 專案. (2026). <em>架構文件</em>. 本倉 <code>docs/ARCHITECTURE.md</code>（內部路徑；擷取日 2026-04-10）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

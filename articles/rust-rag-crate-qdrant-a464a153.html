@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="以 Rust 重寫 RAG 知識庫系統 — 架構設計、Crate 選型、Qdrant 整合與 OpenAI Function Calling 實作指南">
+  <title>以 Rust 重寫 RAG 知識庫系統 — 架構設計、Crate 選型、Qdrant 整合與 OpenAI Function Calling 實作指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>以 Rust 重寫 RAG 知識庫系統 — 架構設計、Crate 選型、Qdrant 整合與 OpenAI Function Calling 實作指南</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Rust</span><span class="tag">RAG</span><span class="tag">知識庫系統</span><span class="tag">Qdrant</span><span class="tag">OpenAI</span><span class="tag">Function Calling</span><span class="tag">Axum</span><span class="tag">async-openai</span><span class="tag">系統設計</span><span class="tag">架構指南</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>以 Rust 重寫 RAG 知識庫系統</h1>
+<blockquote>研究日期：2026-03-19 | 目標：仿 RAG_Skill（Node.js/Express）架構，以 Rust 實現高效能知識庫系統，port 8020，整合 LlamaIndex 等效功能與 OpenAI Function Calling</blockquote>
+<p>---</p>
+<h2>一、概述與動機</h2>
+<p>現有 RAG_Skill 系統採用 Node.js + Express + SQLite + Qdrant + HuggingFace Embedding 架構，port 3000。本研究規劃以 Rust 重寫，目標：</p>
+<ol>
+<li><strong>效能提升</strong>：Rust 的零成本抽象與記憶體安全，搜尋延遲可降低 2-5 倍</li>
+<li><strong>資源節省</strong>：無 GC 停頓，記憶體占用更低</li>
+<li><strong>類型安全</strong>：編譯期捕獲更多錯誤</li>
+<li><strong>OpenAI 模型</strong>：LLM 採 gpt-4o-mini、Embedding 採 text-embedding-3-small</li>
+<li><strong>Function Calling</strong>：實現 LlamaIndex 等效的工具呼叫能力</li>
+</ol>
+<p>---</p>
+<h2>二、技術棧選型</h2>
+<h3>2.1 核心 Crate</h3>
+<p>| 層級 | Crate | 用途 |</p>
+<p>|------|-------|------|</p>
+<p>| Web 框架 | <code>axum</code> 0.7+ | HTTP 路由、中間件、狀態管理 |</p>
+<p>| 非同步執行 | <code>tokio</code> | async runtime |</p>
+<p>| OpenAI API | <code>async-openai</code> | Chat Completion、Embedding、Function Calling |</p>
+<p>| 向量資料庫 | <code>qdrant-client</code> | Qdrant gRPC/REST 客戶端 |</p>
+<p>| SQLite | <code>rusqlite</code> + <code>r2d2</code> | 本地筆記儲存 + 連線池 |</p>
+<p>| 全文搜尋 | rusqlite FTS5 | 關鍵字搜尋 |</p>
+<p>| 序列化 | <code>serde</code> + <code>serde_json</code> | JSON 處理 |</p>
+<p>| 驗證 | <code>validator</code> | 請求參數驗證 |</p>
+<p>| 錯誤處理 | <code>anyhow</code> + <code>thiserror</code> | 應用/庫級錯誤 |</p>
+<p>| 日誌 | <code>tracing</code> + <code>tracing-subscriber</code> | 結構化日誌 |</p>
+<p>| 環境變數 | <code>dotenvy</code> | .env 檔載入 |</p>
+<p>| UUID | <code>uuid</code> | 筆記 ID 生成 |</p>
+<h3>2.2 可選 Crate</h3>
+<p>| Crate | 用途 |</p>
+<p>|-------|------|</p>
+<p>| <code>tower-http</code> | CORS、壓縮、請求日誌 |</p>
+<p>| <code>rig-core</code> | 高階 LLM 抽象（Rig 框架） |</p>
+<p>| <code>swiftide</code> | Rust 原生 RAG 管線（類 LlamaIndex） |</p>
+<p>---</p>
+<h2>三、系統架構設計</h2>
+<h3>3.1 模組結構</h3>
+<pre><code>
+rust-rag-kb/
+├── Cargo.toml
+├── .env
+├── src/
+│   ├── main.rs              # Axum 啟動、路由掛載
+│   ├── config.rs             # 環境變數、設定結構
+│   ├── error.rs              # 統一錯誤類型
+│   ├── models/
+│   │   ├── note.rs           # Note 結構、CRUD
+│   │   └── search.rs         # 搜尋請求/回應
+│   ├── services/
+│   │   ├── note_store.rs     # SQLite + FTS5
+│   │   ├── qdrant.rs         # Qdrant 向量操作
+│   │   ├── embedding.rs      # OpenAI Embedding
+│   │   ├── llm.rs            # Chat Completion + Function Calling
+│   │   ├── sync.rs           # 筆記→向量同步
+│   │   └── tools.rs          # LlamaIndex 等效工具定義
+│   ├── routes/
+│   │   ├── notes.rs          # /api/notes CRUD
+│   │   ├── search.rs         # /api/search/*
+│   │   ├── import.rs         # /api/import
+│   │   └── health.rs         # /api/health
+│   └── utils/
+│       ├── chunker.rs        # 文件分塊
+│       └── tiptap.rs         # Tiptap JSON 轉換
+</code></pre>
+<h3>3.2 啟動流程</h3>
+<pre><code>
+#[tokio::main]
+async fn main() -&gt; Result&lt;()&gt; {
+    tracing_subscriber::init();
+    let config = Config::from_env()?;
+    let note_store = NoteStore::new(&amp;config.data_dir).await?;
+    let qdrant = QdrantService::new(&amp;config.qdrant_url, &amp;config.collection).await?;
+    let openai = async_openai::Client::new();
+    
+    let state = AppState { note_store, qdrant, openai, config };
+    
+    let app = Router::new()
+        .nest("/api", api_routes())
+        .layer(CorsLayer::permissive())
+        .with_state(state);
+    
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8020));
+    axum::serve(TcpListener::bind(addr).await?, app).await?;
+    Ok(())
+}
+</code></pre>
+<p>---</p>
+<h2>四、核心服務實作</h2>
+<h3>4.1 Embedding 服務（OpenAI text-embedding-3-small）</h3>
+<pre><code>
+use async_openai::types::{CreateEmbeddingRequestArgs, EmbeddingInput};
+
+pub async fn embed_texts(client: &amp;Client&lt;OpenAIConfig&gt;, texts: &amp;[String]) -&gt; Result&lt;Vec&lt;Vec&lt;f32&gt;&gt;&gt; {
+    let request = CreateEmbeddingRequestArgs::default()
+        .model("text-embedding-3-small")
+        .input(EmbeddingInput::StringArray(texts.to_vec()))
+        .build()?;
+    let response = client.embeddings().create(request).await?;
+    Ok(response.data.into_iter().map(|e| e.embedding).collect())
+}
+</code></pre>
+<h3>4.2 Qdrant 向量操作</h3>
+<pre><code>
+use qdrant_client::prelude::*;
+use qdrant_client::qdrant::vectors_config::Config;
+use qdrant_client::qdrant::{CreateCollection, VectorParams, Distance};
+
+pub async fn create_collection(client: &amp;QdrantClient, name: &amp;str) -&gt; Result&lt;()&gt; {
+    client.create_collection(&amp;CreateCollection {
+        collection_name: name.to_string(),
+        vectors_config: Some(VectorsConfig {
+            config: Some(Config::Params(VectorParams {
+                size: 1536, // text-embedding-3-small 維度
+                distance: Distance::Cosine.into(),
+                ..Default::default()
+            })),
+        }),
+        ..Default::default()
+    }).await?;
+    Ok(())
+}
+</code></pre>
+<h3>4.3 Function Calling 實作（LlamaIndex 等效）</h3>
+<p>async-openai 支援 OpenAI 的 tool use / function calling 機制：</p>
+<pre><code>
+use async_openai::types::{
+    ChatCompletionRequestMessage, ChatCompletionToolArgs,
+    ChatCompletionToolType, FunctionObjectArgs,
+    CreateChatCompletionRequestArgs,
+};
+
+// 定義工具
+let tools = vec![
+    ChatCompletionToolArgs::default()
+        .r#type(ChatCompletionToolType::Function)
+        .function(
+            FunctionObjectArgs::default()
+                .name("search_knowledge_base")
+                .description("搜尋知識庫中的相關筆記")
+                .parameters(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "搜尋查詢詞" },
+                        "top_k": { "type": "integer", "description": "返回結果數量" }
+                    },
+                    "required": ["query"]
+                }))
+                .build()?
+        )
+        .build()?,
+    ChatCompletionToolArgs::default()
+        .r#type(ChatCompletionToolType::Function)
+        .function(
+            FunctionObjectArgs::default()
+                .name("get_note_by_id")
+                .description("根據 ID 取得筆記完整內容")
+                .parameters(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "note_id": { "type": "string" }
+                    },
+                    "required": ["note_id"]
+                }))
+                .build()?
+        )
+        .build()?,
+];
+
+// Agent 迴圈
+let request = CreateChatCompletionRequestArgs::default()
+    .model("gpt-4o-mini")
+    .messages(messages.clone())
+    .tools(tools.clone())
+    .build()?;
+
+let response = client.chat().create(request).await?;
+let choice = &amp;response.choices[0];
+
+if let Some(tool_calls) = &amp;choice.message.tool_calls {
+    for tool_call in tool_calls {
+        let result = match tool_call.function.name.as_str() {
+            "search_knowledge_base" =&gt; {
+                let args: SearchArgs = serde_json::from_str(&amp;tool_call.function.arguments)?;
+                search_kb(&amp;qdrant, &amp;openai, &amp;args.query, args.top_k).await?
+            }
+            "get_note_by_id" =&gt; {
+                let args: GetNoteArgs = serde_json::from_str(&amp;tool_call.function.arguments)?;
+                get_note(&amp;note_store, &amp;args.note_id).await?
+            }
+            _ =&gt; "未知工具".to_string(),
+        };
+        // 將工具結果加入 messages 繼續對話
+        messages.push(ChatCompletionRequestMessage::Tool { tool_call_id, content: result });
+    }
+    // 再次呼叫 LLM 取得最終回應
+}
+</code></pre>
+<p>---</p>
+<h2>五、API 端點對照（RAG_Skill → Rust 版）</h2>
+<p>| 端點 | 方法 | 功能 | Rust Handler |</p>
+<p>|------|------|------|-------------|</p>
+<p>| /api/health | GET | 健康檢查 | <code>health::check</code> |</p>
+<p>| /api/notes | GET | 列出筆記 | <code>notes::list</code> |</p>
+<p>| /api/notes | POST | 建立筆記 | <code>notes::create</code> |</p>
+<p>| /api/notes/:id | GET | 取得單筆 | <code>notes::get_by_id</code> |</p>
+<p>| /api/notes/:id | PUT | 更新筆記 | <code>notes::update</code> |</p>
+<p>| /api/notes/:id | DELETE | 刪除筆記 | <code>notes::delete</code> |</p>
+<p>| /api/search/semantic | POST | 語義搜尋 | <code>search::semantic</code> |</p>
+<p>| /api/search/keyword | POST | 關鍵字搜尋 | <code>search::keyword</code> |</p>
+<p>| /api/search/hybrid | POST | 混合搜尋 (RRF) | <code>search::hybrid</code> |</p>
+<p>| /api/search/retrieve | POST | 檢索上下文 | <code>search::retrieve</code> |</p>
+<p>| /api/import | POST | 批量匯入 | <code>import::batch</code> |</p>
+<p>| /api/stats | GET | 統計資訊 | <code>health::stats</code> |</p>
+<p>---</p>
+<h2>六、Rust RAG 框架比較</h2>
+<h3>6.1 Rig 框架</h3>
+<ul>
+<li><strong>特色</strong>：trait 抽象 LLM Provider，支援 OpenAI/Cohere/Anthropic 一行切換</li>
+<li><strong>向量整合</strong>：In-memory、MongoDB、SQLite、Qdrant（via rig-contrib）</li>
+<li><strong>RAG 管線</strong>：<code>EmbeddingsBuilder</code> + <code>context_rag_agent()</code> 自動處理檢索</li>
+<li><strong>限制</strong>：Function Calling 尚未完全實作（部分 <code>todo!()</code>）</li>
+<li><strong>適用</strong>：快速原型、多 Provider 切換場景</li>
+</ul>
+<h3>6.2 Swiftide 框架</h3>
+<ul>
+<li><strong>特色</strong>：Rust 原生 RAG 管線，串流式處理</li>
+<li><strong>索引管線</strong>：<code>Pipeline::from_loader().then_in_batch(Embed).then_store_with(vectorstore)</code></li>
+<li><strong>查詢管線</strong>：支援 RAGAS 評估、LanceDB/Qdrant 整合</li>
+<li><strong>適用</strong>：大量文件索引、需要評估框架的場景</li>
+</ul>
+<h3>6.3 自行組合（推薦本專案）</h3>
+<ul>
+<li><strong>理由</strong>：完全控制架構，與 RAG_Skill API 對齊，Function Calling 自行實作</li>
+<li><strong>組合</strong>：axum + async-openai + qdrant-client + rusqlite</li>
+<li><strong>優勢</strong>：無框架學習成本，API 端點一一對應</li>
+</ul>
+<p>---</p>
+<h2>七、文件分塊策略</h2>
+<pre><code>
+pub fn chunk_text(text: &amp;str, chunk_size: usize, overlap: usize) -&gt; Vec&lt;String&gt; {
+    let paragraphs: Vec&lt;&amp;str&gt; = text.split("\n\n").filter(|p| !p.trim().is_empty()).collect();
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    
+    for para in paragraphs {
+        if current.len() + para.len() &gt; chunk_size &amp;&amp; !current.is_empty() {
+            chunks.push(current.clone());
+            // 保留 overlap
+            let overlap_text = &amp;current[current.len().saturating_sub(overlap)..];
+            current = overlap_text.to_string();
+        }
+        if !current.is_empty() { current.push_str("\n\n"); }
+        current.push_str(para);
+    }
+    if !current.is_empty() { chunks.push(current); }
+    chunks
+}
+</code></pre>
+<p>---</p>
+<h2>八、混合搜尋 (Hybrid Search) 實作</h2>
+<p>RRF（Reciprocal Rank Fusion）結合語義與關鍵字搜尋：</p>
+<pre><code>
+pub fn rrf_merge(semantic: Vec&lt;SearchResult&gt;, keyword: Vec&lt;SearchResult&gt;, k: f32) -&gt; Vec&lt;SearchResult&gt; {
+    let mut scores: HashMap&lt;String, f32&gt; = HashMap::new();
+    for (rank, result) in semantic.iter().enumerate() {
+        *scores.entry(result.note_id.clone()).or_default() += 1.0 / (k + rank as f32 + 1.0);
+    }
+    for (rank, result) in keyword.iter().enumerate() {
+        *scores.entry(result.note_id.clone()).or_default() += 1.0 / (k + rank as f32 + 1.0);
+    }
+    // 排序並返回
+    let mut merged: Vec&lt;_&gt; = scores.into_iter().collect();
+    merged.sort_by(|a, b| b.1.partial_cmp(&amp;a.1).unwrap());
+    // 組裝完整結果...
+}
+</code></pre>
+<p>---</p>
+<h2>九、部署與設定</h2>
+<h3>.env 範例</h3>
+<pre><code>
+# Server
+PORT=8020
+DATA_DIR=./data
+
+# Qdrant
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION=knowledge_rust
+
+# OpenAI
+OPENAI_API_KEY=sk-...
+EMBEDDING_MODEL=text-embedding-3-small
+LLM_MODEL=gpt-4o-mini
+LLM_TEMPERATURE=0.1
+
+# Chunking
+CHUNK_SIZE=512
+CHUNK_OVERLAP=50
+
+# Search
+SIMILARITY_TOP_K=5
+MIN_SIMILARITY_SCORE=0.6
+</code></pre>
+<h3>Cargo.toml 關鍵依賴</h3>
+<pre><code>
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+async-openai = "0.25"
+qdrant-client = "1.10"
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+tower-http = { version = "0.5", features = ["cors"] }
+dotenvy = "0.15"
+validator = { version = "0.18", features = ["derive"] }
+</code></pre>
+<p>---</p>
+<h2>十、效能預期與原系統對比</h2>
+<p>| 指標 | RAG_Skill (Node.js) | Rust 版 (預期) |</p>
+<p>|------|---------------------|----------------|</p>
+<p>| 啟動時間 | ~2s | ~100ms |</p>
+<p>| 搜尋延遲 (p99) | ~200ms | ~50ms |</p>
+<p>| 記憶體占用 | ~150MB | ~30MB |</p>
+<p>| 並發處理 | Event loop | Tokio multi-thread |</p>
+<p>| 二進位大小 | N/A (需 Node.js) | ~15MB 單一執行檔 |</p>
+<p>| Embedding 維度 | 512 (bge-small-zh) | 1536 (text-embedding-3-small) |</p>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li><a href="https://www.shuttle.dev/blog/2024/02/28/rag-llm-rust">Building a RAG Web Service with Qdrant and Rust - Shuttle</a></li>
+<li><a href="https://www.shuttle.dev/blog/2024/05/23/building-agentic-rag-rust-qdrant">Building Agentic RAG with Rust, OpenAI & Qdrant - Shuttle</a></li>
+<li><a href="https://github.com/64bit/async-openai">async-openai crate (GitHub)</a></li>
+<li><a href="https://www.blog.brightcoding.dev/2025/09/28/building-modular-llm-powered-apps-with-rig-a-rust-framework-overview/">Rig: Modular LLM Apps in Rust - BrightCoding</a></li>
+<li><a href="https://dev.to/timonv/swiftide-09-a-rust-native-library-for-building-llm-applications-with-rag-brings-fluvio-lancedb-and-ragas-support-3ai6">Swiftide 0.9 - Rust RAG Library - DEV Community</a></li>
+<li><a href="https://qdrant.tech/">Qdrant Vector Search Engine</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

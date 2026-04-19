@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Instinct Lite + Token 經濟學：基於 everything-claude-code 的系統強化實施（2026-02-26）">
+  <title>Instinct Lite + Token 經濟學：基於 everything-claude-code 的系統強化實施（2026-02-26） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Instinct Lite + Token 經濟學：基於 everything-claude-code 的系統強化實施（2026-02-26）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">Instinct Learning</span><span class="tag">Token 經濟學</span><span class="tag">everything-claude-code</span><span class="tag">daily-digest-prompt</span><span class="tag">行為模式</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Instinct Lite + Token 經濟學：基於 everything-claude-code 的系統強化實施</h1>
+<h2>背景</h2>
+<p>基於知識庫文章「everything-claude-code 深度研究」的四大啟示，選擇兩個最高價值項目落實到 daily-digest-prompt 專案。</p>
+<h2>強化項目</h2>
+<h3>1. Instinct Lite 行為模式採集器</h3>
+<p><strong>靈感來源</strong>：everything-claude-code 的 Continuous Learning v2 Instinct 系統</p>
+<p><strong>實作</strong>：<code>hooks/behavior_tracker.py</code>（獨立模組，~180 行）</p>
+<p>核心機制：</p>
+<ul>
+<li><strong>原子級模式</strong>：tool + 簽名摘要作為模式 key（MD5 hash）</li>
+<li><strong>信心分數</strong>：0.1（初始）→ 每次重複 +0.05 → 最高 1.0</li>
+<li><strong>正規化簽名</strong>：移除 UUID、日期、時間戳等動態部分，保留結構</li>
+<li><strong>滾動視窗</strong>：30 天未觀察的模式自動衰減移除</li>
+<li><strong>Token 統計</strong>：累積每個模式的 input_len + output_len</li>
+</ul>
+<p>信心分數 >= 0.5 的模式可考慮演化為正式 Skill（未來 /evolve 指令）。</p>
+<p>資料存儲：<code>context/behavior-patterns.json</code>（最多 500 個模式）</p>
+<h3>2. Token 經濟學追蹤</h3>
+<p><strong>靈感來源</strong>：everything-claude-code 的 Token Economy 章節</p>
+<p><strong>實作</strong>：在 <code>post_tool_logger.py</code> JSONL entry 新增 <code>input_len</code> 欄位</p>
+<ul>
+<li><code>input_len</code>：tool_input JSON 序列化後的字元長度（近似 input tokens）</li>
+<li><code>output_len</code>：原有欄位，tool_output 長度</li>
+<li>兩者結合可量化每次工具呼叫的 Token 消耗</li>
+<li>behavior_tracker 自動累積每個模式的 total_input + total_output</li>
+</ul>
+<p>可用 <code>python hooks/behavior_tracker.py report</code> 查看 Token 經濟概要。</p>
+<h3>3. Benchmark 升級（v1 → v2）</h3>
+<p><code>config/benchmark.yaml</code> 新增三個指標：</p>
+<p>| 指標 | 目標 | 權重 | 來源 |</p>
+<p>|------|------|------|------|</p>
+<p>| avg_io_per_call | <= 5000 chars | 10 | behavior-patterns.json |</p>
+<p>| behavior_pattern_count | >= 20 | 5 | behavior-patterns.json |</p>
+<p>| high_confidence_patterns | >= 5 | 5 | behavior-patterns.json |</p>
+<p>同時在 comparison.reference_projects 新增 everything-claude-code。</p>
+<p>JSON Schema（<code>benchmark.schema.json</code>）已同步更新，version 從 <code>const: 1</code> 改為 <code>minimum: 1, maximum: 10</code>。</p>
+<h2>整合方式</h2>
+<pre><code>
+post_tool_logger.py
+  ├── 計算 input_len（Token 經濟）
+  ├── 寫入 JSONL（含 input_len 欄位）
+  └── 呼叫 behavior_tracker.track()（Instinct Lite）
+        └── 更新 context/behavior-patterns.json
+</code></pre>
+<h2>測試驗證</h2>
+<ul>
+<li>505 個 hooks 測試全通過（含 post_tool_logger 50 + validate_config 37）</li>
+<li>behavior_tracker 採用 try/except ImportError fallback，不影響現有功能</li>
+<li>所有改動向下相容</li>
+</ul>
+<h2>未來方向</h2>
+<ol>
+<li><strong>Skill 自動演化</strong>：高信心模式 >= 0.7 自動建議新 Skill</li>
+<li><strong>Token 預算控制</strong>：依歷史 I/O 數據設定每次執行的 Token 上限</li>
+<li><strong>紅隊安全層</strong>：在 system-audit 加入 Agent 對抗推理（需評估成本）</li>
+<li><strong>Instinct 匯出/匯入</strong>：跨專案共享行為模式</li>
+</ol>
+<h2>修改檔案</h2>
+<ul>
+<li><code>hooks/behavior_tracker.py</code>（新建 ~180 行）</li>
+<li><code>hooks/post_tool_logger.py</code>（+17 行：input_len + behavior_tracker 整合）</li>
+<li><code>config/benchmark.yaml</code>（v1→v2，+3 指標 +1 參考專案）</li>
+<li><code>config/schemas/benchmark.schema.json</code>（version 約束放寬）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

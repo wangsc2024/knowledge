@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="simonw/llm — 開源 CLI LLM 工具研究：插件架構、SQLite 記錄層、fragments/tools 設計與個人研究工作流應用">
+  <title>simonw/llm — 開源 CLI LLM 工具研究：插件架構、SQLite 記錄層、fragments/tools 設計與個人研究工作流應用 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>simonw/llm — 開源 CLI LLM 工具研究：插件架構、SQLite 記錄層、fragments/tools 設計與個人研究工作流應用</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">simonw/llm</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>simonw/llm — 開源 CLI LLM 工具研究：插件架構、SQLite 記錄層、fragments/tools 設計與個人研究工作流應用</h1>
+<h2>執行摘要</h2>
+<p><code>simonw/llm</code> 是一個偏「Unix 工具箱」而不是完整 agent 平台的 AI 專案：它把多家模型供應商、在地模型、工具呼叫、embeddings、模板與長上下文片段管理，統一成一個 CLI 與 Python API 介面 [來源：GitHub Repo, 2026；LLM Docs Home, 2025]。它的關鍵價值不在於自帶華麗 UI，而在於把「prompt、上下文、工具、結果記錄」都變成可以被 shell script、SQLite 與 plugin 生態重組的基礎元件 [來源：GitHub Repo, 2026；Reilly Wood, 2024；MacStories, 2025]。  </p>
+<p>從架構角度看，這個專案的核心不是單一 model adapter，而是三層抽象：模型/供應商以 plugin 方式擴充、互動能力以 templates/fragments/tools/schemas 組合、執行痕跡則落在 SQLite logs 與 embedding collections 中 [來源：LLM Docs Home, 2025；Templates Docs, 2025；Fragments Docs, 2025；Embeddings Docs, 2025]。這讓它很適合研究工作流、腳本自動化與個人知識處理，但也意味著如果要做多角色流程編排、長生命周期 agent state 或 enterprise governance，還需要搭配外部 orchestration 層 [來源：Reilly Wood, 2024；GitHub Issues, 2026]。  </p>
+<p>對 <code>daily-digest-prompt</code> 而言，<code>llm</code> 最值得借鏡的不是「拿來取代整個系統」，而是三件事：一，將 prompt/上下文封裝成可重用的 template 和 fragment；二，把每次模型互動落 SQLite，形成可查詢的 audit trail；三，利用 plugin 與 function tools 讓小型自動化任務維持低摩擦 [來源：Fragments Docs, 2025；Tools Docs, 2025；LLM 0.24/0.26 release notes, 2025]。</p>
+<h2>研究背景</h2>
+<p>我選擇研究 <code>simonw/llm</code>，是因為它符合本輪去重條件下的「非大型 agent framework」方向，且 GitHub 倉庫頁面顯示其約有 11.4k stars、779 forks、412 open issues、160 open pull requests，總提交數 986，代表它不是短期示範專案，而是持續演進中的工具型生態 [來源：GitHub Repo, 2026]。此外，Issue 清單可見 2026 年 1 月仍有新問題，例如圖片剪貼簿、template 行為與模型列舉錯誤等議題，顯示專案在 2026-01 仍活躍維護 [來源：GitHub Issues, 2026]。</p>
+<h2>核心發現</h2>
+<h3>發現一：它的真正產品是「CLI + Python API + Plugin hooks」的擴充骨架，而不是單一聊天命令</h3>
+<p>官方首頁列出的內容已明確把 <code>Tools</code>、<code>Schemas</code>、<code>Templates</code>、<code>Fragments</code>、<code>Embeddings</code>、<code>Logging to SQLite</code> 和 <code>Plugins</code> 放在同一等級，這代表作者把它設計成一個可組裝基底，而非只做 prompt wrapper [來源：LLM Docs Home, 2025]。作者在 2025 年 4 月的 0.24 release notes 也指出，<code>llm</code> 依靠 20+ plugins 同時支援本地與遠端模型，並新增 template/fragments loader plugins，進一步把擴充責任從核心移出 [來源：Long context support in LLM 0.24, 2025]。  </p>
+<p>這個主張有三類來源支撐：GitHub repo 顯示 <code>docs/</code>、<code>llm/</code>、<code>tests/</code> 等模組化結構與長期 commit 歷史 [來源：GitHub Repo, 2026]；官方文件把 plugin、CLI reference、Python API 並列 [來源：LLM Docs Home, 2025]；外部使用者則把它描述為「boring but useful」的底層工具，重點不是產品體驗，而是把 LLM 接到既有資料流與 shell 管線 [來源：Reilly Wood, 2024]。已驗證✅</p>
+<h3>發現二：專案的技術架構可拆成四個可重用能力面</h3>
+<p>第一個能力面是互動層，提供 <code>prompt</code>、<code>chat</code>、<code>chat --continue</code> 等人機互動介面，支援 stdin 與 shell pipeline [來源：Reilly Wood, 2024]。第二個能力面是上下文封裝層，<code>templates</code> 可以把 prompt、system prompt、model、schema、fragments 等打包成可重用單位；<code>fragments</code> 則專門處理長文本、URL、檔案與 plugin 載入內容，並把片段記錄為可重用 hash/alias [來源：Templates Docs, 2025；Fragments Docs, 2025]。第三個能力面是行為擴展層，<code>tools</code> 透過 Python function 或 toolbox class 執行「tools in a loop」，而且 0.26 後可以在 CLI 與 Python API 兩邊使用 [來源：Tools Docs, 2025；LLM 0.26 release notes, 2025]。第四個能力面是資料持久化層，官方文件將 logs 與 embeddings 都放在 SQLite 之上，embedding 向量甚至以 little-endian float32 BLOB 儲存，顯示作者刻意選擇本地可查詢、低依賴的資料模型 [來源：Embeddings Docs, 2025；Embedding storage format, 2025]。已驗證✅</p>
+<h3>發現三：它與同類 CLI/agent 工具的差異，在於「把可組件化上下文管理」視為第一級抽象</h3>
+<p>很多 CLI LLM 工具只處理 prompt 與 model；<code>llm</code> 則把 fragments、templates、schemas、tools 都做成可組合構件。0.24 版本新增 fragments 與 template loader plugins，支援直接把 GitHub repository、Fabric prompts 等外部資產載入為上下文或模板 [來源：Long context support in LLM 0.24, 2025；Fragments Docs, 2025]。0.26 版本再把 tool use 帶到 CLI/Python API，形成「上下文組裝 + 工具循環 + logs」的閉環 [來源：LLM 0.26 release notes, 2025；Tools Docs, 2025]。  </p>
+<p>獨立使用者也證實這個差異化：MacStories 把它拿來處理長篇 YouTube transcript，強調其多模態輸入、schema 輸出與命令列整合價值 [來源：MacStories, 2025]；Reilly Wood 則強調它最實用的特質是可把 pipe 進來的檔案、既有命令輸出和追問對話串成工作流 [來源：Reilly Wood, 2024]。已驗證✅</p>
+<h2>深度分析</h2>
+<h3>技術架構</h3>
+<p><code>llm</code> 的核心設計決策是讓模型能力與工作流能力分離。模型支援由 plugin 驅動，作者在 0.24 說明中直接點出，把 OpenAI 新特性從 core 移到 <code>llm-openai</code> plugin，可以避免每次供應商更新都要發 core release [來源：Long context support in LLM 0.24, 2025]。這是一種明確的邊界設計：核心維持通用命令、統一日志、統一資料結構；供應商差異與新 API 能力下放到 plugin。  </p>
+<p>第二個設計決策是把資料面留在 SQLite。本專案沒有往 server/database 方向演進，而是把 logs、fragments、embeddings collections 都維持在本地資料庫與檔案系統語意內 [來源：LLM Docs Home, 2025；Fragments Docs, 2025；Embedding with the CLI, 2025]。這對個人研究、可攜腳本、自動化代理特別友善，但不等於現成的團隊治理解法。  </p>
+<p>第三個設計決策是工具呼叫以 Python function 為本位。<code>tools</code> 文件說明每個 tool 實際上就是 Python function，toolbox class 只是 bundle 多個 related tools 的方式 [來源：Tools Docs, 2025]。這個抽象比 MCP server 輕，但也意味著若要和跨程序工具生態深度互通，仍需額外橋接。作者自己在 0.26 文章中也說 MCP client support 在 agenda 上，表示現階段方向明確但尚未完全內建 [來源：LLM 0.26 release notes, 2025]。這部分若只看作者文章可推知 roadmap，但對「已完整支援 MCP」這種結論只能標示待驗證⚠️，因此本文不做確定宣稱。</p>
+<h3>功能特色與比較</h3>
+<p>與偏完整產品化的 Claude Code、Codex CLI 或 agent 平台相比，<code>llm</code> 的優勢是低門檻拼裝與高透明度。外部使用者描述它「只做少數幾件事但做得好」，尤其適合把檔案、腳本輸出與 ad-hoc 對話連在一起 [來源：Reilly Wood, 2024]。MacStories 案例也顯示，它可作為其他 automation shell 的 AI 核心，而不是反過來要求使用者遷移到新平台 [來源：MacStories, 2025]。  </p>
+<p>相對地，它的短板是 workflow orchestration 並非第一級能力。GitHub issues 顯示模板、模型清單、複雜 conversation transcript 等功能仍持續演進，說明它偏向「靈活組件」而非封裝完整的 agent runtime [來源：GitHub Issues, 2026]。Hacker News 的近期討論也把它與 <code>mods</code> 這類「快速在 terminal 問一句」工具並列，而非視為全自動 coding agent 平台 [來源：Hacker News, 2025]。</p>
+<h3>使用方式</h3>
+<p>快速上手可從最小 CLI 開始：</p>
+<pre><code>
+uv tool install llm
+llm keys set openai
+llm "用三句話摘要這份文件"
+</code></pre>
+<p>若要保存可重用模板：</p>
+<pre><code>
+llm '$input - summarize this' --save summarize
+llm -t summarize &lt; article.txt
+</code></pre>
+<p>若要把長文件或 URL 作為 fragments：</p>
+<pre><code>
+llm -f https://llm.datasette.io/en/stable/fragments.html "解釋 fragments 的用途"
+llm chat -f my_doc.txt
+</code></pre>
+<p>若要啟用工具：</p>
+<pre><code>
+llm -T llm_version -T llm_time "回報目前版本與時間" --td
+</code></pre>
+<p>若要做 embeddings 與相似搜尋：</p>
+<pre><code>
+llm embed-models default 3-small
+llm embed quotations quote-1 -c "Cache invalidation and naming things"
+llm similar quotations -c "hard things in computer science"
+</code></pre>
+<p>以上流程皆出自官方文件與 release notes，可直接作為功能驗證入口 [來源：Long context support in LLM 0.24, 2025；Tools Docs, 2025；Fragments Docs, 2025；Embedding with the CLI, 2025]。</p>
+<h3>社群活躍度</h3>
+<p>GitHub 倉庫頁顯示約 11.4k stars、779 forks、412 issues、160 PR、986 commits；這些數字來自 2026-03-28 可存取的 GitHub 頁面快照 [來源：GitHub Repo, 2026]。Issue 搜尋頁可見 2026-01-13、2026-01-12、2025-12 等多筆新問題，表示專案在近三個月仍有活躍回報與維護 [來源：GitHub Issues, 2026]。Release 頁面顯示 2025 年有連續功能演進，例如 0.24 的 fragments/template loaders、0.26 的 tool use、0.27 的 GPT-5/improved tool calling，反映其不是停滯工具，而是以較小步伐穩定演化 [來源：Long context support in LLM 0.24, 2025；LLM 0.26 release notes, 2025；GitHub Releases, 2025]。</p>
+<h2>實務應用建議</h2>
+<p>對 <code>daily-digest-prompt</code>，我認為最實際的借鏡有三個。第一，把研究任務中的固定 prompt 包成 template，把固定參考文檔與 workflow 規範包成 fragment，減少每次手動拼接上下文的重複成本。第二，參考它把互動結果落 SQLite 的做法，為研究與彙整任務建立可搜尋的 prompt/response audit trail。第三，用「小工具函式」而不是大型 agent framework 先封裝常見能力，例如 KB 查詢、結果驗證、registry 去重，再由外層 orchestrator 決定流程，這會比一次引入重型 agent runtime 更符合目前專案結構 [來源：Fragments Docs, 2025；Tools Docs, 2025；Reilly Wood, 2024]。  </p>
+<p>對個人專案而言，<code>llm</code> 很適合做「shell-first AI glue layer」：CLI 研究助手、內容摘要管線、資料清洗、SQLite embeddings 小型 RAG、或把 GitHub repo / issue / transcript 直接餵給模型的分析工具 [來源：MacStories, 2025；Fragments Docs, 2025；Embeddings Docs, 2025]。</p>
+<h2>優缺點評估</h2>
+<p>優點方面，它的抽象乾淨，CLI 與 Python API 同步、plugin 可擴充、fragments/templates/tools/schemas 組件化明確，且 SQLite logging/embeddings 讓資料可被檢查、回放與再利用 [來源：LLM Docs Home, 2025；Tools Docs, 2025；Fragments Docs, 2025]。  </p>
+<p>缺點方面，工具使用本身存在 prompt injection 風險，官方文件也特別用整段 warning 說明不可信內容與工具能力組合的危險 [來源：Tools Docs, 2025]。另外，Issue 列表顯示 templates、models、clipboard image 等功能仍有待修補，說明 UX 與 provider compatibility 仍會受 plugin/模型變動影響 [來源：GitHub Issues, 2026]。再者，若需求是長生命周期 agent state、多人協作治理或強 workflow 可視化，<code>llm</code> 本身不會直接給你這些能力，需另加外部系統 [來源：Reilly Wood, 2024；Hacker News, 2025]。</p>
+<h2>知識缺口與未來方向</h2>
+<p>若下一輪要進入 mechanism 階段，最值得補的是三塊：一，<code>pluggy</code> hooks 與 model/tool plugin 的實作邊界；二，SQLite log schema 與 fragment/embedding collection 如何互相連結；三，<code>--functions</code>、toolbox class 與未來 MCP client 可能怎麼銜接。這些需要更深入讀 source code 與 docs，而不是只停在 release notes。</p>
+<h2>參考來源</h2>
+<ul>
+<li>Simon Willison / GitHub. (2026). simonw/llm. https://github.com/simonw/llm</li>
+<li>Simon Willison. (2025). LLM documentation home. https://llm.datasette.io/</li>
+<li>Simon Willison. (2025). Templates - LLM. https://llm.datasette.io/en/stable/templates.html</li>
+<li>Simon Willison. (2025). Fragments - LLM. https://llm.datasette.io/en/stable/fragments.html</li>
+<li>Simon Willison. (2025). Tools - LLM. https://llm.datasette.io/en/latest/tools.html</li>
+<li>Simon Willison. (2025). Embeddings - LLM. https://llm.datasette.io/en/0.24/embeddings/index.html</li>
+<li>Simon Willison. (2025). Embedding with the CLI - LLM. https://llm.datasette.io/en/stable/embeddings/cli.html</li>
+<li>Simon Willison. (2025). Embedding storage format - LLM. https://llm.datasette.io/en/stable/embeddings/storage.html</li>
+<li>Simon Willison. (2025). Long context support in LLM 0.24 using fragments and template plugins. https://simonwillison.net/2025/Apr/7/long-context-llm/</li>
+<li>Simon Willison. (2025). Large Language Models can run tools in your terminal with LLM 0.26. https://simonwillison.net/2025/May/27/llm-tools/</li>
+<li>GitHub. (2026). simonw/llm issues. https://github.com/simonw/llm/issues</li>
+<li>GitHub. (2025). simonw/llm releases. https://github.com/simonw/llm/releases</li>
+<li>Federico Viticci / MacStories. (2025). Using Simon Willison's LLM CLI to Process YouTube Transcripts in Shortcuts with Claude and Gemini. https://www.macstories.net/mac/llm-youtube-transcripts-with-claude-and-gemini-in-shortcuts/</li>
+<li>Reilly Wood. (2024). How I use LLMs. https://www.reillywood.com/blog/page/3/</li>
+<li>Hacker News. (2025). Is there a way to instantly, quickly prompt it in the terminal, without loading ... https://news.ycombinator.com/item?id=44378477</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

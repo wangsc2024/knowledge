@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Execution Trace Schema 實作指南 — Agent 工作流追蹤欄位、OpenTelemetry/OpenInference 映射與 daily-digest-prompt 落地模式">
+  <title>Execution Trace Schema 實作指南 — Agent 工作流追蹤欄位、OpenTelemetry/OpenInference 映射與 daily-digest-prompt 落地模式 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Execution Trace Schema 實作指南 — Agent 工作流追蹤欄位、OpenTelemetry/OpenInference 映射與 daily-digest-prompt 落地模式</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Execution Trace Schema</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Execution Trace Schema 實作指南 — Agent 工作流追蹤欄位、OpenTelemetry/OpenInference 映射與 daily-digest-prompt 落地模式</h1>
+<p>研究日期：2026-03-20  </p>
+<p>研究類型：技術研究</p>
+<p>今日任務涉及技術：[品質閘門、RAG 知識庫、GitHub 研究工作流、Vite 同步、AI 模型蒸餾、資料契約、Execution Trace Schema、ntfy 通知審查、快取 TTL 治理]</p>
+<p>本次研究主題：Execution Trace Schema 統一與 Agent 工作流結構化追蹤。</p>
+<h2>技術概述</h2>
+<p>Execution Trace Schema 的價值，不只是把 <code>trace_id</code>、<code>span_id</code>、<code>status</code> 寫進日誌，而是讓本地 JSONL、結果檔與觀測平台共用同一套追蹤語意。近年的實務方向很清楚：底層以 OpenTelemetry 做通用 tracing，AI 層再用 GenAI、MCP semantic conventions 與 OpenInference span kind 補足 agent、tool、retriever 等語意。對 <code>daily-digest-prompt</code> 這類多步驟、批次型、自動化專案而言，最重要的不是追求很多欄位，而是建立一個低基數、可關聯、可 flush、可回放的最小契約，讓 <code>results/<em>.json</code>、<code>logs/structured/</em>.jsonl</code> 與未來觀測後端都能沿著同一條 trace 主線工作。</p>
+<h2>核心概念與原理</h2>
+<h3>三層追蹤模型</h3>
+<ol>
+<li><strong>業務層</strong>：<code>task_key</code>、<code>phase</code>、<code>tool_or_skill</code>、<code>artifacts</code>。  </li>
+<li><strong>追蹤層</strong>：<code>trace_id</code>、<code>span_id</code>、<code>parent_span_id</code>、<code>status</code>、<code>duration_ms</code>。  </li>
+<li><strong>AI 語意層</strong>：<code>gen_ai.operation.name</code>、<code>gen_ai.agent.name</code>、<code>gen_ai.tool.name</code>、<code>openinference.span.kind</code>、<code>session.id</code>。</li>
+</ol>
+<h3>OpenTelemetry 的角色</h3>
+<p>OpenTelemetry 已提供 GenAI spans、Agent spans、MCP spans 的語意規格。對本專案最實用的點：</p>
+<ul>
+<li>Agent invocation 可用 <code>gen_ai.operation.name=invoke_agent</code>，並帶 <code>gen_ai.agent.name</code>。  </li>
+<li>若跨程序或跨協定呼叫，使用 <code>CLIENT</code> span 比 <code>INTERNAL</code> 更清楚。  </li>
+<li>MCP tool call 可用 <code>mcp.method.name=tools/call</code> 搭配 <code>gen_ai.tool.name</code>，讓不同工具協定仍可放進同一追蹤樹。</li>
+</ul>
+<h3>OpenInference 的角色</h3>
+<p>OpenInference 要求每個 span 明示 <code>openinference.span.kind</code>，常見值有 <code>AGENT</code>、<code>TOOL</code>、<code>CHAIN</code>、<code>RETRIEVER</code>、<code>RERANKER</code>、<code>LLM</code>。這讓後續分析可以直接回答：哪個 phase 最慢、哪種工具最常失敗、哪類 KB 查詢最耗時。</p>
+<h3>建議欄位映射</h3>
+<p>| 本地欄位 | 建議標準欄位 |</p>
+<p>|---|---|</p>
+<p>| <code>trace_id</code> | OTel trace id |</p>
+<p>| <code>span_id</code> | OTel span id |</p>
+<p>| <code>parent_span_id</code> | parent span id |</p>
+<p>| <code>task_key</code> | <code>gen_ai.agent.name</code> |</p>
+<p>| <code>phase</code> | <code>workflow.phase</code> |</p>
+<p>| <code>tool_or_skill</code> | <code>gen_ai.tool.name</code> 或 <code>mcp.method.name</code> |</p>
+<p>| <code>status</code> | span status + <code>error.type</code> |</p>
+<p>| <code>duration_ms</code> | span duration |</p>
+<p>| <code>artifacts</code> | <code>workflow.artifacts</code> |</p>
+<p>| <code>run_id</code> | <code>session.id</code> |</p>
+<h3>最小可行 span 切分</h3>
+<ul>
+<li><strong>Task Root Span</strong>：單次任務執行。  </li>
+<li><strong>Phase Span</strong>：去重、KB 查詢、Web 研究、KB 匯入、registry 更新。  </li>
+<li><strong>Tool Span</strong>：每次 shell、KB API、WebSearch、WebFetch。  </li>
+<li><strong>Optional AI Span</strong>：之後若接 LLM，再細分 <code>LLM</code>、<code>RETRIEVER</code>、<code>RERANKER</code>。</li>
+</ul>
+<h2>最佳實踐與常見陷阱</h2>
+<h3>最佳實踐</h3>
+<ol>
+<li>先固定低基數 enum，例如 <code>phase</code>、<code>tool_or_skill</code>、<code>status</code>。  </li>
+<li>同時保留本地 JSONL 與標準欄位映射，不把觀測平台當唯一資料源。  </li>
+<li>在 span 建立時就放入採樣與路由需要的欄位。  </li>
+<li>程序結束前強制 flush；Phoenix 文件明確提醒 batch processor 若不 <code>shutdown()</code>，queued spans 可能丟失。  </li>
+<li>將 MCP tool call 與一般 execute_tool spans 對齊，避免兩套資料模型。</li>
+</ol>
+<h3>常見陷阱</h3>
+<ul>
+<li>把完整 prompt 或隨機 URL 放入 span name，造成高基數污染。  </li>
+<li>只有結果沒有 <code>parent_span_id</code>，無法還原 phase 與 tool 關係。  </li>
+<li>錯誤只寫字串，不寫 <code>status=ERROR</code> 與 <code>error.type</code>。  </li>
+<li>PowerShell 平行工作流同時寫同一 trace 檔，造成交錯。  </li>
+<li>用結果檔承載所有 span 細節，導致摘要與追蹤職責混在一起。</li>
+</ul>
+<h2>與本專案的關聯</h2>
+<p><code>daily-digest-prompt</code> 已有 <code>results/<em>.json</code>、<code>logs/structured/</em>.jsonl</code>、<code>state/*</code> 等輸出，但它們的關聯鍵仍偏鬆散。若導入本研究建議，可先做三件事：</p>
+<ol>
+<li>所有自動任務啟動時建立單一 <code>trace_id</code> 與 root span。  </li>
+<li>每個 Phase 寫入統一事件：<code>phase_start</code>、<code>phase_end</code>、<code>tool_call</code>、<code>artifact_written</code>。  </li>
+<li>將 KB 查詢 / 匯入與 Web 研究映射為 <code>TOOL</code> 或 <code>RETRIEVER</code> span。</li>
+</ol>
+<p>直接收益是：</p>
+<ul>
+<li>更容易定位 <code>running / interrupted / partial</code> 的根因。  </li>
+<li>品質閘門可以直接統計哪個 phase 最常失敗。  </li>
+<li>未來要接 Phoenix 或 OTel Collector，不必重做欄位設計。</li>
+</ul>
+<h2>程式碼範例</h2>
+<pre><code>
+{
+  "trace_id": "7f5c5d3e4f6a4b8a9d0e1f2a3b4c5d6e",
+  "span_id": "9ab12cd34ef56a78",
+  "parent_span_id": "1aa22bb33cc44dd5",
+  "session.id": "2026-03-20.todoist-auto-tech_research",
+  "openinference.span.kind": "TOOL",
+  "gen_ai.operation.name": "execute_tool",
+  "gen_ai.tool.name": "knowledge-query",
+  "workflow.phase": "kb_import",
+  "status": "OK",
+  "duration_ms": 842,
+  "artifacts": ["results/todoist-auto-tech_research.json"]
+}
+</code></pre>
+<pre><code>
+$event = [ordered]@{
+  trace_id = $traceId
+  span_id = $spanId
+  parent_span_id = $parentSpanId
+  'session.id' = $runId
+  'openinference.span.kind' = 'TOOL'
+  'gen_ai.operation.name' = 'execute_tool'
+  'gen_ai.tool.name' = 'knowledge-query'
+  'workflow.phase' = 'kb_search'
+  status = 'OK'
+  duration_ms = 512
+}
+$event | ConvertTo-Json -Depth 5 -Compress | Add-Content 'logs/structured/execution-trace.jsonl'
+</code></pre>
+<h2>參考來源</h2>
+<ol>
+<li>OpenTelemetry — Semantic conventions for generative AI systems  </li>
+</ol>
+<p>   https://opentelemetry.io/docs/specs/semconv/gen-ai/</p>
+<ol>
+<li>OpenTelemetry — Semantic Conventions for GenAI agent and framework spans  </li>
+</ol>
+<p>   https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/</p>
+<ol>
+<li>OpenTelemetry — Semantic conventions for Model Context Protocol (MCP)  </li>
+</ol>
+<p>   https://opentelemetry.io/docs/specs/semconv/gen-ai/mcp/</p>
+<ol>
+<li>Arize OpenInference — semantic_conventions.md  </li>
+</ol>
+<p>   https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md</p>
+<ol>
+<li>Arize Phoenix — Setup OTEL  </li>
+</ol>
+<p>   https://arize.com/docs/phoenix/tracing/how-to-tracing/setup-tracing/setup-using-phoenix-otel</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

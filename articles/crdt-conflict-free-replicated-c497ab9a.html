@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CRDT（Conflict-free Replicated Data Types）完整指南 — 無衝突複製資料型別的原理、十大資料結構、框架生態與 Local-First 應用實踐（2026）">
+  <title>CRDT（Conflict-free Replicated Data Types）完整指南 — 無衝突複製資料型別的原理、十大資料結構、框架生態與 Local-First 應用實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>CRDT（Conflict-free Replicated Data Types）完整指南 — 無衝突複製資料型別的原理、十大資料結構、框架生態與 Local-First 應用實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">CRDT</span><span class="tag">Conflict-free Replicated Data Types</span><span class="tag">分散式系統</span><span class="tag">即時協作</span><span class="tag">Local-First</span><span class="tag">Yjs</span><span class="tag">Yrs</span><span class="tag">Loro</span><span class="tag">Automerge</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>CRDT（Conflict-free Replicated Data Types）完整指南</h1>
+<h2>技術概述</h2>
+<p>CRDT（Conflict-free Replicated Data Types，無衝突複製資料型別）是一類專為分散式系統設計的資料結構，允許多個副本（replica）獨立且並發地更新，無需中央協調或鎖機制，並保證所有副本最終收斂到一致狀態。CRDT 的數學基礎建立在<strong>半格（join-semilattice）</strong>之上：只要合併操作具備結合律（associative）、交換律（commutative）與冪等律（idempotent），即可保證最終一致性。</p>
+<p>2025-2026 年，CRDT 從學術研究走向工業規模應用：Figma 的即時協作、AppFlowy 的 Yrs CRDT 引擎、Redis Enterprise Active-Active 地理分散式資料庫、以及 Loro 框架的 Movable Tree + 富文本 CRDT 均採用 CRDT 作為核心。Local-First Software 運動的興起更讓 CRDT 成為離線優先應用的首選同步機制。</p>
+<p>---</p>
+<h2>核心概念與原理</h2>
+<h3>兩大 CRDT 類型</h3>
+<p>| 類型 | 同步機制 | 網路需求 | 優勢 | 劣勢 |</p>
+<p>|------|---------|---------|------|------|</p>
+<p>| <strong>State-based（CvRDT）</strong> | 傳送完整狀態，接收方合併 | 最終送達即可 | 實作簡單，容錯性高 | 頻寬消耗大（傳送完整狀態） |</p>
+<p>| <strong>Operation-based（CmRDT）</strong> | 傳送操作（op），接收方重播 | 需因果順序保證 | 頻寬高效（僅傳操作） | 需可靠傳輸；實作較複雜 |</p>
+<p>| <strong>Delta-state CRDT</strong> | 只傳差異（delta） | 最終送達即可 | 結合兩者優點 | 需追蹤已同步的狀態 |</p>
+<h3>CRDT vs OT（Operational Transformation）</h3>
+<p>| 面向 | CRDT | OT |</p>
+<p>|------|------|-----|</p>
+<p>| 架構 | 去中心化（P2P 可用） | 需中央伺服器 |</p>
+<p>| 離線支援 | 原生支援（合併即可） | 需伺服器在線轉換 |</p>
+<p>| 複雜度 | 資料結構設計複雜 | 轉換函式設計複雜 |</p>
+<p>| 意圖保留 | 較弱（依資料結構語意） | 較強（顯式轉換） |</p>
+<p>| 效能 | 元資料開銷較大 | 轉換計算開銷較大 |</p>
+<p>| 主流使用者 | Figma、AppFlowy、Loro | Google Docs、SharePoint |</p>
+<p>| 2026 趨勢 | 快速增長（Local-First 推動） | 成熟穩定（30+ 年歷史） |</p>
+<p><strong>關鍵差異</strong>：OT 透過「轉換」操作確保意圖一致，CRDT 透過「合併」狀態確保最終一致。OT 較適合需要嚴格意圖保留的場景（如純文字協作編輯），CRDT 較適合離線優先與 P2P 場景。</p>
+<p>---</p>
+<h2>十大 CRDT 資料結構速查表</h2>
+<h3>1. G-Counter（Grow-Only Counter）</h3>
+<ul>
+<li><strong>原理</strong>：每個副本維護自己的計數，總值 = 所有副本計數之和。合併取各副本的 max。</li>
+<li><strong>用途</strong>：頁面瀏覽數、按讚數等遞增指標</li>
+<li><strong>限制</strong>：不支援遞減；空間隨副本數線性增長</li>
+</ul>
+<h3>2. PN-Counter（Positive-Negative Counter）</h3>
+<ul>
+<li><strong>原理</strong>：組合兩個 G-Counter — 一個記遞增、一個記遞減。值 = 遞增總和 - 遞減總和</li>
+<li><strong>用途</strong>：庫存數量、資源池</li>
+<li><strong>限制</strong>：雙倍空間；無法原子重置</li>
+</ul>
+<h3>3. G-Set（Grow-Only Set）</h3>
+<ul>
+<li><strong>原理</strong>：只支援新增的集合。合併 = 聯集（union）</li>
+<li><strong>用途</strong>：事件日誌、標籤收集、不可變登錄</li>
+<li><strong>限制</strong>：無法移除元素</li>
+</ul>
+<h3>4. 2P-Set（Two-Phase Set）</h3>
+<ul>
+<li><strong>原理</strong>：維護 add-set 和 remove-set。成員 = 在 add-set 且不在 remove-set</li>
+<li><strong>用途</strong>：任務完成追蹤、權限撤銷</li>
+<li><strong>限制</strong>：一旦移除永遠無法重新加入</li>
+</ul>
+<h3>5. OR-Set（Observed-Remove Set）</h3>
+<ul>
+<li><strong>原理</strong>：每次新增賦予唯一標籤（tag）。移除只刪已觀察到的標籤。元素存在 = 仍有存活標籤</li>
+<li><strong>語意</strong>：Add-wins — 並發的新增和刪除，新增勝出</li>
+<li><strong>用途</strong>：協作購物車、完整的增刪操作</li>
+<li><strong>限制</strong>：較大空間開銷（每次新增一個唯一標籤）</li>
+</ul>
+<h3>6. LWW-Register（Last-Write-Wins Register）</h3>
+<ul>
+<li><strong>原理</strong>：值 + 時間戳。合併取較新者</li>
+<li><strong>用途</strong>：使用者偏好設定、快取值</li>
+<li><strong>限制</strong>：並發更新丟失；依賴時鐘同步</li>
+</ul>
+<h3>7. MV-Register（Multi-Value Register）</h3>
+<ul>
+<li><strong>原理</strong>：保留所有因果並發的值。讀取回傳值集合</li>
+<li><strong>用途</strong>：需要衝突感知的設定欄位</li>
+<li><strong>限制</strong>：應用層須處理多值衝突</li>
+</ul>
+<h3>8. LWW-Element-Set</h3>
+<ul>
+<li><strong>原理</strong>：為每個元素的新增/移除附上時間戳，最新操作決定成員資格</li>
+<li><strong>用途</strong>：功能旗標、寬鬆一致性的快取集合</li>
+<li><strong>限制</strong>：需時鐘同步；並發操作可能丟失資料</li>
+</ul>
+<h3>9. RGA（Replicated Growable Array）</h3>
+<ul>
+<li><strong>原理</strong>：每個元素有唯一 ID 和父參照。順序由因果插入關係決定，非索引</li>
+<li><strong>用途</strong>：協作文字編輯、共享列表</li>
+<li><strong>限制</strong>：實作複雜；墓碑累積影響效能</li>
+</ul>
+<h3>10. Movable Tree</h3>
+<ul>
+<li><strong>原理</strong>：支援節點移動的樹狀 CRDT，基於 Kleppmann 等人的高可用性移動操作算法</li>
+<li><strong>用途</strong>：檔案系統、組織架構、大綱編輯器</li>
+<li><strong>限制</strong>：並發移動可能產生循環，需特殊處理</li>
+</ul>
+<p>---</p>
+<h2>主流 CRDT 框架比較（2026）</h2>
+<p>| 框架 | 語言 | 特色 | 適用場景 |</p>
+<p>|------|------|------|----------|</p>
+<p>| <strong>Yjs</strong> | JavaScript | 最流行的文字協作 CRDT；平面列表結構（非樹）；豐富的編輯器整合（ProseMirror、TipTap、Monaco） | 前端即時協作 |</p>
+<p>| <strong>Yrs</strong> | Rust | Yjs 的 Rust 移植；相同算法、更高效能；WASM/Python/C++ 綁定 | 需要跨語言的後端整合（如 AppFlowy） |</p>
+<p>| <strong>Automerge</strong> | Rust+JS | Martin Kleppmann 主導；JSON-like 文件模型；內建持久化與壓縮 | 通用 Local-First 應用 |</p>
+<p>| <strong>Loro</strong> | Rust+JS+Swift | 新一代高效能框架；Movable Tree + Fugue 文字算法 + Peritext 富文本；時間旅行與 Undo/Redo | 高效能 Local-First 應用 |</p>
+<p>| <strong>Diamond Types</strong> | Rust | 極致效能優化；Fugue 算法實作 | 效能敏感的純文字協作 |</p>
+<p>| <strong>Redis CRDT</strong> | C（Redis 模組） | Active-Active 地理分散式；內建於 Redis Enterprise | 全球分散式快取與會話管理 |</p>
+<h3>Loro 框架亮點（2025-2026 新星）</h3>
+<ul>
+<li><strong>Replayable Event Graph</strong>：基於可重播事件圖的核心架構</li>
+<li><strong>Fugue 算法</strong>：最小化並發文字編輯的交錯異常</li>
+<li><strong>Peritext 富文本</strong>：支援粗體、斜體等格式標記的 CRDT 語意</li>
+<li><strong>MovableList + MovableTree</strong>：支援元素重排和節點移動</li>
+<li><strong>Fractional Index</strong>：保證兄弟節點排序穩定性</li>
+<li><strong>時間旅行</strong>：可回溯到任意歷史版本</li>
+</ul>
+<p>---</p>
+<h2>生產環境最佳實踐</h2>
+<h3>1. 選擇正確的 CRDT 類型</h3>
+<pre><code>
+需要計數器？
+├── 只增 → G-Counter
+└── 增減 → PN-Counter
+
+需要集合？
+├── 只增 → G-Set
+├── 增刪但不重加 → 2P-Set
+└── 完整增刪重加 → OR-Set（推薦）
+
+需要單值？
+├── 允許丟失並發 → LWW-Register
+└── 需保留衝突 → MV-Register
+
+需要序列/文字？
+└── RGA 或 Yjs/Automerge/Loro 等框架
+
+需要樹狀結構？
+└── Movable Tree（Loro 推薦）
+</code></pre>
+<h3>2. 垃圾回收策略</h3>
+<p>墓碑（tombstone）累積是 CRDT 最大的實務挑戰：</p>
+<ul>
+<li><strong>時間基準清除</strong>：超過 TTL 的墓碑可安全移除（需確保所有副本已同步）</li>
+<li><strong>版本向量協調</strong>：確認所有副本已觀察到刪除後清除</li>
+<li><strong>有限結構 + 降級語意</strong>：限制最大元素數，超限時降級為 LWW</li>
+<li><strong>週期性全量同步</strong>：定期執行 state-based 合併壓縮元資料</li>
+</ul>
+<h3>3. 網路分區處理</h3>
+<ul>
+<li>CRDT 在分區期間持續運作（CAP 中的 AP）</li>
+<li>重連後自動合併，結果確定性（可測試）</li>
+<li><strong>測試重點</strong>：模擬分區場景，驗證合併結果正確性</li>
+</ul>
+<h3>4. 效能優化</h3>
+<ul>
+<li>使用 <strong>Delta-state CRDT</strong> 減少同步頻寬</li>
+<li>大型文件考慮<strong>分片</strong>（chunking），每片獨立 CRDT</li>
+<li>版本向量的壓縮與裁剪</li>
+<li>Rust 實作（Yrs/Loro）比 JavaScript（Yjs）快 10-100 倍</li>
+</ul>
+<p>---</p>
+<h2>與本專案的關聯</h2>
+<h3>daily-digest-prompt 的潛在應用場景</h3>
+<ol>
+<li><strong>多 Agent 並發狀態管理</strong>：本專案有多個 Team Agent 並發寫入 <code>results/*.json</code>，目前透過檔案隔離避免衝突。CRDT 的 LWW-Register 或 MV-Register 可用於未來需要共享狀態的場景（如共用 context）。</li>
+</ol>
+<ol>
+<li><strong>研究註冊表去重</strong>：<code>research-registry.json</code> 目前由單一 Agent 循序寫入，若未來多 Agent 並行研究需並發更新，OR-Set CRDT 可確保無衝突新增。</li>
+</ol>
+<ol>
+<li><strong>知識庫協作編輯</strong>：知識庫（localhost:3000）未來若支援多人協作，Yjs/Loro 的富文本 CRDT 是理想方案。</li>
+</ol>
+<ol>
+<li><strong>AppFlowy 啟示</strong>：今日完成的 AppFlowy 研究任務揭示了 Yrs CRDT 在實際產品中的架構模式 — Rust 核心 + 跨平台綁定 — 這也是 Loro 和 Automerge 採用的路線。</li>
+</ol>
+<ol>
+<li><strong>Circuit Breaker 狀態同步</strong>：若 Circuit Breaker 狀態需要跨多個排程實例同步，PN-Counter CRDT 可追蹤失敗次數而無需中央協調。</li>
+</ol>
+<h3>程式碼範例：JavaScript 中的 G-Counter</h3>
+<pre><code>
+// G-Counter CRDT 實作
+class GCounter {
+  constructor(replicaId) {
+    this.replicaId = replicaId;
+    this.counts = {}; // Map&lt;replicaId, number&gt;
+  }
+
+  increment() {
+    this.counts[this.replicaId] = (this.counts[this.replicaId] || 0) + 1;
+  }
+
+  value() {
+    return Object.values(this.counts).reduce((sum, n) =&gt; sum + n, 0);
+  }
+
+  merge(other) {
+    for (const [id, count] of Object.entries(other.counts)) {
+      this.counts[id] = Math.max(this.counts[id] || 0, count);
+    }
+  }
+}
+
+// 使用範例：兩個副本獨立遞增後合併
+const replica1 = new GCounter('agent-1');
+const replica2 = new GCounter('agent-2');
+
+replica1.increment(); // agent-1: 1
+replica1.increment(); // agent-1: 2
+replica2.increment(); // agent-2: 1
+
+replica1.merge(replica2);
+console.log(replica1.value()); // 3（正確合併）
+</code></pre>
+<h3>程式碼範例：Python 中的 OR-Set</h3>
+<pre><code>
+import uuid
+from typing import Dict, Set, Any
+
+class ORSet:
+    """Observed-Remove Set CRDT — Add-wins 語意"""
+
+    def __init__(self):
+        self.elements: Dict[Any, Set[str]] = {}
+
+    def add(self, element):
+        tag = str(uuid.uuid4())
+        self.elements.setdefault(element, set()).add(tag)
+        return tag
+
+    def remove(self, element):
+        self.elements.pop(element, None)
+
+    def contains(self, element) -&gt; bool:
+        return element in self.elements and len(self.elements[element]) &gt; 0
+
+    def merge(self, other):
+        all_elements = set(self.elements) | set(other.elements)
+        for elem in all_elements:
+            my_tags = self.elements.get(elem, set())
+            their_tags = other.elements.get(elem, set())
+            merged = my_tags | their_tags
+            if merged:
+                self.elements[elem] = merged
+            elif elem in self.elements:
+                del self.elements[elem]
+
+    def value(self) -&gt; set:
+        return {e for e, tags in self.elements.items() if tags}
+</code></pre>
+<p>---</p>
+<h2>常見陷阱</h2>
+<ol>
+<li><strong>時鐘漂移</strong>：LWW 系列 CRDT 依賴時間戳排序，不同機器的時鐘漂移會導致非預期結果。使用 Lamport 時鐘或混合邏輯時鐘（HLC）替代物理時鐘。</li>
+</ol>
+<ol>
+<li><strong>墓碑爆炸</strong>：頻繁刪除的 OR-Set/RGA 會累積大量墓碑。需定期垃圾回收，但清除時必須確保所有副本已同步。</li>
+</ol>
+<ol>
+<li><strong>記憶體膨脹</strong>：CRDT 元資料（版本向量、唯一標籤）隨副本數和操作數增長。Delta-state 和壓縮策略是必要的。</li>
+</ol>
+<ol>
+<li><strong>交錯異常</strong>：傳統 RGA 在並發文字插入時可能產生交錯（interleaving）。Fugue 算法（Loro 採用）專門解決此問題。</li>
+</ol>
+<ol>
+<li><strong>不適用交易場景</strong>：CRDT 計數器不能用於銀行帳戶餘額（合併可能允許負值）。需要交易語意的場景仍需要共識協議。</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://crdt.tech/">CRDT.tech — About CRDTs</a></li>
+<li><a href="https://www.iankduncan.com/engineering/2025-11-27-crdt-dictionary/">The CRDT Dictionary — Ian Duncan（2025-11）</a></li>
+<li><a href="https://redis.io/blog/diving-into-crdts/">Redis Blog — Diving into CRDTs</a></li>
+<li><a href="https://loro.dev/">Loro — Reimagine state management with CRDTs</a></li>
+<li><a href="https://github.com/yjs/yjs">Yjs GitHub — Shared data types for collaborative software</a></li>
+<li><a href="https://github.com/y-crdt/y-crdt">y-crdt/y-crdt GitHub — Yrs Rust port of Yjs</a></li>
+<li><a href="https://www.tiny.cloud/blog/real-time-collaboration-ot-vs-crdt/">TinyMCE Blog — OT vs CRDT for Real-Time Collaboration</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type">Wikipedia — Conflict-free replicated data type</a></li>
+<li><a href="https://velt.dev/blog/best-crdt-libraries-real-time-data-sync">Velt — Best CRDT Libraries 2025</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Vite 靜態知識庫同步管線實作指南 — Build-Time Data、增量同步與 Cloudflare 發布最佳實踐">
+  <title>Vite 靜態知識庫同步管線實作指南 — Build-Time Data、增量同步與 Cloudflare 發布最佳實踐 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Vite 靜態知識庫同步管線實作指南 — Build-Time Data、增量同步與 Cloudflare 發布最佳實踐</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Vite</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Vite 靜態知識庫同步管線實作指南 — Build-Time Data、增量同步與 Cloudflare 發布最佳實踐</h1>
+<p>研究日期：2026-03-10</p>
+<p>研究類型：技術研究</p>
+<p>今日任務涉及技術：RAG 知識庫、Vite 靜態站同步、OpenClaw 六角架構、Mechanistic Interpretability、論證映射、測試與品質閘門</p>
+<p>本次研究主題：Vite 靜態知識庫同步管線（因知識庫尚無此主題的深入研究）</p>
+<h2>技術概述</h2>
+<p>Vite 靜態知識庫同步管線的核心，不只是把 Markdown 或 JSON 丟給 <code>vite build</code>，而是把「資料同步」、「build-time 載入」、「本機預覽驗證」與「邊緣部署」拆成可觀測的四段流程。對 daily-digest 這類知識密集型專案來說，先由同步腳本把知識庫內容整理成穩定資料檔，再交給 Vite 或 VitePress 在建置期讀取，最後以 <code>dist/</code> 為唯一發布產物，能同時降低執行期依賴、提升 SEO 與部署穩定性。2025 年後 Vite 7 與 Cloudflare Vite Plugin GA 也讓這條路線更清楚：靜態站可維持簡單，若未來需要 API 或 Workers 能力，再沿同一工具鏈逐步擴展。</p>
+<h2>核心概念與原理</h2>
+<h3>1. 四段式責任分離</h3>
+<ol>
+<li><strong>資料同步層</strong>：由 <code>sync_knowledge.py</code> 這類腳本向 KB API 取資料，做過濾、去敏感、增量更新，輸出到 <code>public/data/</code> 或其他建置期可讀目錄。</li>
+<li><strong>建置層</strong>：Vite 的標準產物是 <code>dist/</code>，應把它視為唯一可部署輸出，而不是直接部署原始資料目錄。</li>
+<li><strong>載入層</strong>：若站點偏內容導向，可用 VitePress data loader，在 build-time 將遠端或本地資料轉成 JSON，避免把抓取邏輯帶進瀏覽器。</li>
+<li><strong>部署層</strong>：Cloudflare Pages 適合純靜態發布；若未來要把搜尋 API、權限邏輯或預處理放到邊緣，可再轉向 Workers + <code>@cloudflare/vite-plugin</code>。</li>
+</ol>
+<h3>2. Build-time data 的邊界</h3>
+<p>VitePress 官方明確指出，data loader 只在 build-time 執行，結果會序列化成 JSON 放進最終 bundle。這代表：</p>
+<ul>
+<li>適合放「索引、摘要、前言資料、文章中繼資料」。</li>
+<li>不適合直接塞入過大的全文資料，否則會放大 client bundle。</li>
+<li>若資料來源是本地檔案，應搭配 <code>watch</code> 或 glob，讓內容變更能觸發快速更新。</li>
+</ul>
+<h3>3. Vite 7 對此題的意義</h3>
+<p>Vite 7 已成為目前官方主線，要求 Node.js 20.19+ 或 22.12+，且延續 Environment API。這對知識站專案的實務意義有兩點：</p>
+<ul>
+<li>如果本機或 CI 還停在舊版 Node，建置腳本可能先在 runtime 相容性上出問題。</li>
+<li>若未來要把靜態站升級成「靜態站 + Workers API」混合模式，Vite 7 的環境模型已經是正確演進方向。</li>
+</ul>
+<h3>4. Cloudflare 發布限制不能忽略</h3>
+<p>Cloudflare Workers Static Assets 目前對每個 Worker 版本的靜態檔有數量與單檔大小限制。知識庫網站如果未來筆記數持續成長，就必須留意：</p>
+<ul>
+<li>Free / Paid 的檔案數上限差異。</li>
+<li>單檔大小限制。</li>
+<li><code>_headers</code>、<code>_redirects</code> 的規則上限。</li>
+<li>若要使用提高後的檔案數限制，Wrangler 版本也有最低要求。</li>
+</ul>
+<p>這些限制不是理論問題，而是知識站規模擴大後會直接撞到的部署風險。</p>
+<h2>最佳實踐與常見陷阱</h2>
+<h3>最佳實踐</h3>
+<ul>
+<li><strong>把同步腳本和前端建置解耦</strong>：<code>python sync_knowledge.py</code> 成功後才進 <code>npm run build</code>，失敗時能準確定位問題在資料還是前端。</li>
+<li><strong>把 <code>vite preview</code> 放進驗證步驟</strong>：官方明確說 <code>vite preview</code> 是用來本機驗證 <code>dist/</code>，不是正式伺服器；但它非常適合作為 CI 或人工檢查點。</li>
+<li><strong>只把必要索引放進前端</strong>：完整正文保留在靜態頁面或分頁資料檔，前端僅載入搜尋索引、標題、標籤、摘要。</li>
+<li><strong>預留部署平台轉向空間</strong>：今天可以用 Pages；明天若需要邊緣 API，不必重寫整個工具鏈，只需沿 Vite/Cloudflare 路徑升級。</li>
+<li><strong>將資產規模納入監控</strong>：筆記篇數、JSON 檔大小、單次 build 時間，都應納入同步腳本的輸出報表。</li>
+</ul>
+<h3>常見陷阱</h3>
+<ul>
+<li><strong>把 KB API 直接綁在前端 runtime</strong>：這會讓網站失去真正的靜態優勢，也增加不可用風險。</li>
+<li><strong>把全文索引一次塞進單一 JSON</strong>：初期方便，但後期很容易造成 bundle 膨脹與部署限制問題。</li>
+<li><strong>只測 <code>npm run dev</code> 不測 <code>npm run build</code> / <code>vite preview</code></strong>：dev server 可用，不代表靜態輸出與路徑都正確。</li>
+<li><strong>忽略 <code>base</code> 或部署路徑差異</strong>：若未來從 custom domain 換到 repo path 或不同平台，靜態資源路徑可能直接壞掉。</li>
+<li><strong>把 Pages 與 Workers 當成完全一樣</strong>：兩者都能服務靜態內容，但能力邊界與限制並不完全相同。</li>
+</ul>
+<h2>與本專案的關聯</h2>
+<p>本專案在 <code>templates/auto-tasks/git-push.md</code> 已把知識站流程拆成三步：先執行 <code>python sync_knowledge.py</code>，再 <code>npm run build</code>，最後做隱私檢查與推送。這其實就是一條非常典型的 Vite 靜態知識庫同步管線。</p>
+<p>對 <code>daily-digest-prompt</code> 的直接應用建議如下：</p>
+<ul>
+<li>將 <code>sync_knowledge.py</code> 的輸出分成 <code>notes-index.json</code>、<code>tags.json</code>、<code>recent.json</code> 等小檔，而不是一個超大總檔。</li>
+<li>在 build 後增加 <code>vite preview</code> 或等效 smoke test，避免「同步成功但站點壞掉」的情況。</li>
+<li>若知識站未來要加入站內搜尋 API、受保護內容或邊緣快取策略，可優先評估 Cloudflare Vite Plugin + Workers，而不必直接改換另一套前端框架。</li>
+<li>將靜態資產數量、最大 JSON 檔大小與建置耗時寫入同步日誌，提前觀察是否接近平台限制。</li>
+</ul>
+<h2>程式碼範例</h2>
+<pre><code>
+// notes.data.ts
+// 在 build-time 讀取同步腳本產出的 JSON，前端只拿輕量索引
+import fs from 'node:fs'
+import path from 'node:path'
+import { defineLoader } from 'vitepress'
+
+type NoteIndex = {
+  id: string
+  title: string
+  tags: string[]
+  summary: string
+  updatedAt: string
+}
+
+declare const data: NoteIndex[]
+export { data }
+
+export default defineLoader({
+  watch: ['../public/data/notes-index.json'],
+  async load() {
+    const file = path.resolve(process.cwd(), 'public/data/notes-index.json')
+    return JSON.parse(fs.readFileSync(file, 'utf-8')) as NoteIndex[]
+  }
+})
+</code></pre>
+<pre><code>
+{
+  "scripts": {
+    "sync": "python sync_knowledge.py",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "publish": "npm run sync &amp;&amp; npm run build"
+  }
+}
+</code></pre>
+<p>這種做法的重點是：同步腳本負責資料正確性，Vite/VitePress 負責產物生成，部署工具只處理 <code>dist/</code>。責任清楚，問題才容易追。</p>
+<h2>參考來源</h2>
+<ul>
+<li>Vite 7.0 官方公告：https://vite.dev/blog/announcing-vite7</li>
+<li>Vite 官方靜態部署指南：https://vite.dev/guide/static-deploy</li>
+<li>VitePress Build-Time Data Loading：https://vitepress.dev/guide/data-loading</li>
+<li>Cloudflare Vite Plugin GA：https://developers.cloudflare.com/changelog/post/2025-04-08-vite-plugin/</li>
+<li>Cloudflare Workers Limits（Static Assets）：https://developers.cloudflare.com/workers/platform/limits/</li>
+<li>專案內流程參考：<code>templates/auto-tasks/git-push.md</code></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

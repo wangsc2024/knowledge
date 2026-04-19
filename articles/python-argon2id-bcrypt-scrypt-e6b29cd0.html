@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Python 密碼雜湊安全最佳實踐 — Argon2id/bcrypt/scrypt 比較、Passlib 棄用遷移與 OWASP 密碼儲存規範（2026）">
+  <title>Python 密碼雜湊安全最佳實踐 — Argon2id/bcrypt/scrypt 比較、Passlib 棄用遷移與 OWASP 密碼儲存規範（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Python 密碼雜湊安全最佳實踐 — Argon2id/bcrypt/scrypt 比較、Passlib 棄用遷移與 OWASP 密碼儲存規範（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">密碼雜湊</span><span class="tag">Argon2id</span><span class="tag">bcrypt</span><span class="tag">scrypt</span><span class="tag">PBKDF2</span><span class="tag">OWASP</span><span class="tag">passlib</span><span class="tag">pwdlib</span><span class="tag">Python安全</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Python 密碼雜湊安全最佳實踐</h1>
+<h2>Argon2id/bcrypt/scrypt 比較、Passlib 棄用遷移與 OWASP 密碼儲存規範</h2>
+<p>---</p>
+<h2>一、技術概述</h2>
+<p>密碼雜湊（Password Hashing）是將使用者明文密碼轉換為不可逆固定長度字串的核心安全機制，其目的在於即使資料庫洩漏，攻擊者也無法直接取得原始密碼。2025-2026 年的密碼安全領域經歷了重要轉變：Argon2id 被 OWASP 確立為首選演算法；Python 3.13 移除了 <code>crypt</code> 標準庫模組，導致長期霸主 passlib 出現相容性問題；FastAPI 生態系全面遷移至 pwdlib + argon2-cffi。本文系統性整理四大雜湊演算法的比較、Python 生態系的遷移路徑，以及與本專案（daily-digest-prompt 的 QA System）的直接應用。</p>
+<p>---</p>
+<h2>二、OWASP 密碼儲存規範（2025 更新）</h2>
+<h3>2.1 演算法選擇優先順序</h3>
+<p>OWASP Password Storage Cheat Sheet 明確建立了優先級階層：</p>
+<ol>
+<li><strong>Argon2id</strong>（首選）— Password Hashing Competition 冠軍，記憶體硬性 + 時間硬性 + 抗並行攻擊</li>
+<li><strong>scrypt</strong>（次選）— Argon2id 不可用時的替代方案</li>
+<li><strong>bcrypt</strong>（僅限遺留系統）— 成熟穩定但不具記憶體硬性</li>
+<li><strong>PBKDF2</strong>（僅限 FIPS-140 合規需求）— CPU 硬性但不抗 GPU 攻擊</li>
+</ol>
+<h3>2.2 各演算法推薦參數</h3>
+<p>| 演算法 | 最低配置 | 推薦配置 | 高安全配置 |</p>
+<p>|--------|---------|---------|----------|</p>
+<p>| Argon2id | m=19MiB, t=2, p=1 | m=64MiB, t=3, p=1 | m=128MiB, t=3, p=4 |</p>
+<p>| scrypt | N=2^15, r=8, p=1 | N=2^17, r=8, p=1 | N=2^18, r=8, p=1 |</p>
+<p>| bcrypt | cost=10 | cost=12~13 | cost=14 |</p>
+<p>| PBKDF2 | SHA-256, 600K 迭代 | SHA-256, 600K+ 迭代 | SHA-512, 210K+ 迭代 |</p>
+<h3>2.3 鹽值與胡椒值</h3>
+<ul>
+<li><strong>Salt（鹽值）</strong>：由現代函式庫自動管理，開發者無需手動處理</li>
+<li><strong>Pepper（胡椒值）</strong>：額外的防禦深度層，必須儲存在密鑰保管庫（Secrets Vault），不可與密碼雜湊放在同一資料庫</li>
+</ul>
+<h3>2.4 密碼長度處理</h3>
+<ul>
+<li>bcrypt 有 <strong>72 位元組上限</strong>，超過會被截斷——必須在應用層強制限制或使用 pre-hashing</li>
+<li>推薦 pre-hashing 模式：<code>bcrypt(base64(hmac-sha384(data:$password, key:$pepper)))</code></li>
+<li>Argon2id 無此限制</li>
+</ul>
+<p>---</p>
+<h2>三、四大演算法效能與安全性比較</h2>
+<h3>3.1 效能基準（Intel Xeon E5-2680 @ 2.7GHz）</h3>
+<p>| 演算法 | 配置 | 雜湊時間 | 記憶體用量 |</p>
+<p>|--------|------|---------|----------|</p>
+<p>| Argon2id | m=64MB, t=3, p=1 | 200ms | 64 MB |</p>
+<p>| bcrypt | cost=12 | 250ms | 4 KB |</p>
+<p>| scrypt | N=2^17, r=8, p=1 | 350ms | 128 MB |</p>
+<p>| PBKDF2 | 600K 迭代 | 200ms | <1 MB |</p>
+<h3>3.2 GPU 攻擊抵抗力</h3>
+<p>| 演算法 | GPU 加速倍數（vs CPU） | 8字元密碼破解成本 | 評級 |</p>
+<p>|--------|----------------------|------------------|------|</p>
+<p>| Argon2id | ~2-5x | $500K+ | ★★★★★ |</p>
+<p>| bcrypt | ~400x | $40K | ★★★★☆ |</p>
+<p>| scrypt | ~10-20x | $300K | ★★★★☆ |</p>
+<p>| PBKDF2 | ~5,000x | $5K | ★★☆☆☆ |</p>
+<p><strong>核心洞察</strong>：記憶體硬性演算法（Argon2id、scrypt）透過強制攻擊者為每次嘗試分配大量 RAM，大幅削弱 GPU 並行攻擊的優勢。</p>
+<h3>3.3 併發驗證的記憶體估算</h3>
+<p>100 位使用者同時驗證：</p>
+<ul>
+<li>Argon2id (m=64MB)：~6.4 GB</li>
+<li>scrypt (N=2^17)：~12.8 GB</li>
+<li>bcrypt：~400 KB</li>
+<li>PBKDF2：可忽略</li>
+</ul>
+<p><strong>設計決策</strong>：選擇 Argon2id 時需確保伺服器有足夠 RAM，或調低 memory_cost 配合較高 time_cost。</p>
+<p>---</p>
+<h2>四、Python 生態系遷移指南（2025-2026 關鍵變化）</h2>
+<h3>4.1 Passlib 棄用危機</h3>
+<ul>
+<li><strong>passlib</strong> 長期未維護，最後穩定版 v1.7.4</li>
+<li>Python 3.13 移除 <code>crypt</code> 標準庫 → passlib 的部分 hash scheme 直接失效</li>
+<li>bcrypt 5.0.0 的 API 變更導致 <code>CryptContext</code> 在新版 bcrypt 上報錯</li>
+<li><strong>FastAPI 官方已將文件更新為使用 pwdlib 取代 passlib</strong></li>
+</ul>
+<h3>4.2 遷移路徑</h3>
+<p>| 來源 | 目標 | 遷移難度 | 說明 |</p>
+<p>|------|------|---------|------|</p>
+<p>| passlib + bcrypt | pwdlib + argon2-cffi | 低 | FastAPI 官方推薦路徑 |</p>
+<p>| passlib + bcrypt | 原生 bcrypt 庫 | 低 | 最簡方案，直接用 bcrypt.hashpw/checkpw |</p>
+<p>| passlib + bcrypt | argon2-cffi 直接使用 | 中 | 最安全方案，需處理向下相容 |</p>
+<p>| passlib CryptContext | 自建 CryptContext 替代 | 中 | 保留 scheme rotation 能力 |</p>
+<h3>4.3 pwdlib（FastAPI 新推薦）</h3>
+<pre><code>
+# fastapi-users v13+ 預設使用 pwdlib + Argon2
+# 向下相容：bcrypt 雜湊仍可驗證，登入時自動升級為 Argon2
+from pwdlib import PasswordHash
+from pwdlib.hashers.argon2 import Argon2Hasher
+
+password_hash = PasswordHash((Argon2Hasher(),))
+hashed = password_hash.hash("my_password")
+assert password_hash.verify("my_password", hashed)
+</code></pre>
+<h3>4.4 argon2-cffi 直接使用</h3>
+<pre><code>
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+
+ph = PasswordHasher(
+    time_cost=3,        # 迭代次數
+    memory_cost=65536,  # 64 MB
+    parallelism=1,
+    hash_len=32,
+    salt_len=16
+)
+
+# 雜湊
+hash_result = ph.hash(password)
+# 輸出格式：$argon2id$v=19$m=65536,t=3,p=1$salt$hash
+
+# 驗證
+try:
+    ph.verify(hash_result, password)
+    # 檢查是否需要重新雜湊（參數升級時）
+    if ph.check_needs_rehash(hash_result):
+        new_hash = ph.hash(password)
+        # 更新資料庫中的雜湊值
+except VerifyMismatchError:
+    return False
+</code></pre>
+<h3>4.5 Lazy Upgrade 模式（無需強制重設密碼）</h3>
+<pre><code>
+# 在使用者成功登入時自動升級雜湊演算法
+def authenticate_and_upgrade(password: str, stored_hash: str) -&gt; tuple[bool, str | None]:
+    """驗證密碼並在必要時升級雜湊。
+    返回 (驗證結果, 新雜湊或None)
+    """
+    # 偵測舊格式（bcrypt 以 $2b$ 開頭）
+    if stored_hash.startswith('$2b$'):
+        import bcrypt
+        if bcrypt.checkpw(password.encode(), stored_hash.encode()):
+            # 成功驗證，升級為 Argon2id
+            new_hash = ph.hash(password)
+            return True, new_hash
+        return False, None
+    
+    # Argon2id 驗證
+    try:
+        ph.verify(stored_hash, password)
+        if ph.check_needs_rehash(stored_hash):
+            return True, ph.hash(password)
+        return True, None
+    except VerifyMismatchError:
+        return False, None
+</code></pre>
+<p>---</p>
+<h2>五、最佳實踐與常見陷阱</h2>
+<h3>5.1 安全最佳實踐</h3>
+<ol>
+<li><strong>優先使用 Argon2id</strong>：新專案一律採用 Argon2id，不再選擇 bcrypt</li>
+<li><strong>定期調整參數</strong>：每年依硬體進步提高 cost/memory/iteration</li>
+<li><strong>常數時間比較</strong>：使用 <code>hmac.compare_digest()</code> 或演算法內建的 verify 函式，防止計時攻擊</li>
+<li><strong>限制密碼長度上限</strong>：設定合理上限（如 128 字元）防止 HashDoS</li>
+<li><strong>PHC 字串格式</strong>：使用標準化格式儲存雜湊（<code>$argon2id$v=19$m=65536,t=3,p=1$salt$hash</code>），便於日後升級</li>
+</ol>
+<h3>5.2 常見陷阱</h3>
+<ol>
+<li><strong>bcrypt 72 位元組截斷</strong>：中文字元（UTF-8 3 位元組/字）實際可用字元數更少</li>
+<li><strong>passlib + Python 3.13</strong>：<code>crypt</code> 模組移除導致直接崩潰</li>
+<li><strong>bcrypt 5.0 API 變更</strong>：<code>bcrypt.hashpw()</code> 不再接受 unicode 字串，必須先 encode</li>
+<li><strong>記憶體不足</strong>：Argon2id m=64MB 在容器化環境（如 128MB limit）可能 OOM</li>
+<li><strong>pepper 洩漏</strong>：pepper 一旦洩漏且硬編碼在程式碼中，比不用更糟</li>
+</ol>
+<h3>5.3 CryptContext DRY 原則</h3>
+<p><strong>本專案（QA System）教訓</strong>：在 #22 優化中發現 <code>pwd_context = CryptContext(schemes=['bcrypt'])</code> 被重複定義 3 次（auth.py、users.py、main.py），導致：</p>
+<ul>
+<li>若某處修改 scheme 或 deprecated 設定，其他處不一致</li>
+<li>單元測試無法統一 mock</li>
+<li>違反 DRY 原則</li>
+</ul>
+<p><strong>修正方式</strong>：在單一檔案（如 <code>security.py</code> 或 <code>user.py</code>）定義，其他模組 import。</p>
+<p>---</p>
+<h2>六、與本專案的關聯</h2>
+<h3>6.1 QA System 密碼安全現況</h3>
+<ul>
+<li>使用 passlib 的 <code>CryptContext(schemes=['bcrypt'], deprecated='auto')</code></li>
+<li>#22 優化已完成 pwd_context DRY 整合（3 處 → 1 處）</li>
+<li>目前僅使用 bcrypt，尚未遷移至 Argon2id</li>
+</ul>
+<h3>6.2 建議升級路徑</h3>
+<ol>
+<li><strong>短期</strong>：維持 passlib bcrypt，確保 Python 版本 ≤3.12</li>
+<li><strong>中期</strong>：遷移至 pwdlib + argon2-cffi，搭配 lazy upgrade 模式</li>
+<li><strong>長期</strong>：移除 passlib 依賴，直接使用 argon2-cffi</li>
+</ol>
+<h3>6.3 daily-digest-prompt Hooks 的密碼保護</h3>
+<ul>
+<li><code>pre_bash_guard.py</code> 已攔截 echo/printenv 讀取 TOKEN/SECRET/KEY/PASSWORD 環境變數</li>
+<li><code>pre_read_guard.py</code> 已攔截 .env/credentials 等敏感檔案讀取</li>
+<li>這些 Hook 規則確保密碼和金鑰不會意外洩漏到日誌或輸出</li>
+</ul>
+<p>---</p>
+<h2>七、參考來源</h2>
+<ol>
+<li><a href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html">OWASP Password Storage Cheat Sheet</a></li>
+<li><a href="https://guptadeepak.com/the-complete-guide-to-password-hashing-argon2-vs-bcrypt-vs-scrypt-vs-pbkdf2-2026/">Password Hashing Guide 2025: Argon2 vs Bcrypt vs Scrypt vs PBKDF2</a></li>
+<li><a href="https://github.com/fastapi/fastapi/discussions/11773">FastAPI passlib 棄用討論</a></li>
+<li><a href="https://github.com/fastapi-users/fastapi-users/discussions/1372">fastapi-users v13 遷移至 pwdlib</a></li>
+<li><a href="https://passlib.readthedocs.io/en/stable/lib/passlib.context.html">passlib CryptContext 文件</a></li>
+<li><a href="https://argon2-cffi.readthedocs.io/en/stable/">argon2-cffi 官方文件</a></li>
+<li><a href="https://pypi.org/project/bcrypt/">bcrypt PyPI</a></li>
+<li><a href="https://docs.python.org/3/library/crypt.html">Python 3.13 crypt 模組移除公告</a></li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-01</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：今日 QA System 優化報告 #22 完成 pwd_context DRY 整合，發現知識庫尚無密碼雜湊安全的系統性研究，深入整理 OWASP 規範、四大演算法比較與 Python 生態系遷移路徑。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

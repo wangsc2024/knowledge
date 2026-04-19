@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案優化報告：Hooks 代碼品質與配置一致性修正（2026-03-03）">
+  <title>專案優化報告：Hooks 代碼品質與配置一致性修正（2026-03-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案優化報告：Hooks 代碼品質與配置一致性修正（2026-03-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">代碼品質</span><span class="tag">配置一致性</span><span class="tag">資訊安全</span><span class="tag">Hooks系統</span><span class="tag">Schema驗證</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案優化報告：Hooks 代碼品質與配置一致性修正</h1>
+<h2>日期</h2>
+<p>2026-03-03</p>
+<h2>概述</h2>
+<p>對 daily-digest-prompt 專案進行深度分析與優化，以資訊安全合規為優先，修正 7 項代碼品質與配置一致性問題。全部 556 個測試通過。</p>
+<h2>修正項目</h2>
+<h3>1. frequency-limits.yaml 註解摘要修正</h3>
+<ul>
+<li><strong>問題</strong>：底部每日上限摘要註解聲稱合計 47 次/日，但多個任務實際 daily_limit 為 0（停用），實際啟用合計僅 17 次/日</li>
+<li><strong>修正</strong>：將每個群組和合計數字更新為與實際 daily_limit 值一致</li>
+</ul>
+<h3>2. post_tool_logger.py 冗餘 import sys 移除</h3>
+<ul>
+<li><strong>問題</strong>：第 429 行在 except 區塊內有 import sys，但頂層已匯入</li>
+<li><strong>修正</strong>：移除冗餘的 import 語句</li>
+</ul>
+<h3>3. post_tool_logger.py import datetime 衝突修正</h3>
+<ul>
+<li><strong>問題</strong>：import datetime as _dt 在函數內匯入完整模組，與頂層 from datetime import datetime 造成命名混淆</li>
+<li><strong>修正</strong>：改為 from datetime import timedelta</li>
+</ul>
+<h3>4. hook-rules.yaml sensitive-env-powershell 規則修正</h3>
+<ul>
+<li><strong>問題</strong>：pattern 中包含 =，導致合法的環境變數賦值也會被攔截</li>
+<li><strong>修正</strong>：從匹配組移除 =，僅攔截管道/串接操作</li>
+</ul>
+<h3>5. on_stop_alert.py _rotate_logs() UnboundLocalError 修正</h3>
+<ul>
+<li><strong>問題</strong>：kept 變數在 try 區塊內定義，但 except ImportError 的 fallback 直接引用 kept</li>
+<li><strong>修正</strong>：新增 if kept 預檢查，並將 UnboundLocalError 改為 NameError</li>
+</ul>
+<h3>6. frequency-limits.schema.json daily_limit 最小值修正</h3>
+<ul>
+<li><strong>問題</strong>：JSON Schema 要求 daily_limit 最小值為 1，但 daily_limit=0 表示停用是合法語義</li>
+<li><strong>修正</strong>：minimum 從 1 改為 0</li>
+</ul>
+<h3>7. dedup-policy.schema.json 新增缺失屬性</h3>
+<ul>
+<li><strong>問題</strong>：dedup-policy.yaml 新增了 strategy_search 和 series_tracking，但 schema 設了 additionalProperties: false</li>
+<li><strong>修正</strong>：在 schema 中新增這兩個屬性的完整定義</li>
+</ul>
+<h2>測試結果</h2>
+<p>全部 556 個測試通過（hooks 529 + skills 27）</p>
+<h2>修改檔案</h2>
+<ol>
+<li>config/frequency-limits.yaml</li>
+<li>hooks/post_tool_logger.py</li>
+<li>hooks/on_stop_alert.py</li>
+<li>config/hook-rules.yaml</li>
+<li>config/schemas/frequency-limits.schema.json</li>
+<li>config/schemas/dedup-policy.schema.json</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

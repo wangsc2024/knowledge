@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Success Rate Guardian Skill 設計文件 — 成功率治理閉環控制器（v0.5.0）">
+  <title>Success Rate Guardian Skill 設計文件 — 成功率治理閉環控制器（v0.5.0） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Success Rate Guardian Skill 設計文件 — 成功率治理閉環控制器（v0.5.0）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統設計</span><span class="tag">Skill設計</span><span class="tag">成功率治理</span><span class="tag">circuit-breaker</span><span class="tag">retry-budget</span><span class="tag">success-rate-guardian</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Success Rate Guardian — 成功率治理守衛</h1>
+<h2>設計目的</h2>
+<p>針對 daily_success_rate 持續低於 SLO 門檻（0.5128 vs 0.90）的系統問題，建立閉環控制器。</p>
+<h2>核心機制</h2>
+<ol>
+<li><strong>失敗模式分類（5 類 Taxonomy）</strong>：timeout、dependency_unhealthy、rate_limited、phase_error、unknown</li>
+<li><strong>Retry 預算化</strong>：per-task max 2 次，per-hour max 5 次，exponential backoff with jitter（AWS Builders Library 模式）</li>
+<li><strong>Circuit Breaker</strong>：per-hour 狀態機（CLOSED→OPEN→HALF_OPEN），連續 3 次失敗即熔斷</li>
+<li><strong>排程修正</strong>：產出 state/success-rate-overrides.json，供 PS 排程器消費</li>
+<li><strong>Delta 追蹤</strong>：連續監測成功率變化，自動解除/加強 circuit breaker</li>
+</ol>
+<h2>與現有 Skill 分工</h2>
+<ul>
+<li>failure-hour-analyzer：時段根因診斷（輸入）</li>
+<li>slo-budget-manager：Error Budget 盤點（輸入）</li>
+<li>pre-flight-check：單次 go/no-go（消費 overrides）</li>
+<li>success-rate-guardian：<strong>閉環控制器</strong>，整合上述三者產出排程修正</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>AWS Builders Library: Timeouts, retries, and backoff with jitter</li>
+<li>Google SRE Workbook: Identifying and Recovering from Overload</li>
+<li>Kubernetes: Liveness, Readiness, and Startup Probes</li>
+</ul>
+<h2>驗收條件</h2>
+<ol>
+<li>daily_success_rate 連續 3 天 >= 0.85</li>
+<li>高失敗時段 hard fail 下降 50%</li>
+<li>90%+ 失敗事件有 failure_class 與 retry_decision 記錄</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

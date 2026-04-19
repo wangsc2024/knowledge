@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenHands — 開源 AI 驅動軟體開發平台深度研究：Software Agent SDK 四層模組化架構、Event-Sourced 狀態管理與雲端編程 Agent 的生產部署實踐（68.2K Stars, 2026）">
+  <title>OpenHands — 開源 AI 驅動軟體開發平台深度研究：Software Agent SDK 四層模組化架構、Event-Sourced 狀態管理與雲端編程 Agent 的生產部署實踐（68.2K Stars, 2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>OpenHands — 開源 AI 驅動軟體開發平台深度研究：Software Agent SDK 四層模組化架構、Event-Sourced 狀態管理與雲端編程 Agent 的生產部署實踐（68.2K Stars, 2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">OpenHands</span><span class="tag">Software Agent SDK</span><span class="tag">AI編程</span><span class="tag">Event-Sourced</span><span class="tag">沙盒執行</span><span class="tag">多LLM路由</span><span class="tag">軟體工程</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>OpenHands — 開源 AI 驅動軟體開發平台深度研究</h1>
+<blockquote>研究日期：2026-02-27</blockquote>
+<blockquote>研究範圍：OpenHands 平台架構、Software Agent SDK 設計原理、四層模組化體系、Event-Sourced 狀態管理、多 LLM 路由、沙盒化執行、安全機制、基準測試表現、與同類工具比較、對 Daily-Digest-Prompt 系統的啟發</blockquote>
+<blockquote>來源品質：A 級 4 個（GitHub 官方 repo、arXiv 論文 2511.03690、官網 openhands.dev、OpenHands Index 評估）+ B 級 3 個（KDnuggets、ArtificialAnalysis、AIAgentsList）</blockquote>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p><strong>OpenHands</strong>（原 OpenDevin）是一個專注於 AI 驅動軟體開發的開源平台，目標是讓 AI Agent 像人類開發者一樣完成軟體工程任務——修改程式碼、執行命令、瀏覽網頁、呼叫 API。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 68,200+ |</p>
+<p>| Forks | 8,500+ |</p>
+<p>| Contributors | 474 |</p>
+<p>| 累計下載 | 4,000,000+ |</p>
+<p>| 最新版本 | v1.4.0（2026-02-18） |</p>
+<p>| 授權 | MIT（核心）+ 商業授權（企業版） |</p>
+<p>| 融資 | $18.8M Series A（Madrona 領投） |</p>
+<p>| SWE-Bench Verified | 72.8%（Claude Sonnet 4.5） |</p>
+<h3>解決的問題</h3>
+<p>傳統 AI 編程工具（Copilot、Cursor）主要是「建議式」——人類仍需手動審閱、測試、部署。OpenHands 提升到「自主式」層級：給定一個 Issue，Agent 可以自主閱讀程式碼、規劃方案、跨檔案修改、執行測試、提交 PR，全程無需人類介入。</p>
+<p>---</p>
+<h2>二、技術架構：四層模組化設計</h2>
+<p>OpenHands V1 從 V0 的單體架構重構為清晰的四層模組化體系，解決了 V0 時代的三大痛點：剛性沙盒假設、膨脹的可變配置、研究與生產的緊耦合。</p>
+<h3>2.1 四個核心套件</h3>
+<pre><code>
+openhands.sdk        → 核心抽象層（Agent, Conversation, LLM, Tool, MCP）
+openhands.tools      → 具體工具實作（Bash, FileEdit, Browser, MCP 整合）
+openhands.workspace  → 執行環境（Docker, 託管 API, 本地檔案系統）
+openhands.agent_server → REST/WebSocket API 伺服器（遠端執行）
+</code></pre>
+<h3>2.2 四大設計原則</h3>
+<ol>
+<li><strong>可選隔離（Optional Isolation）</strong>：Agent 預設在本地執行，需要安全控制時可透明切換到 Docker 沙盒</li>
+<li><strong>無狀態元件 + 單一狀態源</strong>：所有 Agent 和 Tool 是不可變的 Pydantic 模型，只有 <code>ConversationState</code> 是可變的——實現確定性重播和可靠的 Session 恢復</li>
+<li><strong>嚴格關注點分離</strong>：Agent 核心與應用層解耦，CLI/Web UI/GitHub App 共用同一函式庫</li>
+<li><strong>雙層可組合性</strong>：四個模組化套件可自由組合，每個元件都是型別安全的可擴展點</li>
+</ol>
+<p>---</p>
+<h2>三、核心技術特色</h2>
+<h3>3.1 Event-Sourced 狀態管理</h3>
+<p>這是 OpenHands 最獨特的架構決策。所有 Agent 互動記錄在不可變的事件日誌中：</p>
+<ul>
+<li><strong>LLMConvertibleEvent</strong>：對 LLM 可見（MessageEvent, ActionEvent, ObservationEvent）</li>
+<li><strong>InternalEvent</strong>：僅用於狀態管理（ConversationStateUpdateEvent, CondensationRequest）</li>
+</ul>
+<p><code>ConversationState</code> 維護兩種狀態：(1) 直接存儲的可變 metadata；(2) append-only EventLog。這讓 Session 可以被暫停、序列化、遷移到另一台機器、再恢復執行。</p>
+<h3>3.2 Action–Execution–Observation 工具模式</h3>
+<p>統一的工具抽象模式：</p>
+<ul>
+<li><strong>Action</strong>：帶 Pydantic 驗證的輸入 schema</li>
+<li><strong>ToolExecutor</strong>：實作工具邏輯</li>
+<li><strong>Observation</strong>：帶 LLM 轉換的輸出 schema</li>
+</ul>
+<p>原生工具和 MCP 工具透過同一抽象統一，工具以輕量 JSON 可序列化規格表示，適合分散式執行。</p>
+<h3>3.3 多 LLM 路由</h3>
+<p>透過 LiteLLM 支援 100+ 提供者，加上 <code>RouterLLM</code> 支援基於內容、成本或自訂邏輯的模型選擇。獨特功能：</p>
+<ul>
+<li><strong>原生推理支援</strong>：ThinkingBlock（Anthropic）、ReasoningItemModel（OpenAI）</li>
+<li><strong>非 Function-Calling 回退</strong>：對不支援工具呼叫的模型，自動降級為文字 prompt + 正則提取</li>
+</ul>
+<h3>3.4 安全架構</h3>
+<p>兩層整合設計：</p>
+<ol>
+<li><strong>SecurityAnalyzer</strong>：LLM 驅動的風險評估（LOW/MEDIUM/HIGH）</li>
+<li><strong>ConfirmationPolicy</strong>：條件式核准機制</li>
+</ol>
+<p>超過風險閾值的操作觸發 <code>WAITING_FOR_CONFIRMATION</code> 狀態。另有 <strong>Secret Registry</strong>：工具僅在執行時存取密鑰，所有輸出中的密鑰值自動遮蔽。</p>
+<h3>3.5 生命週期控制</h3>
+<ul>
+<li><strong>暫停/恢復</strong>：從 checkpoint 狀態恢復執行</li>
+<li><strong>Context Condensation</strong>：LLMSummarizingCondenser 降低 API 成本最高 2×，無效能損失</li>
+<li><strong>子 Agent 委派</strong>：透過標準工具抽象實現階層式協調</li>
+<li><strong>Stuck Detection</strong>：自動偵測無限迴圈和冗餘工具呼叫</li>
+</ul>
+<p>---</p>
+<h2>四、產品形態與使用方式</h2>
+<h3>4.1 三種介面</h3>
+<p>| 介面 | 適用場景 | 特色 |</p>
+<p>|------|---------|------|</p>
+<p>| <strong>CLI</strong> | 快速開發、腳本化 | 類似 Claude Code 體驗，支援任何 LLM |</p>
+<p>| <strong>Web GUI</strong> | 視覺化操作 | React SPA + VSCode Web + VNC 桌面 + Chromium |</p>
+<p>| <strong>SDK</strong> | 程式化整合 | Python API，定義 Agent 後本地或雲端執行 |</p>
+<h3>4.2 快速上手</h3>
+<pre><code>
+# 安裝 CLI
+pip install openhands
+
+# 設定 LLM（支援 Claude/GPT/開源模型）
+export ANTHROPIC_API_KEY=sk-xxx
+
+# 啟動互動式 Agent
+openhands chat
+
+# 或直接指定任務
+openhands resolve --issue-url https://github.com/my-org/repo/issues/123
+</code></pre>
+<h3>4.3 企業版功能</h3>
+<ul>
+<li>RBAC 細粒度存取控制</li>
+<li>模型無關彈性</li>
+<li>自託管或私有雲部署（Kubernetes）</li>
+<li>完整審計與治理</li>
+<li>GitHub/GitLab/Slack/Jira/Linear 整合</li>
+</ul>
+<p>---</p>
+<h2>五、基準測試表現</h2>
+<h3>OpenHands Index（2026-01 推出）</h3>
+<p>首個廣覆蓋、持續更新的軟體工程 Agent 排行榜，涵蓋 5 大任務類型：</p>
+<p>| 任務類型 | 測試集 | 說明 |</p>
+<p>|---------|--------|------|</p>
+<p>| Issue 修復 | SWE-Bench Verified | 修復真實 GitHub Issue |</p>
+<p>| 全新開發 | Commit0 | 從零建構應用 |</p>
+<p>| 前端開發 | SWE-Bench Multimodal | 前端 UI 任務 |</p>
+<p>| 軟體測試 | SWT-Bench | Bug 偵測 + 測試生成 |</p>
+<p>| 資訊蒐集 | GAIA | API 研究與實作細節 |</p>
+<h3>代表性得分</h3>
+<p>| 模型 | SWE-Bench Verified | GAIA |</p>
+<p>|------|-------------------|------|</p>
+<p>| Claude Sonnet 4.5 | 72.8% | 67.9% |</p>
+<p>| GPT-5 (reasoning=high) | 68.8% | — |</p>
+<p>| Claude Opus | 全面領先 | 五類中三項第一 |</p>
+<p>---</p>
+<h2>六、與同類工具比較</h2>
+<p>| 特性 | OpenHands | Claude Code | Devin | Cursor |</p>
+<p>|------|-----------|-------------|-------|--------|</p>
+<p>| 開源 | ✅ MIT | ❌ 專有 | ❌ 專有 | ❌ 專有 |</p>
+<p>| 多 LLM 支援 | ✅ 100+ | ❌ 僅 Claude | ❌ 有限 | ✅ 多家 |</p>
+<p>| 沙盒執行 | ✅ Docker 原生 | ❌ 本地 | ✅ 雲端 | ❌ 無 |</p>
+<p>| 暫停/恢復 | ✅ 有 | ❌ 無 | ✅ 有 | ❌ 無 |</p>
+<p>| LLM 安全分析 | ✅ 獨有 | ❌ 無 | ❌ 無 | ❌ 無 |</p>
+<p>| 互動工作區 | ✅ VNC/VSCode/Browser | ❌ 終端 | ✅ 完整 IDE | ✅ IDE |</p>
+<p>| 價格 | 免費（自託管） | 按 Token | $500/月 | $20-40/月 |</p>
+<p>| 企業整合 | ✅ Slack/Jira/Linear | ✅ GitHub | ✅ Slack | ✅ 有限 |</p>
+<h3>獨有優勢</h3>
+<ol>
+<li><strong>模型無關</strong>：可使用任何 LLM，不被供應商鎖定</li>
+<li><strong>Event-Sourced 架構</strong>：確定性重播、Session 遷移、可靠恢復</li>
+<li><strong>LLM 安全分析</strong>：自動風險評估，平衡安全與可用性</li>
+<li><strong>三層測試策略</strong>：Mocked 測試（每次 commit）+ LLM 整合測試（每日）+ 學術基準（定期）</li>
+<li><strong>完全開源核心</strong>：MIT 授權，不受企業版限制</li>
+</ol>
+<p>---</p>
+<h2>七、社群活躍度</h2>
+<p>| 指標 | 數值 | 趨勢 |</p>
+<p>|------|------|------|</p>
+<p>| Stars | 68,200+ | 近 3 月增長 15K+ |</p>
+<p>| Forks | 8,500+ | 活躍 |</p>
+<p>| Contributors | 474 | 開源社群廣泛 |</p>
+<p>| Releases | 99 | 平均每 2 週一個 |</p>
+<p>| 下載 | 4M+ | 工業級採用 |</p>
+<p>| 企業用戶 | TikTok, VMware, Amazon, Netflix | 頂級企業 |</p>
+<p>---</p>
+<h2>八、對 Daily-Digest-Prompt 專案的啟發</h2>
+<h3>8.1 Event-Sourced 狀態管理</h3>
+<p><strong>現狀</strong>：我們的 <code>digest-memory.json</code> 和 <code>scheduler-state.json</code> 是簡單 JSON 覆寫。</p>
+<p><strong>啟發</strong>：OpenHands 的 Event-Sourced 模式（append-only EventLog + 確定性重播）提供更可靠的狀態管理。可考慮將 JSONL 結構化日誌進一步演化為事件源，支援：</p>
+<ul>
+<li>Session 恢復（Agent 異常終止後從最後事件繼續）</li>
+<li>狀態審計（完整操作軌跡）</li>
+<li>時間旅行除錯（回溯到任意時間點）</li>
+</ul>
+<h3>8.2 不可變配置模式</h3>
+<p><strong>現狀</strong>：我們的 config/*.yaml 已實現配置外部化。</p>
+<p><strong>啟發</strong>：OpenHands 所有元件（Agent, Tool, LLM）都是不可變 Pydantic 模型，建構時驗證。我們可將 <code>validate_config.py</code> 從「事後驗證」升級為「建構時驗證」——config 載入即驗證，無效直接拒絕。</p>
+<h3>8.3 安全分層設計</h3>
+<p><strong>現狀</strong>：我們有 3 個 Guard Hook（pre_bash/pre_write/pre_read）+ 規則外部化。</p>
+<p><strong>啟發</strong>：OpenHands 的 SecurityAnalyzer + ConfirmationPolicy 雙層設計更精細——不是二元的「允許/阻擋」，而是「風險評估 + 條件核准」。高風險操作暫停等待確認，而非直接阻擋。我們的 Hook 系統可借鑑此模式，增加「暫停等待」的中間狀態。</p>
+<h3>8.4 Context Condensation</h3>
+<p><strong>現狀</strong>：我們的 Agent 在長 Session 中面臨 Context Window 壓力。</p>
+<p><strong>啟發</strong>：OpenHands 的 LLMSummarizingCondenser 在不損失效能的前提下將 API 成本降低 2×。我們的長 Session 自動任務（如系統審查、研究任務）可考慮引入類似的摘要壓縮機制。</p>
+<p>---</p>
+<h2>九、優缺點評估</h2>
+<h3>優點</h3>
+<ul>
+<li>真正開源（MIT），不被供應商鎖定</li>
+<li>架構先進（Event-Sourced + 不可變配置 + 模組化）</li>
+<li>多 LLM 支援廣泛（100+ 提供者）</li>
+<li>企業級安全（沙盒 + 密鑰遮蔽 + 風險評估）</li>
+<li>活躍社群（474 contributors，TikTok/Netflix 等企業用戶）</li>
+<li>學術背書（arXiv 論文 + OpenHands Index 評估框架）</li>
+</ul>
+<h3>缺點</h3>
+<ul>
+<li>需要 Docker 環境（對輕量部署不友善）</li>
+<li>企業版功能需商業授權</li>
+<li>V0→V1 遷移中，部分文件可能過時</li>
+<li>自主編程仍需人類監督（hallucination 風險）</li>
+<li>基準測試得分因模型而異，非 OpenHands 本身能力</li>
+</ul>
+<p>---</p>
+<h2>十、參考來源</h2>
+<ol>
+<li><a href="https://github.com/OpenHands/OpenHands">OpenHands GitHub</a> — 品質等級 A | 68.2K Stars</li>
+<li><a href="https://arxiv.org/html/2511.03690v1">Software Agent SDK 論文 (arXiv:2511.03690)</a> — 品質等級 A | 2025-11</li>
+<li><a href="https://openhands.dev/">OpenHands 官方網站</a> — 品質等級 A | 2026</li>
+<li><a href="https://openhands.dev/blog/openhands-index">OpenHands Index 評估</a> — 品質等級 A | 2026-01-28</li>
+<li><a href="https://aiagentslist.com/agents/openhands">OpenHands Review (AIAgentsList)</a> — 品質等級 B | 2026</li>
+<li><a href="https://www.kdnuggets.com/openhands-open-source-ai-software-developer">OpenHands: Open Source AI Developer (KDnuggets)</a> — 品質等級 B | 2025</li>
+<li><a href="https://artificialanalysis.ai/insights/coding-agents-comparison">Coding Agents Comparison (ArtificialAnalysis)</a> — 品質等級 B | 2026</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-27</em></p>
+<p><em>研究者：AI GitHub Research Agent</em></p>
+<p><em>任務類型：ai_github_research（AI 開源專案研究）</em></p>
+<p><em>品質自評：adequate — 包含架構深度分析（四層模組化 + Event-Sourced + 安全分層）、與自身專案的 4 點應用建議（事件源狀態管理、不可變配置、安全分層、Context Condensation）、7 個參考來源（4A + 3B）、內容超過 2500 字</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

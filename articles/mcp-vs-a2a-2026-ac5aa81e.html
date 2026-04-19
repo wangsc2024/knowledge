@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MCP vs A2A — 2026 年 AI Agent 互操作協議的演進、三層架構與安全挑戰">
+  <title>MCP vs A2A — 2026 年 AI Agent 互操作協議的演進、三層架構與安全挑戰 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>MCP vs A2A — 2026 年 AI Agent 互操作協議的演進、三層架構與安全挑戰</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">MCP</span><span class="tag">A2A</span><span class="tag">Agent協議</span><span class="tag">互操作性</span><span class="tag">安全</span><span class="tag">研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>MCP vs A2A — 2026 年 AI Agent 互操作協議的演進、三層架構與安全挑戰</h1>
+<h2>概述</h2>
+<p>2026 年 AI Agent 生態系統正在從「單一模型呼叫工具」演化為「多 Agent 協作網路」。推動此轉變的兩大核心協議——MCP（Model Context Protocol）與 A2A（Agent-to-Agent Protocol）——各自解決不同層次的問題，共同構成三層互操作架構。本文整理兩者的技術比較、生態現況、生產環境挑戰與安全考量。</p>
+<p>---</p>
+<h2>一、協議定位與核心差異</h2>
+<p>| 面向 | MCP | A2A |</p>
+<p>|------|-----|-----|</p>
+<p>| <strong>創建者</strong> | Anthropic（2024 年底發布，2025/12 捐贈 Linux Foundation AAIF） | Google（2025/04），後與 IBM Agent Communication Protocol 合併（2025/08） |</p>
+<p>| <strong>解決問題</strong> | Agent↔Tool 整合碎片化 | 多 Agent 協調與任務委派 |</p>
+<p>| <strong>通訊模式</strong> | Client-Server（agent 呼叫 tool） | Client-Remote（agent 呼叫 agent） |</p>
+<p>| <strong>傳輸格式</strong> | JSON-RPC 2.0（stdio / SSE / Streamable HTTP） | JSON-over-HTTP（支援 SSE 串流） |</p>
+<p>| <strong>發現機制</strong> | 啟動時列舉 Server capabilities | Agent Card（<code>/.well-known/agent.json</code>） |</p>
+<p>| <strong>非同步支援</strong> | 隱式（request-response） | 顯式狀態機（submitted→working→completed/failed） |</p>
+<h3>一句話區分</h3>
+<blockquote><strong>MCP 管 agent 怎麼跟工具溝通；A2A 管 agent 怎麼跟 agent 溝通。</strong></blockquote>
+<p>---</p>
+<h2>二、MCP 四大資源類型</h2>
+<ol>
+<li><strong>Resources</strong>：唯讀資料源（檔案、DB 記錄、API 回應）</li>
+<li><strong>Tools</strong>：可執行動作（查詢、寄信、建檔）</li>
+<li><strong>Prompts</strong>：可重用模板（含結構化引數）</li>
+<li><strong>Sampling</strong>：反向 LLM completion 請求（Server 向 Client 請求推論）</li>
+</ol>
+<h2>三、A2A 核心概念</h2>
+<ul>
+<li><strong>Agent Card</strong>：JSON manifest 描述能力與認證方式</li>
+<li><strong>Tasks</strong>：工作單元，具狀態機（submitted / working / input-required / completed / failed / canceled）</li>
+<li><strong>Messages</strong>：包含 text、files 或 data Parts 的通訊載體</li>
+<li><strong>Artifacts</strong>：任務輸出與交付物</li>
+<li><strong>Streaming</strong>：透過 SSE 即時推送進度</li>
+</ul>
+<p>---</p>
+<h2>四、三層協議架構（2026 共識）</h2>
+<pre><code>
+Layer 3: A2A    — Agent ↔ Agent 協調（任務委派、能力協商）
+Layer 2: MCP    — Agent ↔ Tool 通訊（資料存取、動作執行）
+Layer 1: WebMCP — Agent ↔ Web 結構化存取（網頁內容消費）
+</code></pre>
+<p>一個 Agent 可以同時：</p>
+<ul>
+<li>透過 MCP 連接多個 tool server</li>
+<li>透過 A2A 接受其他 agent 的任務委派</li>
+</ul>
+<p>---</p>
+<h2>五、生態採用現況（截至 2026/03）</h2>
+<h3>MCP</h3>
+<ul>
+<li><strong>月下載量</strong>：97M（Python + TypeScript SDK，2026/02）</li>
+<li><strong>公開 Server</strong>：5,800+</li>
+<li><strong>支援平台</strong>：Claude Desktop、VS Code、Cursor、Windsurf、Zed、JetBrains</li>
+<li><strong>主要供應商全數支援</strong>：Anthropic、OpenAI、Google、Microsoft、Amazon</li>
+</ul>
+<h3>A2A</h3>
+<ul>
+<li><strong>治理</strong>：Linux Foundation AAIF（2025/12 成立）</li>
+<li><strong>參與企業</strong>：100+ 家（含 OpenAI、Anthropic、Google、Microsoft、AWS、Block）</li>
+<li><strong>標準狀態</strong>：草案階段，持續演進</li>
+</ul>
+<h3>MCP 2026 路線圖四大優先項</h3>
+<ol>
+<li>Streamable HTTP 水平擴展</li>
+<li>Tasks primitive 生命週期完善</li>
+<li>企業級特性（稽核軌跡、SSO）</li>
+<li>標準化 capability 發現格式</li>
+</ol>
+<p>---</p>
+<h2>六、生產環境挑戰</h2>
+<h3>Context Window 消耗問題</h3>
+<p>Perplexity CTO Denis Yarats 指出：MCP tool descriptions 消耗 40-50% 的可用 context window，導致 agent 實際工作空間不足。Perplexity 因此在內部放棄 MCP，改用自建方案。</p>
+<h3>認證摩擦</h3>
+<p>連接多個服務時，各自的 auth flow 造成部署複雜度。</p>
+<h3>業界共識</h3>
+<p>MCP 在「動態工具發現」場景表現良好，但在需要「context 效率」的生產系統中仍有取捨。</p>
+<p>---</p>
+<h2>七、安全挑戰與因應</h2>
+<h3>新攻擊面</h3>
+<ul>
+<li>AI agent 直接存取企業內部 API、資料庫、工作流程，傳統 AppSec 方法不足</li>
+<li>MCP server 成為「影子 IT」——開發者自行部署未經安全審查的 server</li>
+</ul>
+<h3>MCP 專屬安全框架需求</h3>
+<ul>
+<li>需要專屬 playbook，不能僅套用傳統 API 安全規則</li>
+<li>Agent 作為「特權系統行為者」，需額外的行為監控</li>
+</ul>
+<h3>新興防護方案</h3>
+<ul>
+<li><strong>SurePath AI MCP Policy Controls</strong>（2026/03/12）：即時治理 MCP server/tool 存取，在 payload 到達 backend 前攔截過濾</li>
+<li><strong>Qualys TotalAI</strong>：將 MCP server 納入影子 IT 盤點</li>
+</ul>
+<p>---</p>
+<h2>八、對本專案的啟示</h2>
+<ol>
+<li><strong>目前架構</strong>：本專案已使用 MCP（Slack、Cloudflare 等 MCP server），屬 Layer 2 成熟應用</li>
+<li><strong>未來方向</strong>：若需要多 Agent 跨系統協作（如 todoist-agent 委派研究給獨立 research-agent），A2A 提供標準化方式</li>
+<li><strong>安全注意</strong>：每新增 MCP server 應審查 tool descriptions 大小（避免 context 膨脹）與認證方式</li>
+<li><strong>Context 效率</strong>：可考慮精簡 MCP tool descriptions 或採用靜態 tool binding（而非動態發現）以節省 context</li>
+</ol>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li><a href="https://dev.to/pockit_tools/mcp-vs-a2a-the-complete-guide-to-ai-agent-protocols-in-2026-30li">MCP vs A2A: The Complete Guide to AI Agent Protocols in 2026 — DEV Community</a> — 品質等級 B | 2026-03</li>
+<li><a href="https://brightsec.com/blog/mcp-security-in-2026-why-ai-agent-integrations-need-their-own-appsec-playbook/">MCP Security in 2026: Why AI Agent Integrations Need Their Own AppSec Playbook — Bright Security</a> — 品質等級 B | 2026-03</li>
+<li><a href="https://dev.to/alexmercedcoder/ai-weekly-agents-take-over-mcp-evolves-and-models-battle-for-code-5cm0">AI Weekly: Agents Take Over, MCP Evolves — DEV Community</a> — 品質等級 B | 2026-03</li>
+<li><a href="https://blog.qualys.com/product-tech/2026/03/19/mcp-servers-shadow-it-ai-qualys-totalai-2026">MCP Servers: The New Shadow IT for AI in 2026 — Qualys</a> — 品質等級 A | 2026-03</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

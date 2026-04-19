@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Vite 遊戲門戶網站開發經驗 - ES6 模組與路徑規範">
+  <title>Vite 遊戲門戶網站開發經驗 - ES6 模組與路徑規範 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Vite 遊戲門戶網站開發經驗 - ES6 模組與路徑規範</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Vite</span><span class="tag">ES6</span><span class="tag">Cloudflare Pages</span><span class="tag">遊戲開發</span><span class="tag">Web開發</span><span class="tag">前端</span><span class="tag">除錯經驗</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Vite 遊戲門戶網站開發經驗</h1>
+<h2>專案背景</h2>
+<p>使用 Vite 建置遊戲門戶網站，部署至 Cloudflare Pages。包含 8 個 HTML5 遊戲，使用 ES6 模組動態生成遊戲卡片。</p>
+<h2>關鍵問題與解決方案</h2>
+<h3>1. ES6 模組導入/導出問題</h3>
+<p><strong>問題：</strong> 遊戲卡片完全不顯示，打包後 getAllGames() 未定義</p>
+<p><strong>根因：</strong></p>
+<ul>
+<li> 使用 CommonJS 的 </li>
+<li> 未正確導入模組，依賴全域變數檢查</li>
+<li>Vite 打包時，CommonJS 導出在瀏覽器環境無法正確運作</li>
+</ul>
+<p><strong>解決方案：</strong></p>
+<p><strong>關鍵要點：</strong></p>
+<ul>
+<li>Vite 是 ES6 模組優先的建置工具</li>
+<li>瀏覽器環境必須使用 ES6 </li>
+<li>CommonJS 的  僅適用於 Node.js 環境</li>
+</ul>
+<h3>2. 遊戲目錄結構規範</h3>
+<p><strong>問題：</strong> blockPuzzle 遊戲路徑錯誤，無法正常載入</p>
+<p><strong>根因：</strong></p>
+<ul>
+<li>blockPuzzle 路徑為 4 層：</li>
+<li>其他遊戲都是 2 層：</li>
+<li>路徑不一致造成導航和資源載入問題</li>
+</ul>
+<p><strong>解決方案：</strong></p>
+<p>統一所有遊戲為 2 層結構</p>
+<p><strong>最佳實踐：</strong></p>
+<ul>
+<li>所有遊戲保持相同的目錄深度</li>
+<li>避免超過 3 層的深層嵌套</li>
+<li>路徑一致性有助於維護和擴展</li>
+</ul>
+<h3>3. 相對路徑返回連結</h3>
+<p><strong>問題：</strong> 遊戲內的「返回」連結指向錯誤的 URL</p>
+<p><strong>根因：</strong></p>
+<ul>
+<li>使用  只能回到  目錄</li>
+<li>遊戲在 ，需要回到根目錄</li>
+</ul>
+<p><strong>解決方案：</strong></p>
+<p><strong>相對路徑規則：</strong></p>
+<ul>
+<li> = 上一層目錄</li>
+<li> = 上兩層目錄</li>
+<li> = 根目錄（絕對路徑）</li>
+</ul>
+<h3>4. Vite 建置配置</h3>
+<p><strong>關鍵配置：</strong></p>
+<p><strong>要點：</strong></p>
+<ul>
+<li> 確保資源使用相對路徑</li>
+<li>自訂 plugin 在建置完成後複製靜態資源</li>
+<li>Cloudflare Pages 會自動偵測 Vite 專案</li>
+</ul>
+<h2>Cloudflare Pages 部署</h2>
+<p><strong>配置：</strong></p>
+<ul>
+<li>Framework preset: Vite</li>
+<li>Build command: </li>
+<li>Build output directory: </li>
+</ul>
+<p><strong>注意事項：</strong></p>
+<ol>
+<li>確保  中所有依賴都在  或 </li>
+<li>避免使用 optional dependencies（可能導致建置失敗）</li>
+<li>使用相對路徑確保在任何 base URL 下都能正常運作</li>
+</ol>
+<h2>除錯經驗</h2>
+<h3>遊戲卡片不顯示</h3>
+<ol>
+<li>檢查瀏覽器 Console 是否有模組載入錯誤</li>
+<li>確認  語句的路徑正確（包含  副檔名）</li>
+<li>檢查 declare -x ACLOCAL_PATH="/mingw64/share/aclocal:/usr/share/aclocal"</li>
+</ol>
+<p>declare -x ALLUSERSPROFILE="C:\\ProgramData"</p>
+<p>declare -x APPDATA="C:\\Users\\user\\AppData\\Roaming"</p>
+<p>declare -x CHROME_CRASHPAD_PIPE_NAME="\\\\.\\pipe\\crashpad_679120_QHFXJEILOYHTAAIG"</p>
+<p>declare -x CLAUDECODE="1"</p>
+<p>declare -x CLAUDE_AGENT_SDK_VERSION="0.2.42"</p>
+<p>declare -x CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING="true"</p>
+<p>declare -x CLAUDE_CODE_ENTRYPOINT="claude-vscode"</p>
+<p>declare -x CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"</p>
+<p>declare -x CLIENTNAME="WSCPC"</p>
+<p>declare -x COMMONPROGRAMFILES="C:\\Program Files\\Common Files"</p>
+<p>declare -x COMPUTERNAME="307PC0014011129"</p>
+<p>declare -x COMSPEC="C:\\WINDOWS\\system32\\cmd.exe"</p>
+<p>declare -x CONFIG_SITE="/etc/config.site"</p>
+<p>declare -x COREPACK_ENABLE_AUTO_PIN="0"</p>
+<p>declare -x CUDA_PATH="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0"</p>
+<p>declare -x CUDA_PATH_V11_8="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.8"</p>
+<p>declare -x CUDA_PATH_V12_1="D:\\CUDA\\V121"</p>
+<p>declare -x CUDA_PATH_V12_2="D:\\CUDA"</p>
+<p>declare -x CUDA_PATH_V13_0="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0"</p>
+<p>declare -x CURSOR_EXTENSION_HOST_ROLE="user"</p>
+<p>declare -x CURSOR_TRACE_ID="eadb197599b84ead9834c3ee174470d2"</p>
+<p>declare -x ChocolateyInstall="C:\\ProgramData\\chocolatey"</p>
+<p>declare -x ChocolateyLastPathUpdate="133621079880149048"</p>
+<p>declare -x CommonProgramW6432="C:\\Program Files\\Common Files"</p>
+<p>declare -x DISPLAY="needs-to-be-defined"</p>
+<p>declare -x DriverData="C:\\Windows\\System32\\Drivers\\DriverData"</p>
+<p>declare -x EFC_26012_1592913036="1"</p>
+<p>declare -x ELECTRON_RUN_AS_NODE="1"</p>
+<p>declare -x EXEPATH="C:\\Program Files\\Git\\bin"</p>
+<p>declare -x GIT_EDITOR="true"</p>
+<p>declare -x HOME="/c/Users/user"</p>
+<p>declare -x HOMEDRIVE="C:"</p>
+<p>declare -x HOMEPATH="\\Users\\user"</p>
+<p>declare -x HOSTNAME="307PC0014011129"</p>
+<p>declare -x INFOPATH="/mingw64/local/info:/mingw64/share/info:/usr/local/info:/usr/share/info:/usr/info:/share/info"</p>
+<p>declare -x LANG="zh_TW.UTF-8"</p>
+<p>declare -x LOCALAPPDATA="C:\\Users\\user\\AppData\\Local"</p>
+<p>declare -x LOGONSERVER="\\\\307PC0014011129"</p>
+<p>declare -x MANPATH="/mingw64/local/man:/mingw64/share/man:/usr/local/man:/usr/share/man:/usr/man:/share/man"</p>
+<p>declare -x MCP_CONNECTION_NONBLOCKING="true"</p>
+<p>declare -x MINGW_CHOST="x86_64-w64-mingw32"</p>
+<p>declare -x MINGW_PACKAGE_PREFIX="mingw-w64-x86_64"</p>
+<p>declare -x MINGW_PREFIX="/mingw64"</p>
+<p>declare -x MSYS="disable_pcon"</p>
+<p>declare -x MSYSTEM="MINGW64"</p>
+<p>declare -x MSYSTEM_CARCH="x86_64"</p>
+<p>declare -x MSYSTEM_CHOST="x86_64-w64-mingw32"</p>
+<p>declare -x MSYSTEM_PREFIX="/mingw64"</p>
+<p>declare -x NUMBER_OF_PROCESSORS="20"</p>
+<p>declare -x NVTOOLSEXT_PATH="C:\\Program Files\\NVIDIA Corporation\\NvToolsExt\\"</p>
+<p>declare -x NoDefaultCurrentDirectoryInExePath="1"</p>
+<p>declare -x OLDPWD</p>
+<p>declare -x OLLAMA_MODELS="D:\\ollama\\models"</p>
+<p>declare -x ORIGINAL_PATH="/mingw64/bin:/usr/bin:/c/Users/user/bin:/d/Python311/Scripts:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/x64:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/libnvvp:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/d/CUDA/V121/bin:/d/CUDA/V121/libnvvp:/d/CUDA/bin:/d/CUDA/libnvvp:/c/Windows/system32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0:/c/Windows/System32/OpenSSH:/c/Program Files/Docker/Docker/resources/bin:/cmd:/c/ProgramData/chocolatey/bin:/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/c/Program Files/CMake/bin:/c/Program Files (x86)/cloudflared:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Roaming/npm:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/d/nodejs:/c/Program Files/PowerShell/7:/c/Program Files/GitHub CLI:/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.3.1:/c/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR:/c/Program Files/PuTTY:/c/Users/user/.local/bin:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/user/.cache/lm-studio/bin:/c/Users/user/AppData/Roaming/npm:/d/Windsurf/bin:/c/Users/user/AppData/Roaming/Python/Python312/Scripts:/d/sqlite:/c/Program Files/heroku/bin:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/d/Kiro/bin:/c/Users/user/AppData/Local/Programs/Antigravity/bin"</p>
+<p>declare -x ORIGINAL_TEMP="/tmp"</p>
+<p>declare -x ORIGINAL_TMP="/tmp"</p>
+<p>declare -x OS="Windows_NT"</p>
+<p>declare -x OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE="delta"</p>
+<p>declare -x OneDrive="C:\\Users\\user\\OneDrive"</p>
+<p>declare -x PATH="/c/Users/user/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/user/bin:/d/Python311/Scripts:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/x64:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/bin:/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/libnvvp:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/d/CUDA/V121/bin:/d/CUDA/V121/libnvvp:/d/CUDA/bin:/d/CUDA/libnvvp:/c/Windows/system32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0:/c/Windows/System32/OpenSSH:/c/Program Files/Docker/Docker/resources/bin:/cmd:/c/ProgramData/chocolatey/bin:/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/c/Program Files/CMake/bin:/c/Program Files (x86)/cloudflared:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Roaming/npm:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/d/nodejs:/c/Program Files/PowerShell/7:/c/Program Files/GitHub CLI:/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.3.1:/c/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR:/c/Program Files/PuTTY:/c/Users/user/.local/bin:/d/Python311/Scripts:/d/Python311:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/c/Users/user/AppData/Local/Programs/Ollama:/c/Users/user/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/user/.cache/lm-studio/bin:/c/Users/user/AppData/Roaming/npm:/d/Windsurf/bin:/c/Users/user/AppData/Roaming/Python/Python312/Scripts:/d/sqlite:/c/Program Files/heroku/bin:/c/Users/user/AppData/Local/Programs/cursor/resources/app/bin:/c/Users/user/AppData/Local/Microsoft/WindowsApps:/d/Kiro/bin:/c/Users/user/AppData/Local/Programs/Antigravity/bin:/usr/bin/vendor_perl:/usr/bin/core_perl"</p>
+<p>declare -x PATHEXT=".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC"</p>
+<p>declare -x PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig"</p>
+<p>declare -x PKG_CONFIG_SYSTEM_INCLUDE_PATH="/mingw64/include"</p>
+<p>declare -x PKG_CONFIG_SYSTEM_LIBRARY_PATH="/mingw64/lib"</p>
+<p>declare -x PLINK_PROTOCOL="ssh"</p>
+<p>declare -x POWERSHELL_DISTRIBUTION_CHANNEL="MSI:Windows 10 Pro"</p>
+<p>declare -x PROCESSOR_ARCHITECTURE="AMD64"</p>
+<p>declare -x PROCESSOR_IDENTIFIER="Intel64 Family 6 Model 191 Stepping 2, GenuineIntel"</p>
+<p>declare -x PROCESSOR_LEVEL="6"</p>
+<p>declare -x PROCESSOR_REVISION="bf02"</p>
+<p>declare -x PROGRAMFILES="C:\\Program Files"</p>
+<p>declare -x PS1="\\[\\033]0;\$TITLEPREFIX:\$PWD\\007\\]\\n\\[\\033[32m\\]\\u@\\h \\[\\033[35m\\]\$MSYSTEM \\[\\033[33m\\]\\w\\[\\033[36m\\]\<code>__git_ps1\</code>\\[\\033[0m\\]\\n\$ "</p>
+<p>declare -x PSModulePath="C:\\Users\\user\\Documents\\WindowsPowerShell\\Modules;"</p>
+<p>declare -x PUBLIC="C:\\Users\\Public"</p>
+<p>declare -x PWD="/d/Source/daily-digest-prompt"</p>
+<p>declare -x ProgramData="C:\\ProgramData"</p>
+<p>declare -x ProgramW6432="C:\\Program Files"</p>
+<p>declare -x REMOTE_MCP_URL="http://127.0.0.1:8001"</p>
+<p>declare -x SESSIONNAME="RDP-Tcp#1"</p>
+<p>declare -x SHELL="/usr/bin/bash"</p>
+<p>declare -x SHLVL="1"</p>
+<p>declare -x SSH_ASKPASS="/mingw64/bin/git-askpass.exe"</p>
+<p>declare -x SYSTEMDRIVE="C:"</p>
+<p>declare -x SYSTEMROOT="C:\\WINDOWS"</p>
+<p>declare -x TEMP="/tmp"</p>
+<p>declare -x TERM="xterm-256color"</p>
+<p>declare -x TMP="/tmp"</p>
+<p>declare -x TMPDIR="/tmp"</p>
+<p>declare -x TODOIST_API_TOKEN="225d244f19204e92371f15f15a84ac9998740376"</p>
+<p>declare -x USER</p>
+<p>declare -x USERDOMAIN="307PC0014011129"</p>
+<p>declare -x USERDOMAIN_ROAMINGPROFILE="307PC0014011129"</p>
+<p>declare -x USERNAME="001401"</p>
+<p>declare -x USERPROFILE="C:\\Users\\user"</p>
+<p>declare -x USE_REMOTE_MCP="true"</p>
+<p>declare -x UV_LINK_MODE="copy"</p>
+<p>declare -x VIRTUAL_ENV="D:\\Python311"</p>
+<p>declare -x VSCODE_CODE_CACHE_PATH="C:\\Users\\user\\AppData\\Roaming\\Cursor\\CachedData\\7b9c34466f5c119e93c3e654bb80fe9306b6cc70"</p>
+<p>declare -x VSCODE_CRASH_REPORTER_PROCESS_TYPE="extensionHost"</p>
+<p>declare -x VSCODE_CWD="C:\\Users\\user\\AppData\\Local\\Programs\\cursor"</p>
+<p>declare -x VSCODE_ESM_ENTRYPOINT="vs/workbench/api/node/extensionHostProcess"</p>
+<p>declare -x VSCODE_HANDLES_UNCAUGHT_ERRORS="true"</p>
+<p>declare -x VSCODE_IPC_HOOK="\\\\.\\pipe\\4de85216-2.4.37-main-sock"</p>
+<p>declare -x VSCODE_L10N_BUNDLE_LOCATION="file:///c%3A/Users/user/.cursor/extensions/ms-ceintl.vscode-language-pack-zh-hant-1.105.0-universal/translations/extensions/vscode.html-language-features.i18n.json"</p>
+<p>declare -x VSCODE_NLS_CONFIG="{\"userLocale\":\"zh-tw\",\"osLocale\":\"zh-tw\",\"resolvedLanguage\":\"zh-tw\",\"defaultMessagesFile\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\cursor\\\\resources\\\\app\\\\out\\\\nls.messages.json\",\"languagePack\":{\"translationsConfigFile\":\"C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\tcf.json\",\"messagesFile\":\"C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\7b9c34466f5c119e93c3e654bb80fe9306b6cc70\\\\nls.messages.json\",\"corruptMarkerFile\":\"C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\corrupted.info\"},\"locale\":\"zh-tw\",\"availableLanguages\":{\"*\":\"zh-tw\"},\"_languagePackId\":\"f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\",\"_languagePackSupport\":true,\"_translationsConfigFile\":\"C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\tcf.json\",\"_cacheRoot\":\"C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\",\"_resolvedLanguagePackCoreLocation\":\"C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\7b9c34466f5c119e93c3e654bb80fe9306b6cc70\",\"_corruptedFile\":\"C:\\\\Users\\\\user\\\\AppData\\\\Roaming\\\\Cursor\\\\clp\\\\f1ebb498bc66a295561e06abe2c0d6d6.zh-tw\\\\corrupted.info\"}"</p>
+<p>declare -x VSCODE_PID="679120"</p>
+<p>declare -x VSCODE_PROCESS_TITLE="extension-host (user) [1-1]"</p>
+<p>declare -x WINDIR="C:\\WINDOWS"</p>
+<p>declare -x ZES_ENABLE_SYSMAN="1" 和  是否配對</p>
+<h3>路徑 404 錯誤</h3>
+<ol>
+<li>檢查  中的 path 設定</li>
+<li>確認  目錄結構正確</li>
+<li>驗證 Vite plugin 是否正確複製檔案</li>
+</ol>
+<h3>建置失敗</h3>
+<ol>
+<li>刪除  和 </li>
+<li>重新執行 </li>
+<li>檢查依賴版本衝突</li>
+</ol>
+<h2>檔案結構範例</h2>
+<h2>維護建議</h2>
+<ol>
+<li><strong>新增遊戲時：</strong></li>
+</ol>
+<p>   - 確保 2 層目錄結構</p>
+<p>   - 檢查返回連結使用 </p>
+<p>   - 更新 </p>
+<p>   - 執行  並本地測試</p>
+<ol>
+<li><strong>修改現有遊戲：</strong></li>
+</ol>
+<p>   - 先修改  下的源檔案</p>
+<p>   - 重新建置後檢查 </p>
+<p>   - 確認 git 提交包含所有變更</p>
+<ol>
+<li><strong>部署前檢查：</strong></li>
+</ol>
+<p>   - ES6 模組正確導入/導出</p>
+<p>   - 所有路徑使用相對路徑</p>
+<p>   - 本地  測試</p>
+<p>   - Git 提交訊息清晰</p>
+<h2>相關技術</h2>
+<ul>
+<li>Vite 5.4.21</li>
+<li>ES6 Modules</li>
+<li>Cloudflare Pages</li>
+<li>HTML5 遊戲開發</li>
+<li>相對路徑導航</li>
+</ul>
+<h2>參考文件</h2>
+<ul>
+<li>專案維護指南：</li>
+<li>Vite 官方文件：https://vitejs.dev/</li>
+<li>ES6 模組規範：https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

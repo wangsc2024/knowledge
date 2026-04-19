@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 長上下文微調完整指南 — RoPE Scaling 技術、500K Context Window 訓練策略與記憶體管理實戰（2026）">
+  <title>Unsloth 長上下文微調完整指南 — RoPE Scaling 技術、500K Context Window 訓練策略與記憶體管理實戰（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 長上下文微調完整指南 — RoPE Scaling 技術、500K Context Window 訓練策略與記憶體管理實戰（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">長上下文</span><span class="tag">Long Context</span><span class="tag">RoPE Scaling</span><span class="tag">YaRN</span><span class="tag">Gradient Checkpointing</span><span class="tag">VRAM優化</span><span class="tag">500K Context</span><span class="tag">GRPO</span><span class="tag">記憶體管理</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth 長上下文微調完整指南</h1>
+<h2>概述</h2>
+<p>長上下文微調是 LLM 應用中的關鍵技術需求 — 無論是文件摘要、程式碼理解還是多輪對話，都需要模型處理遠超原始訓練長度的序列。Unsloth 透過三大核心技術（自動 RoPE Scaling、非同步 Gradient Checkpointing、分塊交叉熵損失）實現了在消費級 GPU 上進行超長上下文微調的突破：單張 80GB H100 可訓練 500K+ tokens 的上下文，24GB RTX 4090 可達 56K tokens，相比 HuggingFace + Flash Attention 2 提升 4 倍上下文長度。</p>
+<p>---</p>
+<h2>一、RoPE Scaling 技術解析</h2>
+<h3>1.1 什麼是 RoPE（Rotary Position Embedding）</h3>
+<p>RoPE 是現代 LLM 的主流位置編碼方案，透過旋轉矩陣將位置資訊注入 attention 計算。其核心思想是：不同頻率的旋轉分量編碼不同粒度的位置關係 — 高頻分量區分鄰近 token，低頻分量捕捉長距離依賴。</p>
+<h3>1.2 RoPE 上下文擴展方法演進</h3>
+<p>從 512 tokens（原始 Transformer）擴展至 2M+ tokens，業界發展出五種主要策略：</p>
+<p>| 方法 | 原理 | 優缺點 |</p>
+<p>|------|------|--------|</p>
+<p>| <strong>Position Interpolation</strong> | 線性壓縮位置索引至訓練範圍內 | 簡單但高頻位置資訊損失 |</p>
+<p>| <strong>NTK-Aware Scaling</strong> | 基於神經切核性質動態調整頻率基底 | 更好保留低頻分量 |</p>
+<p>| <strong>Dynamic Scaling</strong> | 依實際序列長度自適應 scaling factor | 單一模型處理變長輸入 |</p>
+<p>| <strong>NTK-By-Parts</strong> | 不同頻帶套用不同 scaling 策略 | 兼顧高/低頻，計算稍複雜 |</p>
+<p>| <strong>YaRN</strong> | NTK-by-parts + attention temperature scaling | 當前最先進，Qwen/DeepSeek/Llama 均採用 |</p>
+<p><strong>關鍵洞察</strong>：現代主流 LLM（Qwen3、DeepSeek、Llama 3）普遍使用 YaRN 進行上下文擴展，僅需少量微調即可從原始訓練長度擴展 4-8 倍。</p>
+<h3>1.3 Unsloth 的自動 RoPE Scaling</h3>
+<p>Unsloth 的核心便利性在於<strong>自動處理 RoPE Scaling</strong>。使用者只需設定 <code>max_seq_length</code>，框架內部自動完成：</p>
+<pre><code>
+from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Qwen3-8B-bnb-4bit",
+    max_seq_length=131072,  # 自動支援 RoPE Scaling
+    load_in_4bit=True,
+    dtype=None,  # 自動偵測（H100 用 BF16，其餘用 FP16）
+)
+</code></pre>
+<p><strong>重點</strong>：<code>max_seq_length</code> 可設為任意值，Unsloth 內部自動進行 RoPE Scaling 計算，無需手動配置 <code>rope_scaling</code> 參數。</p>
+<h3>1.4 模型特定 RoPE 配置範例</h3>
+<pre><code>
+# Gemma 3：原始 32K，透過 RoPE Scaling 8x 擴展至 128K
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/gemma-3-12b-it-bnb-4bit",
+    max_seq_length=128000,  # 原始 32K × RoPE Scaling 8
+    load_in_4bit=True,
+)
+
+# Qwen3：原始 40K，使用 YaRN 擴展至 128K
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Qwen3-8B-bnb-4bit",
+    max_seq_length=128000,  # YaRN 自動處理
+    load_in_4bit=True,
+)
+
+# Llama 3.1：原生支援 128K
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Meta-Llama-3.1-8B-bnb-4bit",
+    max_seq_length=128000,
+    load_in_4bit=True,
+)
+</code></pre>
+<p>---</p>
+<h2>二、Unsloth Gradient Checkpointing — 4x 更長上下文</h2>
+<h3>2.1 核心技術：非同步啟動值卸載</h3>
+<p>Unsloth 實作了自訂的 Gradient Checkpointing（僅 20 行純 PyTorch 程式碼），核心思路是在 forward/backward pass 期間利用 <code>non-blocking</code> 呼叫將啟動值（activations）非同步卸載至系統 RAM，隱藏 GPU-to-CPU 的通訊延遲。</p>
+<p><strong>效能代價</strong>：僅增加 <strong>1.9%</strong> 的訓練時間開銷。</p>
+<h3>2.2 VRAM 對比數據</h3>
+<p>以 Llama 3.1 8B 為基準（QLoRA，rank=16），不同 GPU 可達到的最大上下文長度：</p>
+<p>| GPU | Unsloth | HF + FA2 | 提升倍數 |</p>
+<p>|-----|---------|----------|----------|</p>
+<p>| <strong>H100 80GB</strong> | 228K tokens | 57.5K tokens | <strong>4.0x</strong> |</p>
+<p>| <strong>A100 40GB</strong> | 105.5K tokens | 26.5K tokens | <strong>4.0x</strong> |</p>
+<p>| <strong>RTX 4090 24GB</strong> | 56K tokens | 14K tokens | <strong>4.0x</strong> |</p>
+<p>與完全不用 Flash Attention 2 的原生 HuggingFace 相比，Unsloth 的改進高達 <strong>11.2x</strong>。</p>
+<h3>2.3 配置方法</h3>
+<pre><code>
+from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Meta-Llama-3.1-8B-bnb-4bit",
+    max_seq_length=65536,
+    load_in_4bit=True,
+)
+
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=16,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"],
+    lora_alpha=16,
+    use_gradient_checkpointing="unsloth",  # 關鍵！使用 Unsloth 自訂方案
+    random_state=3407,
+)
+</code></pre>
+<p><strong><code>use_gradient_checkpointing</code> 三個選項</strong>：</p>
+<ul>
+<li><code>False</code>：不使用（VRAM 最高，速度最快）</li>
+<li><code>True</code>：標準 PyTorch 方案（中等 VRAM 節省）</li>
+<li><code>"unsloth"</code>：<strong>推薦</strong> — Unsloth 自訂方案，額外節省 30% VRAM，支援超長上下文</li>
+</ul>
+<p>---</p>
+<h2>三、500K+ Context 訓練的三大技術</h2>
+<h3>3.1 Tiled MLP（分塊多層感知器）</h3>
+<p>源自 Snowflake 的 Arctic Long Sequence Training 論文。核心思路：在 MLP 的重型投影操作前，沿序列維度分塊（tile）隱藏狀態，大幅降低啟動值記憶體。</p>
+<p><strong>效果</strong>：在 20B 模型上，使 500K 上下文訓練成為可能（原先僅能達 80K）。</p>
+<h3>3.2 分塊交叉熵損失（Chunked Cross-Entropy Loss）</h3>
+<p>傳統做法一次性計算完整序列的 logits（<code>[batch × seq_len × vocab_size]</code>），VRAM 開銷巨大。Unsloth 的分塊方案：</p>
+<pre><code>
+配置：batch_size=4, context_length=8192, vocab_dim=128,000
+
+完整 logits：3.3 GB VRAM
+融合損失：   0.83 GB
+分塊方案：   0.207 GB（16x 節省）
+</code></pre>
+<p>分塊倍數自動計算：<code>max(4, context_length // 4096)</code></p>
+<h3>3.3 CUDA Streams 並行</h3>
+<p>利用 CUDA Streams 將計算與記憶體操作重疊執行，額外開銷僅 <strong>0.1%</strong>，無精度影響。</p>
+<h3>3.4 VRAM 用量實測</h3>
+<p>以 gpt-oss 20B 為例，單張 GPU 可達到的最大上下文：</p>
+<p>| GPU | QLoRA | BF16 LoRA |</p>
+<p>|-----|-------|-----------|</p>
+<p>| <strong>B200 192GB</strong> | 750K+ | 500K+ |</p>
+<p>| <strong>H100 80GB</strong> | 500K+ | 350K+ |</p>
+<p>| <strong>A100 40GB</strong> | 250K+ | — |</p>
+<p>| <strong>RTX 4090 24GB</strong> | 120K+ | — |</p>
+<p>---</p>
+<h2>四、GRPO 強化學習的長上下文優化</h2>
+<p>Unsloth 2025-2026 的重大更新之一是將長上下文技術擴展至 RL（強化學習）訓練：</p>
+<h3>4.1 三大 RL 專屬優化</h3>
+<ol>
+<li><strong>扁平化序列維度分塊</strong>：從批次維度擴展至序列維度，在 batch_size=4, context=8192 時 VRAM 從 3.3GB 降至 <strong>0.207GB</strong></li>
+<li><strong>隱藏狀態分塊</strong>：context=64000, batch=8 時 VRAM 從 2GB 降至 <strong>0.244GB</strong></li>
+<li><strong>Log Softmax 啟動值卸載</strong>：防止 RL 訓練中的「沈默記憶增長」</li>
+</ol>
+<h3>4.2 GRPO 長上下文配置</h3>
+<pre><code>
+from trl import GRPOConfig
+
+training_args = GRPOConfig(
+    max_completion_length=8192,
+    max_prompt_length=4096,
+    per_device_train_batch_size=4,
+    gradient_accumulation_steps=2,
+    # Unsloth 長上下文專屬參數
+    unsloth_grpo_mini_batch=3,       # 隱藏狀態分塊倍數
+    unsloth_logit_chunk_multiplier=2, # logits 分塊倍數
+    # 未設置時系統根據可用 VRAM 自動調優
+)
+</code></pre>
+<h3>4.3 RL 長上下文效能</h3>
+<p>| 模型 | GPU | 方案 | 最大上下文 |</p>
+<p>|------|-----|------|------------|</p>
+<p>| gpt-oss QLoRA | B200 192GB | GRPO | <strong>380K</strong> |</p>
+<p>| Qwen3-8B | H100 80GB | GRPO + vLLM | <strong>110K</strong> |</p>
+<p>| Qwen3-8B | H100 80GB | BF16 LoRA | <strong>65K</strong> |</p>
+<p>| gpt-oss | RTX 4090 24GB | QLoRA | <strong>20K</strong> |</p>
+<p>---</p>
+<h2>五、長上下文微調最佳實踐</h2>
+<h3>5.1 漸進式上下文擴展策略</h3>
+<pre><code>
+階段 1：以模型原生長度（如 8K）微調基礎能力
+階段 2：逐步擴展（8K → 32K → 64K → 128K）
+階段 3：最終目標長度微調
+</code></pre>
+<p><strong>注意</strong>：直接跳到極長上下文可能導致模型品質下降，漸進式擴展效果更穩定。</p>
+<h3>5.2 記憶體管理檢查清單</h3>
+<ul>
+<li>[ ] 使用 <code>load_in_4bit=True</code>（4 倍記憶體節省）</li>
+<li>[ ] 設定 <code>use_gradient_checkpointing="unsloth"</code>（額外 30% 節省）</li>
+<li>[ ] 先用小 batch size（1-2）測試最大可達上下文</li>
+<li>[ ] 使用 <code>gradient_accumulation_steps</code> 替代大 batch size</li>
+<li>[ ] 監控 GPU VRAM 使用率（<code>nvidia-smi -l 1</code>）</li>
+</ul>
+<h3>5.3 Packing 搭配長上下文</h3>
+<p>Unsloth 支援序列 Packing，將多個短序列打包成一個長序列，實現 3x 訓練加速：</p>
+<pre><code>
+from unsloth import FastLanguageModel
+from trl import SFTTrainer, SFTConfig
+
+trainer = SFTTrainer(
+    model=model,
+    train_dataset=dataset,
+    args=SFTConfig(
+        max_seq_length=65536,
+        packing=True,  # 啟用 Packing
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=4,
+    ),
+    tokenizer=tokenizer,
+)
+</code></pre>
+<h3>5.4 常見問題與解法</h3>
+<p>| 問題 | 原因 | 解法 |</p>
+<p>|------|------|------|</p>
+<p>| OOM（記憶體不足） | 上下文太長或 batch 太大 | 降低 <code>max_seq_length</code>，設 <code>batch_size=1</code>，啟用 <code>"unsloth"</code> gradient checkpointing |</p>
+<p>| 訓練 loss 不收斂 | 直接跳到超長上下文 | 漸進式擴展，先短後長 |</p>
+<p>| RoPE Scaling 警告 | 超出模型原生 context | Unsloth 自動處理，可忽略；或使用支援 YaRN 的模型 |</p>
+<p>| 推論時品質下降 | 微調資料長度分佈不均 | 確保訓練資料涵蓋不同長度，避免全部都是極長文本 |</p>
+<p>| GRPO VRAM 洩漏 | RL 啟動值未正確釋放 | 升級至最新 Unsloth 版本（已內建 log softmax 卸載） |</p>
+<p>---</p>
+<h2>六、與知識庫其他筆記的關聯</h2>
+<ul>
+<li><strong>架構原理篇</strong>：本文的 Gradient Checkpointing 技術是架構原理中 Triton Kernel 優化的應用層延伸</li>
+<li><strong>GRPO 強化學習篇</strong>：本文第四節深入了 GRPO 的記憶體優化機制，與 GRPO 篇互補</li>
+<li><strong>多 GPU 分散式訓練篇</strong>：超長上下文 + 多 GPU 的組合可進一步突破單卡限制</li>
+<li><strong>故障排除篇</strong>：OOM 相關解法可參照故障排除篇的系統化診斷流程</li>
+<li><strong>部署管線篇</strong>：長上下文微調後的 GGUF 匯出需注意上下文長度參數</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://unsloth.ai/blog/long-context">Unsloth Gradient Checkpointing - 4x Longer Context</a> — 官方 Gradient Checkpointing 技術部落格</li>
+<li><a href="https://unsloth.ai/docs/new/500k-context-length-fine-tuning">500K Context Length Fine-tuning</a> — 官方 500K 上下文文件</li>
+<li><a href="https://unsloth.ai/docs/new/grpo-long-context">GRPO 7x Longer Context</a> — 官方 GRPO 長上下文文件</li>
+<li><a href="https://amaarora.github.io/posts/2025-09-21-rope-context-extension.html">How LLMs Scaled from 512 to 2M Context</a> — RoPE 擴展技術深度解析</li>
+<li><a href="https://unsloth.ai/blog/gemma3">Fine-tune Gemma 3 with Unsloth</a> — Gemma 3 長上下文微調實戰</li>
+<li><a href="https://github.com/unslothai/unsloth">Unsloth GitHub</a> — 官方倉庫（52.8K+ Stars）</li>
+<li><a href="https://unsloth.ai/docs/new/3x-faster-training-packing">3x Faster Training with Packing</a> — Packing 技術文件</li>
+</ol>
+<p><em>研究日期：2026-03-02</em></p>
+<p><em>研究者：Unsloth Research Agent</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

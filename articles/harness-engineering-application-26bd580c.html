@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 約束演化管線實踐 — 動態約束、反饋迴路與自癒機制的工程模式（application 階段）">
+  <title>Harness Engineering 約束演化管線實踐 — 動態約束、反饋迴路與自癒機制的工程模式（application 階段） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 約束演化管線實踐 — 動態約束、反饋迴路與自癒機制的工程模式（application 階段）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">約束演化</span><span class="tag">反饋迴路</span><span class="tag">自癒機制</span><span class="tag">AI Agent</span><span class="tag">系統優化</span><span class="tag">application</span><span class="tag">實作指南</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 約束演化管線實踐</h1>
+<blockquote>研究階段：<code>harness-engineering</code> 系列 <code>application</code></blockquote>
+<blockquote>承接既有筆記：「Harness Engineering 系統優化方案 — 從 CI/CD 智能化到 AI Agent 生產約束的工程學科」（foundation 階段）</blockquote>
+<blockquote>本文進入 application 階段：從概念定義走向可落地的實作模式與案例</blockquote>
+<p>---</p>
+<h2>一、核心哲學：約束即賦能</h2>
+<blockquote>"Every time you discover an agent has made a mistake, you take the time to engineer a solution so that it can never make that mistake again." — Mitchell Hashimoto</blockquote>
+<p>Harness Engineering 的核心悖論：<strong>限縮 Agent 的解空間，反而提升產出效率</strong>。當 Agent 可以產生任意輸出時，它會浪費 Token 探索死路；當 Harness 定義清楚邊界，Agent 更快收斂到正確解。</p>
+<p>---</p>
+<h2>二、三層約束架構（可實作分層）</h2>
+<h3>2.1 依賴層級（Dependency Hierarchy）</h3>
+<pre><code>
+Types → Config → Repo → Service → Runtime → UI
+</code></pre>
+<p>每層只能從左側層匯入，透過以下機制<strong>機械式強制</strong>（非提示詞自律）：</p>
+<p>| 強制手段 | 實作方式 | 適用時機 |</p>
+<p>|---------|---------|----------|</p>
+<p>| 自訂 Linter | 靜態分析掃描 import 路徑 | CI/CD 每次提交 |</p>
+<p>| LLM-based Auditor | Agent 程式碼的合規審查 | PR Review 階段 |</p>
+<p>| Pre-commit Hook | 提交前攔截違規 | 開發者本地 |</p>
+<p>| 結構測試（ArchUnit 式）| 驗證產出結構正確性 | 自動化測試套件 |</p>
+<h3>2.2 三級 Harness 複雜度</h3>
+<p>| 等級 | 投入時間 | 實作項目 |</p>
+<p>|------|---------|----------|</p>
+<p>| <strong>L1</strong> | 1-2 小時 | <code>CLAUDE.md</code>/<code>.cursorrules</code>、pre-commit hooks、測試套件、一致目錄結構 |</p>
+<p>| <strong>L2</strong> | 1-2 天 | <code>AGENTS.md</code>、CI 強制架構約束、共用 prompt 模板、文件 linting |</p>
+<p>| <strong>L3</strong> | 1-2 週 | 自訂中介軟體、熵值清理 Agent、Harness 版本化、效能儀表板 |</p>
+<p>---</p>
+<h2>三、反饋迴路實作模式</h2>
+<h3>3.1 中介軟體鏈（Middleware-First Design）</h3>
+<p>LangChain 的可組合方式，每層中介軟體鏈式串接：</p>
+<pre><code>
+# 概念性 Middleware Pipeline
+pipeline = [
+    LocalContextMiddleware(),      # 程式庫映射，注入本地上下文
+    LoopDetectionMiddleware(),     # 追蹤重複檔案編輯，防止 doom loop
+    ReasoningSandwichMiddleware(), # 規劃/驗證高推理力，實作中推理力
+    PreCompletionChecklistMiddleware()  # 提交前驗證清單
+]
+</code></pre>
+<p><strong>Doom Loop 偵測</strong>：中介軟體追蹤檔案編輯次數，當同一檔案被反覆修改超過閾值，自動中斷並請求人類介入。</p>
+<p><strong>Reasoning Sandwich</strong>：規劃與驗證階段使用高推理力模型（如 <code>o3</code>），實作階段使用中推理力（如 <code>claude-sonnet</code>），最佳化運算成本。</p>
+<h3>3.2 Generator-Evaluator 模式（Anthropic GAN 式）</h3>
+<pre><code>
+Generator Agent → 產出程式碼/內容
+       ↓
+Evaluator Agent → 使用 Playwright/pytest 等工具做 E2E 驗證
+       ↓
+   通過 → 提交
+   失敗 → 回饋修正指令給 Generator
+</code></pre>
+<p><strong>關鍵發現</strong>：模型無法可靠地自我評估。分離 Generator 與 Evaluator 比教會 Agent 自我批評更實際。</p>
+<h3>3.3 Stripe「兩擊升級」規則</h3>
+<p>Stripe 的 Minions 系統（每週 1,300+ PR）使用 Blueprint 編排：</p>
+<ul>
+<li><strong>確定性節點</strong>：Linter 執行、Git commit（不用 Agent）</li>
+<li><strong>Agent 節點</strong>：功能實作、失敗修復</li>
+<li><strong>兩擊規則</strong>：Agent 連續失敗兩次 → 升級至人類，防止無限重試迴圈</li>
+</ul>
+<p>---</p>
+<h2>四、自癒機制四層框架</h2>
+<h3>4.1 架構概覽</h3>
+<pre><code>
+┌─────────────────────────────────────────┐
+│ Layer 4: Learning Loop                  │
+│   失敗日誌 → 分析 → 系統改善            │
+├─────────────────────────────────────────┤
+│ Layer 3: Automatic Recovery             │
+│   Context Refresh → Task Simplify →     │
+│   Human Escalation                      │
+├─────────────────────────────────────────┤
+│ Layer 2: Failure Detection              │
+│   Pre-action validation:                │
+│   quality &lt; 85 || driftScore &gt; 0.3      │
+├─────────────────────────────────────────┤
+│ Layer 1: Health Monitoring              │
+│   品質分數 · 錯誤率 · P95 延遲 ·       │
+│   Context Drift 偵測                    │
+└─────────────────────────────────────────┘
+</code></pre>
+<h3>4.2 自動恢復序列</h3>
+<ol>
+<li><strong>Context Refresh</strong>：清除工作記憶，從持久儲存重新載入</li>
+<li><strong>Task Simplification</strong>：將複雜動作分解為更小步驟</li>
+<li><strong>Human Escalation</strong>：自動恢復失敗時標記人類審查</li>
+</ol>
+<h3>4.3 熵值清理 Agent（Garbage Collection）</h3>
+<p>定期排程（每日/每週）執行的專責 Agent：</p>
+<ul>
+<li>驗證文件與程式碼是否一致</li>
+<li>掃描先前遺漏的約束違規</li>
+<li>識別並修正模式偏差</li>
+<li>追蹤解決循環或不必要的依賴</li>
+</ul>
+<h3>4.4 量化成效</h3>
+<p>| 指標 | 導入前 | 導入後 |</p>
+<p>|------|--------|--------|</p>
+<p>| 失敗率 | 23% | 3% |</p>
+<p>| 自動恢復率 | — | 85% |</p>
+<p>| 人類介入頻率 | 每日 | 每週 |</p>
+<p>---</p>
+<h2>五、語義圖作為持久化 Harness（Epsilla 方法）</h2>
+<p>將約束編碼為圖結構：</p>
+<blockquote>"The nodes, edges, and schema of the graph are the constraints."</blockquote>
+<p>三大優勢：</p>
+<ol>
+<li><strong>結構性屏障</strong>：防止無效 Agent 動作</li>
+<li><strong>持久化反饋迴路</strong>：修正永久編碼進世界模型</li>
+<li><strong>可擴展 Agent 協調</strong>：透過共享圖狀態取代脆弱的 Agent 間協定</li>
+</ol>
+<p>錯誤被轉化為結構性知識，防止再次發生 — 真正的自癒是環境重新設計。</p>
+<p>---</p>
+<h2>六、實際案例效能數據</h2>
+<p>| 案例 | 做法 | 成果 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>OpenAI Codex</strong> | 7 人團隊 + Agent | 100 萬+ 行程式碼，1,500 PR，零人工撰寫 |</p>
+<p>| <strong>LangChain</strong> | 純 Harness 優化（不換模型） | Terminal Bench 52.8% → 66.5%（Top 30 → Top 5） |</p>
+<p>| <strong>Stripe Minions</strong> | Blueprint + 兩擊規則 | 每週 1,300+ PR，生產環境穩定 |</p>
+<p>---</p>
+<h2>七、對 Daily-Digest-Prompt 專案的應用映射</h2>
+<p>本專案已實踐多項 Harness Engineering 模式：</p>
+<p>| Harness 模式 | 專案對應實作 |</p>
+<p>|-------------|-------------|</p>
+<p>| Pre-commit Hook 強制 | <code>hooks/pre_bash_guard.py</code>、<code>pre_write_guard.py</code> |</p>
+<p>| Loop Detection | <code>agent_guardian.py</code> LoopDetector（doom loop 偵測）|</p>
+<p>| Generator-Evaluator | Phase 2 執行 → Phase 3 組裝驗證 |</p>
+<p>| 熵值清理 Agent | <code>run-system-audit-team.ps1</code>（每日 00:40 排程）|</p>
+<p>| 約束外部化 | <code>config/*.yaml</code>（14+ 配置檔）|</p>
+<p>| L2 AGENTS.md | <code>CLAUDE.md</code> + <code>templates/shared/preamble.md</code> |</p>
+<p>| Health Monitoring | <code>check-health.ps1</code>（6 維度健康度）|</p>
+<p>| 兩擊升級 | <code>config/timeouts.yaml</code> + Guardian CircuitBreaker |</p>
+<h3>可強化方向</h3>
+<ol>
+<li><strong>Reasoning Sandwich</strong>：Phase 1 規劃用 o3，Phase 2 實作用 sonnet — 目前 <code>llm-router.yaml</code> 已有基礎</li>
+<li><strong>語義圖約束</strong>：將 <code>adr-registry.json</code> + <code>research-series.json</code> 結構化為圖，提供 Agent 導航</li>
+<li><strong>Pre-Completion Checklist Middleware</strong>：在 <code>hook_pipeline.py</code> 新增提交前驗證清單</li>
+</ol>
+<p>---</p>
+<h2>八、設計原則：可拆卸 Harness</h2>
+<blockquote>Build "rippable harnesses" — 過度工程會在模型進步時失效。</blockquote>
+<ul>
+<li>約束應隨模型能力提升而逐步移除</li>
+<li>從基礎 Linting 開始，隨模式浮現再新增約束</li>
+<li>保持 Provider-Agnostic：Harness 應跨 Claude/GPT/Gemini 運作</li>
+</ul>
+<p>---</p>
+<h2>來源</h2>
+<ol>
+<li>NxCode — Harness Engineering: The Complete Guide to Building Systems That Make AI Agents Actually Work (2026)</li>
+<li>Epsilla — The Third Evolution: Why Harness Engineering Replaced Prompting in 2026</li>
+<li>DEV Community — How to Build a Self-Healing AI Agent System That Recovers From Failures Automatically</li>
+<li>agent-engineering.dev — Harness Engineering in 2026: The Discipline That Makes AI Agents Production-Ready</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge：Execution Trace Schema 統一">
+  <title>workflow-forge：Execution Trace Schema 統一 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge：Execution Trace Schema 統一</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">output-schema</span><span class="tag">execution-trace</span><span class="tag">系統設計</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Execution Trace Schema 統一</h1>
+<h2>缺口識別</h2>
+<p><strong>類型</strong>：output_schema  </p>
+<p><strong>優先級</strong>：P1  </p>
+<p><strong>總分</strong>：95/100</p>
+<p><strong>問題描述</strong>：  </p>
+<p>trace_id、span_id、parent_span_id、phase、tool_or_skill、status、duration_ms、artifacts 等欄位分散在多個輸出檔案（logs/structured/<em>.jsonl、results/</em>.json、state/run-fsm.json）中，缺乏統一 schema，導致追蹤與回溯成本高。</p>
+<p><strong>來源</strong>：improvement-backlog.json Rank 10 (P1)</p>
+<p><strong>影響範圍</strong>：  </p>
+<p>所有 Agent 執行追蹤（daily-digest、todoist-agent-team、system-audit-team、gmail-agent）</p>
+<p>---</p>
+<h2>產出物</h2>
+<p><strong>檔案路徑</strong>：<code>config/schemas/execution-trace-schema.json</code></p>
+<p><strong>Schema 版本</strong>：v1.0.0</p>
+<h3>核心欄位</h3>
+<p>| 欄位 | 類型 | 必填 | 說明 |</p>
+<p>|------|------|------|------|</p>
+<p>| <code>trace_id</code> | string | ✅ | 追蹤 ID，串接同一次執行的所有 spans |</p>
+<p>| <code>span_id</code> | string | ✅ | Span ID，唯一識別當前操作 |</p>
+<p>| <code>parent_span_id</code> | string/null | ❌ | 父 Span ID，建立因果關聯 |</p>
+<p>| <code>task_key</code> | string | ✅ | 任務鍵或 agent 名稱 |</p>
+<p>| <code>phase</code> | enum | ✅ | 執行階段（init/phase0/phase1/phase2/phase3/finalize/cleanup） |</p>
+<p>| <code>tool_or_skill</code> | string | ❌ | 使用的工具或 Skill 名稱 |</p>
+<p>| <code>status</code> | enum | ✅ | 執行狀態（started/running/success/failed/timeout/skipped） |</p>
+<p>| <code>duration_ms</code> | number | ❌ | 執行耗時（毫秒） |</p>
+<p>| <code>artifacts</code> | array | ❌ | 產出的 artifact 列表 |</p>
+<p>| <code>cause_chain</code> | object | ❌ | 因果鏈（task_selection/cache_status/retry_attempts/failure_point/final_artifact） |</p>
+<p>| <code>timestamp</code> | datetime | ✅ | 記錄時間戳（ISO 8601） |</p>
+<h3>設計原則</h3>
+<ol>
+<li><strong>借鑑 OpenTelemetry</strong>：trace_id、span_id、parent_span_id、attributes、events 欄位設計參考 OpenTelemetry Traces 規範</li>
+<li><strong>本專案特有設計</strong>：cause_chain 欄位用於串接任務選擇至最終產出的完整因果鏈</li>
+<li><strong>向後相容</strong>：允許 <code>additionalProperties: true</code>，支援未來擴充</li>
+<li><strong>必填最小化</strong>：僅 6 個核心欄位為 required（trace_id、span_id、task_key、phase、status、timestamp）</li>
+</ol>
+<p>---</p>
+<h2>整合狀態</h2>
+<ul>
+<li>✅ Schema 檔案已建立：<code>config/schemas/execution-trace-schema.json</code></li>
+<li>✅ 文件已更新：<code>docs/ARCHITECTURE.md</code> 新增 schema 條目</li>
+<li>✅ README 已建立：<code>config/schemas/README.md</code> 包含使用說明</li>
+<li>✅ Registry 已登記：<code>context/workflow-forge-registry.json</code> 記錄產出物資訊</li>
+</ul>
+<p>---</p>
+<h2>未來整合方向</h2>
+<ol>
+<li><strong>hooks/post_tool_logger.py</strong>：擴充為驗證每筆 JSONL 符合此 schema</li>
+<li><strong>context/system-insight.json</strong>：新增 trace_completeness 指標（檢查必填欄位完整率）</li>
+<li><strong>execution-journal Skill</strong>：未來若實作，可直接使用此 schema 產出結構化日誌</li>
+<li><strong>OpenTelemetry 整合</strong>：可與 OpenTelemetry SDK 整合，產出標準化 trace 資料</li>
+</ol>
+<p>---</p>
+<h2>驗證結果</h2>
+<ul>
+<li>✅ Schema 可解析為有效 JSON</li>
+<li>✅ Schema 結構驗證通過（必要欄位存在）</li>
+<li>⏸️ 樣本驗證待 jsonschema 套件安裝後執行</li>
+</ul>
+<p>---</p>
+<h2>參考資源</h2>
+<ul>
+<li><a href="https://opentelemetry.io/docs/concepts/signals/traces/">OpenTelemetry Traces</a></li>
+<li><a href="https://json-schema.org/draft/2020-12/schema">JSON Schema Draft 2020-12</a></li>
+<li>improvement-backlog.json Rank 10：統一 execution trace schema 與因果追蹤</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

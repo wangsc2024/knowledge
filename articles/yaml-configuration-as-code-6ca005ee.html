@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="YAML 配置驅動架構完整指南 — 從 Configuration as Code 到聲明式系統設計的最佳實踐與反模式（2026）">
+  <title>YAML 配置驅動架構完整指南 — 從 Configuration as Code 到聲明式系統設計的最佳實踐與反模式（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>YAML 配置驅動架構完整指南 — 從 Configuration as Code 到聲明式系統設計的最佳實踐與反模式（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">YAML</span><span class="tag">配置驅動架構</span><span class="tag">Configuration as Code</span><span class="tag">Schema驗證</span><span class="tag">聲明式設計</span><span class="tag">軟體工程</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>YAML 配置驅動架構完整指南（2026）</h1>
+<h2>技術概述</h2>
+<p>YAML 配置驅動架構（Configuration-Driven Architecture）是一種將系統行為從程式碼中抽離至結構化配置文件的軟體設計模式。核心理念是「改配置不改程式碼」——透過修改 YAML 檔案即可調整系統行為，無需重新部署或修改邏輯層。此模式廣泛應用於 CI/CD 管線（GitHub Actions）、基礎設施即程式碼（Terraform、Ansible）、API 閘道（Kong）、AI Agent 編排系統等領域。在 2025-2026 年，隨著 LLM Agent 系統的興起，YAML 配置驅動架構更成為 Prompt-as-Code 與 Agent 行為管理的事實標準。</p>
+<p>---</p>
+<h2>核心概念與原理</h2>
+<h3>一、Configuration as Code（CaC）的三大支柱</h3>
+<ol>
+<li><strong>聲明式描述（Declarative）</strong>：配置描述「期望狀態」而非「操作步驟」。例如 <code>daily_limit: 5</code> 宣告限制，而非 <code>if count >= 5 then skip</code></li>
+<li><strong>關注點分離（Separation of Concerns）</strong>：邏輯層（程式碼）負責「如何做」，配置層（YAML）負責「做什麼/做多少」</li>
+<li><strong>版本控制友善</strong>：YAML 是純文字格式，天然適合 Git 差異比對（diff-friendly），變更歷史清晰可追溯</li>
+</ol>
+<h3>二、YAML 相較於其他配置格式的優劣</h3>
+<p>| 維度 | YAML | JSON | TOML | HCL |</p>
+<p>|------|------|------|------|-----|</p>
+<p>| 人類可讀性 | 極佳（縮排結構） | 中等（大括號巢狀） | 佳（INI 風格） | 佳（專為 IaC 設計） |</p>
+<p>| 註釋支援 | 是（<code>#</code>） | 否 | 是（<code>#</code>） | 是（<code>//</code> <code>#</code>） |</p>
+<p>| 複雜結構 | 佳（錨點 <code>&</code> / 引用 <code>*</code>） | 無 | 有限 | 佳 |</p>
+<p>| 生態系統 | 極廣（K8s、CI/CD、Ansible） | 極廣（API、前端） | 中等（Rust/Go） | 中等（Terraform） |</p>
+<p>| 常見陷阱 | 縮排敏感、型別推斷 | 冗長、無註釋 | 深巢狀笨拙 | 學習曲線 |</p>
+<p>| LLM 理解度 | 極高（Markdown-like） | 高 | 中 | 中 |</p>
+<h3>三、配置驅動架構的層次模型</h3>
+<pre><code>
+Level 0：硬編碼（Magic Numbers in Code）
+  ↓ 抽出常量
+Level 1：常量集中化（Constants File）
+  ↓ 結構化
+Level 2：結構化配置（YAML/JSON Config）
+  ↓ 加 Schema 驗證
+Level 3：型別安全配置（Schema-Validated Config）
+  ↓ 加動態載入
+Level 4：聲明式管線（Declarative Pipeline）
+  ↓ 加版本化演進
+Level 5：配置即契約（Config as Contract）
+</code></pre>
+<p>---</p>
+<h2>設計模式與最佳實踐</h2>
+<h3>模式 1：配置-邏輯分離（Config-Logic Separation）</h3>
+<p><strong>核心原則</strong>：程式碼是「引擎」，配置是「燃料」。引擎不變，換燃料改行為。</p>
+<p><strong>實作範例</strong>（daily-digest-prompt 的 <code>config/frequency-limits.yaml</code>）：</p>
+<pre><code>
+tasks:
+  shurangama:
+    name: "楞嚴經研究"
+    daily_limit: 5
+    counter_field: "shurangama_count"
+    template: "templates/auto-tasks/shurangama-research.md"
+    execution_order: 1
+</code></pre>
+<p>程式碼（PowerShell 腳本）讀取 YAML，依 <code>daily_limit</code> 判斷是否執行，依 <code>execution_order</code> 決定順序。新增一個自動任務只需在 YAML 加一段，不改腳本。</p>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>新增/移除任務零程式碼改動</li>
+<li>非工程師也能調整任務頻率</li>
+<li>Git blame 清楚顯示「誰在何時改了哪個任務的頻率」</li>
+</ul>
+<h3>模式 2：按需載入（Lazy Loading Config）</h3>
+<p><strong>問題</strong>：將所有配置在啟動時載入 Context Window，浪費 LLM Token。</p>
+<p><strong>解法</strong>：Prompt 是「薄層調度器」，僅在需要時 Read 對應配置。</p>
+<p><strong>daily-digest-prompt 實踐</strong>：</p>
+<ul>
+<li>主 Prompt（~80 行）只定義步驟骨架</li>
+<li>每步執行時才讀取 <code>config/pipeline.yaml</code>、<code>config/cache-policy.yaml</code> 等</li>
+<li>子 Agent 模板從 <code>templates/sub-agent/</code> 按需載入</li>
+</ul>
+<h3>模式 3：Schema 驗證閘門（Schema Validation Gate）</h3>
+<p><strong>問題</strong>：YAML 沒有型別系統，拼錯欄位名稱不會報錯。</p>
+<p><strong>解法</strong>：獨立的 Schema 驗證工具在部署前檢查。</p>
+<p><strong>daily-digest-prompt 實踐</strong>：</p>
+<ul>
+<li><code>hooks/validate_config.py</code>：7 個 YAML 的 Schema 定義</li>
+<li>驗證項目：必要欄位存在、型別正確、交叉引用一致（如 routing.yaml 的標籤對應 SKILL.md 的存在性）</li>
+<li>可由 <code>check-health.ps1</code> 呼叫或獨立執行</li>
+</ul>
+<p><strong>常見 Schema 驗證策略</strong>：</p>
+<p>| 策略 | 工具 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| JSON Schema | jsonschema (Python) | 通用，YAML 轉 dict 後驗證 |</p>
+<p>| Pydantic | pydantic (Python) | 型別安全 + 預設值 |</p>
+<p>| yq + jq | CLI | 輕量腳本驗證 |</p>
+<p>| CUE | cue lang | 進階約束邏輯 |</p>
+<p>| 自訂 Python | 手寫 | 複雜交叉驗證 |</p>
+<h3>模式 4：配置繼承與覆寫（Config Inheritance）</h3>
+<p><strong>問題</strong>：多環境（dev/staging/prod）需要不同配置。</p>
+<p><strong>解法</strong>：基礎配置 + 環境覆寫。</p>
+<pre><code>
+# base.yaml
+cache_ttl: 30min
+max_retries: 3
+
+# prod.yaml (覆寫)
+cache_ttl: 60min
+</code></pre>
+<p><strong>daily-digest-prompt 實踐</strong>：</p>
+<ul>
+<li><code>config/hook-rules.yaml</code> 有 3 個 preset（strict/normal/permissive）</li>
+<li>環境變數 <code>HOOK_SECURITY_PRESET</code> 選擇預設集</li>
+<li>團隊腳本預設 <code>strict</code>，互動開發可用 <code>normal</code></li>
+</ul>
+<h3>模式 5：單一定義處（Single Source of Truth）</h3>
+<p><strong>原則</strong>：每個可配置值只在一處定義。</p>
+<p><strong>反模式</strong>：</p>
+<pre><code>
+# routing.yaml
+max_tasks: 3
+
+# scoring.yaml
+max_tasks_per_run: 3  # 同一概念，兩處定義 → 不一致風險
+</code></pre>
+<p><strong>正確做法</strong>：一個 YAML 定義，其他引用。或用共用前言（<code>templates/shared/preamble.md</code>）統一規則。</p>
+<p>---</p>
+<h2>常見陷阱與反模式</h2>
+<h3>陷阱 1：YAML 的「挪威問題」（Norway Problem）</h3>
+<p>YAML 1.1 會將某些值自動轉型：</p>
+<pre><code>
+country: NO      # 被解析為布林值 false！
+version: 1.0     # 被解析為浮點數 1.0，而非字串 "1.0"
+port: 0x1A       # 被解析為整數 26
+date: 2026-03-04 # 被解析為日期物件
+</code></pre>
+<p><strong>修正</strong>：始終用引號包裹可能被誤判的值：<code>country: "NO"</code>、<code>version: "1.0"</code></p>
+<h3>陷阱 2：配置膨脹（Config Bloat）</h3>
+<p>把所有邏輯塞進配置，YAML 變成另一種程式語言。</p>
+<p><strong>判斷標準</strong>：如果配置需要 if/else 分支或迴圈 → 應放在程式碼層。</p>
+<h3>陷阱 3：缺乏遷移策略（No Migration Plan）</h3>
+<p>配置 Schema 改版時，舊格式檔案會壞掉。</p>
+<p><strong>最佳實踐</strong>：</p>
+<ul>
+<li>配置加 <code>version</code> 欄位</li>
+<li>程式碼依 version 做向下相容處理</li>
+<li>提供 migration 腳本</li>
+</ul>
+<h3>陷阱 4：機密洩露（Secrets in Config）</h3>
+<p><strong>絕對禁止</strong>在 YAML 中放入 API Token、密碼。</p>
+<p><strong>正確做法</strong>：環境變數 + 配置引用（<code>token: ${TODOIST_API_TOKEN}</code>）</p>
+<p>---</p>
+<h2>與本專案的關聯</h2>
+<h3>daily-digest-prompt 的配置驅動實踐</h3>
+<p>本專案是配置驅動架構的典型案例，12 個 YAML 配置文件控制系統全部可變行為：</p>
+<p>| 配置文件 | 控制面向 | Level |</p>
+<p>|---------|---------|-------|</p>
+<p>| <code>pipeline.yaml</code> | 摘要管線步驟順序 | L4 聲明式管線 |</p>
+<p>| <code>routing.yaml</code> | Todoist 三層路由 | L3 Schema 驗證 |</p>
+<p>| <code>frequency-limits.yaml</code> | 19 個自動任務頻率 | L3 Schema 驗證 |</p>
+<p>| <code>scoring.yaml</code> | 優先級計分公式 | L3 Schema 驗證 |</p>
+<p>| <code>cache-policy.yaml</code> | API 快取 TTL | L2 結構化配置 |</p>
+<p>| <code>notification.yaml</code> | ntfy 通知配置 | L2 結構化配置 |</p>
+<p>| <code>hook-rules.yaml</code> | Hook 安全規則 + 3 preset | L4 聲明式 |</p>
+<p>| <code>dedup-policy.yaml</code> | 研究去重策略 | L2 結構化配置 |</p>
+<p>| <code>audit-scoring.yaml</code> | 系統審查評分權重 | L3 Schema 驗證 |</p>
+<p>| <code>benchmark.yaml</code> | 效能基準線 | L2 結構化配置 |</p>
+<p>| <code>topic-rotation.yaml</code> | 主題輪替演算法 | L2 結構化配置 |</p>
+<p>| <code>llm-router.yaml</code> | Groq vs Claude 路由 | L2 結構化配置 |</p>
+<h3>架構效益量化</h3>
+<ol>
+<li><strong>改動範圍最小化</strong>：調整自動任務頻率只需改 1 個 YAML 欄位（vs 修改 PS 腳本 + prompt + 多處 hardcode）</li>
+<li><strong>LLM Token 節省</strong>：薄層 Prompt（~80 行）vs 全配置內嵌 Prompt（~500+ 行），節省 ~80% Token</li>
+<li><strong>一致性保證</strong>：<code>validate_config.py</code> 的 7 個 Schema 驗證確保配置合法性</li>
+<li><strong>版本追溯</strong>：所有配置 Git 管理，<code>git log config/frequency-limits.yaml</code> 追蹤變更歷史</li>
+<li><strong>分工明確</strong>：PowerShell 腳本 = 引擎（穩定），YAML = 燃料（頻繁調整）</li>
+</ol>
+<h3>演進方向</h3>
+<ol>
+<li><strong>Schema 驗證 100% 覆蓋</strong>：目前 7/12 有 Schema，目標 12/12</li>
+<li><strong>配置差異告警</strong>：Git Hook 偵測 YAML 變更並 ntfy 通知</li>
+<li><strong>配置即契約（Level 5）</strong>：YAML 變更自動觸發回歸測試</li>
+<li><strong>CUE 升級</strong>：複雜交叉驗證從 Python 遷移至 CUE 語言</li>
+</ol>
+<p>---</p>
+<h2>業界參考案例</h2>
+<p>| 系統 | 配置格式 | 驅動面向 |</p>
+<p>|------|---------|----------|</p>
+<p>| Kubernetes | YAML | 基礎設施 + 應用部署 |</p>
+<p>| GitHub Actions | YAML | CI/CD 管線 |</p>
+<p>| Ansible | YAML | 自動化運維 |</p>
+<p>| Kong API Gateway | YAML/JSON | API 路由規則 |</p>
+<p>| Grafana Dashboard | JSON/YAML | 監控面板 |</p>
+<p>| DeerFlow (ByteDance) | YAML | AI Agent 編排 |</p>
+<p>| daily-digest-prompt | YAML | Agent 行為管理 |</p>
+<p>---</p>
+<h2>程式碼範例：PyYAML + Schema 驗證</h2>
+<pre><code>
+import yaml
+from pathlib import Path
+
+def load_config(config_path: str, schema: dict = None) -&gt; dict:
+    """載入 YAML 配置並可選 Schema 驗證"""
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Config not found: {config_path}")
+    
+    with open(path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    
+    if schema:
+        validate_schema(config, schema)
+    
+    return config
+
+def validate_schema(config: dict, schema: dict):
+    """簡易 Schema 驗證：檢查必要欄位與型別"""
+    for field, expected_type in schema.get('required_fields', {}).items():
+        if field not in config:
+            raise ValueError(f"Missing required field: {field}")
+        if not isinstance(config[field], expected_type):
+            raise TypeError(
+                f"Field '{field}' expected {expected_type.__name__}, "
+                f"got {type(config[field]).__name__}"
+            )
+
+# 使用範例
+frequency_schema = {
+    'required_fields': {
+        'version': int,
+        'tracking_file': str,
+        'tasks': dict,
+    }
+}
+
+config = load_config('config/frequency-limits.yaml', frequency_schema)
+print(f"Loaded {len(config['tasks'])} auto-tasks")
+</code></pre>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>YAML 1.2 官方規格 — yaml.org/spec/1.2</li>
+<li>Google SRE Book, Chapter 14: Configuration Design — 配置系統的可靠性設計</li>
+<li>Kubernetes Documentation — Declarative Management of Kubernetes Objects</li>
+<li>Ansible Best Practices — YAML 配置管理模式</li>
+<li>daily-digest-prompt 專案實踐 — 12 個 YAML 配置驅動的 Agent 系統</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-04</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>任務類型：tech_research（每日任務技術研究）</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

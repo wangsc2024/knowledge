@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gun.js P2P 去中心化即時資料庫完整指南 — HAM 衝突解決、SEA 加密體系、RAD 儲存引擎與生產級部署最佳實踐（2026）">
+  <title>Gun.js P2P 去中心化即時資料庫完整指南 — HAM 衝突解決、SEA 加密體系、RAD 儲存引擎與生產級部署最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Gun.js P2P 去中心化即時資料庫完整指南 — HAM 衝突解決、SEA 加密體系、RAD 儲存引擎與生產級部署最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Gun.js</span><span class="tag">GunDB</span><span class="tag">P2P</span><span class="tag">去中心化</span><span class="tag">即時資料庫</span><span class="tag">CRDT</span><span class="tag">HAM</span><span class="tag">SEA</span><span class="tag">加密</span><span class="tag">離線優先</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Gun.js P2P 去中心化即時資料庫完整指南</h1>
+<blockquote>研究日期：2026-02-28 | 來源：技術研究自動任務 | 觸發：今日 Todoist 任務使用 Gun.js 開發 P2P 聊天室系統</blockquote>
+<p>---</p>
+<h2>一、技術概述</h2>
+<p>Gun.js（GunDB）是一個開源的即時去中心化離線優先圖形資料庫引擎，以 JavaScript 撰寫，核心壓縮後僅約 9KB。它能在瀏覽器內直接執行，實現裝置間的 P2P 資料同步，支援離線編輯後自動合併。其核心定位為「自由鬥士的資料庫」，強調數據主權與去中心化。</p>
+<p><strong>關鍵數據</strong>：</p>
+<ul>
+<li>GitHub Stars：18K+（amark/gun）</li>
+<li>效能：20M+ API ops/sec（記憶體內操作）</li>
+<li>壓縮大小：~9KB gzipped</li>
+<li>生產用戶：Internet Archive、HackerNoon</li>
+<li>網路流量：去中心化應用日推 TB 級 P2P 流量</li>
+</ul>
+<p>---</p>
+<h2>二、核心概念與原理</h2>
+<h3>2.1 圖形資料模型（Graph Data Model）</h3>
+<p>Gun.js 使用圖形結構表示資料與關係。每個節點有唯一的 <code>soul</code>（識別符），資料以標準 JSON 格式儲存。邏輯圖形被正規化為 JSON 子集。</p>
+<p><strong>重要限制</strong>：節點內容僅支援 <code>null</code>、<code>boolean</code>、<code>number</code>、<code>string</code> 和連結（reference）。<strong>不支援陣列和巢狀物件</strong>。需使用 <code>set()</code> API 模擬無序陣列。</p>
+<pre><code>
+// 基本資料操作
+const gun = Gun(['https://your-relay.example.com/gun']);
+
+// 寫入
+gun.get('users').get('alice').put({
+  name: 'Alice',
+  age: 30,
+  online: true
+});
+
+// 即時監聽
+gun.get('users').get('alice').on((data, key) =&gt; {
+  console.log(`${key} updated:`, data);
+});
+
+// 集合操作（模擬陣列）
+gun.get('chatroom').get('messages').set({
+  text: 'Hello World',
+  sender: 'alice',
+  ts: Date.now()
+});
+</code></pre>
+<h3>2.2 HAM 衝突解決演算法（Hypothetical Amnesia Machine）</h3>
+<p>HAM 是 Gun.js 的核心衝突解決機制，結合時間戳與向量時鐘來解決分散式系統中的並發衝突。</p>
+<p><strong>設計哲學</strong>：</p>
+<ul>
+<li>保證<strong>強最終一致性</strong>（Strong Eventual Consistency, SEC），而非線性一致性</li>
+<li>偏好<strong>高可用性</strong>（Availability）而非強一致性（CAP 定理中的 AP）</li>
+<li>離線編輯在重新連線後自動合併</li>
+</ul>
+<p><strong>運作原理</strong>：</p>
+<ol>
+<li>每次寫入都帶有狀態向量（state vector）和時間戳</li>
+<li>系統中每個變更都經過 HAM 處理</li>
+<li>較新的時間戳覆蓋較舊的值</li>
+<li>相同時間戳時使用確定性規則（值的字典序比較）</li>
+<li>所有對等節點最終收斂至相同狀態</li>
+</ol>
+<p><strong>與 CRDT 的關係</strong>：Gun.js 是圖形 CRDT 的實作，但使用自己的 HAM 演算法而非傳統 CRDT 原語。HAM 本質上是一個 Last-Writer-Wins Register（LWW-Register）的變體。</p>
+<h3>2.3 DAM 網路協議（Daisy-chain Ad-hoc Mesh-network）</h3>
+<p>Gun.js 實作了自己的傳輸層協議 DAM，用於 P2P 網路中的對等節點協調。</p>
+<p><strong>特點</strong>：</p>
+<ul>
+<li>菊花鏈式的臨時網狀網路</li>
+<li>透過訊息傳遞協調而不產生過多重複廣播</li>
+<li>支援 WebSocket 和 WebRTC 傳輸</li>
+<li>自動處理節點發現與連線管理</li>
+</ul>
+<h3>2.4 SEA 加密體系（Security, Encryption, Authorization）</h3>
+<p>SEA 是 Gun.js 的加密層，使用最新的原生 Web Crypto API。</p>
+<p><strong>四大密碼學原語</strong>：</p>
+<p>| 功能 | 演算法 | 用途 |</p>
+<p>|------|--------|------|</p>
+<p>| 簽章 | ECDSA（P-256） | 資料完整性驗證 |</p>
+<p>| 加密 | AES-GCM | 端對端訊息加密 |</p>
+<p>| 金鑰交換 | ECDH | 共享密鑰協商 |</p>
+<p>| 密碼派生 | PBKDF2 | 帳號密碼保護 |</p>
+<pre><code>
+// SEA 使用者認證
+const user = gun.user();
+
+// 註冊
+await user.create('username', 'password');
+
+// 登入（密鑰對由 PBKDF2 從密碼派生）
+await user.auth('username', 'password');
+
+// 端對端加密訊息
+const sharedKey = await SEA.secret(recipientEpub, senderPair);
+const encrypted = await SEA.encrypt('secret message', sharedKey);
+const decrypted = await SEA.decrypt(encrypted, sharedKey);
+
+// 資料簽章
+const signed = await SEA.sign('important data', senderPair);
+const verified = await SEA.verify(signed, senderPub);
+</code></pre>
+<p>---</p>
+<h2>三、RAD 儲存引擎（Radisk Storage Engine）</h2>
+<p>RAD 是 Gun.js 在 Node.js 環境中的預設儲存引擎，基於基數樹（Radix Tree）實作。</p>
+<h3>3.1 架構設計</h3>
+<ul>
+<li>記憶體內基數樹 + 磁碟持久化</li>
+<li>將 Gun 的圖形資料分塊為傳統檔案</li>
+<li>正確合併更新到每個批次</li>
+<li>管理高負載下的記憶體分配</li>
+</ul>
+<h3>3.2 關鍵配置參數</h3>
+<pre><code>
+const gun = Gun({
+  peers: ['wss://relay.example.com/gun'],
+  radisk: true,  // 啟用 RAD 持久化（Node.js 預設）
+  axe: false,    // 停用內建 relay（若不需要）
+  file: 'data',  // 資料儲存目錄
+  // RAD 效能調校
+  opt: {
+    until: 250,    // 批次寫入間隔（毫秒），預設 250
+    batch: 10000,  // 強制刷盤前最大項目數，預設 10K
+    chunk: 10 * 1024 * 1024  // 分塊大小（Node.js 預設 10MB）
+  }
+});
+</code></pre>
+<h3>3.3 儲存後端</h3>
+<p>RAD 對實際儲存引擎沒有意見，支援：</p>
+<ul>
+<li><strong>Node.js</strong>：fs（預設）、Amazon S3、LevelDB</li>
+<li><strong>瀏覽器</strong>：localStorage（預設，有 5MB 限制）、IndexedDB、OPFS</li>
+<li><strong>其他</strong>：MongoDB、Cassandra、BitTorrent</li>
+</ul>
+<p>---</p>
+<h2>四、最佳實踐與常見陷阱</h2>
+<h3>4.1 生產級部署最佳實踐</h3>
+<p><strong>Relay Server 部署</strong>：</p>
+<pre><code>
+// relay-server.js
+const Gun = require('gun');
+const express = require('express');
+const app = express();
+const server = app.listen(8765);
+
+const gun = Gun({
+  web: server,
+  radisk: true,      // 必須啟用持久化！
+  axe: false,        // 關閉內建路由（自行管理）
+  file: './gun-data', // 指定資料目錄
+  multicast: false   // 生產環境關閉組播
+});
+</code></pre>
+<p><strong>進程管理</strong>：使用 pm2 或 systemd 確保 relay 在機器重啟後自動恢復。</p>
+<h3>4.2 常見陷阱</h3>
+<p>| 陷阱 | 說明 | 解法 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>忘記啟用 radisk</strong> | 未設 <code>radisk: true</code>，重啟資料全消 | 明確配置 <code>radisk: true</code> |</p>
+<p>| <strong>陣列不支援</strong> | 直接存陣列會靜默失敗 | 使用 <code>.set()</code> 建立無序集合 |</p>
+<p>| <strong>刪除困難</strong> | 無法真正刪除，只能設 null（tombstone）| 設計資料模型時預先考慮 |</p>
+<p>| <strong>ACK 判斷錯誤</strong> | <code>!ack.err</code> 將 null/undefined 誤判 | 改用 <code>ack && ack.ok === true</code> |</p>
+<p>| <strong><code>.on()</code> 記憶體洩漏</strong> | 重連後未 <code>.off()</code> 清理監聽 | 重連前清理所有 <code>.on()</code> 訂閱 |</p>
+<p>| <strong>localStorage 5MB 限制</strong> | 瀏覽器預設用 localStorage | 生產環境改用 IndexedDB |</p>
+<p>| <strong>公鑰未驗證</strong> | MITM 可替換 epub 公鑰 | 實作公鑰固定或信任鏈 |</p>
+<p>| <strong>網路分區</strong> | 斷線期間的腦裂問題 | 接受最終一致性，設計冪等操作 |</p>
+<h3>4.3 資料模型設計原則</h3>
+<ol>
+<li><strong>扁平化</strong>：避免巢狀結構，用引用連結節點</li>
+<li><strong>冪等寫入</strong>：操作可安全重試</li>
+<li><strong>時間戳即版本</strong>：HAM 依賴時間戳，確保系統時鐘同步</li>
+<li><strong>分區容忍</strong>：設計時假設網路可能隨時斷開</li>
+<li><strong>tombstone 管理</strong>：定期清理 null 標記，避免資料膨脹</li>
+</ol>
+<p>---</p>
+<h2>五、與 daily-digest-prompt 專案的關聯</h2>
+<h3>5.1 直接應用</h3>
+<p>本專案今日新增了 Gun.js P2P 聊天室系統，涉及三個元件：</p>
+<ol>
+<li><strong>wsc-bot01（Bot 端）</strong>：Node.js 執行，使用 Gun.js + SEA 加密與前端通訊，整合 LLM API 處理訊息</li>
+<li><strong>my-gun-relay（中繼伺服器）</strong>：提供 WebSocket relay + 前端聊天介面</li>
+<li><strong>chatroom-scheduler.py（排程器）</strong>：與現有 daily-digest-prompt 系統整合</li>
+</ol>
+<p><strong>關鍵修復</strong>（今日審查報告中識別的 P0 問題）：</p>
+<ul>
+<li><code>radisk: true</code> 未啟用 → 重啟資料消失</li>
+<li>ACK 邏輯 <code>!ack.err</code> 語義錯誤 → 訊息發送狀態判斷錯誤</li>
+<li><code>.on()</code> 監聽未清理 → 重連後訊息重複</li>
+<li>bot epub 公鑰未驗證 → MITM 攻擊面</li>
+</ul>
+<h3>5.2 架構啟發</h3>
+<ol>
+<li><strong>離線優先模式</strong>：Gun.js 的離線優先策略與 daily-digest-prompt 的 API 快取降級機制（<code>api-cache</code> Skill）理念一致</li>
+<li><strong>衝突解決</strong>：HAM 的 LWW-Register 策略可啟發 <code>scheduler-state.json</code> 的並發寫入問題解決</li>
+<li><strong>P2P 通知</strong>：未來可用 Gun.js 替代 ntfy.sh 作為自有通知基礎設施</li>
+<li><strong>CRDT 知識串聯</strong>：本 KB 已有 CRDT 研究（2026-02-26），Gun.js 的 HAM 是 CRDT 的實際應用案例</li>
+</ol>
+<p>---</p>
+<h2>六、Gun.js 生態系統</h2>
+<p>| 套件 | 用途 |</p>
+<p>|------|------|</p>
+<p>| <code>gun</code> | 核心資料庫引擎 |</p>
+<p>| <code>gun/sea</code> | SEA 加密模組 |</p>
+<p>| <code>gun/axe</code> | 進階交換與路由 |</p>
+<p>| <code>gun/nts</code> | 網路時間同步 |</p>
+<p>| <code>gun-vue</code> | Vue.js 整合 |</p>
+<p>| <code>gun-react-native</code> | React Native 支援 |</p>
+<p>| <code>gun-mongo</code> | MongoDB 儲存後端 |</p>
+<p>| <code>gun-s3</code> | Amazon S3 儲存後端 |</p>
+<p>---</p>
+<h2>七、參考來源</h2>
+<ul>
+<li><a href="https://gun.eco/">Gun.js 官方文件</a></li>
+<li><a href="https://github.com/amark/gun">GitHub: amark/gun</a></li>
+<li><a href="https://www.npmjs.com/package/gun">Gun.js npm 套件</a></li>
+<li><a href="https://genosdb.com/gundb">GunDB 生態系統與限制分析</a></li>
+<li><a href="https://jaredforsyth.com/posts/local-first-database-gun-js/">Gun.js 本地優先資料庫分析</a></li>
+<li><a href="https://gun.eco/docs/Conflict-Resolution-with-Guns">Gun.js HAM 衝突解決機制</a></li>
+<li><a href="https://gun.eco/docs/Radisk">RAD 儲存引擎文件</a></li>
+<li><a href="https://dbdb.io/db/gun">Database of Databases — GUN</a></li>
+<li><a href="https://dev.to/codesphere/set-up-a-decentralized-database-with-react-and-gundb-2e5m">React + GunDB 開發指南</a></li>
+<li><a href="https://gustavcorpas.medium.com/a-beginners-guide-to-decentralized-database-programming-with-gundb-c009d77207ad">GunDB 進階程式設計指南</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

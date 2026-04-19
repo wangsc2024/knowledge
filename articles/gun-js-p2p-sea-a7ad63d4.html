@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gun.js 最佳實踐完整指南 -- 去中心化即時圖形資料庫的安裝初始化、資料模型設計、P2P同步、SEA加密授權、RAD持久化、HAM衝突解決與效能優化（v0.2020.1241, 18.9K Stars）">
+  <title>Gun.js 最佳實踐完整指南 -- 去中心化即時圖形資料庫的安裝初始化、資料模型設計、P2P同步、SEA加密授權、RAD持久化、HAM衝突解決與效能優化（v0.2020.1241, 18.9K Stars） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Gun.js 最佳實踐完整指南 -- 去中心化即時圖形資料庫的安裝初始化、資料模型設計、P2P同步、SEA加密授權、RAD持久化、HAM衝突解決與效能優化（v0.2020.1241, 18.9K Stars）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Gun.js</span><span class="tag">去中心化資料庫</span><span class="tag">P2P</span><span class="tag">SEA加密</span><span class="tag">HAM衝突解決</span><span class="tag">RAD儲存</span><span class="tag">最佳實踐</span><span class="tag">即時同步</span><span class="tag">離線優先</span><span class="tag">CRDT</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Gun.js 最佳實踐完整指南</h1>
+<h2>核心概念</h2>
+<p>Gun.js 是開源去中心化、即時同步、離線優先的圖形資料庫（~9KB gzipped, 20M+ ops/sec）。五層架構：HAM（衝突解決）→ Graph（記憶體圖）→ SEA（加密）→ RAD（儲存）→ DAM（網路）。</p>
+<h2>安裝與初始化</h2>
+<ul>
+<li><code>npm install gun</code>，Node.js 需 <code>@peculiar/webcrypto</code></li>
+<li>生產環境配置多個 relay peer，禁用不需要的儲存後端</li>
+<li>React 中建議 <code>localStorage: false</code> 改用 IndexedDB</li>
+</ul>
+<h2>資料模型設計最佳實踐</h2>
+<ol>
+<li>絕不使用原生陣列 → 用 <code>gun.set()</code> 建立集合</li>
+<li>使用確定性 ID 作為 soul → 避免深層巢狀產生隨機 UUID</li>
+<li>扁平化資料結構 → 關聯資料分散為獨立節點透過引用連結</li>
+<li>建立索引節點 → 為常用查詢建立專用索引避免全圖遍歷</li>
+<li>使用時間前綴作為鍵 → 支援 RAD 字典序範圍查詢</li>
+</ol>
+<h2>同步機制（DAM）</h2>
+<ul>
+<li>P2P WebSocket 架構，至少部署 2 個 relay peer</li>
+<li>必須 HTTPS（WebCrypto 需要安全上下文）</li>
+<li>Gun 自動重連不可靠，需自行實作心跳 + 手動重連</li>
+<li>DAM 透過鄰居 peer ID 和 fast hash 去重，減少冗餘訊息</li>
+</ul>
+<h2>持久化（RAD）</h2>
+<ul>
+<li>Node.js 預設 RAD（基數樹 fs），瀏覽器用 localStorage/IndexedDB</li>
+<li>RAD 參數：chunk（分塊大小）、until（批次間隔 250ms）、batch（最大批次 10K）</li>
+<li>支援自訂 adapter（只需 put/get 兩個方法）</li>
+<li>生產環境建議搭配 S3 等外部儲存</li>
+</ul>
+<h2>安全性（SEA）</h2>
+<ul>
+<li>SEA.pair()：ECDSA + ECDH 金鑰對</li>
+<li>SEA.sign/verify：ECDSA-SHA256 簽章/驗簽</li>
+<li>SEA.encrypt/decrypt：AES-GCM 加解密</li>
+<li>SEA.secret()：ECDH 共享秘密（端對端加密）</li>
+<li>SEA.certify()：路徑級別授權憑證</li>
+<li>SEA.work()：PBKDF2 工作量證明</li>
+<li>生產環境禁止 SEA.throw = true</li>
+<li>錯誤檢查用 <code>=== undefined</code> 而非 try-catch</li>
+</ul>
+<h2>效能優化</h2>
+<ol>
+<li>用 <code>.once()</code> 做一次性讀取，避免 <code>.on()</code> 的持續訂閱開銷</li>
+<li>及時 <code>.off()</code> 取消訂閱防止洩漏</li>
+<li>RAD 字典序分頁避免載入整個集合</li>
+<li>批次寫入用 partial update 合併</li>
+<li>Web Worker 隔離 Gun 到背景線程</li>
+</ol>
+<h2>HAM 衝突解決</h2>
+<ul>
+<li>基於 state vector 的 CRDT：state 較新者勝出</li>
+<li>同 state 衝突：JSON.stringify 字典序較大者勝出</li>
+<li>state > 系統時鐘：延遲處理（防止惡意未來時間戳攻擊）</li>
+<li>保證強最終一致性（SEC），不保證線性化</li>
+<li>不適合 Double Spending 場景</li>
+</ul>
+<h2>常見陷阱</h2>
+<ol>
+<li>不支援原生陣列</li>
+<li>無法真正刪除資料（只能 tombstone: put(null)）</li>
+<li>根層級不能存放基元值</li>
+<li>深層巢狀可能產生隨機 UUID</li>
+<li>.on() 可能回傳 partial 資料</li>
+<li>localStorage 5MB 限制</li>
+<li>自動重連不可靠</li>
+</ol>
+<h2>適用場景</h2>
+<ul>
+<li>即時聊天（5星）、協作白板（4星）、IoT（4星）</li>
+<li>社群媒體（3星，需自行設計 ACL）</li>
+<li>電商（2星）、銀行交易（1星，缺乏強一致性）</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>GitHub: 18,952 stars, 1,228 forks, 313 open issues</li>
+<li>官方 API/SEA/RAD/DAM/HAM Wiki（A 級）</li>
+<li>社群 FAQ、ajmeyghani 圖解教學（B/C 級）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

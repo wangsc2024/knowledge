@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-03-28：Skill 驗證增強 + 記憶使用報表">
+  <title>系統優化落實報告 2026-03-28：Skill 驗證增強 + 記憶使用報表 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-03-28：Skill 驗證增強 + 記憶使用報表</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">Skill驗證</span><span class="tag">記憶報表</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>系統優化落實報告</h2>
+<p><strong>執行日期</strong>：2026-03-28</p>
+<p><strong>洞察來源</strong>：KB 近 2 天洞察查詢（11 個筆記）</p>
+<p>---</p>
+<h2>方案 A：Skill 格式一致性驗證增強</h2>
+<p><strong>目標</strong>：借鑑 gemini-cli 專案實踐，增強 <code>hooks/validate_config.py</code> 的 SKILL.md 檢查規則。</p>
+<p><strong>實作內容</strong>：</p>
+<ol>
+<li>新增 <code>depends-on</code> 欄位檢查（選填，但若存在須為陣列）</li>
+<li>新增 <code>cache-ttl</code> 格式檢查（須符合 <code>\d+(min|hour|day)</code> 格式）</li>
+<li>強化 <code>triggers</code> 陣列檢查（至少 3 個元素，從建議改為明確規範）</li>
+<li>新增 <code>--skill-deep-check</code> 模式：檢查步驟編號連續性</li>
+<li>新增 <code>check_skill_step_continuity()</code> 函數：偵測步驟遺漏或不連續</li>
+</ol>
+<p><strong>測試結果</strong>：</p>
+<ul>
+<li>✅ 基本驗證：27 個配置檔通過</li>
+<li>✅ --skill-deep-check：發現 cursor-cli 步驟編號問題（從 3 開始）</li>
+<li>✅ pytest：45/45 測試通過</li>
+</ul>
+<p><strong>驗收狀態</strong>：全部通過</p>
+<p>---</p>
+<h2>方案 B：記憶使用頻率報表</h2>
+<p><strong>目標</strong>：在 <code>check-health.ps1</code> 新增 [記憶使用頻率] 區塊，統計各記憶層使用頻率與健康度。</p>
+<p><strong>實作內容</strong>：</p>
+<ol>
+<li>新增報表區塊於 [研究註冊表健康度] 之後</li>
+<li>統計 3 個記憶層：</li>
+</ol>
+<p>   - <strong>digest-memory.json</strong>：連續天數、知識庫筆記數、Todoist 完成率</p>
+<p>   - *<em>context/continuity/</em>.json**：36 個任務，檢測 >7 天未更新的任務（3 個）</p>
+<p>   - <strong>research-registry.json</strong>：近 7 天新增主題數</p>
+<ol>
+<li>健康判定邏輯：</li>
+</ol>
+<p>   - 🟢 優秀：所有 continuity 最近執行 < 48h</p>
+<p>   - 🟡 警告：有 continuity > 7 天未更新</p>
+<p>   - 🔴 異常：digest-memory.json 不存在</p>
+<p><strong>發現問題</strong>：</p>
+<ul>
+<li>deep_thinking、todoist-auto-ai_deep_research、kb_insight_evaluation 三個任務 >7 天未執行</li>
+</ul>
+<p><strong>驗收狀態</strong>：全部通過</p>
+<p>---</p>
+<h2>方案 C：高風險方案記錄至 backlog</h2>
+<p><strong>方案名稱</strong>：OODA 閉環知識活化強化</p>
+<p><strong>風險等級</strong>：0（架構性改動）</p>
+<p><strong>處理方式</strong>：記錄至 <code>context/improvement-backlog.json</code></p>
+<ul>
+<li>ID：<code>backlog_kso_20260327_ooda_knowledge_activation</code></li>
+<li>優先級：high</li>
+<li>工作量：high</li>
+<li>狀態：pending（需人工審議）</li>
+</ul>
+<p><strong>涉及模組</strong>：knowledge-query、improvement-backlog、arch_evolution、kb_insight_evaluation</p>
+<p><strong>原因</strong>：涉及核心 OODA 閉環架構調整，需多輪設計與跨模組協調，無法在單次 session 中完成。</p>
+<p>---</p>
+<h2>修改檔案清單</h2>
+<ol>
+<li><code>hooks/validate_config.py</code>（+70 行）</li>
+<li><code>check-health.ps1</code>（+65 行）</li>
+<li><code>context/improvement-backlog.json</code>（+1 entry）</li>
+</ol>
+<p>---</p>
+<h2>測試結果</h2>
+<ul>
+<li>✅ YAML/JSON 格式驗證：無錯誤</li>
+<li>✅ pytest 測試套件：45/45 通過</li>
+<li>✅ 系統整合性：35 個自動任務配置一致</li>
+<li>✅ 方案 A 驗收：3/3 通過</li>
+<li>✅ 方案 B 驗收：3/3 通過</li>
+</ul>
+<p>---</p>
+<h2>備份 commit</h2>
+<ul>
+<li><strong>Commit hash</strong>：fd30569</li>
+<li><strong>Commit message</strong>：backup: kb-system-optimize 落實前備份（Skill 驗證增強 + 記憶使用報表）</li>
+</ul>
+<p>---</p>
+<h2>關鍵洞察借鑑</h2>
+<ol>
+<li><strong>gemini-cli</strong>（261eef0c）：Skill 格式一致性驗證實踐 → 借鑑 depends-on、cache-ttl 檢查</li>
+<li><strong>Mastra</strong>（8fcb4fca）：Observational Memory 三層壓縮 → 啟發記憶使用頻率報表設計</li>
+<li><strong>Phase Failure 分級告警</strong>（5e994b77）：中等風險，未在本次落實（需修改 hooks/排程）</li>
+<li><strong>OODA 閉環知識活化</strong>（1b282005）：高風險架構調整，已移至 backlog</li>
+</ol>
+<p>---</p>
+<h2>後續建議</h2>
+<ol>
+<li><strong>cursor-cli Skill</strong>：步驟編號從 3 開始，建議修正為從 0 或 1 開始</li>
+<li><strong>3 個長期未執行任務</strong>：deep_thinking、ai_deep_research、kb_insight_evaluation 需檢查是否被系統性忽略</li>
+<li><strong>Phase Failure 分級告警</strong>：可在下次系統優化中落實（中等風險，但影響範圍大）</li>
+<li><strong>OODA 閉環優化</strong>：需專案規劃與多輪設計，優先級 high</li>
+</ol>
+<p>---</p>
+<p><strong>標籤</strong>：系統優化、kb-system-optimize、Skill驗證、記憶報表、daily-digest-prompt、落實報告、2026-03-28</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

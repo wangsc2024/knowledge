@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout：review-only 與 declarative sandbox 的 override 契約 - 2026-03-30">
+  <title>GitHub Scout：review-only 與 declarative sandbox 的 override 契約 - 2026-03-30 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout：review-only 與 declarative sandbox 的 override 契約 - 2026-03-30</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent安全</span><span class="tag">Sandbox</span><span class="tag">Guardrails</span><span class="tag">ToolBoundary</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：review-only 與 declarative sandbox 的 override 契約 - 2026-03-30</h1>
+<h2>專案觀測摘要</h2>
+<h3>openai/openai-agents-python</h3>
+<ul>
+<li>URL: https://github.com/openai/openai-agents-python</li>
+<li>Stars: 20.4k</li>
+<li>最近更新: 2026-03-26（latest release）</li>
+<li>相關性: high</li>
+<li>guardrail_surface: 覆蓋規劃、tools、handoffs 與 tracing。</li>
+<li>tool_boundary: 工具邊界落在 SDK runtime/handoff abstraction。</li>
+<li>operator_override: override_entry=human in the loop / handoff review（推定）；default_mode=review-only；rollback_strategy=退回純 guardrail 記錄與人工審查。</li>
+<li>evidence_snapshot: repo_observed_at=2026-03-30、source_type=repo_page、freshness_note=repo page 顯示 20.4k stars / v0.13.2 Latest Mar 26, 2026。</li>
+</ul>
+<h3>guardrails-ai/guardrails</h3>
+<ul>
+<li>URL: https://github.com/guardrails-ai/guardrails</li>
+<li>Stars: 6.6k</li>
+<li>最近更新: 2026-03-16（latest release）</li>
+<li>相關性: high</li>
+<li>guardrail_surface: 以 validator 管理輸入/輸出 guardrails。</li>
+<li>tool_boundary: 應用與模型/工具間的 policy 邊界。</li>
+<li>operator_override: override_entry=guardrails configure / validator policy；default_mode=allow；rollback_strategy=warning-only 或停用個別 validator。</li>
+<li>evidence_snapshot: repo_observed_at=2026-03-30、source_type=repo_page、freshness_note=repo page 顯示 6.6k stars / v0.9.2 Latest Mar 16, 2026。</li>
+</ul>
+<h3>kubernetes-sigs/agent-sandbox</h3>
+<ul>
+<li>URL: https://github.com/kubernetes-sigs/agent-sandbox</li>
+<li>Stars: 1.6k</li>
+<li>最近更新: 2026-03-14（latest release）</li>
+<li>相關性: high</li>
+<li>guardrail_surface: 著重 runtime isolation 與 sandbox lifecycle。</li>
+<li>tool_boundary: Sandbox CRD / controller / runtime environment 的 declarative 邊界。</li>
+<li>operator_override: override_entry=Kubernetes resource/controller；default_mode=deny；rollback_strategy=退回研究/審查層與 review-only 記錄。</li>
+<li>evidence_snapshot: repo_observed_at=2026-03-30、source_type=repo_page、freshness_note=repo page 顯示 1.6k stars / v0.2.1 Latest Mar 14, 2026。</li>
+</ul>
+<h2>改進提案</h2>
+<h3>P0 已落實：Structured operator_override observation contract</h3>
+<ul>
+<li>來源專案: openai/openai-agents-python</li>
+<li>改進內容: 將 operator_override 固定為結構化物件，至少包含 <code>override_entry</code>、<code>default_mode</code>、<code>rollback_strategy</code>。</li>
+<li>目標檔案:</li>
+</ul>
+<p>  - config/github-scout-review-policy.yaml</p>
+<p>  - templates/auto-tasks/github-scout.md</p>
+<p>  - prompts/team/todoist-auto-github_scout.md</p>
+<p>  - skills/github-scout/SKILL.md</p>
+<ul>
+<li>execution_contract.run_metadata: trace_id=github-scout-20260330-override-structure, task_key=github_scout, operation_name=structured-operator-override-contract</li>
+</ul>
+<h3>P1 待人工審核：Override control plane registry</h3>
+<ul>
+<li>來源專案: kubernetes-sigs/agent-sandbox</li>
+<li>改進內容: 建立 override registry 與 feature flag rollout 設計，統一 orchestration / guardrail / sandbox 三層控制面。</li>
+<li>計畫檔: docs/plans/github-scout-20260330-override-control-plane-registry.md</li>
+<li>execution_contract.run_metadata: trace_id=github-scout-20260330-override-structure, task_key=github_scout, operation_name=override-control-plane-registry-plan</li>
+</ul>
+<h2>審查結論</h2>
+<ul>
+<li>P0 採納原因: 只調整研究契約層，不碰 scheduler、核心 hook 與 run script；可行性 9/10，穩定性 9/10。</li>
+<li>P0 主要風險: 增加填寫密度；若未落實結構化欄位仍可能語意漂移。</li>
+<li>P0 rollback / 降級: 還原四個契約檔案，或將子欄位要求降級為建議。</li>
+<li>P0 工具邊界 / 護欄影響: 僅提升研究可審查性，不改實際工具調用。</li>
+<li>P1 拒絕本輪自動落實原因: 需額外治理工具邊界與護欄策略，會影響 control plane 語意；可行性 6/10，穩定性 6/10。</li>
+<li>P1 rollback / 降級: 只保留計畫文件，維持 review-only 與文件層契約。</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li>已在 review policy、auto-task template、team prompt、github-scout skill 將 <code>operator_override</code> 改為結構化欄位。</li>
+<li>已驗證 YAML 可解析，且四個檔案均可搜尋到 <code>override_entry</code>、<code>default_mode</code>、<code>rollback_strategy</code>。</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li><code>docs/plans/github-scout-20260330-override-control-plane-registry.md</code>：是否要把 override registry 下沉到非攔截類 hooks 或其他 runtime consume 邏輯。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

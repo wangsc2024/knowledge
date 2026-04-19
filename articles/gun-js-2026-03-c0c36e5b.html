@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gun.js 加密聊天室任務指派系統：完整除錯研究報告（2026-03-01）">
+  <title>Gun.js 加密聊天室任務指派系統：完整除錯研究報告（2026-03-01） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Gun.js 加密聊天室任務指派系統：完整除錯研究報告（2026-03-01）</h1>
+        <div class="article-meta">
+          <div class="tags"></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Gun.js 加密聊天室任務指派系統：完整除錯研究報告</h1>
+<p><strong>日期</strong>：2026-03-01</p>
+<p><strong>專案</strong>：daily-digest-prompt / wsc-bot</p>
+<p><strong>狀態</strong>：✅ 全工作流程驗證成功</p>
+<h2>一、系統架構概述</h2>
+<p>本系統實現一個基於 Gun.js 的去中心化加密聊天室，使用者可透過 UI 指派任務，Bot 接收並儲存，Worker 認領執行（claude -p），結果加密廣播回聊天室。</p>
+<p>核心流程：index.html → SEA.encrypt → Gun Relay → bot.js 接收儲存 → process_messages.ps1 認領 → claude -p 執行 → /api/records/processed → bot.js sendSystemReply → Gun Relay → index.html 解密顯示</p>
+<h2>二、SEA 加密協定詳解</h2>
+<h3>金鑰類型區分（關鍵易混淆點）</h3>
+<ul>
+<li>ECDH 金鑰對（epub/epriv）：Curve25519，用於計算共享密鑰 SEA.secret()</li>
+<li>ECDSA 金鑰對（pub/priv）：P-256，用於簽章驗證 SEA.verify()</li>
+</ul>
+<p><strong>正確驗證方式</strong>：</p>
+<ul>
+<li>❌ 錯誤：SEA.verify(hw.sig, hw.epub) — 用 ECDH epub 驗 ECDSA 簽章，永遠失敗</li>
+<li>✅ 正確：SEA.verify(hw.sig, hw.pub) — 用 ECDSA pub 驗，正常運作</li>
+</ul>
+<h3>訊息格式（與 index.html 完全一致）</h3>
+<pre><code>
+// 加密內容
+const payload = JSON.stringify({ text: userMessage, ts: Date.now() });
+const encryptedData = await SEA.encrypt(payload, sharedSecret);
+// Gun 路徑
+const msgId = 'msg_' + randomHex(12);
+gun.get(chatRoomName).get(msgId).put(encryptedData); // 直接放，不包裝
+</code></pre>
+<h2>三、握手協定</h2>
+<p>Bot 發布：gun.get('wsc-bot/handshake').put({ epub, sig, pub }) 含 ECDSA pub 供驗證</p>
+<p>Bot 兼容路徑：gun.get('wsc-bot/handshake').get('bot-epub').put(myPair.epub)</p>
+<p>Bot relay 重連補發：gun.on('hi', () => 補發 epub)（解決 Render.com 重啟問題）</p>
+<p>客端 epub 發布（握手）：</p>
+<ul>
+<li>gun.get('wsc-bot/handshake').get('client-epub').put(myPair.epub)  // 向下相容</li>
+<li>gun.get('wsc-bot/handshake').get('clients').get(myPair.pub).put(myPair.epub)  // 多用戶</li>
+<li>發布後需等待 8 秒，讓 Bot 建立 sharedSecret</li>
+</ul>
+<h2>四、發現的 6 個 Bug 與修復</h2>
+<h3>Bug 1：SEA.verify 使用錯誤金鑰</h3>
+<p>根因：SEA.verify(hw.sig, hw.epub) 永遠失敗（epub 是 ECDH 非 ECDSA）</p>
+<p>修復：改為 SEA.verify(hw.sig, hw.pub)</p>
+<p>檔案：D:\Source\my-gun-relay\index.html</p>
+<h3>Bug 2：Relay 重啟後 Bot epub 消失</h3>
+<p>根因：bot.js 只在 init() 發布一次 epub，relay 重啟後資料消失未補發</p>
+<p>修復：gun.on('hi', ...) 加入補發邏輯，epubSig 升級為模組層級變數</p>
+<h3>Bug 3：Bot 自身回覆被誤存為新任務</h3>
+<p>根因：SEA.decrypt({text,ts}) 回傳物件，String(obj)='[object Object]' 繞過過濾</p>
+<p>修復：先檢查 typeof raw === 'string'，否則取 raw.text</p>
+<h3>Bug 4：settings.json Hook 路徑損壞</h3>
+<p>根因：bash 將 D:\\Source\\... 的反斜線解析為逃逸字元，路徑損壞</p>
+<p>修復：所有 hook command 改用正斜線 D:/Source/daily-digest-prompt/hooks/xxx.py</p>
+<h3>Bug 5：Worker CLAUDECODE 巢狀 Session 阻擋（最關鍵）</h3>
+<p>根因：Claude Code 設定 CLAUDECODE 用戶環境變數，Task Scheduler 繼承後 claude -p 拒絕啟動</p>
+<p>症狀：Worker log 顯示 claude -p 在 <1 秒內完成，結果是錯誤訊息</p>
+<p>修復：process_messages.ps1 在 claude -p 前 Remove-Item Env:\CLAUDECODE，finally 還原</p>
+<p>wsc-bot01 不受影響：因使用 OpenAI codex exec（無 CLAUDECODE 限制）</p>
+<h3>Bug 6：測試腳本訊息格式錯誤</h3>
+<p>根因：put({ d: encrypted, ts }) 包裝格式，bot 嘗試 SEA.decrypt({d,ts}) 失敗</p>
+<p>修復：直接 put(encryptedData)，且加密 JSON.stringify({text,ts}) 非純文字</p>
+<h2>五、完整工作流程驗證結果</h2>
+<p>成功時間線（2026-03-01 10:44-10:47）：</p>
+<ul>
+<li>10:44:02 用戶發送加密任務 msg_1f2a01c2e34b</li>
+<li>10:44:03 Bot 確認：[系統回覆] 已將任務存為檔案...（研究型: true）</li>
+<li>10:46:10 Task Scheduler Worker 啟動，認領任務</li>
+<li>10:46:13 任務強化完成（33 字 → 1583 字）</li>
+<li>10:46:13 claude -p 開始執行（已清除 CLAUDECODE，31 秒執行）</li>
+<li>10:46:44 Bot sendSystemReply → 加密廣播台灣 AI 產業三大發展機會分析</li>
+<li>端對端總耗時：約 2.5-3 分鐘（含 Task Scheduler 等待 ~2 分鐘）</li>
+</ul>
+<h2>六、Gun.js 重要行為特性</h2>
+<ul>
+<li>.once() null 行為：無快取時立即以 null 回呼，需多次 retry + fallback</li>
+<li>.map().on() 歷史資料：附加後對現有所有資料觸發回呼，需用 processedMessages 去重</li>
+<li>Render.com Free Tier：每 ~15 分鐘重啟，radisk 資料消失，需 relay reconnect republish</li>
+</ul>
+<h2>七、架構建議</h2>
+<ol>
+<li>使用本地 relay 開發（localhost:8765）比 Render.com 穩定</li>
+<li>epub 握手等待 8 秒確保 bot 建立 sharedSecret</li>
+<li>Task Scheduler 執行 claude -p 前必須清除 CLAUDECODE</li>
+<li>嚴格遵守訊息格式：JSON.stringify({text,ts}) + 直接 put</li>
+<li>多路徑握手：同時發布 client-epub 和 clients/<pub></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

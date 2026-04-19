@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="gemini-cli 專案深度研究與架構洞察">
+  <title>gemini-cli 專案深度研究與架構洞察 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>gemini-cli 專案深度研究與架構洞察</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub研究</span><span class="tag">gemini-cli</span><span class="tag">CLI設計</span><span class="tag">Agent編排</span><span class="tag">Hook系統</span><span class="tag">Skill系統</span><span class="tag">架構比較</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <p><h1>gemini-cli 專案深度研究與架構洞察</h1><h2>專案概述</h2><p>Google 官方開源 Gemini AI CLI 工具，v0.30.0-nightly，Apache 2.0 授權。技術棧：Node.js 20+ / TypeScript / React (Ink) / esbuild / Vitest。規模：4,664 commits、1,449 TypeScript 檔案、6 個 monorepo packages。</p><h2>Monorepo 結構</h2><ul><li><strong>packages/cli</strong>：前端 UI（React/Ink 終端機渲染）</li><li><strong>packages/core</strong>：後端邏輯（API 編排、工具執行、排程器）含 agents/scheduler/tools/hooks/skills/policy/safety/routing 等模組</li><li><strong>packages/sdk</strong>：程式化 SDK（GeminiCliAgent 類別）</li><li><strong>packages/a2a-server</strong>：實驗性 Agent-to-Agent 伺服器</li></ul><h2>關鍵機制</h2><h3>1. Agent 編排</h3><p>結構化 AgentDefinition（promptConfig + modelConfig + runConfig + toolConfig + outputConfig），支援 local/remote Agent，Agent Registry 集中管理，LocalAgentExecutor 執行 Agent Loop。5 種終止模式：GOAL/ERROR/TIMEOUT/MAX_TURNS/ABORTED。</p><h3>2. Hook 系統</h3><p>11 種事件（BeforeTool/AfterTool/BeforeAgent/AfterAgent/SessionStart/SessionEnd/Notification/PreCompress/BeforeModel/AfterModel/BeforeToolSelection），5 種決策（ask/block/deny/approve/allow），四層配置優先級（Project > User > System > Extensions）。</p><h3>3. Skill 系統</h3><p>SKILL.md frontmatter（name + description）+ Markdown body，與 daily-digest-prompt 格式高度一致。載入優先級：Built-in → Extension → User → Workspace。ActivateSkillTool 工具啟用 Skill。</p><h3>4. Policy Engine</h3><p>TOML 策略配置、規則匹配（工具名稱 + 參數 pattern + Approval Mode）、通配符支援、Shell 安全分析。SafetyChecker 協議含 protocolVersion 版本化。</p><h3>5. 重試機制</h3><p>retryWithBackoff：指數退避 + 隨機 jitter（初始 5s、最大 30s）。錯誤分類：TerminalQuotaError（不可重試）、RetryableQuotaError（可重試）、ValidationRequiredError（需使用者動作）。支援 AbortSignal、模型自動降級。</p><h3>6. 模型路由</h3><p>CompositeStrategy 策略鏈：FallbackStrategy → OverrideStrategy → ClassifierStrategy → NumericalClassifierStrategy → DefaultStrategy。</p><h2>可移植技術（P0）</h2><ol><li><strong>指數退避重試</strong>：可直接適配到 PowerShell 腳本</li><li><strong>Safety Checker 協議版本化</strong>：在 hook JSON 中加入 protocol_version</li><li><strong>Agent 終止模式分類</strong>：擴展 scheduler-state.json 的 result 欄位為 5 種</li></ol><h2>與 daily-digest-prompt 比較</h2><p>Gemini CLI 是程式碼驅動的企業級平台（1,449 TS 檔）；daily-digest-prompt 是文件驅動的精簡系統（改配置不改 prompt）。Skill 格式高度一致，證明設計方向正確。本專案獨有優勢：研究去重、自動任務輪轉、ntfy 通知、跨次記憶持久化。</p></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

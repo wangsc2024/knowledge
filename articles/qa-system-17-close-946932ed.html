@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #17 - close_question ORM Enum 一致性修復 + zeep 升級 (2026-02-27)">
+  <title>QA System 優化報告 #17 - close_question ORM Enum 一致性修復 + zeep 升級 (2026-02-27) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #17 - close_question ORM Enum 一致性修復 + zeep 升級 (2026-02-27)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">ORM一致性</span><span class="tag">品質改善</span><span class="tag">zeep升級</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #17</h1>
+<blockquote>日期：2026-02-27 | 品質分數：5/5 | 第十七次掃描</blockquote>
+<h2>優化方向</h2>
+<p>close_question raw SQL 改 ORM 操作（消除 Enum 不一致）+ datetime timezone-aware + zeep 版本升級</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題。已確認：SECRET_KEY 環境變數化、SQL 注入防護、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼、python-jose CVE 修復、錯誤訊息零洩漏。</p>
+<h2>已修復問題（4 項品質）</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>close_question raw SQL → ORM 操作</strong>：端點原本用 <code>UPDATE questions SET status = 'closed'</code> raw SQL 寫入字串，與 ORM <code>Enum(QuestionStatus)</code> 不一致。改為 <code>question_obj.status = QuestionStatus.CLOSED</code>，消除 ORM refresh 時的 Enum KeyError 風險。</li>
+</ol>
+<ol>
+<li><strong>close_question datetime.now() → datetime.now(timezone.utc)</strong>：結案時間改為 timezone-aware，與全專案 #5 datetime 遷移一致。</li>
+</ol>
+<ol>
+<li><strong>test_close_question_api 改用 ORM 驗證</strong>：原本因 raw SQL/Enum 不一致被迫用 raw SQL SELECT 驗證狀態（workaround），現改為 <code>expire_all()</code> + ORM query + <code>assert status == QuestionStatus.CLOSED</code>，同時驗證 summary 和 closed_date。</li>
+</ol>
+<ol>
+<li><strong>zeep 版本升級 4.2.1 → 4.3.2</strong>：消除 <code>cgi</code> 模組棄用警告（Python 3.13 已移除 cgi 模組）。</li>
+</ol>
+<h2>測試結果</h2>
+<p>103/103 全數通過（zero failures），延續 #16 里程碑。</p>
+<h2>剩餘議題</h2>
+<ul>
+<li>questions.py 進一步模組拆分（仍 884 行）</li>
+<li>edit_question 端點仍用 raw SQL 寫入 status 字串（同類問題）</li>
+</ul>
+<h2>品質趨勢</h2>
+<p>| 次數 | 日期 | 分數 | 方向 |</p>
+<p>|------|------|------|------|</p>
+<p>| #1 | 02-15 | 2 | SQL 注入修復 + 硬編碼密碼 |</p>
+<p>| #5 | 02-17 | 4.5 | JWT DRY + datetime + 錯誤訊息 |</p>
+<p>| #9 | 02-19 | 4.5 | questions.py DRY 重構 |</p>
+<p>| #14 | 02-25 | 4.5 | reports 測試 + Bug 修復 |</p>
+<p>| #16 | 02-26 | 5 | 103/103 測試全通過里程碑 |</p>
+<p>| #17 | 02-27 | 5 | ORM Enum 一致性 + zeep 升級 |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

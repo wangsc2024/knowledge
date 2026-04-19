@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Inference-Time Compute Scaling 完整指南 — 從 Test-Time Compute、推理 Token 最佳化到 2026 開源推理模型生態的技術全景與效能基準">
+  <title>Inference-Time Compute Scaling 完整指南 — 從 Test-Time Compute、推理 Token 最佳化到 2026 開源推理模型生態的技術全景與效能基準 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Inference-Time Compute Scaling 完整指南 — 從 Test-Time Compute、推理 Token 最佳化到 2026 開源推理模型生態的技術全景與效能基準</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">Inference-Time Scaling</span><span class="tag">Test-Time Compute</span><span class="tag">推理模型</span><span class="tag">Reasoning Model</span><span class="tag">CoT</span><span class="tag">MoE</span><span class="tag">OpenAI o3</span><span class="tag">DeepSeek R1</span><span class="tag">開源模型</span><span class="tag">技術研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Inference-Time Compute Scaling 完整指南</h1>
+<h2>從 Test-Time Compute、推理 Token 最佳化到 2026 開源推理模型生態的技術全景與效能基準</h2>
+<p>---</p>
+<h2>一、概述</h2>
+<p>Inference-Time Compute Scaling（推論時計算擴展，又稱 Test-Time Compute、Inference Scaling）是 2026 年 LLM 領域最重要的技術範式轉移之一。核心概念是：<strong>在推論階段投入更多計算資源，而非持續增大模型參數，以提升回答品質與準確度</strong>。</p>
+<h3>為什麼這很重要？</h3>
+<ul>
+<li><strong>訓練前擴展放緩</strong>：隨著模型參數規模趨近實用極限，單純增大模型帶來的邊際效益遞減</li>
+<li><strong>推論成本已超越訓練成本</strong>：成為實際部署的主要瓶頸</li>
+<li><strong>更靈活的計算分配</strong>：可依任務難度動態調整推論計算預算</li>
+<li><strong>Pareto 最優</strong>：小模型 + 進階推論演算法，在成本與效能上常優於大模型直接推論</li>
+</ul>
+<p>---</p>
+<h2>二、推論時擴展的四大類別</h2>
+<h3>2.1 推理型方法（Reasoning-Based）</h3>
+<p>| 技術 | 原理 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Chain-of-Thought（CoT）</strong> | 引導模型逐步推理，生成中間步驟 | 數學、邏輯、程式設計 |</p>
+<p>| <strong>Tree-of-Thought（ToT）</strong> | 探索多條推理路徑，選擇最佳分支 | 複雜規劃、創意任務 |</p>
+<p>| <strong>ReAct</strong> | 交替進行推理與行動（工具呼叫） | Agentic 工作流 |</p>
+<p>| <strong>Interleaved Reasoning</strong> | 推理與工具呼叫交錯執行 | 多步驟 Agent 任務 |</p>
+<p><strong>關鍵特徵</strong>：CoT 額外開銷約 3-5 倍 token 使用量（例如數學題從 300 token 增至 1,200 token）。</p>
+<h3>2.2 取樣型方法（Sampling-Based）</h3>
+<p>| 技術 | 原理 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Best-of-N</strong> | 並行生成 N 個獨立回答，選最佳者 | 品質敏感任務 |</p>
+<p>| <strong>Self-Consistency</strong> | 多次取樣後多數決 | 有明確答案的推理任務 |</p>
+<p>| <strong>Majority Voting</strong> | 統計最常出現的答案 | 數學、邏輯推理 |</p>
+<p><strong>關鍵特徵</strong>：計算量線性增長（N 倍），但可完全並行化。</p>
+<h3>2.3 搜尋型方法（Search-Based）</h3>
+<p>| 技術 | 原理 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Beam Search</strong> | 保留 K 個最佳候選路徑 | 程式碼生成、翻譯 |</p>
+<p>| <strong>Monte Carlo Tree Search（MCTS）</strong> | 模擬 + 回溯選擇最優路徑 | 複雜推理、博弈 |</p>
+<p>| <strong>Test-Time Search</strong> | 動態探索多條推理路徑並由評估器篩選 | o3 系列模型的核心機制 |</p>
+<p><strong>關鍵特徵</strong>：需要評估器（Critic / Verifier）來區分候選路徑的品質。</p>
+<h3>2.4 驗證型方法（Verification-Based）</h3>
+<p>| 技術 | 原理 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Process Reward Model（PRM）</strong> | 逐步驟評分，獎勵正確推理過程 | 數學證明、多步驟推理 |</p>
+<p>| <strong>Outcome Reward Model（ORM）</strong> | 僅評估最終結果 | 有明確答案的任務 |</p>
+<p>| <strong>Verification CoT</strong> | 驗證器生成驗證推理鏈 | 高可靠性需求場景 |</p>
+<p><strong>關鍵特徵</strong>：PRM 比 ORM 更精確但需要步驟級標註資料。</p>
+<p>---</p>
+<h2>三、推理模型的內部架構</h2>
+<h3>3.1 OpenAI o3 系列</h3>
+<ul>
+<li><strong>架構</strong>：Dense Transformer + Test-Time Search</li>
+<li><strong>訓練</strong>：大規模強化學習（RL），在驗證過的推理序列上訓練</li>
+<li><strong>推論機制</strong>：生成數百/數千條候選推理路徑 → 評估器檢查計算和邏輯錯誤 → 選擇最佳路徑</li>
+<li><strong>隱藏 CoT</strong>：推理過程不對使用者公開（安全考量 + 刻意對齊）</li>
+<li><strong>Thinking Budget</strong>：<code>reasoning_effort</code> 參數（low/medium/high），從 low 到 high 準確度提升 10-30%</li>
+<li><strong>效能</strong>：AIME 2024 96.7%、MATH-500 ~97%、Codeforces Elo 2727</li>
+<li><strong>訓練成本</strong>：約 120 萬 A100 GPU 小時</li>
+</ul>
+<h3>3.2 DeepSeek R1</h3>
+<ul>
+<li><strong>架構</strong>：Mixture-of-Experts（MoE），671B 總參數 / 37B 活躍參數</li>
+<li><strong>四階段訓練流程</strong>：</li>
+</ul>
+<p>  1. <strong>SFT</strong>：~1,000 筆高品質推理樣本微調</p>
+<p>  2. <strong>GRPO RL</strong>：Group Relative Policy Optimization，規則式獎勵（準確性、格式、語言一致性）</p>
+<p>  3. <strong>Rejection Sampling</strong>：篩選 60 萬輸出 + 20 萬通用領域樣本的 SFT</p>
+<p>  4. <strong>多樣 RL</strong>：結合規則式和 LLM 式獎勵模型，涵蓋 100+ 任務類別</p>
+<ul>
+<li><strong>透明 CoT</strong>：推理過程完全可見</li>
+<li><strong>效能</strong>：MATH-500 97.3%、AIME 2024 79.8%</li>
+<li><strong>訓練成本</strong>：約 266 萬 H800 GPU 小時</li>
+</ul>
+<h3>3.3 Anthropic Claude Thinking 模式</h3>
+<ul>
+<li><strong>Extended Thinking</strong>：在生成回覆前進行延伸思考</li>
+<li><strong>Budget Token</strong>：可設定思考 token 上限</li>
+<li><strong>Streaming 支援</strong>：思考過程可串流顯示</li>
+<li><strong>應用</strong>：Claude Opus 4.6 支援 1M token 上下文 + 延伸思考</li>
+</ul>
+<p>---</p>
+<h2>四、2026 開源推理模型生態（Top 10）</h2>
+<p>| 排名 | 模型 | 架構 | 總參數/活躍參數 | AIME 2025 | 特色 |</p>
+<p>|------|------|------|-----------------|-----------|------|</p>
+<p>| 1 | GPT-OSS-120B | MoE | 117B/5.1B | - | 單 80GB GPU 運行，接近 o4-mini |</p>
+<p>| 2 | GLM-4.7 | Sparse MoE | 355B/32B | - | 交錯推理模式，HLE 42.8% |</p>
+<p>| 3 | Kimi K2 Thinking | MoE (384 experts) | ~1T/32B | - | 原生 INT4，256K→1M 上下文 |</p>
+<p>| 4 | MiniMax-M2.1 | Agent MoE | 230B/10B | - | Agent 工作流最佳化 |</p>
+<p>| 5 | DeepSeek-R1-Distill-8B | Dense | 8B | 87.5% | 從 671B 蒸餾，單 GPU 運行 |</p>
+<p>| 6 | DeepSeek-V3.2 | MoE+DSA | 671B/37B | - | 稀疏注意力，~1M 上下文 |</p>
+<p>| 7 | Qwen3-Next-80B-A3B | Hybrid MoE | 80B/3B | 87.8% | 512 專家僅啟用 10 個 |</p>
+<p>| 8 | Qwen3-235B-A22B | Hybrid MoE | 235B/22B | 89.2% | 雙模式（速度/深度推理）切換 |</p>
+<p>| 9 | Ministral 14B | Dense | 14B | ~85% | 消費級 GPU（RTX 4090），40-60 t/s |</p>
+<p>| 10 | MiMo-V2-Flash | Ultra-sparse MoE | 309B/15B | <strong>94.1%</strong> | Claude 2.5% 推論成本，~150 t/s |</p>
+<h3>開源生態關鍵趨勢</h3>
+<ol>
+<li><strong>超稀疏 MoE 架構崛起</strong>：MiMo-V2 的 20:1 稀疏比（309B 僅啟用 15B）以極低成本達到頂尖效能</li>
+<li><strong>蒸餾民主化</strong>：8B 蒸餾模型在 AIME 達到 87.5%，可在消費級硬體運行</li>
+<li><strong>Agent 原生設計</strong>：MiniMax-M2.1 等模型專為多步驟 Agent 工作流最佳化</li>
+<li><strong>雙模式切換</strong>：Qwen3 系列支援速度模式與深度推理模式動態切換</li>
+<li><strong>多 Token 預測</strong>：Qwen3-Next 等模型在訓練時採用多 Token 預測，加速推論</li>
+</ol>
+<p>---</p>
+<h2>五、成本與效能的權衡</h2>
+<h3>5.1 推論成本結構</h3>
+<p>| 策略 | 額外計算倍數 | 準確度提升 | 適用場景 |</p>
+<p>|------|-------------|-----------|----------|</p>
+<p>| 基礎推論 | 1x | 基準 | 簡單查詢 |</p>
+<p>| CoT 提示 | 3-5x | +10-20% | 中等推理 |</p>
+<p>| Best-of-N (N=8) | 8x | +15-25% | 品質關鍵任務 |</p>
+<p>| Test-Time Search | 10-100x | +20-40% | 複雜推理、競賽 |</p>
+<h3>5.2 計算預算分配策略</h3>
+<ul>
+<li><strong>動態分配</strong>：依任務難度自動調整思考深度（o3 的 reasoning_effort）</li>
+<li><strong>提前終止</strong>：簡單問題快速回答，不浪費推理 token</li>
+<li><strong>混合策略</strong>：Easy 問題用小模型直答，Hard 問題用大模型 + 深度推理</li>
+</ul>
+<h3>5.3 Pareto 前沿發現</h3>
+<blockquote><strong>關鍵發現</strong>：小模型 + 進階推論演算法的組合，在成本-效能 Pareto 前沿上常優於大模型直接推論。例如 Ministral 14B 在消費級 GPU 上達到 5-10 倍大模型的推理效能。</blockquote>
+<p>---</p>
+<h2>六、2026 前沿方向</h2>
+<ol>
+<li><strong>推論效率最佳化</strong>：降低延遲、減少不必要的推理 token，讓推理更精準而非更長</li>
+<li><strong>多模態推理擴展</strong>：文字推理延伸至圖像、音頻（Gemini 多模態推理）</li>
+<li><strong>Agentic 推理</strong>：推理 + 行動交錯的 Agent 架構成為主流（ReAct → Interleaved Reasoning）</li>
+<li><strong>驗證器訓練民主化</strong>：PRM 標註成本降低，開源 PRM 資料集增加</li>
+<li><strong>推論即服務（Reasoning-as-a-Service）</strong>：雲端 API 暴露計算預算參數，用戶按需付費</li>
+<li><strong>邊緣推理</strong>：INT4 量化 + 超稀疏 MoE 讓複雜推理在消費級硬體可行</li>
+</ol>
+<p>---</p>
+<h2>七、實踐建議</h2>
+<h3>何時使用推論時擴展？</h3>
+<p>| 場景 | 推薦策略 | 原因 |</p>
+<p>|------|---------|------|</p>
+<p>| 數學/邏輯推理 | CoT + Self-Consistency | 步驟明確，多數決有效 |</p>
+<p>| 程式碼生成 | Best-of-N + Test Cases | 可自動驗證正確性 |</p>
+<p>| 開放式問答 | Extended Thinking | 需要深度思考但無明確驗證 |</p>
+<p>| Agent 任務 | Interleaved Reasoning | 推理與工具呼叫交錯 |</p>
+<p>| 成本敏感 | 小模型 + PRM | Pareto 最優解 |</p>
+<p>| 延遲敏感 | 基礎推論 + 快取 | 避免額外推理開銷 |</p>
+<h3>選擇模型的決策框架</h3>
+<ol>
+<li><strong>預算充足 + 最高準確度</strong> → o3 high reasoning / Claude Extended Thinking</li>
+<li><strong>開源 + 高效能</strong> → Qwen3-235B / DeepSeek-V3.2</li>
+<li><strong>邊緣部署 + 消費級硬體</strong> → Ministral 14B / R1-Distill-8B</li>
+<li><strong>Agent 工作流</strong> → MiniMax-M2.1 / GLM-4.7</li>
+<li><strong>極致成本效率</strong> → MiMo-V2-Flash（Claude 2.5% 成本）</li>
+</ol>
+<p>---</p>
+<h2>八、參考來源</h2>
+<ol>
+<li>Sebastian Raschka (2026). <em>Categories of Inference-Time Scaling for Improved LLM Reasoning</em></li>
+<li>Adaline Labs (2026). <em>Inside Reasoning Models: OpenAI o3 And DeepSeek R1</em></li>
+<li>Clarifai (2026). <em>Top 10 Open-source Reasoning Models in 2026</em></li>
+<li>arXiv:2510.10787. <em>Review of Inference-Time Scaling Strategies: Reasoning, Search and RAG</em></li>
+<li>arXiv:2408.03314. <em>Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters</em></li>
+<li>RLHF Book (Nathan Lambert). <em>Reasoning Training & Inference-Time Scaling</em></li>
+<li>OpenAI (2026). <em>Introducing OpenAI o3 and o4-mini</em></li>
+<li>Let's Data Science (2026). <em>How Reasoning Models Actually Work Under the Hood</em></li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-07</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「研究 1 項 AI 最新技術」。KB 去重檢查後確認 Inference-Time Compute Scaling 方向尚未涵蓋，為 2026 年 LLM 領域從「訓練擴展」轉向「推論擴展」的核心範式轉移。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案優化報告 2026-03-04：並行安全與文件一致性">
+  <title>專案優化報告 2026-03-04：並行安全與文件一致性 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案優化報告 2026-03-04：並行安全與文件一致性</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">並行安全</span><span class="tag">atomic_write</span><span class="tag">file_lock</span><span class="tag">文件一致性</span><span class="tag">daily-digest-prompt</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案優化報告 2026-03-04</h1>
+<h2>優化摘要</h2>
+<p>本次優化聚焦於「並行安全」與「文件一致性」兩大主軸，共完成 7 項優化。</p>
+<h2>優化項目</h2>
+<h3>1. behavior_tracker.py 原子寫入（Critical）</h3>
+<ul>
+<li><strong>問題</strong>：<code>_save_patterns()</code> 使用 <code>json.dump()</code> 直接寫入，團隊模式多 Agent 並行時可能導致 JSON 損壞</li>
+<li><strong>修正</strong>：改用 <code>hook_utils.atomic_write_json()</code>（write-to-temp + os.replace()），含 ImportError 退回機制</li>
+</ul>
+<h3>2. behavior_tracker.py file_lock 保護（High）</h3>
+<ul>
+<li><strong>問題</strong>：<code>track()</code> 的 read-modify-write 序列無互斥保護，多進程並行時可能資料遺失</li>
+<li><strong>修正</strong>：加入 <code>hook_utils.file_lock</code> 包裹整個 read-modify-write 序列，含 ImportError 退回（nullcontext）</li>
+</ul>
+<h3>3. on_stop_alert.py Gmail OAuth state 原子寫入（High）</h3>
+<ul>
+<li><strong>問題</strong>：三處 Gmail OAuth state 寫入使用 <code>json.dump()</code> 直接寫入</li>
+<li><strong>修正</strong>：改用 <code>atomic_write_json()</code>，含 ImportError 退回機制</li>
+</ul>
+<h3>4. CLAUDE.md 自動任務數量修正（Medium）</h3>
+<ul>
+<li><strong>問題</strong>：三處標註「47 次/日」，但實際活躍上限為 17 次/日</li>
+<li><strong>修正</strong>：更新為「17 次/日活躍」，群組數字對齊 daily_limit 實際值</li>
+</ul>
+<h3>5. MEMORY.md 測試數量修正（Medium）</h3>
+<ul>
+<li><strong>問題</strong>：標註「544 個測試」，實際為 556 個</li>
+<li><strong>修正</strong>：更新測試數量與分類明細</li>
+</ul>
+<h3>6. frequency-limits.yaml 群組註釋修正（Medium）</h3>
+<ul>
+<li><strong>問題</strong>：8 個群組的註釋數字仍為舊值（未反映 daily_limit: 0 的暫停狀態）</li>
+<li><strong>修正</strong>：全部 8 個群組註釋更新為實際 daily_limit 總和</li>
+</ul>
+<h3>7. on_stop_alert.py kept 變數防禦性修正（Low）</h3>
+<ul>
+<li><strong>問題</strong>：<code>_rotate_logs</code> 中 <code>kept</code> 變數在 try 區塊內宣告，若 readlines 失敗會導致 NameError</li>
+<li><strong>修正</strong>：<code>kept = []</code> 提前到 try 之外宣告</li>
+</ul>
+<h2>技術細節</h2>
+<h3>並行安全模式</h3>
+<p>本專案的團隊模式（run-agent-team.ps1、run-todoist-agent-team.ps1）會同時啟動多個 claude -p 進程。共享狀態檔案的讀寫必須使用：</p>
+<ol>
+<li><code>file_lock</code>：互斥鎖保護 read-modify-write 序列</li>
+<li><code>atomic_write_json</code>：write-to-temp + os.replace() 防半寫入損壞</li>
+</ol>
+<h3>已保護的狀態檔案</h3>
+<ul>
+<li><code>state/token-usage.json</code>（post_tool_logger.py）— 已有 file_lock</li>
+<li><code>state/loop-state-*.json</code>（post_tool_logger.py）— 已有 file_lock</li>
+<li><code>context/behavior-patterns.json</code>（behavior_tracker.py）— <strong>本次新增</strong> file_lock + atomic_write</li>
+<li><code>state/gmail-oauth-state.json</code>（on_stop_alert.py）— <strong>本次新增</strong> atomic_write</li>
+<li><code>logs/structured/session-summary.jsonl</code>（on_stop_alert.py）— 已有 atomic_write_lines</li>
+</ul>
+<h2>驗證結果</h2>
+<ul>
+<li>556/556 測試全部通過</li>
+<li>所有修改含 ImportError 退回機制，確保獨立可用</li>
+<li>YAML 配置驗證通過（19 個任務解析正確）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

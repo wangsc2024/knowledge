@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Qdrant 向量數據庫完整指南 — 核心架構、HNSW 索引、性能調優與生產部署最佳實踐（2026）">
+  <title>Qdrant 向量數據庫完整指南 — 核心架構、HNSW 索引、性能調優與生產部署最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Qdrant 向量數據庫完整指南 — 核心架構、HNSW 索引、性能調優與生產部署最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Qdrant</span><span class="tag">向量數據庫</span><span class="tag">vector database</span><span class="tag">HNSW</span><span class="tag">性能調優</span><span class="tag">生產部署</span><span class="tag">RAG</span><span class="tag">知識庫</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Qdrant 向量數據庫完整指南 — 核心架構、HNSW 索引、性能調優與生產部署最佳實踐（2026）</h1>
+<h2>技術概述</h2>
+<p>Qdrant 是用 Rust 構建的高性能開源向量數據庫，採用 HNSW（Hierarchical Navigable Small World）索引算法實現快速相似度搜索。它支援數十億向量的存儲與查詢，透過自定義存儲引擎（Gridstore）、SIMD 硬體加速、io_uring 異步 I/O 與先進量化技術，將內存佔用減少高達 97%。Qdrant 提供靈活的部署選項（本地 Docker、Kubernetes 自架、雲端託管、混合雲），支援 HTTP/gRPC 雙協議，並提供 Python、JavaScript、Rust、Go、.NET、Java 等多語言 SDK。2026 年，Qdrant 獲得 5000 萬美元 B 輪融資，持續演進為 Agentic AI 系統的核心基礎設施，重點強化 4-bit 量化、多租戶擴展、讀寫分離與企業級可觀測性。</p>
+<p>---</p>
+<h2>一、核心架構設計</h2>
+<h3>1.1 客戶端-服務器架構</h3>
+<p>Qdrant 採用<strong>客戶端-服務器模型</strong>，公開兩種協議：</p>
+<ul>
+<li><strong>HTTP RESTful API</strong>：適合人工調試與跨語言整合</li>
+<li><strong>gRPC</strong>：高性能二進制協議，適合高吞吐場景</li>
+</ul>
+<p>官方客戶端庫覆蓋主流語言（Python、JavaScript/TypeScript、Rust、Go、.NET、Java），並提供 OpenAPI 規範供自動生成其他語言客戶端。</p>
+<h3>1.2 數據組織：Collections、Points、Payloads</h3>
+<p>| 概念 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>Collection</strong> | 命名的點集合（類似資料庫中的表），包含向量與元數據 |</p>
+<p>| <strong>Point</strong> | 基本數據單元，由 ID（64-bit 整數或 UUID）、向量、Payload 組成 |</p>
+<p>| <strong>Payload</strong> | 結構化元數據（JSON 格式），可建立索引供過濾查詢 |</p>
+<p>| <strong>Segment</strong> | 底層存儲單元，自動後台優化合併，類似 LSM-tree 的 SSTables |</p>
+<h3>1.3 分片與副本</h3>
+<p>在分布式部署中，Collection 分割為 <strong>Shards</strong>（分片），每個 Shard 保有獨立的 Segments：</p>
+<ul>
+<li><strong>Automatic Sharding</strong>：一致性哈希自動分配點到不同分片</li>
+<li><strong>User-Defined Sharding</strong> (v1.7.0+)：多租戶場景下，按 shard_key 手動分配</li>
+</ul>
+<p>每個 Shard 可配置多個 <strong>Replicas</strong>（副本），提供高可用性與負載均衡。</p>
+<p>---</p>
+<h2>二、HNSW 索引深度解析</h2>
+<h3>2.1 HNSW 算法原理</h3>
+<p>HNSW（Hierarchical Navigable Small World）是分層圖結構，透過多層導航加速近似最近鄰搜索：</p>
+<ul>
+<li><strong>底層 (Layer 0)</strong>：包含全部向量，密集連接</li>
+<li><strong>上層 (Layer 1-N)</strong>：稀疏節點，長距離跳躍</li>
+</ul>
+<p>搜索從頂層開始，逐層下降至底層，最終找到最近鄰。</p>
+<h3>2.2 Qdrant 的 HNSW 創新</h3>
+<p>Qdrant 的核心創新是 <strong>Payload Indexed HNSW</strong>：</p>
+<ul>
+<li><strong>傳統做法</strong>：先 HNSW 搜索取 top-k，再用 payload 過濾（後過濾，可能遺漏結果）</li>
+<li><strong>Qdrant 做法</strong>：在 HNSW 圖遍歷期間即時應用過濾條件（單次遍歷，精確匹配）</li>
+</ul>
+<p>這使得 Qdrant 能在<strong>語義搜索階段直接整合結構化過濾</strong>，避免傳統雙階段方法的召回損失。</p>
+<h3>2.3 HNSW 關鍵參數</h3>
+<p>| 參數 | 作用 | 調優建議 |</p>
+<p>|------|------|---------|</p>
+<p>| <strong><code>m</code></strong> | 每個節點的連接數 | 預設 16，複雜數據可提升至 32-64（權衡：精度 ↑ 內存 ↑） |</p>
+<p>| <strong><code>ef_construct</code></strong> | 建索引時訪問的鄰居數 | 預設 100，密集向量可用 200-500（權衡：索引質量 ↑ 建構時間 ↑） |</p>
+<p>| <strong><code>hnsw_ef</code></strong> | 查詢時訪問的鄰居數 | 動態調整（低延遲場景用 64，高召回場景用 256+） |</p>
+<p><strong>調優原則</strong>：<code>hnsw_ef</code> 應 ≥ <code>limit</code>（返回結果數），且 <code>hnsw_ef</code> ≥ <code>m</code>。</p>
+<p>---</p>
+<h2>三、存儲引擎與內存管理</h2>
+<h3>3.1 Gridstore 自定義存儲引擎</h3>
+<p>Qdrant 的 Gridstore 是為向量數據優化的存儲層，特點：</p>
+<ul>
+<li><strong>列式存儲</strong>：向量維度分開存儲，加速部分維度查詢</li>
+<li><strong>Delta Encoding</strong>：HNSW 圖壓縮技術，僅存儲值差異，減少內存佔用</li>
+<li><strong>mmap 零拷貝</strong>：直接將磁盤文件映射到內存，減少系統調用</li>
+</ul>
+<h3>3.2 三種內存策略</h3>
+<p>| 策略 | 配置 | 適用場景 |</p>
+<p>|------|------|---------|</p>
+<p>| <strong>全內存</strong> | 向量 + HNSW 全在 RAM | 低延遲高吞吐（<10ms P99），成本較高 |</p>
+<p>| <strong>量化 + Rescoring</strong> | 量化向量在 RAM，原始向量在磁盤 | <strong>推薦</strong>：平衡性能與成本（~30ms P99） |</p>
+<p>| <strong>全磁盤</strong> | 向量 + HNSW 全在磁盤（SSD/NVMe） | 超大規模數據集，可接受 50-100ms 延遲 |</p>
+<h3>3.3 量化技術</h3>
+<p>Qdrant 支援三種量化方式：</p>
+<ol>
+<li><strong>Scalar Quantization (int8)</strong>：將 float32 壓縮為 int8，內存減少 75%，精度損失 <2%</li>
+<li><strong>Product Quantization (PQ)</strong>：更激進壓縮，適合超高維向量（>1024）</li>
+<li><strong>Binary Quantization</strong>：極限壓縮至 1-bit，適合粗排序場景</li>
+</ol>
+<p><strong>最佳實踐</strong>：</p>
+<pre><code>
+{
+  "quantization_config": {
+    "scalar": {
+      "type": "int8",
+      "quantile": 0.99,
+      "always_ram": true
+    }
+  },
+  "hnsw_config": {
+    "m": 16,
+    "ef_construct": 200
+  }
+}
+</code></pre>
+<p>---</p>
+<h2>四、性能調優完整指南</h2>
+<h3>4.1 索引構建優化</h3>
+<p><strong>批量數據導入</strong>：</p>
+<ol>
+<li>初始建立 Collection 時設置 <code>m=0</code>（禁用 HNSW 索引）</li>
+<li>批量插入所有向量（速度提升 3-5x）</li>
+<li>使用 API 觸發一次性索引重建</li>
+</ol>
+<pre><code>
+# 禁用索引
+curl -X PUT 'http://localhost:6333/collections/my_collection' \
+  -H 'Content-Type: application/json' \
+  -d '{"hnsw_config": {"m": 0}}'
+
+# 批量插入後重建
+curl -X POST 'http://localhost:6333/collections/my_collection/index'
+</code></pre>
+<h3>4.2 磁盤 I/O 優化</h3>
+<p><strong>Inline Storage</strong> (v1.16.0+)：</p>
+<ul>
+<li>將向量副本直接嵌入 HNSW 索引文件</li>
+<li>減少隨機磁盤讀取，查詢速度提升 20-40%</li>
+<li>權衡：存儲空間增加 3-4x</li>
+</ul>
+<pre><code>
+{
+  "hnsw_config": {
+    "on_disk": true,
+    "inline_storage": true
+  }
+}
+</code></pre>
+<h3>4.3 查詢優化</h3>
+<p><strong>動態調整 <code>hnsw_ef</code></strong>：</p>
+<pre><code>
+from qdrant_client import QdrantClient
+
+client = QdrantClient("localhost", port=6333)
+
+# 低延遲查詢（犧牲少量召回）
+results = client.search(
+    collection_name="my_collection",
+    query_vector=[0.1, 0.2, ...],
+    limit=10,
+    search_params={"hnsw_ef": 64}
+)
+
+# 高召回查詢（可接受更高延遲）
+results = client.search(
+    collection_name="my_collection",
+    query_vector=[0.1, 0.2, ...],
+    limit=10,
+    search_params={"hnsw_ef": 256}
+)
+</code></pre>
+<h3>4.4 Segment 配置</h3>
+<p>| 參數 | 說明 | 推薦值 |</p>
+<p>|------|------|--------|</p>
+<p>| <strong><code>segment_number</code></strong> | Segment 數量 | 等於 CPU 核心數（最小化延遲） |</p>
+<p>| <strong><code>max_segment_size</code></strong> | 單個 Segment 最大點數 | 越大越好吞吐，越小越低延遲（預設 20K） |</p>
+<p><strong>低延遲場景</strong>：<code>segment_number = CPU核心數</code>，小 Segment</p>
+<p><strong>高吞吐場景</strong>：較少大 Segment，減少合併開銷</p>
+<p>---</p>
+<h2>五、分布式部署架構</h2>
+<h3>5.1 集群拓撲設計</h3>
+<p><strong>生產環境推薦配置</strong>：</p>
+<ul>
+<li><strong>節點數</strong>：≥3 個（允許 1 個節點故障）</li>
+<li><strong>副本因子</strong>：≥2（每個 Shard 至少 2 個副本）</li>
+<li><strong>分片數</strong>：<code>2 × 節點數</code>（預留擴展空間）</li>
+</ul>
+<p>範例：3 節點集群，預期未來擴展至 12 節點：</p>
+<pre><code>
+{
+  "shard_number": 12,
+  "replication_factor": 2
+}
+</code></pre>
+<h3>5.2 分片策略</h3>
+<p><strong>自動分片</strong>（一致性哈希）：</p>
+<pre><code>
+client.create_collection(
+    collection_name="distributed_col",
+    shard_number=12,
+    replication_factor=2
+)
+</code></pre>
+<p><strong>用戶定義分片</strong>（多租戶場景）：</p>
+<pre><code>
+client.upsert(
+    collection_name="multi_tenant",
+    points=[
+        {
+            "id": 1,
+            "vector": [0.1, 0.2],
+            "payload": {"user_id": "tenant_A"}
+        }
+    ],
+    shard_key_selector="tenant_A"  # 固定分片到特定 Shard
+)
+</code></pre>
+<h3>5.3 寫入一致性控制</h3>
+<pre><code>
+{
+  "write_consistency_factor": 2  // 至少 2 個副本確認後才返回成功
+}
+</code></pre>
+<ul>
+<li><code>1</code>：最低延遲，但有數據丟失風險</li>
+<li><code>replication_factor</code>：強一致性，最高延遲</li>
+<li><strong>推薦</strong>：<code>replication_factor / 2 + 1</code>（Quorum 寫入）</li>
+</ul>
+<h3>5.4 故障恢復</h3>
+<p><strong>自動恢復流程</strong>：</p>
+<ol>
+<li>節點故障 → 集群檢測到副本不足</li>
+<li>從健康副本自動複製數據到存活節點</li>
+<li>達到目標副本數後恢復正常</li>
+</ol>
+<p><strong>手動恢復選項</strong>：</p>
+<ul>
+<li><strong>Snapshot 恢復</strong>：從全量快照還原</li>
+<li><strong>WAL Delta 傳輸</strong>：僅同步最近變更（適合短暫故障）</li>
+</ul>
+<p>---</p>
+<h2>六、生產環境最佳實踐</h2>
+<h3>6.1 容量規劃</h3>
+<p><strong>使用官方 Sizing Calculator</strong>（https://cloud.qdrant.io/calculator）：</p>
+<ul>
+<li>輸入：向量數量、維度、payload 大小、QPS</li>
+<li>輸出：推薦的 CPU、RAM、磁盤配置</li>
+</ul>
+<p><strong>經驗公式</strong>（int8 量化）：</p>
+<pre><code>
+RAM 需求 = (向量數 × 維度 × 1 byte) + (HNSW 圖 × 0.2 GB / 百萬向量)
+磁盤需求 = 向量數 × 維度 × 4 byte × 1.5（包含索引與備份）
+</code></pre>
+<h3>6.2 監控指標</h3>
+<p>| 指標 | 監控重點 | 告警閾值 |</p>
+<p>|------|---------|---------|</p>
+<p>| <strong>P99 Search Latency</strong> | 最壞情況延遲 | >100ms |</p>
+<p>| <strong>Memory Usage</strong> | 防止 OOM | >85% |</p>
+<p>| <strong>Disk IOPS</strong> | SSD 性能瓶頸 | <5000 IOPS |</p>
+<p>| <strong>CPU Utilization</strong> | 查詢處理能力 | >80% |</p>
+<p><strong>Prometheus 整合</strong>：</p>
+<pre><code>
+# qdrant.yaml
+telemetry:
+  enabled: true
+  prometheus_endpoint: /metrics
+</code></pre>
+<h3>6.3 備份策略</h3>
+<p><strong>推薦三層備份</strong>：</p>
+<ol>
+<li><strong>Snapshots</strong>：每日全量快照（本地保留 7 天）</li>
+<li><strong>Offsite Backup</strong>：每周上傳至 S3/GCS（保留 4 周）</li>
+<li><strong>副本</strong>：生產集群本身的 2+ 副本（實時保護）</li>
+</ol>
+<p><strong>測試恢復流程</strong>：</p>
+<pre><code>
+# 定期演練恢復（至少每月一次）
+curl -X POST 'http://localhost:6333/collections/my_collection/snapshots/snapshot_2026_03_17/recover'
+</code></pre>
+<h3>6.4 負載測試</h3>
+<p><strong>混合讀寫測試</strong>（80% 讀 / 20% 寫）：</p>
+<pre><code>
+import concurrent.futures
+import random
+
+def run_search():
+    client.search(...)
+
+def run_upsert():
+    client.upsert(...)
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+    tasks = []
+    for _ in range(1000):
+        if random.random() &lt; 0.8:
+            tasks.append(executor.submit(run_search))
+        else:
+            tasks.append(executor.submit(run_upsert))
+</code></pre>
+<h3>6.5 常見陷阱</h3>
+<p>| 陷阱 | 後果 | 解決方案 |</p>
+<p>|------|------|---------|</p>
+<p>| 跳過 Payload 索引 | 過濾查詢速度慢 10-100x | 對常用過濾欄位建立索引 |</p>
+<p>| 單節點部署 | 無高可用性 | 至少 3 節點 + 2 副本 |</p>
+<p>| 每客戶一個 Collection | 管理複雜度爆炸 | 用 shard_key 實現多租戶 |</p>
+<p>| 忽略量化 | 內存成本過高 | 啟用 int8 量化 |</p>
+<p>| 混用批量與實時任務 | 互相影響性能 | 分離資源池 |</p>
+<p>---</p>
+<h2>七、與 RAG 系統整合</h2>
+<h3>7.1 LangChain 整合</h3>
+<pre><code>
+from langchain.vectorstores import Qdrant
+from langchain.embeddings import OpenAIEmbeddings
+from qdrant_client import QdrantClient
+
+client = QdrantClient(url="http://localhost:6333")
+embeddings = OpenAIEmbeddings()
+
+vectorstore = Qdrant(
+    client=client,
+    collection_name="knowledge_base",
+    embeddings=embeddings
+)
+
+# 混合檢索：語義 + 關鍵字
+results = vectorstore.similarity_search(
+    query="Qdrant 性能調優",
+    k=10,
+    filter={"must": [{"key": "category", "match": {"value": "技術"}}]}
+)
+</code></pre>
+<h3>7.2 混合檢索架構</h3>
+<p>Qdrant 支援<strong>密集向量 + 稀疏向量</strong>雙重檢索：</p>
+<ul>
+<li><strong>密集向量</strong>：語義搜索（如 OpenAI embeddings）</li>
+<li><strong>稀疏向量</strong>：BM25 關鍵字匹配</li>
+</ul>
+<pre><code>
+client.upsert(
+    collection_name="hybrid_search",
+    points=[
+        {
+            "id": 1,
+            "vector": {
+                "dense": [0.1, 0.2, ...],  # 語義向量
+                "sparse": {"indices": [10, 25], "values": [0.8, 0.6]}  # BM25 稀疏向量
+            },
+            "payload": {"text": "..."}
+        }
+    ]
+)
+
+# 混合搜索
+results = client.search(
+    collection_name="hybrid_search",
+    query_vector={
+        "dense": [0.1, 0.2, ...],
+        "sparse": {"indices": [10], "values": [1.0]}
+    },
+    limit=10
+)
+</code></pre>
+<h3>7.3 本專案整合建議</h3>
+<p><strong>Daily-Digest-Prompt 知識庫優化</strong>：</p>
+<ol>
+<li><strong>啟用 int8 量化</strong>：減少 RAM 佔用 75%（當前知識庫 >100 筆）</li>
+<li><strong>配置 HNSW 參數</strong>：<code>m=16, ef_construct=200, hnsw_ef=128</code>（平衡速度與精度）</li>
+<li><strong>Payload 索引</strong>：對 <code>tags</code> 欄位建立索引，加速標籤過濾</li>
+<li><strong>監控查詢延遲</strong>：在 <code>check-health.ps1</code> 加入 Qdrant P99 延遲檢查</li>
+</ol>
+<pre><code>
+# 範例：優化知識庫查詢
+from qdrant_client.models import Distance, VectorParams, QuantizationConfig
+
+client.recreate_collection(
+    collection_name="knowledge_base",
+    vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
+    quantization_config=QuantizationConfig(
+        scalar={"type": "int8", "quantile": 0.99, "always_ram": True}
+    ),
+    hnsw_config={"m": 16, "ef_construct": 200}
+)
+</code></pre>
+<p>---</p>
+<h2>八、2026 年演進方向</h2>
+<p>Qdrant 的 2026 路線圖聚焦於：</p>
+<ol>
+<li><strong>4-bit 量化</strong>：進一步減少內存佔用（在 int8 基礎上再減 50%）</li>
+<li><strong>讀寫分離</strong>：專用只讀副本，降低主節點壓力</li>
+<li><strong>完全可擴展多租戶</strong>：動態 Shard 分配，支援數百萬租戶</li>
+<li><strong>Block Storage 整合</strong>：直接對接 S3/GCS，無需本地磁盤</li>
+<li><strong>Agent-Native 檢索</strong>：針對 Agentic AI 的工具調用優化</li>
+</ol>
+<p>---</p>
+<h2>九、優缺點評估</h2>
+<h3>優勢</h3>
+<ol>
+<li><strong>Rust 性能</strong>：零成本抽象 + 內存安全，單核性能領先 Python 實現 10-20x</li>
+<li><strong>Payload 索引 HNSW</strong>：行業唯一在圖遍歷期間過濾的實現</li>
+<li><strong>靈活量化</strong>：支援 int8、PQ、Binary 三種量化，可混合使用</li>
+<li><strong>生產就緒</strong>：完整的分布式、監控、備份方案</li>
+<li><strong>開源透明</strong>：GitHub 21K+ Stars，活躍社群</li>
+</ol>
+<h3>劣勢</h3>
+<ol>
+<li><strong>Rust 生態</strong>：插件開發門檻較高（相比 Python 系統）</li>
+<li><strong>Resharding 成本</strong>：自架版本修改 Shard 數需重建 Collection</li>
+<li><strong>稀疏向量支援較新</strong>：文檔與案例相對密集向量較少</li>
+<li><strong>托管版價格</strong>：Qdrant Cloud 成本高於自架（但省運維）</li>
+</ol>
+<p>---</p>
+<h2>十、程式碼範例：完整 RAG 管線</h2>
+<pre><code>
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
+from sentence_transformers import SentenceTransformer
+
+# 1. 初始化
+client = QdrantClient(url="http://localhost:6333")
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# 2. 建立 Collection
+client.create_collection(
+    collection_name="rag_docs",
+    vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+    quantization_config={"scalar": {"type": "int8", "always_ram": True}},
+    hnsw_config={"m": 16, "ef_construct": 200}
+)
+
+# 3. 批量插入文檔
+docs = [
+    {"id": 1, "text": "Qdrant 是向量數據庫", "source": "doc1.md"},
+    {"id": 2, "text": "HNSW 索引提供快速搜索", "source": "doc2.md"},
+]
+
+points = [
+    PointStruct(
+        id=doc["id"],
+        vector=model.encode(doc["text"]).tolist(),
+        payload={"text": doc["text"], "source": doc["source"]}
+    )
+    for doc in docs
+]
+
+client.upsert(collection_name="rag_docs", points=points)
+
+# 4. 語義搜索 + Payload 過濾
+query = "如何優化向量搜索性能？"
+query_vector = model.encode(query).tolist()
+
+results = client.search(
+    collection_name="rag_docs",
+    query_vector=query_vector,
+    limit=5,
+    query_filter={"must": [{"key": "source", "match": {"value": "doc2.md"}}]},
+    search_params={"hnsw_ef": 128}
+)
+
+for hit in results:
+    print(f"Score: {hit.score}, Text: {hit.payload['text']}")
+</code></pre>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://qdrant.tech/documentation/">Qdrant Official Documentation</a></li>
+<li><a href="https://qdrant.tech/qdrant-vector-database/">Qdrant - High-Performance Vector Search Engine</a></li>
+<li><a href="https://qdrant.tech/course/essentials/day-2/collection-tuning-demo/">Demo: HNSW Performance Tuning - Qdrant</a></li>
+<li><a href="https://qdrant.tech/documentation/guides/optimize/">Optimize Performance - Qdrant</a></li>
+<li><a href="https://qdrant.tech/documentation/guides/distributed_deployment/">Distributed Deployment - Qdrant</a></li>
+<li><a href="https://qdrant.tech/articles/vector-search-production/">Vector Search in Production - Qdrant</a></li>
+<li><a href="https://medium.com/@creativeaininja/the-architects-handbook-for-qdrant-production-deployment-docker-orchestration-and-rag-systems-1fa104d56b99">The Architect's Handbook for Qdrant - Medium</a></li>
+<li><a href="https://siliconangle.com/2026/03/12/qdrant-raises-50m-bring-flexible-vector-search-production-ai-systems/">Qdrant raises $50M Series B - SiliconANGLE</a></li>
+<li><a href="https://pub.towardsai.net/building-a-modern-rag-pipeline-in-2026-qwen3-embeddings-and-vector-database-in-qdrant-ebeca2bbe338">Building a Modern RAG Agent in 2026 - Towards AI</a></li>
+<li><a href="https://github.com/qdrant/qdrant">GitHub - qdrant/qdrant</a></li>
+</ol>
+<p>---</p>
+<p><strong>研究日期</strong>：2026-03-17</p>
+<p><strong>系列</strong>：qdrant-vector-database (foundation 階段)</p>
+<p><strong>下一步</strong>：進入 mechanism 階段，深入研究 HNSW 算法實現細節、量化壓縮數學原理、過濾機制的內部實作</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

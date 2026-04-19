@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily Digest Prompt 專案優化報告 (2026-02-27)">
+  <title>Daily Digest Prompt 專案優化報告 (2026-02-27) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily Digest Prompt 專案優化報告 (2026-02-27)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">daily-digest-prompt</span><span class="tag">配置管理</span><span class="tag">效能優化</span><span class="tag">Hook系統</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily Digest Prompt 專案優化報告</h1>
+<h2>優化摘要</h2>
+<p>本次優化針對 deep scan 識別的 3 個問題進行修正，涵蓋配置一致性、效能瓶頸與文件同步。</p>
+<h2>修正項目</h2>
+<h3>1. timeouts.yaml 幽靈 key 移除</h3>
+<ul>
+<li><strong>問題</strong>：<code>phase2_timeout_by_task</code> 含 <code>creative_game</code> key，但 <code>frequency-limits.yaml</code> 只有 <code>creative_game_optimize</code></li>
+<li><strong>影響</strong>：幽靈 key 不會被任何 auto-task 匹配，佔用配置空間且可能造成維護混淆</li>
+<li><strong>修正</strong>：移除 <code>creative_game</code>，僅保留 <code>creative_game_optimize: 900</code>，註釋合併</li>
+</ul>
+<h3>2. post_tool_logger.py ErrorClassifier 單例化</h3>
+<ul>
+<li><strong>問題</strong>：每次 Bash 工具呼叫都在 <code>main()</code> 內新建 <code>ErrorClassifier()</code> 實例（第 248 行）</li>
+<li><strong>影響</strong>：每日約 44 次 Agent 執行 x 20-100 次 Bash 呼叫 = 880-4400 次不必要的物件建立</li>
+<li><strong>修正</strong>：改為模組層級單例 <code>_error_classifier = ErrorClassifier()</code>，在 import 時初始化一次</li>
+<li><strong>向下相容</strong>：<code>ImportError</code> 時 <code>_error_classifier = None</code>，<code>AGENT_GUARDIAN_AVAILABLE</code> flag 不變</li>
+</ul>
+<h3>3. SKILL 計數同步（CLAUDE.md vs SKILL_INDEX.md）</h3>
+<ul>
+<li><strong>問題</strong>：CLAUDE.md 多處寫「22 個 Skill」，但實際有 23 個（17 核心 + 6 工具），SKILL_INDEX.md 正確</li>
+<li><strong>根因</strong>：新增 git-smart-commit Skill 後 CLAUDE.md 未同步更新</li>
+<li><strong>修正</strong>：CLAUDE.md 3 處 22→23、5 工具→6 工具</li>
+</ul>
+<h2>驗證結果</h2>
+<ul>
+<li>語法檢查：post_tool_logger.py 通過 py_compile</li>
+<li>配置驗證：timeouts.yaml 結構正確（4 個 task key）</li>
+<li>測試套件：<strong>532 個測試全部通過</strong>（11.42s，無回歸）</li>
+</ul>
+<h2>技術洞見</h2>
+<ul>
+<li>Hook 模組層級單例模式適用於無狀態分類器（ErrorClassifier），但不適用於有狀態元件（LoopDetector 需依 session 初始化）</li>
+<li>配置 YAML 的 key 應與 frequency-limits.yaml 保持一對一對應，建議未來加入 validate_config.py 交叉驗證</li>
+<li>SKILL 計數散布在 CLAUDE.md 多處，建議未來改為引用 SKILL_INDEX.md 的單一定義處（符合 DRY 原則）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

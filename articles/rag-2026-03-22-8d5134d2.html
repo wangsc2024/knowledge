@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-22：Agentic Plan Caching 與知識庫分層檢索優化 — RAG-to-Context 範式轉移與快取策略演進">
+  <title>專案RAG優化日報 2026-03-22：Agentic Plan Caching 與知識庫分層檢索優化 — RAG-to-Context 範式轉移與快取策略演進 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-22：Agentic Plan Caching 與知識庫分層檢索優化 — RAG-to-Context 範式轉移與快取策略演進</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">日報</span><span class="tag">daily-digest-prompt</span><span class="tag">RAG</span><span class="tag">快取策略</span><span class="tag">Plan Caching</span><span class="tag">分層檢索</span><span class="tag">知識庫</span><span class="tag">深度思維</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-03-22</h1>
+<p><strong>Agentic Plan Caching 與知識庫分層檢索優化 — RAG-to-Context 範式轉移與快取策略演進</strong></p>
+<p><em>研究日期</em>：2026-03-22</p>
+<p><em>任務 ID</em>：6g2FfvWmxqhCWx85</p>
+<p><em>標籤</em>：專案優化、深度思維、知識庫、RAG、快取策略</p>
+<p><em>適用對象</em>：daily-digest-prompt 專案</p>
+<p>---</p>
+<h2>一、執行摘要</h2>
+<p>本次針對 daily-digest-prompt 專案進行 RAG 整合與快取策略的深度優化分析。結合 2026 年業界最新研究（RAGFlow「RAG-to-Context」年度回顧、kapa.ai 100+ 團隊實踐、arXiv Agentic Plan Caching 論文），聚焦三大優化方向：（1）知識庫分層架構與二階段檢索、（2）Agentic Plan Caching 任務級快取、（3）漂移偵測與品質計分強化。</p>
+<p>---</p>
+<h2>二、現況診斷（7 維度快照）</h2>
+<p>| 維度 | 評分 | 關鍵發現 |</p>
+<p>|------|------|----------|</p>
+<p>| RAG 整合深度 | 9/10 | 357 個 KB API 引用遍佈 Skill/配置/自動任務/Prompt/Bot 五層 |</p>
+<p>| 快取效率 | 4/10 | knowledge.json 9 天未更新；1/6 API 快取有效 |</p>
+<p>| 研究去重 | 8/10 | 三層防護有效率 >90%；170+ 筆 registry entries |</p>
+<p>| Skill 鏈路完整性 | 8/10 | 59 個 Skill，3 個隱式依賴未宣告但已實現 |</p>
+<p>| 自動任務可靠性 | 9/10 | 395 個結果檔，失敗率 <2% |</p>
+<p>| 配置碎片化 | 6.5/10 | 34 個 YAML 可精煉至 20-25 個 |</p>
+<p>| 安全防護 | 8.5/10 | 12 個 Hook、6506 行守衛代碼 |</p>
+<p><strong>系統整體健康度：7.5/10</strong>（KB 快取失效是主要拖累因子）</p>
+<p>---</p>
+<h2>三、優化建議（6 項，P0-P2 分級）</h2>
+<h3>P0-A：知識庫分層架構（Tiered Knowledge Base）</h3>
+<p><strong>現況問題</strong>：單一 KB 索引服務所有查詢，核心文件與即時資料混合，TTL 設定無法兼顧兩者。</p>
+<p><strong>業界最佳實踐</strong>（kapa.ai, RAGFlow）：</p>
+<ul>
+<li><strong>核心層</strong>：版本化文件（SKILL.md、CLAUDE.md、ADR），低頻更新，長 TTL（24h+）</li>
+<li><strong>即時層</strong>：API 回應、新聞、任務狀態，短 TTL（15-120min）</li>
+<li>各層獨立 SLA 與快取策略</li>
+</ul>
+<p><strong>專案適用方案</strong>：</p>
+<ol>
+<li><code>cache-policy.yaml</code> 新增 <code>tier</code> 欄位（<code>core</code> / <code>realtime</code>）</li>
+<li>核心層查詢走 <code>/api/search/semantic</code>（概念匹配），即時層走 <code>/api/search/keyword</code>（精確詞）</li>
+<li><code>cache/status.json</code> 按 tier 分別計算命中率</li>
+</ol>
+<p><strong>預期效益</strong>：核心層命中率提升至 90%+，即時層保持低延遲</p>
+<h3>P0-B：二階段檢索（Search → Retrieve 解耦）</h3>
+<p><strong>現況問題</strong>：<code>/api/search/hybrid</code> 同時承擔定位與上下文組裝，大量 chunk 降低精確度。</p>
+<p><strong>業界最佳實踐</strong>（RAGFlow 2025 回顧）：</p>
+<ul>
+<li><strong>Search 階段</strong>：精確定位最相關的 3-5 個 chunk（高 precision）</li>
+<li><strong>Retrieve 階段</strong>：以定位結果為種子，擴展完整上下文段落（高 recall）</li>
+</ul>
+<p><strong>專案適用方案</strong>：</p>
+<ol>
+<li>去重查詢：<code>hybrid topK=5</code> → 取 noteId → <code>/api/notes/:id</code> 全文</li>
+<li>研究策略分析：<code>semantic topK=10 minScore=0.4</code> → 按 score 分群 → 高分群直接用、低分群摘要化</li>
+<li><code>templates/shared/kb-depth-check.md</code> 修改為兩階段流程</li>
+</ol>
+<h3>P1-A：Agentic Plan Caching（任務級執行計畫快取）</h3>
+<p><strong>現況問題</strong>：每次 Todoist 自動任務都從零開始規劃執行步驟，相似任務重複計算。</p>
+<p><strong>學術研究</strong>（arXiv 2506.14852）：</p>
+<ul>
+<li>從成功執行中抽取結構化 Plan 模板</li>
+<li>用關鍵詞匹配新請求與已快取計畫</li>
+<li>輕量模型適配到具體任務</li>
+<li><strong>效益</strong>：成本降低 50.31%、延遲降低 27.28%、維持 96.61% 性能</li>
+</ul>
+<p><strong>專案適用方案</strong>：</p>
+<ol>
+<li>新建 <code>cache/plan-templates/</code> 目錄，按 task_type 存放成功執行的 Plan 摘要</li>
+<li><code>run-todoist-agent-team.ps1</code> Phase 1 新增 Plan Cache 查詢步驟</li>
+<li>命中時跳過 Plan 生成，直接進入執行</li>
+<li>與現有 <code>context/continuity/</code> 連續記憶互補（continuity = 主題記憶，plan cache = 流程記憶）</li>
+</ol>
+<p><strong>預期效益</strong>：Todoist 自動任務平均執行時間縮短 20-30%</p>
+<h3>P1-B：快取健康自動修復（Cache Auto-Heal）</h3>
+<p><strong>現況問題</strong>：<code>cache/knowledge.json</code> 已 9 天未更新，其他源也多數超期，但系統未自動修復。</p>
+<p><strong>專案適用方案</strong>：</p>
+<ol>
+<li><code>check-health.ps1</code> [快取效率] 區塊新增自動修復觸發：當 critical cache（knowledge）超過 2× TTL 時，自動執行 health check + 重新快取</li>
+<li><code>config/cache-policy.yaml</code> 新增 <code>auto_heal</code> 欄位：<code>{enabled: true, trigger_multiplier: 2, max_retries: 3}</code></li>
+<li><code>run-agent-team.ps1</code> Phase 0 新增快取健康前置檢查</li>
+</ol>
+<h3>P1-C：漂移偵測（Drift Detection）</h3>
+<p><strong>現況問題</strong>：知識庫內容隨時間增長，但無機制偵測查詢模式變化或知識庫覆蓋度漂移。</p>
+<p><strong>業界最佳實踐</strong>（DEV Community 2025）：</p>
+<ul>
+<li>統計分佈比較：定期對比查詢 embedding 分佈與歷史基線</li>
+<li>聚類分析：發現新出現的查詢類型</li>
+<li>性能監控：準確率下降時觸發自動策展</li>
+</ul>
+<p><strong>專案適用方案</strong>：</p>
+<ol>
+<li><code>hooks/post_tool_logger.py</code> 已記錄所有 KB 查詢，新增每週統計摘要</li>
+<li><code>check-health.ps1</code> 新增 [KB 覆蓋度] 區塊：比較過去 7 天 KB 查詢主題分佈與現有 tags 覆蓋度</li>
+<li>低覆蓋度主題自動加入 <code>context/improvement-backlog.json</code></li>
+</ol>
+<h3>P2-A：Ingestion Pipeline 語義增強</h3>
+<p><strong>現況問題</strong>：KB 匯入僅存 contentText 原文，未做語義增強（摘要、實體抽取、候選問題）。</p>
+<p><strong>業界最佳實踐</strong>（RAGFlow TreeRAG）：</p>
+<ul>
+<li>匯入時同步生成：文件摘要、關鍵實體、候選問題</li>
+<li>階層式文件摘要分離細粒度搜尋與粗粒度閱讀</li>
+</ul>
+<p><strong>專案適用方案</strong>：</p>
+<ol>
+<li><code>/api/import</code> 後觸發輕量後處理：Groq relay 生成 3 句摘要 + 5 個關鍵詞</li>
+<li>摘要存入 metadata，提升 semantic search 精確度</li>
+<li>與現有 <code>kb-content-scoring.yaml</code> 四維度評分整合</li>
+</ol>
+<p>---</p>
+<h2>四、優先級矩陣與實施路線</h2>
+<p>| 優先級 | 項目 | 預估工時 | 依賴 | 風險 |</p>
+<p>|--------|------|---------|------|------|</p>
+<p>| P0-A | 分層知識庫 | 2h | cache-policy.yaml | 低 |</p>
+<p>| P0-B | 二階段檢索 | 1.5h | kb-depth-check.md | 低 |</p>
+<p>| P1-A | Plan Caching | 3h | run-todoist-agent-team.ps1 | 中（需觀察效果） |</p>
+<p>| P1-B | 快取自動修復 | 1h | check-health.ps1 | 低 |</p>
+<p>| P1-C | 漂移偵測 | 2h | post_tool_logger.py | 低 |</p>
+<p>| P2-A | 語義增強 | 3h | groq-relay.js | 中（Groq 可用性） |</p>
+<p>---</p>
+<h2>五、與前期日報的關聯</h2>
+<p>| 日報日期 | 主題 | 本次延續/互補 |</p>
+<p>|---------|------|-------------|</p>
+<p>| 03-18 | Agent 可靠性 + RAG 韌性 + 安全防護 | 本次深化 RAG 管線的「檢索品質」面向 |</p>
+<p>| 03-21 | State 膨脹 + 配置碎片化 | 本次聚焦「快取效率」這個 03-21 未涵蓋的維度 |</p>
+<p>| 03-22（本次） | Plan Caching + 分層檢索 + 漂移偵測 | 新引入 Agentic Plan Caching 學術研究成果 |</p>
+<p>---</p>
+<h2>六、參考來源</h2>
+<ol>
+<li>RAGFlow, "From RAG to Context - A 2025 year-end review of RAG", ragflow.io/blog/rag-review-2025-from-rag-to-context</li>
+<li>kapa.ai, "RAG Best Practices: Lessons from 100+ Technical Teams", kapa.ai/blog/rag-best-practices</li>
+<li>arXiv 2506.14852, "Agentic Plan Caching: Test-Time Memory for Fast and Cost-Efficient LLM Agents"</li>
+<li>arXiv 2603.16104, "Efficient LLM Serving for Agentic Workflows: A Data Systems Perspective"</li>
+<li>DEV Community, "Synthetic Data for RAG: Safe Generation, Deduplication, and Drift-Aware Curation in 2025"</li>
+<li>Medium, "Designing RAG Architectures That Scale: Chunking, Deduplication, and Accuracy Improvements"</li>
+</ol>
+<p>---</p>
+<h2>七、結語</h2>
+<p>daily-digest-prompt 專案的 RAG 整合已達高成熟度（357 個 API 引用、59 個 Skill），但快取效率（4/10）是當前最大瓶頸。本次提出的 6 項優化建議中，P0-A（分層知識庫）和 P1-B（快取自動修復）可在 3 小時內完成，預期將系統健康度從 7.5 提升至 8.5/10。P1-A（Agentic Plan Caching）是最具創新價值的方案，來自 2025 年最新學術研究，可望大幅降低自動任務的重複計算成本。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-29）：execution-journal + workflow-forge 深度審查">
+  <title>Skill 品質審查報告（2026-03-29）：execution-journal + workflow-forge 深度審查 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-29）：execution-journal + workflow-forge 深度審查</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">execution-journal</span><span class="tag">workflow-forge</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-29）</h1>
+<h2>審查範圍</h2>
+<p>本次深度審查 2 個從未被獨立審查的高價值工具 Skill：</p>
+<ul>
+<li><strong>execution-journal</strong>（統一執行追蹤日誌，工具 Skill #49）</li>
+<li><strong>workflow-forge</strong>（流程標準化鑄造廠，工具 Skill #33）</li>
+</ul>
+<h2>選擇理由</h2>
+<p>歷次審查覆蓋：</p>
+<ul>
+<li>2026-02-15：14 個 Skill 全面體檢（核心 13 + 工具 1）</li>
+<li>2026-02-18：system-audit + kb-curator</li>
+<li>2026-02-25：arch-evolution + todoist-task-creator</li>
+<li>2026-03-01：git-smart-commit + chatroom-query</li>
+<li>2026-03-25：agent-result-validator + behavior-pattern-analyzer</li>
+<li>2026-03-28：premortem-diagnostic + scheduler-state-contract</li>
+</ul>
+<p>本次選擇 execution-journal（可觀測性核心，cache_ttl 未設）和 workflow-forge（標準化流程工具，cache_ttl 未設），兩者均為系統品質與可維護性的關鍵 Skill，且從未被獨立審查。</p>
+<p>---</p>
+<h2>execution-journal 審查結果</h2>
+<h3>品質評分：9.0/10</h3>
+<p>#### 優點（8 項）</p>
+<ol>
+<li>✅ <strong>Frontmatter 規範完整</strong>：name、version、description、allowed-tools、triggers、depends-on 均完整</li>
+<li>✅ <strong>Schema 定義清晰</strong>：採用 OTel 語義欄位命名（trace_id、span、duration_ms），專業標準</li>
+<li>✅ <strong>步驟結構完整</strong>：步驟 0-5 結構清晰（前置讀取→收集上下文→建構 Skill Chain→計算彙總→寫入 Journal→維護）</li>
+<li>✅ <strong>可執行範例充足</strong>：包含完整 bash、Python 程式碼範例，可直接複製執行</li>
+<li>✅ <strong>跨 Phase 因果關聯</strong>：支援追蹤 phase1→phase2→phase3 的完整執行鏈</li>
+<li>✅ <strong>cache_hit 判定規則明確</strong>：依 api-cache Skill 邏輯判定（讀取 cache/status.json 的 valid 欄位）</li>
+<li>✅ <strong>Journal 檔案維護機制</strong>：超過 1MB 自動輪轉，保留最近 500 筆</li>
+<li>✅ <strong>每日摘要產生</strong>：供 system-insight 使用的當日統計（success_rate、avg_duration、cache_hit_ratio、top_skills）</li>
+</ol>
+<p>#### 修正項（3 項）</p>
+<ol>
+<li>✅ <strong>cache-ttl 明確化</strong>：從 "N/A" 改為 "0min"（執行追蹤日誌不需要快取，但 "N/A" 不夠明確）</li>
+<li>✅ <strong>version 升級</strong>：從 "0.5.0" 升級至 "1.0.0"（內容已完整，升級至正式版本）</li>
+<li>⚠️ <strong>觸發機制說明補充</strong>（建議）：目前未說明此 Skill 是由系統自動觸發（Hook）還是手動呼叫，建議補充說明</li>
+</ol>
+<p>#### 路由一致性</p>
+<ul>
+<li>✅ SKILL_INDEX.md 中有對應條目（#49）</li>
+<li>✅ triggers 包含 7 個關鍵字（execution-journal、執行追蹤、trace 分析、失敗回溯、Skill chain、執行日誌、跨 Phase 因果）</li>
+<li>✅ depends-on 列出 scheduler-state、system-insight、config/dependencies.yaml</li>
+</ul>
+<p>#### 覆蓋度分析</p>
+<ul>
+<li><strong>定位</strong>：系統性執行追蹤 Skill，為可觀測性核心基礎設施</li>
+<li><strong>整合點</strong>：應整合至 run-todoist-agent-team.ps1、run-agent-team.ps1 的 Phase 完成後自動呼叫</li>
+<li><strong>價值</strong>：解決執行記錄分散問題（results/<em>.json + logs/structured/</em>.jsonl + state/scheduler-state.json），提供單一結構化 trace entry</li>
+</ul>
+<p>---</p>
+<h2>workflow-forge 審查結果</h2>
+<h3>品質評分：9.5/10</h3>
+<p>#### 優點（10 項）</p>
+<ol>
+<li>✅ <strong>Frontmatter 規範完整</strong>：name、version、description、allowed-tools、triggers、depends-on 均完整</li>
+<li>✅ <strong>設計目標清晰</strong>：流程標準化、輸出穩定度、系統一致性三大目標明確</li>
+<li>✅ <strong>執行鏈完整</strong>：觀測→識別→設計→生成→驗證→整合→通知，7 步驟閉環</li>
+<li>✅ <strong>評分機制合理</strong>：影響範圍（0-40）、可執行性（0-35）、信號強度（0-25），總分 100</li>
+<li>✅ <strong>格式驗證步驟</strong>：YAML 解析、JSON Schema 驗證、必填欄位對齊，最多 2 輪修正</li>
+<li>✅ <strong>降級處理完善</strong>：缺口清單為空、無法產出時的處理策略明確</li>
+<li>✅ <strong>workflows/index.yaml 整合</strong>：自動更新 workflows/index.yaml，記錄產物索引</li>
+<li>✅ <strong>config/agent-extra-reads.yaml 同步</strong>：產出 workflow 後自動更新 agent 前置讀取配置</li>
+<li>✅ <strong>知識庫匯入</strong>：將工作流鑄造報告匯入 KB，供日後參考</li>
+<li>✅ <strong>ntfy 通知</strong>：產出完成後發送通知（成功/失敗分級）</li>
+</ol>
+<p>#### 修正項（2 項）</p>
+<ol>
+<li>✅ <strong>cache-ttl 設定</strong>：從 "N/A" 改為 "7d"（流程標準化不需頻繁執行，7 天 TTL 合理）</li>
+<li>✅ <strong>version 升級</strong>：從 "1.0.0" 升級至 "1.1.0"（因修改 cache-ttl，升級 minor version）</li>
+</ol>
+<p>#### 路由一致性</p>
+<ul>
+<li>✅ SKILL_INDEX.md 中有對應條目（#33）</li>
+<li>✅ triggers 包含 11 個關鍵字（workflow-forge、workflow 鑄造、流程標準化、輸出格式規範等）</li>
+<li>✅ frequency-limits.yaml 中有配置（workflow_forge，自動任務）</li>
+<li>✅ depends-on 列出 knowledge-query、system-insight、ntfy-notify、config/dependencies.yaml</li>
+</ul>
+<p>#### 覆蓋度分析</p>
+<ul>
+<li><strong>定位</strong>：流程標準化鑄造廠，為系統品質與一致性的關鍵工具</li>
+<li><strong>整合點</strong>：已整合至自動任務（frequency-limits.yaml），週期性執行</li>
+<li><strong>價值</strong>：識別格式與一致性缺口，產出 workflow YAML、output schema、驗證清單，提升系統穩定度</li>
+</ul>
+<p>---</p>
+<h2>修正總結</h2>
+<p>| Skill | 修正項 | 修正前 | 修正後 | 影響 |</p>
+<p>|-------|--------|--------|--------|------|</p>
+<p>| execution-journal | cache-ttl | "N/A" | "0min" | 明確表示不快取 |</p>
+<p>| execution-journal | version | "0.5.0" | "1.0.0" | 升級至正式版本 |</p>
+<p>| workflow-forge | cache-ttl | "N/A" | "7d" | 設定合理 TTL |</p>
+<p>| workflow-forge | version | "1.0.0" | "1.1.0" | 升級 minor version |</p>
+<p><strong>修正驗證</strong>：</p>
+<ul>
+<li>✅ 兩個 SKILL.md frontmatter YAML 格式正確，可解析</li>
+<li>✅ cache-ttl 設定合理（execution-journal 不快取，workflow-forge 7 天 TTL）</li>
+<li>✅ version 更新符合語義化版本規範</li>
+</ul>
+<p>---</p>
+<h2>品質自評</h2>
+<ol>
+<li>✅ 是否有具體的修正動作（不只是報告）？— <strong>是</strong>，修正了 4 處（2 個 cache-ttl + 2 個 version）</li>
+<li>✅ 修正後是否通過驗證？— <strong>是</strong>，YAML 格式驗證通過</li>
+<li>✅ 審查報告是否超過 300 字？— <strong>是</strong>，完整記錄審查過程、發現、修正與驗證</li>
+</ol>
+<p>---</p>
+<h2>審查方法論</h2>
+<ol>
+<li>✅ 使用 Explore 子 Agent 掃描 67 個 Skills 的 frontmatter（避免主 Agent OOM）</li>
+<li>✅ 查詢知識庫過往審查記錄（避免重複審查）</li>
+<li>✅ 選定從未審查的高價值 Skill（可觀測性與標準化工具優先）</li>
+<li>✅ 四維度深度審查（frontmatter、內容品質、路由一致性、覆蓋度）</li>
+<li>✅ 實施修正並驗證（YAML 解析、version 更新、cache-ttl 設定）</li>
+<li>✅ 匯入知識庫（tags: Skill/審查/品質優化）</li>
+</ol>
+<p>---</p>
+<p><strong>建立者</strong>: todoist-auto-skill_audit  </p>
+<p><strong>最後更新</strong>: 2026-03-29T07:30:00+08:00  </p>
+<p><strong>審查 Skill 數</strong>: 2  </p>
+<p><strong>修正項數</strong>: 4  </p>
+<p><strong>最終評分</strong>: 9.25/10（兩者平均）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

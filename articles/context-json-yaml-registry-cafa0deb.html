@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Context JSON 與 YAML Registry 雙軌同步策略 — SSOT、漂移偵測與 Agent 專案治理（2026-04-01）">
+  <title>Context JSON 與 YAML Registry 雙軌同步策略 — SSOT、漂移偵測與 Agent 專案治理（2026-04-01） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Context JSON 與 YAML Registry 雙軌同步策略 — SSOT、漂移偵測與 Agent 專案治理（2026-04-01）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">組態雙軌同步</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Context JSON 與 YAML Registry 雙軌同步策略 — SSOT、漂移偵測與 Agent 專案治理（2026-04-01）</h1>
+<blockquote><strong>研究範圍說明</strong>：本筆記優先採用本倉庫內文件交叉驗證（ARCHITECTURE、memory-policy、dedup-policy、preamble、ADR 摘錄）。<strong>本次執行環境無法對外 WebFetch</strong>，公開標準書目附於文末供讀者自行開啟核對。</blockquote>
+<h2>執行摘要</h2>
+<p>在 Agent 驅動的程式庫中，常同時存在兩類「真相」：<strong>人類可編輯的宣告式組態（多為 YAML）</strong>，以及<strong>執行過程累積的脈絡／狀態（多為 JSON，位於 context/、state/）</strong>。若缺乏單一真相來源（SSOT）與機器可驗證的同步閘門，兩軌會出現保留期不一致、去重規則分歧、或模板敘述與實際政策脫節等漂移。對 <strong>daily-digest-prompt</strong> 而言，專案已透過 <code>config/memory-policy.yaml</code> 統一各記憶層用途與保留策略 [來源：memory-policy.yaml, 2026]；<code>config/dedup-policy.yaml</code> 與 <code>context/research-registry.json</code> 則承載研究去重的宣告與執行狀態 [來源：dedup-policy.yaml, 2026]；架構上明確區分「Prompt 薄層／config 數據／模板按需載入」 [來源：ARCHITECTURE.md, 2026]。建議的實務組合是：<strong>政策與 TTL 以 YAML 為準</strong>、<strong>狀態與索引以 JSON 為準、且寫入路徑只讀 YAML 政策</strong>；並沿用既有 <code>config/schemas</code> 與 workflows 清單，對結果檔與關鍵 context 做語義／Schema 驗證，將漂移暴露於 CI 而非執行期。</p>
+<h2>技術概述</h2>
+<p>daily-digest-prompt 採文件驅動架構：管線、路由、去重、記憶治理均可調整於 <code>config/<em>.yaml</code> 與 <code>context/</em>.json</code>，避免硬寫在 prompt [來源：ARCHITECTURE.md, 2026]。其中 <code>memory-policy.yaml</code> 明確定義 <code>continuity</code>、<code>research_registry</code>、<code>research_series</code> 等層的 storage 與保留規則 [來源：memory-policy.yaml, 2026]；<code>dedup-policy.yaml</code> 則指定 registry 檔路徑、topic 冷卻與飽和閾值 [來源：dedup-policy.yaml, 2026]。此二分與「宣告 vs 狀態』分離一致，是雙軌治理的基礎。</p>
+<h2>核心概念與原理</h2>
+<h3>1. 宣告軌（YAML）與狀態軌（JSON）的角色分工</h3>
+<ul>
+<li><strong>YAML 軌</strong>適合表達人類可讀、可版控的政策：保留天數、冷卻天數、topK、類別關鍵字等地域規則 [來源：dedup-policy.yaml, 2026]。</li>
+<li><strong>JSON 軌</strong>適合表達程式讀寫的索引與歷史：<code>topics_index</code>、<code>entries</code>、執行日誌聚合欄位等（見研究註冊表結構與模板對 registry 的讀寫要求）[來源：dedup-policy.yaml + preamble research-registry 流程, 2026]。</li>
+<li>架構文件將大量「可變邏輯」列於 config，並以 workflows 驗證 config 與檔案系統的一致性 [來源：ARCHITECTURE.md, 2026]。</li>
+</ul>
+<h3>2. 單一真相來源（SSOT）與「連續記憶」對齊</h3>
+<ul>
+<li><code>preamble.md</code> 規定自動任務連續記憶預設保留筆數以 <code>memory-policy.yaml -> layers.continuity.retention_runs</code> 為準；若 continuity 檔案中 <code>max_runs</code> 與政策不一致，<strong>優先沿用檔案實值並在維護時校正</strong> [來源：preamble.md, 2026]。</li>
+<li>同一文件亦載明 <code>research_registry</code> 等記憶層應先讀 <code>memory-policy.yaml</code>，新增規則時以該檔為唯一真相來源 [來源：preamble.md + memory-policy.yaml, 2026]。</li>
+<li>此三路（preamble／continuity 檔／memory-policy）並陳的目的，是防止「prompt 描述的保留期」與「政策 YAML」漂移；維運上應定期 diff 或用小型腳本斷言一致性。</li>
+</ul>
+<h3>3. 漂移偵測與機器驗證</h3>
+<ul>
+<li>專案已具備多種 <strong>results／config schema 與驗證 workflow</strong>（例如 <code>config/schemas/results-auto-task-schema.json</code>、<code>workflows/results-validation-checklist.md</code> 等目錄列舉）— 代表團隊已將「可驗證性」視為治理手段 [來源：ARCHITECTURE.md, 2026]。</li>
+<li>ADR 記錄中亦可見對 <strong>JSON schema／DONE_CERT 驗證</strong> 的架構決策（Guardrails 與輸出層驗證議題），與「把不一致提早變成可觀測錯誤」方向一致 [來源：adr-registry.json 摘錄 ADR-20260224-002, 2026]。</li>
+</ul>
+<h3>4. 與外部標準的類比（書面參考，非本次即時摘錄）</h3>
+<ul>
+<li><strong>Twelve-Factor App 的 Config 因子</strong>強調組態與程式嚴格分離，並以環境或檔案注入；概念上可對照本專案「config 與 prompt 分離」 [來源：12factor.net/config，公開文件]。</li>
+<li><strong>JSON Schema</strong> 常用於驗證設定與交換檔格式；可對照本專案 <code>config/schemas</code> 與結果 JSON 驗證需求 [來源：json-schema.org，公開規格]。</li>
+<li><strong>GitOps／期望狀態（desired state）</strong> 強調版本化宣告與實際狀態對照；可類比「YAML 政策 + registry 現況」的對帳思路 [來源：CNCF GitOps 白皮書／廠商介紹頁，請讀者自行選擇權威讀本]。</li>
+</ul>
+<h2>最佳實踐與常見陷阱</h2>
+<p><strong>最佳實踐</strong></p>
+<ol>
+<li><strong>改保留期／冷卻／topK 只改 dedup-policy 或 memory-policy</strong>，再讓工具與 prompt 引用同一鍵；避免魔法數字散落在模板中 [來源：dedup-policy.yaml + preamble, 2026]。</li>
+<li><strong>狀態檔寫入前 Read 政策檔</strong>，寫入後驗證 JSON schema（結果檔 middleware／workflow 已提示）[來源：preamble.md 結果驗證 + ARCHITECTURE schemas, 2026]。</li>
+<li>對 <code>continuity</code> 與 <code>research_registry</code> 類高頻寫入檔，啟動 <strong>短腳本斷言</strong>：<code>topics_index</code> 日期格式、<code>entries</code> TTL 與 <code>retention_days</code> 一致 [來源：dedup-policy.yaml retention_days, 2026]。</li>
+</ol>
+<p><strong>常見陷阱</strong></p>
+<ul>
+<li><strong>雙源並存未指定優先序</strong>：例如同時在 prompt 與 policy 寫保留 5 筆與 7 天，下一代維運者無所適從—應遵循 preamble 的「policy 優先、檔案實值需較正」規則 [來源：preamble.md, 2026]。</li>
+<li><strong>把業務狀態寫進 YAML</strong>：導致版控噪音與合併衝突；應讓 YAML 保持規則、JSON 保持實例。</li>
+<li><strong>跳過 schema 驗證</strong>：Phase 3 組裝才發現欄位缺失；應務必在結果檔寫入前驗證 [來源：preamble.md, 2026]。</li>
+</ul>
+<h2>與 daily-digest-prompt 的關聯</h2>
+<ul>
+<li><strong>研究任務</strong>：<code>tech_research</code> 模板要求更新 <code>context/research-registry.json</code> 的 <code>topics_index</code> 與 <code>entries</code>，參數來自 <code>dedup-policy.yaml</code> [來源：任務規格 + dedup-policy, 2026]。</li>
+<li><strong>連續記憶</strong>：<code>context/continuity/auto-task-tech_research.json</code> 的 <code>max_runs</code> 應與 <code>memory-policy.yaml</code> 對齊檢查 [來源：memory-policy.yaml + preamble, 2026]。</li>
+<li><strong>下一步工程化</strong>：可在 <code>check-health.ps1</code> 或 <code>preflight_gate.py</code> 路徑加入「policy ↔ 首則 continuity 檔」欄位比對，將漂移變成健康分扣點。</li>
+</ul>
+<h2>程式碼範例（PowerShell：載入政策後再組結果檔欄位）</h2>
+<pre><code>
+# 概念示例：先讀 memory-policy 再決定 continuity 保留上限（實際欄位名請對照真實 YAML）
+$mp = pwsh -NoProfile -Command "@'
+$(Get-Content ..\config\memory-policy.yaml -Raw)
+'@ | ConvertFrom-Yaml"
+# 若無 ConvertFrom-Yaml，可改以 uv run python 讀取 yaml.safe_load
+$retention = $mp.layers.continuity.retention_runs
+# 寫入 results JSON 時附带 policy_retention_runs=$retention 供 Phase 3 稽核
+</code></pre>
+<h2>參考來源（書目）</h2>
+<ol>
+<li>daily-digest-prompt 專案文件（2026）。《ARCHITECTURE.md — 目錄與文件驅動架構》。本地路徑：<code>docs/ARCHITECTURE.md</code>。</li>
+<li>daily-digest-prompt 專案配置（2026-03-29）。《memory-policy.yaml — 統一記憶治理策略》。本地路徑：<code>config/memory-policy.yaml</code>。</li>
+<li>daily-digest-prompt 專案配置（2026）。《dedup-policy.yaml — 研究去重策略》。本地路徑：<code>config/dedup-policy.yaml</code>。</li>
+<li>daily-digest-prompt 專案模板（2026）。《preamble.md — 共用前言（含連續記憶與記憶政策引用）》。本地路徑：<code>templates/shared/preamble.md</code>。</li>
+<li>daily-digest-prompt 專案 ADR 登錄（2026-03-31）。《adr-registry.json（摘錄：ADR-20260224-002 Guardrails／輸出驗證）》。本地路徑：<code>context/adr-registry.json</code>。</li>
+<li>Heroku（維護者）。（2012–延續）。《The Twelve-Factor App — III. Config》。URL：https://12factor.net/config （公開／可查證）。</li>
+<li>JSON Schema 專案。（2024–延續）。《JSON Schema Specification》。URL：https://json-schema.org/specification （公開／可查證）。</li>
+<li>CNCF GitOps Working Group 等。（延續）。《GitOps 相關公開白皮書與入门文章》。建議由讀者自 https://opengitops.dev/ 或 CNCF 頁面切入（公開／可查證）。</li>
+</ol>
+<p>---</p>
+<p><strong>品質備註（Phase 7）</strong>：核心主張 1–3 已以倉內 3+ 獨立文件三角佐證；第 4 節外界標準僅作類比書目，<strong>正文技術結論不依賴即時外網摘錄</strong>。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

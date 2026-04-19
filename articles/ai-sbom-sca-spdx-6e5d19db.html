@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動的 SBOM／供應鏈風險摘要與升級建議管線（SCA × SPDX × LLM, 2026-04-01）">
+  <title>AI 驅動的 SBOM／供應鏈風險摘要與升級建議管線（SCA × SPDX × LLM, 2026-04-01） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動的 SBOM／供應鏈風險摘要與升級建議管線（SCA × SPDX × LLM, 2026-04-01）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">SBOM供應鏈</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動的 SBOM／供應鏈風險摘要與升級建議管線（SCA × SPDX × LLM）</h1>
+<h2>技術概述</h2>
+<p>軟體物料清單（SBOM）把「專案實際帶進來的第三方元件與版本」結構化；軟體組成分析（SCA）再把已知的授權、CVE 與惡意樣態對照到 SBOM。當依賴數量變大，<strong>真正的瓶頸往往不是「有沒有掃到」</strong>，而是「人能不能在時間內做完 triage 與升級決策」。LLM 的定位不是取代 SCA，而是把 <strong>OSV／SARIF／diff 等證據</strong>整理成可審核的摘要與建議，並強制附上 <strong>Advisory ID、套件座標（PURL／pypi npm）、影響版本區間</strong>，讓人類與 CI 規則能做最後裁決。</p>
+<h2>核心方法與工具</h2>
+<p>| 層次 | 目的 | 常見選項 |</p>
+<p>|------|------|----------|</p>
+<p>| SBOM 產生 | 產出可交換清單 | <a href="https://spdx.dev/">SPDX</a>（<code>spdx-json</code>）、<a href="https://cyclonedx.org/">CycloneDX</a>（<code>json</code>/<code>xml</code>） |</p>
+<p>| 產生器 | 從檔案系統／映像掃描 | <a href="https://github.com/anchore/syft">Syft</a>、官方語言套件匯出 |</p>
+<p>| 漏洞比對 | 以 SBOM 或 lockfile 對 CVE | <a href="https://github.com/anchore/grype">Grype</a>、<a href="https://github.com/aquasecurity/trivy">Trivy</a>、<a href="https://google.github.io/osv-scanner/">osv-scanner</a> |</p>
+<p>| 權威資料 | 漏洞座標與影響版本 | <a href="https://ossf.github.io/osv-schema/">OSV</a>、各發行端 GHSA／NVD 等 |</p>
+<p>| 供應鏈完整性（可選） | 產線是否被竄改 | <a href="https://slsa.dev/">SLSA</a> provenance／build audit |</p>
+<p>| 政策合規脈絡 | 為何要做 | 美國 <a href="https://www.ntia.doc.gov/sbom">NTIA SBOM</a> 要素討論、歐盟《網路韌性法》（CRA）趨勢下的產品安全義務 |</p>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li><strong>鎖定邊界</strong>：定義本次 SBOM 覆蓋範圍（repo 根目錄、<code>dist</code>、容器映像、或單一服務目錄）。</li>
+<li><strong>CI 產 SBOM 工件</strong>：於 <code>pull_request</code> 或 <code>release</code> 流程輸出 <code>sbom.spdx.json</code>／<code>bom.json</code>，上傳為 build artifact（保留版本與 commit SHA）。</li>
+<li><strong>SCA 掃描</strong>：以 SBOM 或磁碟掃描產生 <code>grype.json</code>／<code>trivy.json</code>／<code>osv.json</code>；只保留可對應到 <strong>明確 advisory id</strong> 的項目進入「高信號」佇列。</li>
+<li><strong>風險分群</strong>：依嚴重度、是否 reachability（若有 call graph／靜態分析）、授權衝突、是否在執行路徑上，將 findings 分桶（例如 <code>blocker</code> / <code>next_sprint</code> / <code>false_positive_candidate</code>）。</li>
+<li><strong>LLM 摘要閘門（可選）</strong>：提示詞必要求輸出表格欄位：<code>advisory_id</code>、<code>package</code>、<code>ecosystem</code>、<code>introduced_fixed</code>、<code>evidence_links</code>、<code>recommended_action</code>。<strong>禁止</strong>沒有 id 的「籠統描述」進 PR 評論。</li>
+<li><strong>人機裁決</strong>：維運／資安在 PR 標籤或 security tab 簽核；合併後把決策寫回 <code>results</code> 或 issue 以便下次差分。</li>
+<li><strong>升級與迴歸</strong>：對 <code>fix</code> 版本開 branch；跑單元測試／最小 E2E；必要時用 <code>uv lock</code>／<code>npm audit fix</code> 類指令產可重現鎖檔。</li>
+</ol>
+<h2>程式碼／配置範例</h2>
+<h3>以 Syft 產 SPDX JSON（本機或 CI）</h3>
+<pre><code>
+# 範例：掃描目前目錄（請在 repo 根目錄執行）
+syft packages dir:. -o spdx-json=sbom.spdx.json
+</code></pre>
+<h3>以 Grype 對 SBOM 比對漏洞</h3>
+<pre><code>
+grype sbom:sbom.spdx.json -o json &gt; grype-report.json
+</code></pre>
+<h3>GitHub Actions（概念片段：於既有 workflow 加一步）</h3>
+<pre><code>
+# 片段示例：實際 action 名稱／版本請依官方文件更新
+- name: Generate SBOM (SPDX JSON)
+  uses: anchore/sbom-action@v0
+  with:
+    path: .
+    format: spdx-json
+    artifact-name: sbom.spdx.json
+</code></pre>
+<blockquote>若專案使用 <code>uv</code>／<code>npm</code>／<code>pnpm</code>，請<strong>優先</strong>以鎖檔（<code>uv.lock</code>／<code>package-lock.json</code>）作為真實來源，SBOM 產生器配置需與實際安裝路徑一致。</blockquote>
+<h2>效果量化（保守陳述）</h2>
+<ul>
+<li><strong>合規與採購</strong>：CRA、美國行政命令 EO 14028 脈絡下，SBOM 已成多邊市場的「預設對話語言」；導入成本主要在治理與工具鏈，而非單次掃描。</li>
+<li><strong>工程生產力</strong>：將 SCA 原始 JSON 變成「10 行可決策摘要」通常能把 PR 資安 review 從「逐条讀 scanner 輸出」改成「對準 blockers」；（實際節省比例依團隊與工件品質差異極大，應以自家 DORA／變更前置時間度量）。</li>
+<li><strong>偵測覆蓋</strong>：SBOM≠安全；它是 <strong>事實基底</strong>。真正的覆蓋率仍取決於 lockfile 是否完整、scanner DB 是否更新、以及是否做 reachability。</li>
+</ul>
+<h2>與本專案（daily-digest-prompt）的應用場景</h2>
+<ul>
+<li><strong>Python／Node 依賴治理</strong>：<code>pyproject.toml</code>＋<code>uv.lock</code>、可能的 MCP／CLI 外掛，可用 SBOM 追蹤「實際進 runtime 的套件集合」，對照 <code>config/dependencies.yaml</code> 與排程腳本 imports。</li>
+<li><strong>Agent 工具鏈</strong>：Skills、hooks、外部二進位／CLI（見 ADR 與 GitHub Scout 盤點）可比照「小型供應鏈」；LLM 摘要可把多份 scanner 輸出統一成 <code>improvement-backlog</code> 可吞食的格式。</li>
+<li><strong>可追溯性對齊</strong>：與既有的 <code>post_tool_logger</code> JSONL／error-object 思路一致：<strong>每個高風險結論要能回指 artifact（SBOM hash、SARIF run id）</strong>，而非只剩自然語言。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li><strong>幻覺與錯配</strong>：LLM 可能誤連 CVE 與套件名；務必要求輸出帶 <strong>OSV／GHSA id</strong>，並以 scanner 結果做雙重驗證。</li>
+<li><strong>秘鑰與資料外洩</strong>：勿把內部-only SBOM／漏洞細節貼到公開模型；自建网关或 redact。</li>
+<li><strong>維運負擔</strong>：SBOM 每 commit 產出可能很大；可改為「日構建／release-only」並儲存於 artifact storage。</li>
+<li><strong>授權誤判</strong>：SCA 對授權衝突的 heuristic 仍可能誤報，需法務／OSS policy 覆核。</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>NTIA／Commerce 對 SBOM 的說明與要素討論：<https://www.ntia.doc.gov/sbom></li>
+<li>SPDX 專案：<https://spdx.dev/></li>
+<li>CycloneDX：<https://cyclonedx.org/></li>
+<li>SLSA 供應鏈完整性框架：<https://slsa.dev/></li>
+<li>OSV（Open Source Vulnerabilities）：<https://ossf.github.io/osv-schema/></li>
+<li>Syft／Grype（Anchore）：<https://github.com/anchore/syft>、<https://github.com/anchore/grype></li>
+<li>Trivy：<https://github.com/aquasecurity/trivy></li>
+<li>Google OSV-Scanner：<https://google.github.io/osv-scanner/></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

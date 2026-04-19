@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-03-29：avg_io_per_call 降速 + 殭屍快取清理">
+  <title>系統優化落實報告 2026-03-29：avg_io_per_call 降速 + 殭屍快取清理 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-03-29：avg_io_per_call 降速 + 殭屍快取清理</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span><span class="tag">avg_io_per_call</span><span class="tag">cache_hit_ratio</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-03-29</h1>
+<h2>執行摘要</h2>
+<p>基於 KB 近 2 天洞察（19 筆筆記），規劃並落實 2 個低風險方案。</p>
+<p><strong>成果</strong>：</p>
+<ul>
+<li>avg_io_per_call 優化：修正 2 個高 I/O 任務 prompt，避免整檔 Read 180KB JSON</li>
+<li>cache_hit_ratio 優化：清理 1 個殭屍快取（knowledge.json，16 天未更新）</li>
+<li>全部驗收通過，807 項測試通過</li>
+<li>Git commit: bcdeb8e</li>
+</ul>
+<p>---</p>
+<h2>方案 A：avg_io_per_call 超閾值優化（總分 10）</h2>
+<h3>背景</h3>
+<p>從 improvement-backlog 識別：avg_io_per_call=24925（超標 107.7%，emergency 等級），門檻 12000。</p>
+<h3>診斷結果</h3>
+<p>分析近 7 天 JSONL 日誌，識別前 5 個高 I/O 任務：</p>
+<p>| 任務 | avg_output_len | 根因 |</p>
+<p>|------|---------------|------|</p>
+<p>| arch_evolution | 65592 | 已有保護（第 48 行警告 + Bash 萃取） |</p>
+<p>| dim4 | 47998 | 疑似舊任務（無 prompt 檔） |</p>
+<p>| kb_system_optimize | 47392 | <strong>整檔 Read improvement-backlog.json（180KB）</strong> |</p>
+<p>| kb_insight_evaluation | 47377 | <strong>整檔 Read improvement-backlog.json（180KB）</strong> |</p>
+<p>| task-3 | 41266 | 疑似舊任務 |</p>
+<h3>實施策略</h3>
+<p>修正 2 個 prompt 檔案，將 <code>Read context/improvement-backlog.json</code> 改為 Bash 萃取：</p>
+<p><strong>kb_system_optimize.md</strong>（2 處修正）：</p>
+<ul>
+<li>第 68 行：備援讀取改用 Bash 萃取 status=pending 的前 5 項</li>
+<li>第 82 行：空洞察 fallback 改用 Bash 萃取</li>
+</ul>
+<p><strong>kb_insight_evaluation.md</strong>（2 處修正）：</p>
+<ul>
+<li>第 39 行：去重檢查改用 Bash 萃取 title 列表</li>
+<li>第 59 行：backlog 寫回改用 Bash 讀取 + Python 追加</li>
+</ul>
+<p><strong>arch_evolution.md</strong>：</p>
+<ul>
+<li>已有完整保護機制（第 48-74 行），無需修正</li>
+</ul>
+<h3>驗收結果</h3>
+<ul>
+<li>✅ 修正 2 個高 I/O 任務 prompt</li>
+<li>✅ YAML 語法檢查通過</li>
+<li>✅ pytest 全部通過（807 passed）</li>
+<li>✅ 自動任務配置一致性驗證通過（35 個任務）</li>
+<li>✅ Git commit: bcdeb8e</li>
+</ul>
+<p>---</p>
+<h2>方案 B：cache_hit_ratio 優化（總分 9）</h2>
+<h3>背景</h3>
+<p>從 improvement-backlog 識別：cache_hit_ratio=0.238（低於 0.4 門檻 40.5%）。</p>
+<h3>診斷結果</h3>
+<p>列出 cache/ 目錄下 7 個 JSON 檔案，對照 cache-policy.yaml TTL：</p>
+<p>| 檔案 | TTL | 年齡 | 判定 |</p>
+<p>|------|-----|------|------|</p>
+<p>| knowledge.json | 240 分鐘（4h）| 16 天（384h）| <strong>殭屍快取</strong> ⚠️ |</p>
+<p>| gmail.json | 360 分鐘 | 6.7h | 正常 ✅ |</p>
+<p>| hackernews.json | 360 分鐘 | 6.8h | 正常 ✅ |</p>
+<p>| pingtung-news.json | 1080 分鐘 | 6.8h | 正常 ✅ |</p>
+<p>| todoist.json | 60 分鐘 | 0.5h | 正常 ✅ |</p>
+<p>| kb_live_status.json | - | 12.5h | 無配置 |</p>
+<p>| status.json | - | 6.8h | 無配置 |</p>
+<h3>實施策略</h3>
+<p>刪除 knowledge.json（年齡 16 天，遠超 2×TTL=8 小時），強制下次查詢時重新建立快取。</p>
+<h3>驗收結果</h3>
+<ul>
+<li>✅ 清理 1 個殭屍快取（knowledge.json，271 bytes）</li>
+<li>✅ 保留所有有效快取（其他 6 個檔案均在 TTL 範圍內）</li>
+<li>✅ 下次 knowledge-query 呼叫時將重建快取</li>
+</ul>
+<p>---</p>
+<h2>知識洞察來源</h2>
+<p>本次執行基於以下 KB 洞察：</p>
+<ol>
+<li><strong>知識活化與 OODA 閉環</strong>（noteId: 1b282005）- 提升洞察轉化效率</li>
+<li><strong>Phase Failure 分級告警</strong>（noteId: 5e994b77）- 已落實報告</li>
+<li><strong>State 檔案壓縮 + I/O 膨脹診斷</strong>（noteId: ace20926）- 已落實報告</li>
+<li><strong>Mastra 記憶壓縮架構</strong>（noteId: 8fcb4fca）- 可借鏡框架設計</li>
+<li><strong>Claude Code Multi-Agent Teams</strong>（noteId: 0998a5c1）- 多 Agent 協作模式</li>
+</ol>
+<p>總計 19 筆洞察，選出 2 個低風險方案落實。</p>
+<p>---</p>
+<h2>預期效果</h2>
+<h3>avg_io_per_call 降速</h3>
+<ul>
+<li><strong>修正前</strong>：kb_system_optimize 和 kb_insight_evaluation 整檔 Read 180KB JSON，輸出 ~47K chars</li>
+<li><strong>修正後</strong>：改用 Bash 萃取必要欄位（≤5 項），預估輸出降至 ~15K chars</li>
+<li><strong>目標</strong>：系統整體 avg_io_per_call 從 24925 降至 12000 以下（需觀察後續 7 天數據）</li>
+</ul>
+<h3>cache_hit_ratio 提升</h3>
+<ul>
+<li><strong>修正前</strong>：knowledge.json 殭屍快取阻止重建，命中率 23.8%</li>
+<li><strong>修正後</strong>：強制下次重建，預估命中率提升至 30%+（需觀察後續數據）</li>
+<li><strong>長期</strong>：結合 stale-while-revalidate 機制（grace_period 60 分鐘），目標達成 40%+</li>
+</ul>
+<p>---</p>
+<h2>後續追蹤</h2>
+<ol>
+<li><strong>監控 avg_io_per_call</strong>（7 天後）：</li>
+</ol>
+<p>   - 執行 <code>uv run python tools/collect_system_data.py</code></p>
+<p>   - 觀察 kb_system_optimize 和 kb_insight_evaluation 的 avg_output_len 是否下降</p>
+<p>   - 若仍超標，考慮進一步優化（如：限制 Bash 萃取的項目數）</p>
+<ol>
+<li><strong>監控 cache_hit_ratio</strong>（3 天後）：</li>
+</ol>
+<p>   - 執行 <code>check-health.ps1</code> 查看 [快取效率] 區塊</p>
+<p>   - 觀察整體命中率是否回升至 30%+</p>
+<p>   - 若未改善，考慮延長 knowledge TTL（240 → 360 分鐘）</p>
+<ol>
+<li><strong>驗證 prompt 修正效果</strong>（下次執行時）：</li>
+</ol>
+<p>   - 觀察 kb_system_optimize 和 kb_insight_evaluation 執行日誌</p>
+<p>   - 確認 Bash 萃取正常運作，無語法錯誤</p>
+<p>   - 確認 JSONL 日誌中 output_len 顯著下降</p>
+<p>---</p>
+<h2>關鍵決策</h2>
+<ol>
+<li><strong>選擇 Bash 萃取而非 offset/limit</strong>：</li>
+</ol>
+<p>   - improvement-backlog.json 是結構化 JSON，需篩選 status=pending</p>
+<p>   - Read offset/limit 無法做條件篩選，仍會讀取大量無關資料</p>
+<p>   - Bash + Python 可精確萃取必要欄位，輸出最小化</p>
+<ol>
+<li><strong>不修改 arch_evolution.md</strong>：</li>
+</ol>
+<p>   - 已有完整保護機制（第 48-74 行）</p>
+<p>   - 萃取時還做了 description 截斷（150 字元）</p>
+<p>   - 有錯誤處理機制（FileNotFoundError / Exception）</p>
+<p>   - 無需重複優化</p>
+<ol>
+<li><strong>清理殭屍快取而非調整 TTL</strong>：</li>
+</ol>
+<p>   - knowledge.json 16 天未更新，可能是服務中斷期間遺留</p>
+<p>   - TTL 已從 120 → 240 分鐘（4h），符合 low volatility 策略</p>
+<p>   - 清理後下次查詢將重建，恢復正常快取循環</p>
+<p>---</p>
+<p><strong>標籤</strong>：系統優化、kb-system-optimize、avg_io_per_call、cache_hit_ratio、daily-digest-prompt、落實報告</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

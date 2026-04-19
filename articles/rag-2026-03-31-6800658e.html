@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-31：自動任務排程效率與 DRR 公平性調度優化 — 執行密度分析、飢餓任務偵測與排程衝突解消策略">
+  <title>專案RAG優化日報 2026-03-31：自動任務排程效率與 DRR 公平性調度優化 — 執行密度分析、飢餓任務偵測與排程衝突解消策略 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-31：自動任務排程效率與 DRR 公平性調度優化 — 執行密度分析、飢餓任務偵測與排程衝突解消策略</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">排程優化</span><span class="tag">DRR</span><span class="tag">公平性調度</span><span class="tag">飢餓偵測</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-31</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-03-31</h1>
+<p><strong>自動任務排程效率與 DRR 公平性調度優化 — 執行密度分析、飢餓任務偵測與排程衝突解消策略</strong></p>
+<p><em>研究日期</em>：2026-03-31</p>
+<p><em>任務 ID</em>：6g2FfvWmxqhCWx85</p>
+<p><em>標籤</em>：專案優化、深度思維、知識庫、排程優化、DRR、公平性</p>
+<p><em>適用對象</em>：daily-digest-prompt 專案</p>
+<p><em>方法</em>：專案內部分析（配置/狀態/日誌審計）+ 外部研究（8 來源三角佐證）</p>
+<p>---</p>
+<h2>一、執行摘要（350 字）</h2>
+<p>本次針對 daily-digest-prompt 專案的自動任務排程系統進行全面效率審計，結合 2025-2026 年 DRR（Deficit Round Robin）最新研究與分散式排程最佳實踐，提出 8 項優化機會。</p>
+<p><strong>現況</strong>：系統共 35 個自動任務，合計 57 次/日上限，實際每日需求量 40 次（利用率 91%）。已有 <code>fairness-rebalancer</code> Skill 提供 DRR 公平性調度，Phase 0c 飢餓提示機制運作正常，熵趨勢穩定（0.436-0.47）。</p>
+<p><strong>三大瓶頸</strong>：① Podcast 任務系統性失敗（podcast_jiaoguangzong 連續失敗 5+ 次，失敗率 >80%），TTS 串行處理 4000s 超時為系統最長；② DRR 飢餓保護已實裝但缺乏可觀測性儀表盤，unfairness 模式難以早期發現；③ 5 個任務處於停用狀態（daily_limit=0），缺乏漸進恢復機制。</p>
+<p><strong>外部研究洞見</strong>：arxiv 2503.23366 證明 DRR 參數空間具凸性，可系統性最佳化 quantum 值 [來源：arxiv, 2025]；Helium 框架的快取感知排程提升 32.9% 命中率 [來源：arxiv 2603.16104, 2026]；「Bag of Agents」反模式研究顯示盲目增加 Agent 數量導致 17 倍錯誤放大 [來源：Towards Data Science, 2026]。</p>
+<p>---</p>
+<h2>二、專案排程現況分析</h2>
+<h3>2.1 配額分配概況</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| 自動任務總數 | 35 個 |</p>
+<p>| 每日配額上限 | 57 次 |</p>
+<p>| 每日實際需求 | 40 次 |</p>
+<p>| 利用率 | 91% |</p>
+<p>| 停用任務 | 5 個（daily_limit=0） |</p>
+<h3>2.2 配額 Top 5 任務</h3>
+<p>| 任務 | daily_limit | 說明 |</p>
+<p>|------|-------------|------|</p>
+<p>| ai_deep_research_continue | 8 | 研究接續軌道（ADR-028） |</p>
+<p>| ai_deep_research | 6 | AI 深度研究選題 |</p>
+<p>| fahua | 3 | 法華經研究 |</p>
+<p>| podcast_jiaoguangzong | 3 | 教觀綱宗 Podcast |</p>
+<p>| arch_evolution | 3 | 架構演進決策 |</p>
+<h3>2.3 飢餓候選任務</h3>
+<ul>
+<li><code>unsloth_research</code>：daily_limit=0（停用）</li>
+<li><code>creative_game_optimize</code>：daily_limit=0（npm build 超時問題）</li>
+<li><code>qa_optimize</code>：daily_limit=0（停用）</li>
+<li><code>chatroom_optimize</code>：daily_limit=0（改由 line+cursor_cli 執行）</li>
+<li><code>podcast_jiaoguangzong</code>：雖有配額但失敗率 >80%，等效飢餓</li>
+</ul>
+<p>---</p>
+<h2>三、外部研究：排程公平性最新進展（8 來源）</h2>
+<h3>3.1 DRR Quantum 凸性優化 ✅已驗證</h3>
+<p>arxiv 2503.23366 證明 DRR 二流系統的可行參數集具備<strong>凸性</strong>，意即可用凸優化方法（而非試誤法）系統性選取最佳 quantum 值 [來源：Convexity and Optimization in DRR Scheduling, arxiv, 2025]。</p>
+<p><strong>啟示</strong>：專案的 <code>frequency-limits.yaml</code> 中 daily_limit 為靜態值，可嘗試建模為凸優化問題，在 57 次上限約束下最小化 Gini 係數。</p>
+<h3>3.2 CQDRR 動態 Quantum ✅已驗證</h3>
+<p>2025 年提出的 Channel- and Queue-aware DRR（CQDRR）變體，根據即時佇列長度與通道狀態動態調整 quantum 配額 [來源：Grokipedia Deficit Round Robin, 2025]。</p>
+<p><strong>啟示</strong>：可在 <code>fairness_hint_phase0c.py</code> 中加入佇列感知邏輯，當某任務連續 2 天 deficit 累積超過 daily_limit 的 50% 時臨時提升 quantum。</p>
+<h3>3.3 Helium 快取感知排程 ✅已驗證</h3>
+<p>Helium 框架採用模板化 radix tree 建模 prompt 前綴結構，實現主動式排程（proactive scheduling），較工作流無感知方案提升 32.9% 快取命中率。使用 precedence delay constraints 防止死鎖與飢餓 [來源：Efficient LLM Serving for Agentic Workflows, arxiv 2603.16104, 2026]。</p>
+<p><strong>啟示</strong>：專案的 Phase 1→2→3 三階段管線已有類似的 precedence 設計，但缺乏「強制推進」機制防止 Phase 2 無限期阻塞。</p>
+<h3>3.4 Bag of Agents 17x 錯誤放大 ✅已驗證</h3>
+<p>研究顯示盲目增加 Agent 數量（Bag of Agents 反模式）會導致錯誤 17 倍放大。正確做法是設計<strong>結構化協調拓撲</strong>：明確的層級、閘門員和反饋迴路 [來源：Towards Data Science, Why Your Multi-Agent System is Failing, 2026]。</p>
+<p><strong>啟示</strong>：專案的 <code>max_auto_per_run.team_mode: 3</code> 限制是正確的設計決策，不應輕易擴大。</p>
+<h3>3.5 分散式三層限流架構 ✅已驗證</h3>
+<p>業界最佳實踐採用三層限流：客戶端層（速率限制）、佇列層（入隊節流）、工作者層（最大並行限制）。搭配指數退避重試和心跳監控 [來源：Design a Distributed Job Scheduler, AlgoMaster, 2026]。</p>
+<p><strong>啟示</strong>：專案目前有兩層（DRR deficit + fairness hint），可加入第三層 Dead Letter 機制。</p>
+<p>---</p>
+<h2>四、8 項優化建議（按優先級排序）</h2>
+<h3>P0-A：修復 podcast_jiaoguangzong 系統性失敗</h3>
+<p><strong>問題</strong>：連續 4-5 日失敗率 >80%，TTS 串行處理 4000s 超時為系統最長。</p>
+<p><strong>建議</strong>：</p>
+<ol>
+<li>檢查 edge-tts 連線穩定性，考慮備用 TTS 引擎</li>
+<li>驗證 ffmpeg 版本/PATH 一致性</li>
+<li>確認 R2 上傳授權 token 是否過期</li>
+<li>將 TTS 改為 asyncio 並行處理（預期 4000s→500-800s）</li>
+</ol>
+<h3>P1-A：導入動態 Quantum 調整（CQDRR 概念）</h3>
+<p><strong>現狀</strong>：<code>frequency-limits.yaml</code> 的 daily_limit 為靜態值。</p>
+<p><strong>建議</strong>：在 <code>fairness_hint_phase0c.py</code> 中加入佇列感知動態調整：</p>
+<ul>
+<li>deficit 累積 > daily_limit × 50% → 臨時提升 quantum</li>
+<li>連續 3 天達 daily_limit 上限 → 略微降低 quantum 讓配額給飢餓任務</li>
+</ul>
+<h3>P1-B：Dead Letter 飢餓告警機制（三層防護第三層）</h3>
+<p><strong>現狀</strong>：有 DRR deficit + fairness hint 兩層，缺乏持久化告警。</p>
+<p><strong>建議</strong>：</p>
+<ul>
+<li>連續 N=5 天 execution_count=0 → 寫入 <code>state/starvation-alerts.json</code></li>
+<li><code>check-health.ps1</code> 顯示飢餓告警</li>
+<li><code>on_stop_alert.py</code> 推播 ntfy 通知</li>
+</ul>
+<h3>P2-A：ai_deep_research 配額精確化</h3>
+<p><strong>問題</strong>：daily_limit=6 但 plan 實際使用 ~4 次，虛佔 2 次配額。</p>
+<p><strong>建議</strong>：改為 daily_limit=4，將釋放的 2 次配額分配給低配額任務。</p>
+<h3>P2-B：KB 匯入異步化</h3>
+<p><strong>問題</strong>：self_heal/tech_research/fahua 等含 KB 寫入的任務容易超時。</p>
+<p><strong>建議</strong>：先產生 results/ JSON，後台 cron 非同步呼叫 KB API。KB 繁忙時 queue 待辦清單而不 fail。</p>
+<h3>P2-C：時段差異化超時策略</h3>
+<p><strong>問題</strong>：部分時段（凌晨 1-6 時）失敗率較高。</p>
+<p><strong>建議</strong>：擴展 <code>time_slot_profiles</code> 覆蓋全天，逐小時微調 buffer：</p>
+<ul>
+<li>凌晨 1-6 時：預留 50% buffer</li>
+<li>上午 9-12 時：預留 30% buffer</li>
+<li>下午 14-17 時：預留 20% buffer</li>
+</ul>
+<h3>P3-A：Fairness 可觀測性儀表盤</h3>
+<p><strong>建議</strong>：在 <code>check-health.ps1</code> 新增 [Fairness] 區塊，顯示：</p>
+<ul>
+<li>每日 Gini 係數趨勢</li>
+<li>Deficit 累積分布（7 日滑動）</li>
+<li>Quantum 利用率（actual/allocated）</li>
+<li>飢餓任務數/總任務比</li>
+</ul>
+<h3>P3-B：停用任務漸進恢復機制</h3>
+<p><strong>問題</strong>：5 個任務長期 daily_limit=0，缺乏重啟路徑。</p>
+<p><strong>建議</strong>：引入 daily_limit=0.5（隔日執行）或限制時間窗口 [19:00-20:00]，實驗性恢復。</p>
+<p>---</p>
+<h2>五、跨來源共識要點</h2>
+<ol>
+<li><strong>DRR quantum 應系統性調校</strong>，凸優化方法優於試誤法 [arxiv 2503.23366 + CQDRR]</li>
+<li><strong>飢餓預防需多層機制</strong>，單一策略不足 [Helium + AlgoMaster + Hatchet]</li>
+<li><strong>協調拓撲比 Agent 數量重要</strong>，17x Error Trap 反模式需避免 [TDS + Helium]</li>
+<li><strong>異質排程策略優於單一策略</strong>，根據任務特性動態選擇 [orq.ai + Volcano]</li>
+<li><strong>可觀測性是公平性的前提</strong>，無法量化即無法保證公平 [Helium + AlgoMaster]</li>
+</ol>
+<p>---</p>
+<h2>六、知識缺口與未來方向</h2>
+<ol>
+<li><strong>Quantum 凸優化實作驗證</strong>：需實際以 scipy.optimize 求解專案的 35 任務 57 配額配置</li>
+<li><strong>Podcast TTS 並行化 PoC</strong>：asyncio + edge-tts 併發度測試（需觀察 API rate limit）</li>
+<li><strong>SLO Budget 與排程連動</strong>：飢餓告警閾值應與 <code>slo-budget-manager</code> Skill 的 Error Budget 連動</li>
+<li><strong>Helium 式快取感知排程移植可行性</strong>：評估 radix tree 前綴模型是否適用於本專案的 prompt 模板結構</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Convexity and Optimization in DRR Scheduling for Delay-Constrained Systems. arxiv. 2025. https://arxiv.org/abs/2503.23366</li>
+<li>Deficit Round Robin — CQDRR / SCRR 變體. Grokipedia. 2025. https://grokipedia.com/page/Deficit_round_robin</li>
+<li>Efficient LLM Serving for Agentic Workflows (Helium). arxiv 2603.16104. 2026. https://arxiv.org/html/2603.16104</li>
+<li>Why Your Multi-Agent System is Failing: 17x Error Trap. Towards Data Science. 2026.</li>
+<li>LLM Orchestration 2025 Best Practices. orq.ai. 2025. https://orq.ai/blog/llm-orchestration</li>
+<li>Design a Distributed Job Scheduler. AlgoMaster. 2026. https://blog.algomaster.io/p/design-a-distributed-job-scheduler</li>
+<li>Hatchet — Distributed Task Queue. GitHub. 2026. https://github.com/hatchet-dev/hatchet-v1</li>
+<li>Building Distributed Task Queue in Go for AI Jobs. dasroot.net. 2026.</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

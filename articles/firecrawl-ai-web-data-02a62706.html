@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Firecrawl -- AI 時代的 Web Data API 深度研究：多引擎爬取架構、LLM-Ready 結構化輸出、Spark Agent 自主資料蒐集與 MCP 整合生態系統（87.6K Stars, 2026-03）">
+  <title>Firecrawl -- AI 時代的 Web Data API 深度研究：多引擎爬取架構、LLM-Ready 結構化輸出、Spark Agent 自主資料蒐集與 MCP 整合生態系統（87.6K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Firecrawl -- AI 時代的 Web Data API 深度研究：多引擎爬取架構、LLM-Ready 結構化輸出、Spark Agent 自主資料蒐集與 MCP 整合生態系統（87.6K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">Firecrawl</span><span class="tag">Web Scraping</span><span class="tag">AI</span><span class="tag">LLM</span><span class="tag">Web Data API</span><span class="tag">Playwright</span><span class="tag">MCP</span><span class="tag">Agent</span><span class="tag">Spark</span><span class="tag">結構化資料</span><span class="tag">開源專案</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Firecrawl -- AI 時代的 Web Data API 深度研究</h1>
+<h2>多引擎爬取架構、LLM-Ready 結構化輸出、Spark Agent 自主資料蒐集與 MCP 整合生態系統</h2>
+<p>研究日期：2026-03-03</p>
+<p>研究類型：GitHub 熱門專案深度分析</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p><strong>Firecrawl</strong>（<a href="https://github.com/firecrawl/firecrawl">firecrawl/firecrawl</a>）是一套將網站轉換為 LLM 可讀資料的 Web Data API 平台，由 Mendable（Y Combinator 支持）團隊開發，定位為「Turn entire websites into LLM-ready markdown or structured data」。截至 2026 年 3 月已累積 <strong>87,652 Stars</strong>、6,211 Forks，採用 AGPL-3.0 授權，是目前 GitHub 上 AI 資料擷取領域最具影響力的開源專案。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 87,652 |</p>
+<p>| Forks | 6,211 |</p>
+<p>| Open Issues | 205 |</p>
+<p>| 主要語言 | TypeScript |</p>
+<p>| 授權 | AGPL-3.0 |</p>
+<p>| 建立時間 | 2024-04-15 |</p>
+<p>| 最新版本 | v2.8.0（2026-02-03） |</p>
+<p>| 最近推送 | 2026-03-02 |</p>
+<p>| 訂閱者 | 296 |</p>
+<p>| 主要貢獻者 | nickscamara（1,836 commits）、mogery（1,440）、rafaelsideguide（586） |</p>
+<p>| 創辦人 | Eric Ciarla、Nicolas Camara、Caleb Peffer |</p>
+<h3>專案定位</h3>
+<p>Firecrawl 解決了 AI/LLM 應用中一個核心痛點：<strong>如何可靠地從網頁取得乾淨、結構化的資料</strong>。傳統爬蟲面臨 JavaScript 渲染、反爬蟲機制、動態內容等挑戰，Firecrawl 透過多引擎架構和 AI 輔助提取，提供業界領先的 >80% 覆蓋率基準測試成績。</p>
+<p>---</p>
+<h2>二、核心架構：五層 Web Data 管線</h2>
+<p>Firecrawl 採用 Monorepo 架構，核心 API 位於 <code>apps/api</code>，配合多個獨立服務協同運作。</p>
+<h3>2.1 系統組件架構</h3>
+<p>根據 docker-compose.yaml 分析，完整部署包含五個核心服務：</p>
+<pre><code>
+[Client] --&gt; [API Server (Node.js, port 3002)]
+                  |
+                  +--&gt; [Redis (Queue &amp; Rate Limit)]
+                  |
+                  +--&gt; [RabbitMQ (Message Broker)]
+                  |
+                  +--&gt; [Playwright Service (port 3000)]
+                  |
+                  +--&gt; [PostgreSQL (nuq-postgres)]
+</code></pre>
+<p>| 服務 | 技術 | 用途 |</p>
+<p>|------|------|------|</p>
+<p>| API Server | Node.js / TypeScript | HTTP API + Worker 處理 |</p>
+<p>| Redis | Redis Alpine | 任務佇列（Bull Queue）+ 速率限制 |</p>
+<p>| RabbitMQ | RabbitMQ 3 Management | 訊息代理（跨 Worker 通訊） |</p>
+<p>| Playwright Service | TypeScript + Playwright | JavaScript 渲染、瀏覽器自動化 |</p>
+<p>| PostgreSQL | PostgreSQL | 持久化儲存（認證、日誌） |</p>
+<h3>2.2 多引擎爬取架構（Engine Layer）</h3>
+<p>Firecrawl 的核心競爭力在於其多引擎爬取策略。<code>apps/api/src/scraper/scrapeURL/engines/</code> 目錄揭示了五類引擎：</p>
+<p>| 引擎 | 用途 | 特點 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>fetch</strong> | 基礎 HTTP 請求 | 最快、資源最少，適合靜態頁面 |</p>
+<p>| <strong>playwright</strong> | 瀏覽器渲染 | 處理 JavaScript SPA、動態內容 |</p>
+<p>| <strong>fire-engine</strong> | 進階爬取（雲端） | IP 輪替、反偵測、Robot 繞過 |</p>
+<p>| <strong>pdf</strong> | PDF 文件解析 | 支援 LlamaParse 整合 |</p>
+<p>| <strong>document</strong> | 非 HTML 文件 | DOCX、圖片 OCR 等 |</p>
+<p>引擎選擇邏輯位於 <code>engines/index.ts</code>（18,393 bytes），根據 URL 特性、用戶配置和可用資源自動選擇最適合的引擎。</p>
+<h3>2.3 轉換器層（Transformer Layer）</h3>
+<p><code>transformers/</code> 目錄包含七個核心轉換器：</p>
+<p>| 轉換器 | 功能 |</p>
+<p>|--------|------|</p>
+<p>| <strong>llmExtract.ts</strong> | LLM 驅動的結構化資料提取（52,280 bytes，最大模組） |</p>
+<p>| <strong>agent.ts</strong> | Agent 模式轉換（自主資料蒐集） |</p>
+<p>| <strong>diff.ts</strong> | 內容變更追蹤（Change Tracking） |</p>
+<p>| <strong>performAttributes.ts</strong> | 屬性萃取（品牌色彩、字型等） |</p>
+<p>| <strong>removeBase64Images.ts</strong> | Base64 圖片清理 |</p>
+<p>| <strong>sendToSearchIndex.ts</strong> | 搜尋索引發送 |</p>
+<p>| <strong>uploadScreenshot.ts</strong> | 截圖上傳 |</p>
+<h3>2.4 後處理器層（Postprocessor Layer）</h3>
+<p>目前包含 YouTube 特化處理器（<code>youtube.ts</code>），負責 YouTube 影片頁面的結構化解析。</p>
+<p>---</p>
+<h2>三、五大核心功能</h2>
+<h3>3.1 Scrape（單頁爬取）</h3>
+<p>將任意 URL 轉換為七種輸出格式：</p>
+<ul>
+<li><strong>markdown</strong>：LLM 最友善的格式，清除廣告/導航等雜訊</li>
+<li><strong>html</strong>：清理後的 HTML</li>
+<li><strong>rawHtml</strong>：原始 HTML</li>
+<li><strong>screenshot</strong>：Base64 編碼截圖</li>
+<li><strong>links</strong>：頁面內所有連結</li>
+<li><strong>json</strong>：LLM 驅動的結構化 JSON（支援 Pydantic Schema 或自然語言 Prompt）</li>
+<li><strong>branding</strong>：品牌識別（色彩、字型、排版）</li>
+</ul>
+<pre><code>
+from firecrawl import Firecrawl
+from pydantic import BaseModel
+
+app = Firecrawl(api_key="fc-YOUR_API_KEY")
+
+class CompanyInfo(BaseModel):
+    company_mission: str
+    is_open_source: bool
+
+result = app.scrape(
+    'https://example.com',
+    formats=[{"type": "json", "schema": CompanyInfo.model_json_schema()}]
+)
+</code></pre>
+<h3>3.2 Actions（互動式爬取）</h3>
+<p>在提取資料前執行瀏覽器操作：點擊、輸入、滾動、等待、截圖。適合需要登入或互動才能存取的頁面：</p>
+<pre><code>
+doc = app.scrape(
+    url="https://example.com/login",
+    actions=[
+        {"type": "write", "text": "user@example.com"},
+        {"type": "press", "key": "Tab"},
+        {"type": "write", "text": "password"},
+        {"type": "click", "selector": 'button[type="submit"]'},
+        {"type": "wait", "milliseconds": 2000}
+    ]
+)
+</code></pre>
+<h3>3.3 Search（網路搜尋 + 爬取）</h3>
+<p>搜尋網路並可選地爬取結果頁面完整內容：</p>
+<pre><code>
+results = firecrawl.search(
+    "firecrawl web scraping",
+    limit=3,
+    scrape_options={"formats": ["markdown", "links"]}
+)
+</code></pre>
+<p>自托管版本支援 SearXNG 作為搜尋後端。</p>
+<h3>3.4 Crawl（全站爬取）</h3>
+<p>從起始 URL 遞歸爬取整個網站，支援深度限制、URL 過濾、並發控制：</p>
+<pre><code>
+docs = app.crawl("https://docs.example.com", limit=100)
+for doc in docs.data:
+    print(doc.metadata.source_url, doc.markdown[:100])
+</code></pre>
+<h3>3.5 Agent（AI 自主資料蒐集）</h3>
+<p>v2.8.0 引入的革命性功能 -- 描述你需要的資料，AI Agent 自動搜尋、導航、提取：</p>
+<pre><code>
+result = app.agent(
+    prompt="Find the pricing plans for Notion",
+    model="spark-1-pro"  # 或 spark-1-mini（預設，便宜 60%）
+)
+</code></pre>
+<p><strong>Spark 模型家族</strong>：</p>
+<p>| 模型 | 定位 | Recall | 成本 |</p>
+<p>|------|------|--------|------|</p>
+<p>| Spark 1 Fast | 即時檢索 | -- | 最低 |</p>
+<p>| Spark 1 Mini | 日常提取（預設） | ~40% | 標準的 40% |</p>
+<p>| Spark 1 Pro | 複雜跨域研究 | ~50% | 標準 |</p>
+<p>Agent 支援結構化輸出（Pydantic Schema）、Webhook 回呼、指定 URL 聚焦、並行執行（v2.8.0 新增）。</p>
+<h3>3.6 Map（URL 發現）</h3>
+<p>快速發現網站所有 URL，支援搜尋過濾：</p>
+<pre><code>
+result = app.map("https://example.com", search="pricing")
+</code></pre>
+<p>---</p>
+<h2>四、技術特色與創新</h2>
+<h3>4.1 開發流程</h3>
+<p>根據 CLAUDE.md，Firecrawl 採用端到端測試優先的開發方法（E2E-first），稱為「snips」：</p>
+<ul>
+<li>先寫 E2E 測試（happy path + failure path）</li>
+<li>實作功能通過測試</li>
+<li>透過 <code>pnpm harness jest</code> 運行（harness 自動啟動 API + Worker）</li>
+<li>CI 跑完整測試套件</li>
+</ul>
+<h3>4.2 資源管理</h3>
+<ul>
+<li><strong>CPU/RAM 閾值</strong>：Worker 在 CPU/RAM 超過 80% 時自動拒絕新任務</li>
+<li><strong>並發控制</strong>：<code>NUM_WORKERS_PER_QUEUE</code>（預設 8）、<code>CRAWL_CONCURRENT_REQUESTS</code>（預設 10）、<code>MAX_CONCURRENT_JOBS</code>（預設 5）</li>
+<li><strong>瀏覽器池</strong>：<code>BROWSER_POOL_SIZE</code>（預設 5）控制 Playwright 並發頁面數</li>
+</ul>
+<h3>4.3 多 AI 後端支援</h3>
+<ul>
+<li><strong>OpenAI API</strong>：預設 LLM 後端（JSON 提取、Agent 功能）</li>
+<li><strong>Ollama</strong>：實驗性支援本地 LLM（如 deepseek-r1:7b）</li>
+<li><strong>OpenAI 相容 API</strong>：任何 OpenAI 相容端點</li>
+<li><strong>LlamaParse</strong>：PDF 解析專用</li>
+</ul>
+<h3>4.4 Change Tracking（變更追蹤）</h3>
+<p><code>diff.ts</code> 轉換器提供網站內容變更監控功能，適合：</p>
+<ul>
+<li>價格監控</li>
+<li>競爭對手分析</li>
+<li>合規性監測</li>
+</ul>
+<h3>4.5 MCP 整合生態</h3>
+<p>Firecrawl 提供官方 MCP Server（<a href="https://github.com/firecrawl/firecrawl-mcp-server">firecrawl/firecrawl-mcp-server</a>，5,639 Stars），支援 Claude Code、Cursor、OpenCode 等 AI 編輯器直接使用 Firecrawl 進行網頁爬取。</p>
+<h3>4.6 Skill 安裝機制</h3>
+<pre><code>
+npx skills add firecrawl/cli
+</code></pre>
+<p>一鍵為 AI Agent 安裝 Firecrawl 能力，重啟後即可自主使用。</p>
+<p>---</p>
+<h2>五、SDK 與整合生態</h2>
+<h3>官方 SDK</h3>
+<p>| SDK | 安裝方式 | 特點 |</p>
+<p>|-----|---------|------|</p>
+<p>| Python | <code>pip install firecrawl-py</code> | Pydantic 整合、自動輪詢 |</p>
+<p>| Node.js | <code>npm install @mendable/firecrawl-js</code> | Zod v4 相容、Watcher 匯出 |</p>
+<p>| Rust | 官方支援 | 高效能場景 |</p>
+<p>| Go | 社群維護 | -- |</p>
+<p>| CLI | <code>npm install -g firecrawl-cli</code> | 命令列完整功能 |</p>
+<h3>平台整合</h3>
+<p>| 平台 | 整合方式 |</p>
+<p>|------|--------|</p>
+<p>| Lovable | 官方整合 |</p>
+<p>| Zapier | 自動化工作流 |</p>
+<p>| n8n | 開源工作流整合 |</p>
+<p>| MCP | 官方 MCP Server |</p>
+<p>| Claude Code / Codex / OpenCode | Skill 安裝 |</p>
+<p>---</p>
+<h2>六、自托管架構</h2>
+<p>Firecrawl 支援完整的自托管部署，透過 Docker Compose 一鍵啟動：</p>
+<pre><code>
+docker compose up -d
+</code></pre>
+<h3>自托管限制</h3>
+<p>| 功能 | 雲端版 | 自托管版 |</p>
+<p>|------|--------|--------|</p>
+<p>| 基礎爬取（fetch + Playwright） | 完整 | 完整 |</p>
+<p>| Fire-engine（進階反偵測） | 完整 | 不可用 |</p>
+<p>| AI 功能（JSON/Agent） | 完整 | 需自備 OpenAI Key 或 Ollama |</p>
+<p>| Search | Google | 需配置 SearXNG |</p>
+<p>| 多架構支援 | -- | amd64 + arm64（v2.8.0+） |</p>
+<p>| SOC2 Type2 合規 | 內建 | 自行負責 |</p>
+<h3>適用場景</h3>
+<ul>
+<li>資料安全合規要求嚴格的組織</li>
+<li>需要客製化爬取邏輯</li>
+<li>內網資料爬取</li>
+<li>學習與貢獻目的</li>
+</ul>
+<p>---</p>
+<h2>七、v2.8.0 重大更新（2026-02-03）</h2>
+<p>| 功能 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>Parallel Agents</strong> | 數千個 /agent 查詢並行執行，自動失敗處理 |</p>
+<p>| <strong>Firecrawl CLI</strong> | 命令列完整支援 scrape/search/crawl/map |</p>
+<p>| <strong>Firecrawl Skill</strong> | 讓 AI Agent 自主使用 Firecrawl |</p>
+<p>| <strong>Spark 模型家族</strong> | Fast/Mini/Pro 三級模型，覆蓋不同成本效能需求 |</p>
+<p>| <strong>MCP Agent Tools</strong> | firecrawl_agent + firecrawl_agent_status MCP 工具 |</p>
+<p>| <strong>Agent Webhooks</strong> | 即時工作完成通知 |</p>
+<p>| <strong>多架構 Docker</strong> | arm64 + amd64 支援 |</p>
+<p>| <strong>Sitemap-Only 爬取</strong> | 僅依 sitemap 爬取，不跟連結 |</p>
+<p>| <strong>品牌識別提取</strong> | CSS 背景圖片提取 |</p>
+<p>| <strong>Zod v4 相容</strong> | JS SDK 支援最新 Zod 版本 |</p>
+<p>---</p>
+<h2>八、與 Daily-Digest-Prompt 系統的借鑑意義</h2>
+<h3>8.1 直接應用價值</h3>
+<ol>
+<li><strong>新聞爬取增強</strong>：目前 fetch-news.md 透過 MCP JSON-RPC 查詢屏東新聞，若未來需要爬取新聞全文或跨來源新聞，Firecrawl 的 Search + Scrape 組合是理想方案</li>
+<li><strong>HackerNews 深度分析</strong>：fetch-hackernews.md 目前只取摘要，可透過 Firecrawl 爬取原始文章全文供 Groq 翻譯/摘要</li>
+<li><strong>知識庫內容擴充</strong>：Firecrawl Agent 可自主搜尋+提取研究主題的完整資料，提升 KB 內容品質</li>
+</ol>
+<h3>8.2 架構借鑑</h3>
+<ol>
+<li><strong>多引擎降級策略</strong>：Firecrawl 的 fetch -> playwright -> fire-engine 自動降級模式，可參考用於本專案的 API 快取降級機制</li>
+<li><strong>E2E 測試優先</strong>：snips 測試方法論（先寫 E2E happy/failure path）可應用於本專案的 Todoist API 測試</li>
+<li><strong>資源閾值管理</strong>：CPU/RAM 80% 閾值自動拒絕任務的模式，可參考應用於 team mode 的並行 Agent 資源控制</li>
+<li><strong>Monorepo + Harness 模式</strong>：<code>pnpm harness</code> 自動啟動依賴服務後跑測試，類似本專案的 <code>run-*-team.ps1</code> 多階段管線</li>
+</ol>
+<h3>8.3 MCP 整合可能性</h3>
+<p>Firecrawl MCP Server（5,639 Stars）可直接整合到本專案的 Claude Code Agent 中，讓自動任務具備網頁深度爬取能力。安裝方式：</p>
+<pre><code>
+npx skills add firecrawl/cli
+</code></pre>
+<p>---</p>
+<h2>九、優缺點評估</h2>
+<h3>優點</h3>
+<ol>
+<li><strong>業界領先的覆蓋率</strong>：>80% 基準測試覆蓋率，超越所有其他測試提供者</li>
+<li><strong>完整 AI 整合</strong>：從 JSON Schema 提取到自主 Agent，原生支援 LLM 工作流</li>
+<li><strong>多引擎架構</strong>：自動選擇最適引擎，兼顧效能與可靠性</li>
+<li><strong>豐富的輸出格式</strong>：7 種格式覆蓋所有 AI 應用場景</li>
+<li><strong>強大的 SDK 生態</strong>：Python/JS/Rust/Go/CLI 全覆蓋</li>
+<li><strong>活躍的社群</strong>：87K+ Stars、6K+ Forks、每日持續更新</li>
+<li><strong>自托管友善</strong>：Docker Compose 一鍵部署，支援 Ollama 本地 LLM</li>
+<li><strong>MCP 整合</strong>：與 Claude Code/Cursor/OpenCode 無縫整合</li>
+</ol>
+<h3>缺點</h3>
+<ol>
+<li><strong>AGPL-3.0 授權</strong>：商業使用需注意授權要求（修改後的衍生作品必須開源）</li>
+<li><strong>Fire-engine 不開源</strong>：進階反偵測功能僅雲端版可用，自托管受限</li>
+<li><strong>AI 功能依賴外部 LLM</strong>：JSON 提取和 Agent 需要 OpenAI/Ollama，增加部署複雜度</li>
+<li><strong>資源需求較高</strong>：完整部署需要 Redis + RabbitMQ + PostgreSQL + Playwright，記憶體建議 8GB+</li>
+<li><strong>自托管維護成本</strong>：需自行處理代理、反偵測、搜尋引擎配置</li>
+</ol>
+<h3>競爭比較</h3>
+<p>| 特性 | Firecrawl | Crawl4AI | Apify | ScrapingBee |</p>
+<p>|------|-----------|----------|-------|-------------|</p>
+<p>| Stars | 87.6K | 61K | 商業 | 商業 |</p>
+<p>| 自托管 | 完整 | 完整 | 部分 | 無 |</p>
+<p>| AI 提取 | 原生 | 基礎 | 插件 | 無 |</p>
+<p>| Agent 模式 | Spark 三級 | 無 | 無 | 無 |</p>
+<p>| MCP 整合 | 官方 | 社群 | 無 | 無 |</p>
+<p>| 授權 | AGPL-3.0 | Apache-2.0 | 商業 | 商業 |</p>
+<p>---</p>
+<h2>十、來源</h2>
+<ol>
+<li><a href="https://github.com/firecrawl/firecrawl">GitHub Repository: firecrawl/firecrawl</a> -- 官方 Repo、README、CLAUDE.md、SELF_HOST.md、docker-compose.yaml | 品質等級 A</li>
+<li><a href="https://github.com/firecrawl/firecrawl/releases/tag/v2.8.0">Firecrawl v2.8.0 Release Notes</a> -- 最新版本發行說明 | 品質等級 A</li>
+<li><a href="https://github.com/firecrawl/firecrawl-mcp-server">Firecrawl MCP Server</a> -- 官方 MCP 整合 | 品質等級 A</li>
+<li>GitHub API -- Repo metadata、Contributors、Directory structure | 品質等級 A</li>
+</ol>
+<p><strong>研究深度</strong>：thorough（4 來源，A 級 4 篇，原始碼結構分析）</p>
+<p><strong>信心水準</strong>：high</p>
+<p>---</p>
+<p><em>研究日期：2026-03-03</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：AI GitHub 熱門專案研究自動任務。Firecrawl 為 AI 資料擷取領域最具影響力的開源專案（87.6K Stars），知識庫尚無專門研究。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

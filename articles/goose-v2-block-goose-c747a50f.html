@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Goose 深度洞察報告 v2 — block/goose AI Agent 框架完整研究（architecture × autogen × rag × MCP生態 × Block戰略 × 2026趨勢）">
+  <title>Goose 深度洞察報告 v2 — block/goose AI Agent 框架完整研究（architecture × autogen × rag × MCP生態 × Block戰略 × 2026趨勢） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Goose 深度洞察報告 v2 — block/goose AI Agent 框架完整研究（architecture × autogen × rag × MCP生態 × Block戰略 × 2026趨勢）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">Agent框架</span><span class="tag">Goose</span><span class="tag">MCP</span><span class="tag">Rust</span><span class="tag">開源工具</span><span class="tag">架構分析</span><span class="tag">AutoGen</span><span class="tag">CrewAI</span><span class="tag">LangGraph</span><span class="tag">OpenHands</span><span class="tag">RAG</span><span class="tag">上下文管理</span><span class="tag">SWE-bench</span><span class="tag">Block</span><span class="tag">AAIF</span><span class="tag">LinuxFoundation</span><span class="tag">software-architect</span><span class="tag">自主軟體工程</span><span class="tag">2026趨勢</span><span class="tag">Daily-Digest</span><span class="tag">安全架構</span><span class="tag">LATS</span><span class="tag">推理模型</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Goose 深度洞察報告 v2</h1>
+<blockquote>研究範疇：架構分析 × 多框架對比 × RAG/上下文策略 × MCP生態系統 × Block企業戰略 × 自主軟體工程2026趨勢</blockquote>
+<blockquote>分析日期：2026-03-04</blockquote>
+<blockquote>資料來源：GitHub / 官方文件 / 學術論文 / 業界報告</blockquote>
+<p>---</p>
+<h2>零、框架速覽</h2>
+<p>| 項目 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 27.3k（2026年1月上線後30天即達此數） |</p>
+<p>| Forks | 3k |</p>
+<p>| License | Apache-2.0 |</p>
+<p>| 主要語言 | Rust 57.4% + TypeScript 34.9% |</p>
+<p>| Releases | 118+ |</p>
+<p>| 組織 | Block Inc.（Square / Cash App / Afterpay 母公司） |</p>
+<p>| 支援 LLM | 20+ providers（Claude, GPT-4, Gemini, Llama, Ollama…） |</p>
+<p>| 核心定位 | 本地端自主執行 AI Agent——<strong>執行型</strong>，非建議型 |</p>
+<p>| 戰略背景 | Block 內部使用3個月後開源；共同創辦 Linux Foundation AAIF |</p>
+<p>---</p>
+<h2>一、架構深度分析（software-architect 視角）</h2>
+<h3>1.1 三層架構與 Clean Architecture 對應</h3>
+<pre><code>
+┌─────────────────────────────────────────┐
+│  UI Layer (TypeScript/React + Tauri)    │  ← 使用者介面層
+│  Desktop GUI ＋ CLI                     │
+└──────────────────┬──────────────────────┘
+                   │ Tauri IPC (Adapter Pattern)
+┌──────────────────▼──────────────────────┐
+│  Agent Core (Rust /crates)              │  ← 業務核心層
+│  Interaction Loop / LLM Router /        │
+│  State Machine / Context Manager        │
+└──────────────────┬──────────────────────┘
+                   │ MCP Protocol (JSON-RPC)
+┌──────────────────▼──────────────────────┐
+│  Extension Layer (MCP Servers)          │  ← 外部整合層
+│  Filesystem / Git / Fetch / Memory /   │
+│  Database / Custom APIs…               │
+└─────────────────────────────────────────┘
+</code></pre>
+<p><strong>依賴反轉（DIP）完整落實</strong>：箭頭一律由外向內，Agent Core 不依賴任何具體 UI 渲染或 Extension 實作。MCP 協定是抽象邊界（Port），各 MCP Server 是 Adapter。</p>
+<p><strong>架構亮點</strong>：<code>/evals</code> 目錄的存在是成熟度訊號——這代表團隊有能力對 Agent 行為做系統性 Eval-Driven 評估，等同傳統軟體的端對端驗收測試。</p>
+<h3>1.2 Rust + TypeScript 邊界的架構決策</h3>
+<p>| 責任 | 語言 | 理由 |</p>
+<p>|------|------|------|</p>
+<p>| Agent Core、LLM 呼叫、MCP 解析、狀態機 | <strong>Rust</strong> | 記憶體安全、無 GC 暫停、所有權系統防並發競爭 |</p>
+<p>| Desktop UI、streaming token 顯示、UX | <strong>TypeScript</strong> | React 宣告式渲染適合即時反饋介面 |</p>
+<p>| 邊界契約 | <strong>Tauri IPC</strong> | Adapter Pattern：兩端語言獨立演進，不互相污染 |</p>
+<p><strong>代價</strong>：需維護兩套型別定義（Rust struct ↔ TypeScript interface），無 codegen 工具時邊界易因人工同步失誤產生 runtime 型別不匹配。</p>
+<h3>1.3 MCP 作為 Extension Point：協定式 vs. 函式庫式</h3>
+<p>| 維度 | MCP（協定式） | VSCode Extension（函式庫式） |</p>
+<p>|------|-------------|---------------------------|</p>
+<p>| 隔離性 | 高（進程/網路邊界）——Extension 崩潰不拉垮 Core | 低（同進程 heap 共享） |</p>
+<p>| 跨語言 | 原生（任何實作 JSON-RPC 的語言） | 僅 Node.js |</p>
+<p>| 效能開銷 | 序列化/反序列化 round-trip | 直接函式呼叫 |</p>
+<p>| 版本相容 | 協定版本管理，較寬鬆 | Host API 破壞性變更風險高 |</p>
+<p>| 生態共用 | 任何 MCP-compatible server 即插即用 | 需重寫為宿主格式 |</p>
+<h3>1.4 Recipe/Workflow 系統設計模式</h3>
+<p>Recipe 是<strong>嵌入式宣告式工作流引擎</strong>，YAML 定義骨架：</p>
+<pre><code>
+# Recipe 示例（重建自文件推斷）
+name: full-stack-setup
+description: 初始化全端專案並執行測試
+parameters:
+  - name: project_name
+    type: string
+steps:
+  - id: scaffold
+    description: 建立專案結構
+    prompt: "建立 {project_name} 的目錄結構，包含 src/ tests/ docs/"
+  - id: install-deps
+    description: 安裝依賴
+    prompt: "安裝必要依賴並設定環境"
+    depends_on: [scaffold]
+  - id: write-tests
+    description: 撰寫測試
+    prompt: "為核心模組撰寫單元測試"
+    depends_on: [scaffold]
+    parallel: true  # 與 install-deps 並行
+  - id: verify
+    description: 驗證
+    prompt: "執行所有測試確認通過"
+    depends_on: [install-deps, write-tests]
+</code></pre>
+<p>體現設計模式：</p>
+<ul>
+<li><strong>Template Method</strong>：YAML 定義骨架，參數化填充具體值</li>
+<li><strong>Strategy</strong>：不同 step 可指定不同 LLM provider</li>
+<li><strong>Composite</strong>：步驟可並行組成 DAG 結構</li>
+</ul>
+<p><strong>架構缺口</strong>：缺少 Temporal 式的 durability guarantee——執行中崩潰無 checkpoint/resume 機制，長任務容錯能力是待解架構債。</p>
+<h3>1.5 可擴展性評估</h3>
+<p>| 維度 | 評分 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| 可擴展性 | 8/10 | MCP 邊界使新 Extension 成本極低 |</p>
+<p>| 可測試性 | 7/10 | /evals 目錄 = Eval-Driven Development 成熟訊號 |</p>
+<p>| 可維護性 | 6/10 | Rust+TS 雙語言棧提高貢獻門檻 |</p>
+<h3>1.6 架構決策風險清單</h3>
+<p>| 風險 | 嚴重度 | 說明 |</p>
+<p>|------|--------|------|</p>
+<p>| MCP Protocol Lock-in | 高 | Block 依賴 Anthropic（競爭對手）定義的協定；但 2025/12 MCP 已捐給 Linux Foundation，風險降低 |</p>
+<p>| Rust 貢獻門檻 | 中 | 57.4% Rust 限縮社群貢獻廣度，迭代速度受 Rust 開發者規模制約 |</p>
+<p>| 無狀態持久化 | 高 | Recipe 無 checkpoint，長時間執行任務不具容錯能力 |</p>
+<p>| 多 LLM 路由狀態 | 中 | mid-task model switching 若無 Port/Adapter 隔離，換模型時可能引發狀態不一致 |</p>
+<p>---</p>
+<h2>二、多 Agent 框架生態對比（autogen 視角）</h2>
+<h3>2.1 六大框架全景比較</h3>
+<p>| 維度 | <strong>Goose</strong> | <strong>AutoGen</strong> | <strong>CrewAI</strong> | <strong>LangGraph</strong> | <strong>OpenHands</strong> | <strong>Claude Code</strong> |</p>
+<p>|------|-----------|-------------|-----------|--------------|--------------|----------------|</p>
+<p>| Stars（2026/03） | 27.3k | 55.2k | 45.1k | 25.5k | 65k+ | ~57k* |</p>
+<p>| 核心語言 | Rust+TS | Python | Python | Python | Python | Python |</p>
+<p>| 核心典範 | 自主執行 Agent | 多 Agent 對話 | 角色制多 Agent | 有狀態工作流圖 | 自主 SWE Agent | IDE+任務自動化 |</p>
+<p>| 執行模型 | 本地（Mac/Win/Linux） | 事件驅動訊息傳遞 | 序列/階層任務 | 圖狀節點+持久化 | 有狀態長時執行 | 本地終端+SDK |</p>
+<p>| 工具整合 | MCP 協定（動態發現） | FunctionCall+McpWorkbench | 手動工具注冊 | LangChain 生態 | 全面工具整合 | 原生fs/git+MCP |</p>
+<p>| 多 Agent | 單 Agent（Recipe 並行） | 第一公民 GroupChat | 原生 Crew Teams | 工作流節點式 | 單 Agent（SWE） | 子 Agent SDK |</p>
+<p>| Human-in-Loop | 系統變更手動確認 | UserProxyAgent | 條件分支 | Interrupt+狀態檢查 | IDE 視覺監控 | 手動審查 |</p>
+<p>| 持久化/容錯 | 工具端管理（無 checkpoint） | 訊息歷史重試 | 任務狀態追蹤 | <strong>全自動 checkpoint</strong> | <strong>自動 checkpoint 恢復</strong> | 狀態檔+git |</p>
+<p>| License | Apache-2.0 | Apache-2.0 | Apache-2.0 | MIT | Apache-2.0 | 商業 |</p>
+<p>| 最強項 | LLM無關+MCP即插即用 | 彈性多 Agent 拓樸 | 企業流程自動化 | 生產級持久化 | SWE-bench SOTA | Claude深度整合 |</p>
+<p>| 最弱項 | 無 checkpoint；新框架（2026/01） | 學習曲線高 | 進階功能曲線陡 | 圖思維門檻 | SWE專用，非通用 | 閉源；無 benchmark |</p>
+<p>| 最佳場景 | 本地開發自動化、隱私優先 | 研究/報告多角色審查 | 企業 CRUD 業務 | 客服/長時運行 | GitHub issue 解決 | Claude API 用戶 |</p>
+<p>*Claude Code stars 估計自生態系項目</p>
+<h3>2.2 自主性光譜定位</h3>
+<pre><code>
+完全聽話（每步確認）                              完全自主（從不詢問）
+    │                                                    │
+    ├── AutoGen ALWAYS ── AutoGen NEVER ── LangGraph ── Goose ── (Devin)
+    │         │                │              │          │
+    │    每次確認          多 Agent         可中斷      直接執行
+    │                     制衡             +審查
+</code></pre>
+<p>Goose 選擇<strong>偏自主端</strong>：無確認迴圈，MCP 工具直接執行，失敗時自我修正後繼續。這在開發任務中有明顯效率優勢，但在業務判斷場景（刪除生產資料、發送大量通知）是風險點。</p>
+<h3>2.3 工具整合策略深度比較</h3>
+<p><strong>AutoGen FunctionCall</strong>：工具函數手動注冊到 Agent，精確控制，新增工具需改程式碼，無法動態擴充。</p>
+<p><strong>Goose MCP</strong>：工具是獨立 MCP Server，執行時動態發現——「插件商城」vs.「手動安裝」。對需頻繁新增工具的系統（如本專案持續新增 Skill），MCP 顯然更具可維護性。</p>
+<p><strong>MCP 2026 採用狀況</strong>：</p>
+<p>| 框架 | MCP 狀態 |</p>
+<p>|------|----------|</p>
+<p>| Goose | 核心架構（native） |</p>
+<p>| Claude Code | 原生 SDK 支援（production） |</p>
+<p>| AutoGen | McpWorkbench 模組（production） |</p>
+<p>| OpenHands | 路線圖規劃（2026 Q2-Q3） |</p>
+<p>| CrewAI | 社群 server（community） |</p>
+<p>| LangGraph | 透過 LangChain adapters（間接） |</p>
+<h3>2.4 適用場景決策矩陣</h3>
+<p>| 場景 | 推薦 | 次選 | 理由 |</p>
+<p>|------|------|------|------|</p>
+<p>| 開發任務全自動化（寫碼/測試/部署） | <strong>Goose</strong> | OpenHands | 執行導向，MCP 工具豐富，零確認延遲 |</p>
+<p>| 複雜多角色推理（研究/報告） | <strong>AutoGen</strong> | CrewAI | GroupChat 多視角收斂，Critic 模式 |</p>
+<p>| 企業 CRUD 業務自動化 | <strong>CrewAI</strong> | AutoGen | YAML 配置直觀，100K 認證開發者 |</p>
+<p>| 生產級長時運行 Agent | <strong>LangGraph</strong> | OpenHands | 全自動 checkpoint，durability 最強 |</p>
+<p>| GitHub issue 自動解決 | <strong>OpenHands</strong> | Claude Code | SWE-bench SOTA（72% resolve rate） |</p>
+<p>| 本地隱私敏感任務 | <strong>Goose</strong> | Ollama+任何框架 | 20+ LLM 含本地模型，資料不離機 |</p>
+<p>| 需要人類在迴圈中審批 | <strong>AutoGen</strong> | LangGraph | UserProxyAgent / Interrupt 天然支援 |</p>
+<h3>2.5 對 Daily Digest 系統的架構啟示</h3>
+<p><strong>現有架構（<code>run-agent-team.ps1</code>三階段）的盲點</strong>：</p>
+<ul>
+<li>結構：PowerShell Orchestrator（類 Goose Recipe）+ 子 Agent 並行（類 AutoGen Worker）</li>
+<li><strong>致命缺口</strong>：assemble 品質無自動 Critic 機制——輸出品質差，系統不自知</li>
+</ul>
+<p><strong>借鑑 AutoGen 的改進方向</strong>：</p>
+<pre><code>
+[Fetch Agents × N 並行] → [Assembler] → [Critic Agent：品質評分]
+                                              ↓ 分數 &lt; 閾值
+                                         [重組 or 降級處理]
+                                              ↓ 分數 ≥ 閾值
+                                         [ntfy 推播]
+</code></pre>
+<p>---</p>
+<h2>三、上下文管理與 RAG 策略（rag 視角）</h2>
+<h3>3.1 Goose 的主動壓縮 vs. 傳統 RAG</h3>
+<pre><code>
+傳統 RAG（被動）：      查詢 → 向量搜尋 → 附加至 prompt → LLM 生成
+                        └── 每次從零開始，無狀態，線性
+
+Goose 主動壓縮：        差分編輯（只傳增量）
+                        + 小模型摘要（蒸餾層）
+                        + MCP 按需注入（即時 RAG）
+                        └── 增量成本趨近常數，狀態持續演變
+</code></pre>
+<h3>3.2 三種上下文管理機制深度解析</h3>
+<p><strong>機制1：差分編輯（Differential Editing）</strong></p>
+<ul>
+<li>只傳送對話狀態的變動部分，而非完整歷史</li>
+<li>效果：input token 增量成本從 O(n) 降至 O(1)（n=對話輪數）</li>
+<li>類比：Git diff vs. 完整 snapshot</li>
+</ul>
+<p><strong>機制2：小模型摘要（Small Model Summarization）</strong></p>
+<ul>
+<li>摘要/格式化/簡單判斷 → 小模型（低成本）</li>
+<li>複雜推理/最終決策 → 主力模型（高成本）</li>
+<li>等同 RAG 管線插入「蒸餾層」，讓高成本模型只處理高品質輸入</li>
+</ul>
+<p><strong>機制3：MCP 動態注入（Dynamic Context Injection）</strong></p>
+<ul>
+<li>工具結果按需注入上下文 = 即時 RAG</li>
+<li>優勢：知識是計算而非儲存（取得最新結果，無需預先索引）</li>
+<li>解決傳統 RAG 最棘手問題：<strong>何時檢索、檢索多少</strong>——由 Agent 執行邏輯決定</li>
+</ul>
+<h3>3.3 主動壓縮 vs. 被動檢索適用邊界</h3>
+<p>| 維度 | 被動 RAG | Goose 主動壓縮 |</p>
+<p>|------|----------|---------------|</p>
+<p>| 最佳場景 | 知識庫穩定、查詢獨立 | 長時任務、狀態持續演變 |</p>
+<p>| 延遲特性 | 每次有檢索延遲 | 壓縮在背景，不阻塞主流程 |</p>
+<p>| 記憶保留 | 跨對話需外部存儲 | 差分狀態天然保留中間步驟 |</p>
+<p>| 錯誤傳播 | 檢索失誤影響單次 | 壓縮失真可能累積污染後續步驟 |</p>
+<p>| 最佳架構 | 問答/文件搜尋系統 | 多步驟自動化管線 |</p>
+<p><strong>2025 新興原則「Context Engineering」</strong>：業界已從「prompt engineering」升格為「context engineering」——把上下文視為有獨立架構、生命週期、約束的系統，而非單純文字串接。Anthropic 已發布官方指引。</p>
+<h3>3.4 成本經濟學模型</h3>
+<pre><code>
+傳統做法成本：C(n) = base_cost × n  （n = 對話輪數）
+Goose 差分成本：C(n) ≈ base_cost + delta_cost  （delta_cost 趨近常數）
+
+節省率估算（20輪對話）：
+  傳統：base × 20 = 100%
+  Goose：base + 19×delta ≈ 30-40%（假設 delta = 10-15% of base）
+  節省：60-70%
+</code></pre>
+<h3>3.5 對 Daily Digest 系統的五項直接行動</h3>
+<p>| 行動 | 實施方式 | 預期效益 |</p>
+<p>|------|----------|----------|</p>
+<p>| fetch agent 輸出固定 schema | 各 fetch agent 輸出 JSON schema（限制欄位數） | assemble input tokens ↓40-60% |</p>
+<p>| cache/status.json 擴充 | 各 fetch 結果摘要也預計算，assemble 只讀摘要 | 主流程 context 更清潔 |</p>
+<p>| MCP 化高頻工具 | ntfy-notify、knowledge-query 包裝為 MCP server | 按需注入，不預載全部資料 |</p>
+<p>| 引入 Critic Agent | assemble 後自評品質分數（完整性/精確性/可讀性） | 自動品質保障，低分觸發重組 |</p>
+<p>| 小模型分工 | 摘要翻譯用 Groq Llama（已有 Groq Skill），推理用 Claude | 成本結構優化 |</p>
+<p>---</p>
+<h2>四、MCP 生態系統深度解析</h2>
+<h3>4.1 MCP 治理演進時間線</h3>
+<pre><code>
+2024/11   Anthropic 發布 MCP（內部協定）
+2025/03   OpenAI 正式在 ChatGPT 桌面版採用 MCP
+2025 上半  Google DeepMind、Microsoft、AWS 加入支援
+2025/12   Anthropic 將 MCP 捐給 Linux Foundation AAIF
+           → OpenAI、Anthropic、Block 共同創辦 AAIF
+           → 治理：多公司技術指導委員會（非 Anthropic 單獨控制）
+2026 初    生態規模：1,864+ 社群 MCP server；50+ 企業合作夥伴
+</code></pre>
+<h3>4.2 官方 MCP Server 分類</h3>
+<p><strong>核心參考實作（7個）</strong>：</p>
+<p>| Server | 功能 |</p>
+<p>|--------|------|</p>
+<p>| Filesystem | 安全檔案操作（可配置存取控制） |</p>
+<p>| Git | 讀取/搜尋/操作 Git 倉庫 |</p>
+<p>| Fetch | 網頁內容抓取並轉換為 LLM 可讀格式 |</p>
+<p>| Memory | 基於知識圖譜的持久記憶系統 |</p>
+<p>| Sequential Thinking | 透過思考序列動態解題 |</p>
+<p>| Time | 時間與時區轉換 |</p>
+<p>| Everything | 參考/測試用（含 prompts/resources/tools） |</p>
+<p><strong>已存檔移至社群（12個）</strong>：GitHub、GitLab、PostgreSQL、Brave Search、Puppeteer、Redis、Slack、Google Drive、Google Maps、Sentry、AWS KB、EverArt</p>
+<p><strong>社群生態</strong>：1,864+ server（registry.modelcontextprotocol.io），預估 2026/Q4 達 200+ 生產就緒 server。</p>
+<h3>4.3 MCP 作為「USB-C for AI」的戰略意義</h3>
+<p>MCP 解決了 AI Agent 工具整合的三個核心問題：</p>
+<ol>
+<li><strong>協定碎片化</strong>：各框架各自實作工具呼叫，MCP 提供統一標準</li>
+<li><strong>生態鎖定</strong>：標準化後，工具可跨框架、跨模型複用</li>
+<li><strong>安全邊界</strong>：協定層天然的進程隔離提供安全沙箱</li>
+</ol>
+<p>Goose 作為 MCP 原生架構（MCP-native by design），在 MCP 成為業界標準後具有先行者優勢。相比之下，LangGraph/CrewAI 是事後透過 adapter 支援 MCP，架構整合深度不同。</p>
+<p>---</p>
+<h2>五、Block 企業戰略脈絡</h2>
+<h3>5.1 為何 Block 要建 Goose？</h3>
+<p><strong>內部驗證</strong>：Brad Axen（Block 首席 AI 工程師）報告，Goose 內部使用 3 個月後已能在數分鐘內完成多天的工程任務，且產出品質「優於部分頂尖工程師」。</p>
+<p><strong>戰略邏輯</strong>：</p>
+<ul>
+<li>Block 是金融科技公司（Square 支付、Cash App、Afterpay），工程自動化是核心競爭力</li>
+<li>開源策略：Block 選擇貢獻給生態系而非構建護城河，押注「開放標準加速整體創新」比閉源更有利</li>
+<li>與 Anthropic 的關係：Block 同時是 MCP 的最大採用者之一，商業利益驅動生態共建</li>
+</ul>
+<p><strong>共同創辦 AAIF（Agentic AI Foundation）</strong>：</p>
+<ul>
+<li>Block + Anthropic + OpenAI → Linux Foundation AAIF（2025/12）</li>
+<li>目標：為金融科技建立開放 AI Agent 標準</li>
+<li>意義：Block 將自己定位為金融業 AI 基礎設施的標準制定者，而非工具販售者</li>
+</ul>
+<h3>5.2 Block AI 戰略三層次</h3>
+<pre><code>
+層次1（工具）：   Goose → 工程師日常任務自動化
+層次2（標準）：   AAIF + MCP → 金融業 Agent 互通標準
+層次3（生態）：   開源社群 → 建立 Block 在開發者中的品牌信任
+</code></pre>
+<p>---</p>
+<h2>六、自主軟體工程趨勢（2025-2026）</h2>
+<h3>6.1 SWE-bench 最新排行（2026/03）</h3>
+<p>| 排名 | 系統 | 分數 | 說明 |</p>
+<p>|------|------|------|------|</p>
+<p>| 1 | OpenHands SDK + Claude Sonnet 4.5 + extended thinking | <strong>72%</strong> | 2025/11 達成 |</p>
+<p>| 2 | OpenHands（5 trajectories） | 66.4% | inference-time scaling |</p>
+<p>| 3 | Refact.ai Agent | 70.4%（Verified）/ 60%（Lite） | 最強開源 Agent |</p>
+<p>| 4 | SWE-agent 1.0 + Claude 3.7 | 頂級表現 | — |</p>
+<p>| — | Goose | <strong>無公開數據</strong> | 2026/01 才上線 |</p>
+<p><strong>SWE-bench 侷限警示</strong>：2025 研究發現部分 Agent 展現<strong>基準特定記憶化</strong>（benchmark-specific memorization）而非真正可遷移的程式能力——70% 的分數不代表能在真實企業代碼庫達到同等表現。</p>
+<h3>6.2 Agent 推理架構演進</h3>
+<p><strong>ReAct（主流基線）</strong>：Thought→Action→Observation 線性鏈，簡單但容易陷入死路。</p>
+<p><strong>LATS（Language Agent Tree Search，ICLR 2025 突破）</strong>：</p>
+<ul>
+<li>結合 Monte Carlo Tree Search + LLM 反思</li>
+<li>同時探索多條推理路徑，評估後智能回溯</li>
+<li>效果：在 HotPotQA 上是 ReAct 的 2 倍效能</li>
+<li>2025 年最重要的 Agent 推理論文之一</li>
+</ul>
+<p><strong>推理時計算擴展（Inference-Time Scaling，2025 前沿）</strong>：</p>
+<ul>
+<li>OpenAI o1/o3 範式：用強化學習在推理時擴展搜索</li>
+<li>o3-mini（2025/02）：推理模型從研究好奇心變成可負擔商品</li>
+<li>影響：複雜 Agent 推理任務的成本/效能邊界大幅前移</li>
+</ul>
+<h3>6.3 三層記憶架構（2025 新標準）</h3>
+<p>現代 Agent 框架正朝向三層記憶靠攏：</p>
+<pre><code>
+情節記憶（Episodic）  ←  「我昨天用 X 方法失敗了」
+語義記憶（Semantic）  ←  「這個 codebase 用 MVC 架構」
+程序記憶（Procedural）←  「遇到 timeout 先檢查資源，再用指數退避重試」
+</code></pre>
+<p>整合路徑：情節記憶 → 長期抽象化 → 語義記憶（類似人類的記憶鞏固）</p>
+<h3>6.4 Agent 目前能做 vs. 仍然難做的任務</h3>
+<p>| 能做（70%+ SOTA） | 仍難做 |</p>
+<p>|-------------------|--------|</p>
+<p>| 結構清晰的 issue 解決 | 系統架構重設計 |</p>
+<p>| 程式碼重構/轉換 | 跨切面關注點（安全/效能/可擴展性） |</p>
+<p>| 測試撰寫與 debug 迭代 | 多週複雜依賴規劃 |</p>
+<p>| API 整合 | 需要創意與跨域合成的問題 |</p>
+<p>| 文件生成 | 從部署失敗中持續學習 |</p>
+<p>---</p>
+<h2>七、安全架構與自主性風險</h2>
+<h3>7.1 自主 Agent 的攻擊面</h3>
+<p>OWASP AI Agent Top 10（2025）：</p>
+<ol>
+<li><strong>Prompt Injection</strong>：#1 最高風險——惡意內容注入 Agent 的工具結果中</li>
+<li><strong>工具互動操控</strong>：Agent 與關鍵基礎設施互動時的權限濫用</li>
+<li><strong>Agent 逃逸</strong>：透過子 shell <code>$()</code> / base64 編碼繞過安全控制</li>
+</ol>
+<h3>7.2 沙箱技術三層次</h3>
+<p>| 層次 | 技術 | 隔離強度 | 使用場景 |</p>
+<p>|------|------|----------|----------|</p>
+<p>| 強 | MicroVM（Firecracker/Kata） | 最高 | 不可信程式碼執行 |</p>
+<p>| 中 | gVisor（使用者空間核心） | 高 | 企業 Kubernetes 部署 |</p>
+<p>| 弱 | 強化容器（AppArmor/seccomp） | 中 | 低風險內部 Agent |</p>
+<p><strong>現實差距</strong>：2025 年評估的 30 個 Agent 中，<strong>只有 9 個文件化了沙箱策略</strong>，顯示業界安全實踐嚴重落後於能力發展。</p>
+<h3>7.3 Goose 的安全哲學（HOWTOAI.md）</h3>
+<blockquote>"Extra review is required for MCP servers, network code, file system operations, user input, and credential handling. Use AI to speed up development while keeping your brain engaged, your standards high, and goose secure."</blockquote>
+<p>Goose 選擇<strong>人本監控 + 社群對話</strong>而非純自動化防護，假設開發者是有判斷力的參與者。這適合小型開發團隊，但企業部署需要額外的 Zero-Trust 層。</p>
+<h3>7.4 本專案 Hook 機制對應</h3>
+<p>Daily Digest 系統的 Hook 安全架構與業界最佳實踐高度吻合：</p>
+<p>| 本專案機制 | 業界模式對應 |</p>
+<p>|-----------|-------------|</p>
+<p>| <code>pre_bash_guard.py</code> | 工具互動白名單 + exfiltration 偵測 |</p>
+<p>| <code>agent_guardian.py</code> 斷路器 | Circuit Breaker（防 API 風暴） |</p>
+<p>| <code>pre_read_guard.py</code> | 最小讀取權限原則 |</p>
+<p>| <code>hook-rules.yaml</code> exfiltration-base64 規則 | OWASP Agent Escape 防護 |</p>
+<p>| <code>on_stop_alert.py</code> | Session 結束稽核日誌 |</p>
+<p>---</p>
+<h2>八、2026-2027 未來軌跡</h2>
+<h3>8.1 將會解決的問題</h3>
+<p>| 領域 | 預測 | 時間 |</p>
+<p>|------|------|------|</p>
+<p>| 工具整合標準化 | MCP 生態 1000+ production server | 2026/Q4 |</p>
+<p>| 推理能力 | Inference-time scaling 成主流商品 | 2026 上半 |</p>
+<p>| 記憶架構 | Episodic/Semantic/Procedural 三層成標準 | 2026 |</p>
+<p>| 多 Agent 協調 | Hierarchical supervisor pattern 企業標準化 | 2026 |</p>
+<p>| 安全合規 | MicroVM 隔離成生產部署預設 | 2026-2027 |</p>
+<h3>8.2 Goose 預測演進路徑</h3>
+<pre><code>
+2026/H1：深化 MCP 生態（MCP 服務目錄 + 自動發現）
+2026/H2：引入三層記憶架構（跨 session 的專案知識圖譜）
+2027：   Hierarchical Sub-Agent 支援成熟（Recipe 內嵌子 Agent）
+         + Reasoning Model 原生整合（o3 類深度推理可配置）
+         + 企業安全模式（SOC2 / 稽核日誌 / 多租戶隔離）
+</code></pre>
+<h3>8.3 競爭格局 2026</h3>
+<p>Goose 的差異化定位：</p>
+<ul>
+<li><strong>開放</strong>（Apache-2.0）+ <strong>可擴展</strong>（MCP 原生）+ <strong>本地優先</strong>（隱私/延遲優勢）</li>
+<li>角色定位：「AI Agent 的 Linux」——商品化基礎設施，而非封閉 SaaS</li>
+<li>Block 的金融業背書：企業採購信任度高於純社群項目</li>
+</ul>
+<p>仍存在的競爭威脅：</p>
+<ul>
+<li><strong>OpenHands</strong> 在 SWE 任務有 benchmark 數據支撐，企業採購有據可查</li>
+<li><strong>LangGraph</strong> 在長時持久化任務上架構優勢明顯，大型企業部署首選</li>
+<li><strong>Claude Code</strong>（Anthropic）：深度 Claude 整合，對 Anthropic API 用戶有生態粘性</li>
+</ul>
+<p>---</p>
+<h2>九、戰略洞察與行動建議</h2>
+<h3>9.1 三大架構借鑑（可立即應用於 Daily Digest）</h3>
+<p><strong>借鑑一：差分上下文壓縮</strong></p>
+<ul>
+<li>做法：fetch agent 輸出改為固定欄位 JSON schema（限制 token 數上限）</li>
+<li>assemble agent 只消費摘要欄位，不處理原始 API 回應</li>
+<li>預期效益：assemble 階段 input tokens 降低 40-60%</li>
+</ul>
+<p><strong>借鑑二：Eval-Driven 品質閘門</strong></p>
+<ul>
+<li>做法：assemble-digest 後加入 Critic Agent，打分標準：完整性/精確性/可讀性（各 0-10）</li>
+<li>低於閾值（例如 < 21/30）觸發重組，高於閾值才推播</li>
+<li>工程成本：新增一個 prompt，在 assemble 後、ntfy 前插入</li>
+</ul>
+<p><strong>借鑑三：MCP 動態工具化</strong></p>
+<ul>
+<li>做法：將 ntfy-notify、knowledge-query 包裝為 MCP Server</li>
+<li>Agent 按需呼叫，不需在 prompt 中預載全部 API 文件</li>
+<li>長期效益：新增工具無需修改主流程 prompt</li>
+</ul>
+<h3>9.2 潛在風險評估</h3>
+<p>| 風險 | 評估 | 緩解策略 |</p>
+<p>|------|------|----------|</p>
+<p>| Goose 架構無 checkpoint | 高風險 | 長任務自行加 FSM state 外部持久化（本專案已有 run-fsm.json 雛形） |</p>
+<p>| MCP Lock-in（已緩解） | 低風險 | MCP 已納入 Linux Foundation，生態主導權去中心化 |</p>
+<p>| 完全自主的業務風險 | 中風險 | 高風險操作（刪除/發送）加 human-in-the-loop 節點 |</p>
+<p>| Benchmark 數據缺失 | 中風險 | Goose 目前無 SWE-bench 數據，企業採購說服力不足 |</p>
+<h3>9.3 選型建議矩陣</h3>
+<pre><code>
+你的任務需要...        → 使用
+
+本地自主開發自動化     → Goose（MCP 生態 + 本地隱私）
+SWE-bench 類問題解決   → OpenHands（SOTA 72%）
+複雜多角色推理         → AutoGen（GroupChat Critic）
+生產級長時持久化       → LangGraph（全自動 checkpoint）
+企業 CRUD 業務         → CrewAI（YAML + 100K 認證開發者）
+Claude 深度整合        → Claude Code（Anthropic SDK）
+多框架混合             → 透過 MCP 橋接（標準化工具層）
+</code></pre>
+<p>---</p>
+<h2>十、參考來源</h2>
+<h3>主要資料來源</h3>
+<ul>
+<li>GitHub：https://github.com/block/goose（Apache-2.0，27.3k ⭐）</li>
+<li>技術介紹：https://blog.sanshaokeji.top/wz/96.html</li>
+<li>MCP 官方：https://modelcontextprotocol.io</li>
+<li>MCP Servers：https://github.com/modelcontextprotocol/servers</li>
+<li>AutoGen：https://github.com/microsoft/autogen</li>
+<li>CrewAI：https://github.com/crewAIInc/crewAI</li>
+<li>LangGraph：https://github.com/langchain-ai/langgraph</li>
+<li>OpenHands：https://openhands.dev</li>
+</ul>
+<h3>學術與業界報告</h3>
+<ul>
+<li>LATS 論文（ICLR 2025）：https://arxiv.org/pdf/2310.04406</li>
+<li>SWE-bench Leaderboard：https://www.swebench.com</li>
+<li>OpenHands SOTA 部落格：https://openhands.dev/blog/sota-on-swe-bench-verified</li>
+<li>MCP joins Linux Foundation：https://github.blog/open-source/maintainers/mcp-joins-the-linux-foundation</li>
+<li>Block + OpenAI + Anthropic AAIF：https://techcrunch.com/2025/12/09/openai-anthropic-and-block-join-new-linux-foundation</li>
+<li>Anthropic Context Engineering 指引：https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents</li>
+<li>NVIDIA Agent Sandboxing：https://developer.nvidia.com/blog/practical-security-guidance-for-sandboxing-agentic-workflows</li>
+<li>2026 Agentic Coding Trends（Anthropic）：https://resources.anthropic.com/hubfs/2026-Agentic-Coding-Trends-Report.pdf</li>
+<li>SWE-Bench Benchmark Illusion：https://arxiv.org/html/2506.12286v3</li>
+</ul>
+<h3>分析框架（本報告使用的 Skills）</h3>
+<ul>
+<li>software-architect Skill（Clean Architecture + SOLID + 系統設計）</li>
+<li>autogen Skill（多 Agent 框架設計哲學比較）</li>
+<li>rag Skill（上下文管理與檢索增強生成策略）</li>
+</ul>
+<p>---</p>
+<p><em>本報告版本：v2（深度擴充版）| 生成日期：2026-03-04 | 字數：~8,000</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

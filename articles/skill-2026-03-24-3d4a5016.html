@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-24）：task-quality-gate + hook-registry 深度審查">
+  <title>Skill 品質審查報告（2026-03-24）：task-quality-gate + hook-registry 深度審查 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-24）：task-quality-gate + hook-registry 深度審查</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">task-quality-gate</span><span class="tag">hook-registry</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-24）</h1>
+<h2>審查範圍</h2>
+<p>本次深度審查 2 個從未被審查的工具 Skill：</p>
+<ul>
+<li><strong>task-quality-gate</strong>（工具 Skill #59）— LLM-as-a-Judge 品質門檻評估</li>
+<li><strong>hook-registry</strong>（工具 Skill #49）— 宣告式 Hook 規則盤點與 Registry 治理</li>
+</ul>
+<h2>選擇理由</h2>
+<p>歷次審查覆蓋：</p>
+<ul>
+<li>2026-02-15：14 個 Skill 全面體檢（總評 9.2/10）</li>
+<li>2026-02-18：system-audit + kb-curator</li>
+<li>2026-02-25：arch-evolution + todoist-task-creator</li>
+<li>2026-03-01：git-smart-commit + chatroom-query</li>
+<li>2026-03-19：skill-forge + pre-flight-check</li>
+<li>2026-03-20：context-budget-monitor + execution-journal</li>
+</ul>
+<p>本次選擇理由：</p>
+<ol>
+<li><strong>task-quality-gate</strong>：子 Agent 掃描發現缺少 cache-ttl 欄位（唯一缺失此欄位的 Skill）</li>
+<li><strong>hook-registry</strong>：工具 Skill，frontmatter 規範性影響路由效率</li>
+<li>兩者均未在過往審查記錄中出現</li>
+</ol>
+<p>---</p>
+<h2>task-quality-gate 審查結果</h2>
+<h3>4.1 Frontmatter 規範性</h3>
+<p>| 檢查項目 | 結果 | 備註 |</p>
+<p>|---------|------|------|</p>
+<p>| name 與目錄名一致 | ✅ 通過 | task-quality-gate |</p>
+<p>| description 含 "Use when" | ✅ 通過 | "Use when: 自動任務完成後、寫入最終結果前" |</p>
+<p>| allowed-tools 正確 | ✅ 通過 | Read, Write, Bash（3 個） |</p>
+<p>| cache-ttl 存在 | ❌ <strong>缺失</strong> | <strong>修正前：無此欄位</strong> → <strong>修正後：cache-ttl: "N/A"</strong> |</p>
+<h3>4.2 內容品質</h3>
+<p>| 檢查項目 | 結果 | 備註 |</p>
+<p>|---------|------|------|</p>
+<p>| 步驟結構清晰 | ✅ 通過 | 步驟 1-7，編號清楚 |</p>
+<p>| 包含可執行範例 | ✅ 通過 | bash/curl 指令完整 |</p>
+<p>| 輸出格式規範 | ✅ 通過 | JSON 格式定義明確 |</p>
+<p>| 錯誤處理/降級 | ✅ 通過 | 完整的錯誤處理表格 |</p>
+<h3>4.3 路由一致性</h3>
+<p>| 檢查項目 | 結果 | 備註 |</p>
+<p>|---------|------|------|</p>
+<p>| SKILL_INDEX.md 觸發關鍵字 | ✅ 通過 | "品質評估", "quality gate", "LLM-as-a-judge" 等 5 個 |</p>
+<p>| routing.yaml 映射 | ⚠️ N/A | 工具 Skill，非 Todoist 路由 |</p>
+<p>| prompts 引用 | ⚠️ 待整合 | SKILL.md 中提及 todoist-assemble.md 整合點，但尚未實際整合 |</p>
+<h3>修正內容</h3>
+<p><strong>修正前：</strong></p>
+<pre><code>
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+triggers:
+</code></pre>
+<p><strong>修正後：</strong></p>
+<pre><code>
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+cache-ttl: "N/A"
+triggers:
+</code></pre>
+<p><strong>修正理由：</strong></p>
+<ul>
+<li>task-quality-gate 不涉及外部 API 快取（僅呼叫本地 claude -p）</li>
+<li>但 frontmatter 規範要求所有 Skill 必須有 cache-ttl 欄位（參照 skills/CLAUDE.md）</li>
+<li>設為 "N/A" 表示此 Skill 不適用快取機制</li>
+</ul>
+<p>---</p>
+<h2>hook-registry 審查結果</h2>
+<h3>4.1 Frontmatter 規範性</h3>
+<p>| 檢查項目 | 結果 | 備註 |</p>
+<p>|---------|------|------|</p>
+<p>| name 與目錄名一致 | ✅ 通過 | hook-registry |</p>
+<p>| description 含 "Use when" | ✅ 通過 | "Use when: Hook 規則盤點、guard 鏈審計..." |</p>
+<p>| allowed-tools 正確 | ✅ 通過 | Bash, Read, Write, Edit, Grep, Glob（6 個） |</p>
+<p>| cache-ttl 存在 | ✅ 通過 | 60min（合理） |</p>
+<h3>4.2 內容品質</h3>
+<p>| 檢查項目 | 結果 | 備註 |</p>
+<p>|---------|------|------|</p>
+<p>| 步驟結構清晰 | ✅ 通過 | 步驟 0-5，含前置讀取 |</p>
+<p>| 包含可執行範例 | ✅ 通過 | Python/bash 腳本完整 |</p>
+<p>| 輸出格式規範 | ✅ 通過 | Markdown + JSON 雙格式 |</p>
+<p>| 錯誤處理/降級 | ✅ 通過 | 降級處理表格完整 |</p>
+<h3>4.3 路由一致性</h3>
+<p>| 檢查項目 | 結果 | 備註 |</p>
+<p>|---------|------|------|</p>
+<p>| SKILL_INDEX.md 觸發關鍵字 | ✅ 通過 | "hook-registry", "hook 規則盤點" 等 7 個 |</p>
+<p>| routing.yaml 映射 | ⚠️ N/A | 工具 Skill，非 Todoist 路由 |</p>
+<p>| prompts 引用 | ⚠️ 待整合 | 尚未在主 prompts 中實際引用 |</p>
+<p><strong>結論：hook-registry 無需修正，品質良好。</strong></p>
+<p>---</p>
+<h2>子 Agent 掃描誤判分析</h2>
+<p>本次審查發現 Explore 子 Agent 掃描結果有誤判：</p>
+<p>| Skill | 子 Agent 回報 | 實際情況 | 誤判原因 |</p>
+<p>|-------|-------------|---------|--------|</p>
+<p>| task-quality-gate | has_use_when=false | ✅ 含 "Use when" | YAML 多行 description（<code>\|</code> 語法）解析不完整 |</p>
+<p>| hook-registry | has_use_when=false | ✅ 含 "Use when" | 同上 |</p>
+<p>| task-quality-gate | cache_ttl=null | ✅ 確實缺失 | <strong>正確判斷</strong> |</p>
+<p>| hook-registry | cache_ttl="60min" | ✅ 正確 | 正確判斷 |</p>
+<p><strong>改進建議：</strong></p>
+<p>未來委派子 Agent 掃描時，應改用完整 YAML 解析而非正則匹配，確保 frontmatter 多行欄位正確識別。</p>
+<p>---</p>
+<h2>品質自評</h2>
+<p>| 評估項目 | 結果 | 備註 |</p>
+<p>|---------|------|------|</p>
+<p>| 是否有具體修正動作 | ✅ 是 | task-quality-gate 加入 cache-ttl 欄位 |</p>
+<p>| 修正後是否通過驗證 | ✅ 是 | YAML 格式驗證通過 |</p>
+<p>| 審查報告是否超過 300 字 | ✅ 是 | 超過 1000 字 |</p>
+<p>| 修正數量 | 1 | cache-ttl 欄位補齊 |</p>
+<p>---</p>
+<h2>總結</h2>
+<h3>審查成果</h3>
+<ul>
+<li><strong>審查對象</strong>：2 個 Skill（task-quality-gate, hook-registry）</li>
+<li><strong>修正數量</strong>：1 個（task-quality-gate 補齊 cache-ttl）</li>
+<li><strong>品質評分</strong>：</li>
+</ul>
+<p>  - task-quality-gate：8.5/10（修正後 9.5/10）</p>
+<p>  - hook-registry：9.5/10（無需修正）</p>
+<h3>下次審查建議</h3>
+<p>剩餘未被獨立審查的 Skill（依 SKILL_INDEX.md）：</p>
+<ol>
+<li>cache-optimizer（缺少 "Use when"，子 Agent 正確判斷）</li>
+<li>prompt-version-tracker（缺少 "Use when"，子 Agent 正確判斷）</li>
+<li>add-podcast-task（缺少 "Use when"，子 Agent 正確判斷）</li>
+<li>其他 40+ 個 Skills（已在歷次審查中覆蓋或品質良好）</li>
+</ol>
+<p>建議下次審查選擇 <strong>cache-optimizer</strong> 或 <strong>prompt-version-tracker</strong>，優先處理確實缺少 "Use when" 的 Skills。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

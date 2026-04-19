@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Agent 任務沙盒與回放評測設計：從安全執行環境到 closed-loop evaluation 的實務框架 深度研究報告">
+  <title>AI Agent 任務沙盒與回放評測設計：從安全執行環境到 closed-loop evaluation 的實務框架 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AI Agent 任務沙盒與回放評測設計：從安全執行環境到 closed-loop evaluation 的實務框架 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">AI Agent 任務沙盒與回放評測設計：從安全執行環境到 closed-loop evaluation 的實務框架</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent 任務沙盒與回放評測設計：從安全執行環境到 closed-loop evaluation 的實務框架：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>這份研究的核心結論是：AI Agent 要真正進入可維運、可審計、可持續優化的階段，不能只靠更強模型，而要把「任務沙盒」與「回放評測」做成同一套工程基礎設施。多個來源都指出，Agent 評測不該只看對話是否像成功，而要在真實或受控沙盒裡驗證環境最終狀態，例如檔案是否真的寫入、資料庫是否真的更新、網站流程是否真的完成 [來源：Demystifying evals for AI agents, 2026] [來源：WebArena: A Realistic Web Environment for Building Autonomous Agents, 2024] [來源：OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments, 2024]。同時，若沒有 trace、transcript、工具呼叫與評分結果的完整紀錄，團隊就無法重播失敗案例，也無法分辨是模型退化、grader 漂移，還是基礎設施噪音造成的不穩定 [來源：OpenAI Tracing | Arize Docs, 2025] [來源：AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents, 2024]。因此，對 daily-digest-prompt 或個人 Agent 專案而言，最小可行架構不是先追求大而全的 benchmark，而是先建立受控沙盒、可重放任務快照、程式化 grader 與可觀測 trace store，再逐步擴大任務覆蓋範圍。</p>
+<h2>研究背景與動機</h2>
+<p>近一年的 Agent 工程實務已經從「能不能做出 demo」轉向「能不能穩定重現、持續演進、可在高權限場景下安全運作」。這個轉向的原因很直接：Agent 不再只是單輪文字生成，而是跨工具、多步驟、可能持續數分鐘到數小時的執行系統。只要其中一個環節缺少隔離、記錄或驗證，系統就會落入兩種常見失敗。第一種是安全失敗，像是檔案被誤改、網路出站不受控、工具權限過大或資源耗盡。第二種是治理失敗，亦即團隊明知道行為變差，卻說不清是什麼變差、在哪個版本開始變差，以及是否能可靠重現 [來源：AI Agent 評估 Evaluation 全解析：從 Demo 到可上線系統的關鍵方法論, 2026]。</p>
+<p>Anthropic 在 2026 年的工程文章把問題講得很清楚：對 agent 而言，評估不是傳統單元測試的延伸，而是整個生命週期的控制面。因為同一任務可能有多條合理路徑，所以如果團隊只驗固定操作順序，會誤殺有效策略；但如果完全不檢查過程，也會失去診斷能力 [來源：Demystifying evals for AI agents, 2026]。這就導出本研究的焦點：如何把任務沙盒與 closed-loop evaluation 結合，讓 Agent 在受控邊界內執行，同時保留足夠資訊供重播、回歸比較與持續改進。</p>
+<h2>核心技術解析</h2>
+<p>任務沙盒的第一個任務不是「限制一切」，而是把風險拆成可治理的控制面。從 WebArena、OSWorld 與 AndroidWorld 這類 benchmark 的共同設計來看，至少要隔離五個層次：檔案系統、網路、權限、資源配額與外部副作用 [來源：WebArena: A Realistic Web Environment for Building Autonomous Agents, 2024] [來源：OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments, 2024] [來源：AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents, 2024]。檔案系統隔離確保代理只碰到任務工作區；網路隔離避免未授權外呼與資料外洩；權限隔離讓高風險工具需額外授權；資源配額把 CPU、記憶體與逾時納入控制；副作用隔離則要求對資料庫、郵件、第三方 API 或作業系統設定的更動都能回滾或重置。</p>
+<p>第二個核心是 closed-loop evaluation。閉環不是單純把多次測試包裝成 dashboard，而是每次試跑都能從輸入、環境快照、工具呼叫、grader 輸出到最終狀態形成一條可追蹤鏈。Anthropic 對 research agent 與 computer-use agent 的建議很一致：要同時做 groundedness、coverage、source quality 或最終狀態檢查，而且評估應該在真實或沙盒化環境裡完成，不以單純文字回答視為成功 [來源：Demystifying evals for AI agents, 2026]。這意味著 replay 能力不是附加功能，而是評估閉環的一部分。沒有 replay，團隊只能看到「某次失敗」；有 replay，團隊才看得到「哪個輸入、哪個工具決策、哪個環境條件導致失敗」。</p>
+<p>第三個核心是 trace-based observability。Arize 的 tracing 文件雖然是可觀測產品文件，但它準確指出 trace 由 spans 組成，能描述請求經過了哪些模型、函式、檢索或工具，以及每一步花了多少時間 [來源：OpenAI Tracing | Arize Docs, 2025]。對 agent 系統而言，這種資料層至少有三個用途。其一是重播：重新建構當時輸入與工具序列。其二是回歸分析：比較版本 A 與版本 B 在相同任務上的偏移。其三是 grader 校準：當 LLM grader 與人工判定不同時，trace 是唯一能回頭檢查的證據。</p>
+<p>第四個核心是把基礎設施噪音納入評測規格。Anthropic 在另一篇工程文章指出，資源配置、沙盒供應商與環境限制不只影響穩定性，甚至會改變 benchmark 實際測量到的能力 [來源：Quantifying infrastructure noise in agentic coding evals, 2026]。這點對個人 Agent 專案尤其重要。若本地開發環境、CI 沙盒與正式環境的 CPU、逾時、網路策略不同，團隊很可能錯把環境差異當成模型進步或退化。因此，closed-loop evaluation 的 metadata 至少要記錄 runtime 版本、資源限制、沙盒映像、測試資料版本與 grader 版本。</p>
+<h2>關鍵洞見</h2>
+<p>第一，Agent 評測必須檢查環境結果，這一點已驗證✅，且至少有五個來源支持。只看 transcript 或最後一句回覆，會把「看起來成功」錯認成「真的完成」。WebArena 用 URL 與後端狀態做驗證，OSWorld 檢查檔案與應用狀態，Anthropic 也明確要求在真實或沙盒環境中驗證目標是否達成 [來源：Demystifying evals for AI agents, 2026] [來源：WebArena: A Realistic Web Environment for Building Autonomous Agents, 2024] [來源：OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments, 2024]。</p>
+<p>第二，trace 與 replay 不是 debugging 配件，而是閉環評測的主資料層，這一點已驗證✅。沒有完整 trace，就無法做 regression、grader 校準或失敗重現 [來源：OpenAI Tracing | Arize Docs, 2025] [來源：AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents, 2024] [來源：Demystifying evals for AI agents, 2026]。</p>
+<p>第三，開放式 agent 最實用的評測策略是「程式化狀態檢查 + LLM rubric + 人工抽樣」，這一點已驗證✅。因為結果可能不只一種正解，單靠程式檢查會漏掉品質面，單靠 LLM grader 又容易漂移 [來源：Demystifying evals for AI agents, 2026] [來源：AI Agent 評估 Evaluation 全解析：從 Demo 到可上線系統的關鍵方法論, 2026]。</p>
+<p>第四，環境資源與沙盒設定必須成為 benchmark metadata，這一點已驗證✅。否則你比較的可能不是兩個 agent，而是兩個不同的運算條件 [來源：Quantifying infrastructure noise in agentic coding evals, 2026] [來源：OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments, 2024] [來源：Demystifying evals for AI agents, 2026]。</p>
+<p>第五，對個人 Agent 專案，最小可行架構應先從 replay-first 設計開始，這一點目前屬待驗證⚠️。現有來源強力支持 trace 與閉環評測的重要性，但對個人專案的最小成本組態仍多屬推論，需要未來以實作驗證補強。</p>
+<h2>實務應用建議</h2>
+<p>第一，先建一層「任務工作區沙盒」。對 daily-digest-prompt 這類專案，可把每次 agent 執行限制在可重建的工作目錄與明確白名單工具，禁止未聲明的網路與檔案副作用。</p>
+<p>第二，為每個研究或自動化任務建立 <code>run_manifest</code>。內容至少包含輸入提示、環境變數摘要、資源限制、工具版本、快照 ID 與 grader 版本。沒有這層 metadata，後續回放只會變成模糊重演。</p>
+<p>第三，把 trace store 視為一級資料庫，而不是除錯臨時品。最小欄位應包括 task_id、span tree、tool IO、artifact 路徑、final state 與 grader verdict。這能直接支撐 replay、失敗聚類與 regression dashboard。</p>
+<p>第四，先做 deterministic grader，再補 LLM grader。能用檔案存在、JSON schema、資料列變化、UI 狀態等程式化檢查的地方，先不要交給模型判斷。LLM grader 應只處理開放式品質，如說明完整性、策略合理性或來源品質。</p>
+<p>第五，把評測結果切成三層看板：能力層看 pass rate、pass@k；穩定層看 retry sensitivity、latency、資源消耗；治理層看高風險工具命中、人工介入率與不可回放失敗率。這樣才能同時回答「會不會做」「做得穩不穩」「風險能不能控」。</p>
+<h2>與現有知識的連結</h2>
+<p>這個主題與本專案近幾日累積的幾條研究脈絡高度連動。先前已研究過 Agent 可觀測性、Tool Boundary / Sandbox 控制面觀測，以及自治度評測框架。這次的新價值在於把三條線整合成明確順序：先定義沙盒邊界，再保留可回放 trace，最後讓 grader 對環境最終狀態做閉環驗證。換句話說，可觀測性不是獨立模組，Sandbox 也不是安全附屬品，兩者共同構成 evaluation harness 的地基。</p>
+<h2>未來展望</h2>
+<p>接下來值得深化的方向有三個。第一，是把 replay 從單次重演提升到「差異化回放」，直接比較新舊版本在同一快照上的行為分歧。第二，是建立高風險工具的分層授權與 policy simulation，讓評測能覆蓋安全治理而不只覆蓋任務完成率。第三，是把 infrastructure noise 建模為顯式變數，讓團隊能區分模型退化、系統退化與環境退化。若這三件事做成，Agent 團隊才真正具備像傳統軟體工程那樣的回歸防線。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Anthropic. (2026). Demystifying evals for AI agents. Anthropic Engineering. https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents</li>
+<li>Anthropic. (2026). Quantifying infrastructure noise in agentic coding evals. Anthropic Engineering. https://www.anthropic.com/engineering/infrastructure-noise</li>
+<li>WebArena Team. (2024). WebArena: A Realistic Web Environment for Building Autonomous Agents. WebArena. https://webarena.dev/</li>
+<li>Rawles, C. et al. (2024). AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents. arXiv / AndroidWorld. https://arxiv.gg/abs/2405.14573</li>
+<li>OSWorld Team. (2024). OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments. OSWorld. https://os-world.github.io/</li>
+<li>Arize AI. (2025). OpenAI Tracing. Arize Docs. https://www.arize.com/docs/ax/llm-tracing/tracing-integrations-auto/openai</li>
+<li>Build School Learn. (2026). AI Agent 評估 Evaluation 全解析：從 Demo 到可上線系統的關鍵方法論. Build School Learn. https://learn.build-school.com/from-demo-to-production-ai-agent-evaluation/</li>
+<li>INSIDE. (2025). Anthropic 推出 Claude Sonnet 4.5，號稱能連續自主運行 30 小時. INSIDE. https://www.inside.com.tw/article/39693-anthropic-releases-claude-sonnet-4-5</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

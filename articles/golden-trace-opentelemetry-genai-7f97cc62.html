@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊 深度研究報告">
+  <title>Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Golden Trace 雜湊欄位與 OpenTelemetry GenAI 語意規範對齊：深度技術研究報告</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>當 LLM／工具鏈納入稽核與人機協同（HITL）時，僅靠傳統分散式追蹤取樣無法保證「Golden Trace」可重放與合規取證。OpenTelemetry 的 GenAI 語意規範以 span 樹凝結控制流、以 <code>gen_ai.*</code> 命名空間承載模型與工具語意，並建議以 event 或雜湊／長度等縮減欄位承載敏感或大型 payload，使雜湊與理由碼能落在可追溯而不曝露全文的掛鉤點 [來源：Semantic Conventions — Gen AI spans, 2026] [來源：Semantic Conventions — Gen AI events, 2026]。與 W3C Trace Context 對齊的 <code>traceparent</code> 讓 JSONL 觀測平面能以相同 trace／span 識別子與 OTLP 雙寫，降低平面遷移成本 [來源：W3C Trace Context, 2026]。官方 gen_ai 屬性 registry 提供權威對照表，利於 JSONL↔OTLP 欄位版本化並抑制漂移 [來源：Registry of documented gen_ai attributes, 2026]。OpenInference 等社群規範可作過渡映射再向官方 semconv 收斂 [來源：OpenInference Semantic Conventions, 2026]。取樣政策造成的 trace 缺口使稽核級完整性須有獨立保留或旁路匯出，與一般效能通路分離 [來源：Specification — Trace SDK（Sampling）, 2026]。綜合而言，對齊策略應採「語意單一真理來源＋漸進映射＋稽核專用通路」三本柱，並將仍具不確定性的工程細節（如雜湊計算時機）標記為待驗證項。</p>
+<h2>研究背景與動機</h2>
+<p>Daily-digest 與多 Agent 管線已產出結構化 JSONL；Golden Trace 目標是在不破壞 W3C 相容性的前提下，讓 LLM 呼叫、工具核准與理由碼可被稽核重放。研究問題聚焦於：(1) 雜湊與理由碼在 OTel GenAI 模型中的自然位置；(2) JSONL 與 trace context、取樣語意如何並行；(3) 官方 registry 與專案自訂欄位如何漸進對齊。</p>
+<h2>核心技術解析（每個主張內嵌引用）</h2>
+<p>生成式流程應以 span 樹表達，並讓工具呼叫成為子 span，使延遲與相依性在單一追蹤語意下可讀 [來源：Semantic Conventions — Gen AI spans, 2026]。相較於把完整提示與輸出塞進 span 屬性，GenAI events 文件指出敏感片段或大型內容更適合以事件承載，或以雜湊、截斷長度等機制取代全文，兼顧隱私與儲存 [來源：Semantic Conventions — Gen AI events, 2026]。欄位命名與型別定義可對照 registry，將「專案鍵」映射到 <code>gen_ai.*</code>，以降低跨服務匯出時的欄位漂移 [來源：Registry of documented gen_ai attributes, 2026]。</p>
+<p>W3C <code>traceparent</code> 規格定義 trace-id 與父 span-id 的字節編碼與傳播格式；在 JSONL 中嵌入相同識別子即可與支援 Trace Context 的閘務或 Collector 對接 [來源：W3C Trace Context, 2026]。OTel Trace SDK 說明 head-based 與關聯取樣可能使尾端 span 缺席；若 Golden Trace 假設「線上追蹤即完整真理」，將與實務取樣衝突，故需政策化保留高價值 span 或額外匯出稽核流水 [來源：Specification — Trace SDK（Sampling）, 2026]。</p>
+<p>OpenInference 以社群共識補齊 LLM、RAG、工具鏈常見欄位，利於快速接入既有可觀測後端；長期仍應以 OTel semconv 作為單一收斂目標，以避免雙軌語意長期並存 [來源：OpenInference Semantic Conventions, 2026] [來源：Semantic Conventions — Gen AI spans, 2026]。專案內手稿亦主張核准理由碼與 <code>tool_call_id</code> 應落在單一 JSONL 平面，以利 LangGraph interrupt／MCP 邊界敘事一致 [來源：專案 HITL／Golden Trace 研究手稿, 2026]；維基條目僅供生態背景參考，技術細節需回歸官方文件 [來源：OpenTelemetry（中文維基）, 2026]。</p>
+<h2>關鍵洞見（含三角佐證狀態 ✅/⚠️）</h2>
+<ul>
+<li><strong>✅ 已驗證</strong>：工具 I/O 雜湊與理由碼的自然掛點在工具相關 span／event，且可與核准週期對齊（OTel spans/events、registry、OpenInference、HITL 手稿等多源一致）。</li>
+<li><strong>✅ 已驗證</strong>：Golden Trace 應假設線上 trace 可能缺段，須另有強制保留或旁路匯出（Trace SDK sampling、spans／events 實務、HITL 重放需求、OpenInference 生態）。</li>
+<li><strong>✅ 已驗證</strong>：<code>gen_ai</code> 屬性 registry 可做 JSONL↔OTLP 對照表以降低漂移（registry、spans、events、專案需求）。</li>
+<li><strong>⚠️ 待驗證</strong>：推理後端完整「版本指紋」若超出公開 <code>gen_ai</code> 覆蓋，自訂鍵治理與供應商文件對照仍待補強（來源較少）。</li>
+<li><strong>⚠️ 待驗證</strong>：hook 層雜湊應在 sanitize 前或後計算，涉及資安邊界，需資安 review 定稿（來源較少）。</li>
+<li><strong>✅ 已驗證</strong>：<code>service.name</code>／resource 可按 Phase 或腳本切分，便於儀表診斷待辦管線（多源共識於資源屬性实务）。</li>
+</ul>
+<p><strong>分歧呈現</strong>：命名空間演進節奏上，一方主張立即全面對齊官方 <code>gen_ai</code>，另一方建議短期保留應用前綴並由 exporter 映射以降低升版震盪。社群規範策略上，OpenInference 利於快速落地，但 OTel 官方應為長期主幹。</p>
+<h2>實務應用建議（3-5 點）</h2>
+<ol>
+<li>建立「JSONL 鍵 ↔ <code>gen_ai.*</code>」對照表，版本號與 OTel semconv 次版本綁定並納入 CI 契約測試。</li>
+<li>區分「效能追蹤」與「稽核 Golden Trace」兩條匯出路徑；後者採飽和或政策化 always-sample 的高風險 span。</li>
+<li>工具呼叫 span 上承載：核准理由碼、<code>tool_call_id</code>、輸入／輸出雜湊與可選長度欄位；全文改走受控儲存或 event。</li>
+<li>在 exporter 層實作 OpenInference→OTel 欄位映射表，訂定汰除時程避免雙軌僵化。</li>
+<li>將 hook 雜湊計算點與 PII sanitize 順序列為威脅模型附錄，排定資安與法遵 review。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本主題延續倉庫內 HITL／Golden Trace 與 LangGraph 中斷、MCP 邊界之研究：前述議題已論證單一 JSONL 平面與 <code>tool_call_id</code> 之必要性；本報告將觀測語意收斂到 OTel GenAI 與 W3C，補上「如何與國際標準欄位對齊」的最後一哩路 [來源：專案 HITL／Golden Trace 研究手稿, 2026]。</p>
+<h2>未來展望</h2>
+<p>後續工作可包含：針對 post_tool_logger 的 OTLP exporter PoC、與 Collector 的 e2e 驗證、以及供應商特定模型指紋欄位與官方 registry 的 diff 自動化。待驗證項應在威脅模型與紅隊演練中收斂雜湊時機與金鑰輪替策略。</p>
+<h2>完整書目</h2>
+<ol>
+<li>OpenTelemetry Project. (2026). <em>Semantic Conventions — Gen AI spans</em>. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/（擷取 2026-04-01）</li>
+<li>OpenTelemetry Project. (2026). <em>Semantic Conventions — Gen AI events</em>. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/（擷取 2026-04-01）</li>
+<li>OpenTelemetry Project. (2026). <em>Registry of documented gen_ai attributes</em>. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/（擷取 2026-04-01）</li>
+<li>OpenTelemetry Project. (2026). <em>Specification — Trace SDK（Sampling）</em>. OpenTelemetry Documentation. https://opentelemetry.io/docs/specs/otel/trace/sdk/（擷取 2026-04-01）</li>
+<li>W3C. (2026). <em>Trace Context</em>. W3C Recommendation Track. https://www.w3.org/TR/trace-context/（擷取 2026-04-01）</li>
+<li>Arize AI et al. (2026). <em>OpenInference Semantic Conventions</em>. GitHub. https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md（擷取 2026-04-01）</li>
+<li>維基百科編者. (2026). <em>OpenTelemetry</em>. 中文維基百科. https://zh.wikipedia.org/wiki/OpenTelemetry（擷取 2026-04-01）</li>
+<li>Daily Digest Prompt 專案. (2026). <em>專案 HITL／Golden Trace 研究手稿</em>. 內部脈絡文件 <code>context/ai_deep_research_report_20260331_hitl_golden_trace.md</code>（擷取 2026-04-01）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

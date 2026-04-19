@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 多模態 VLM 微調與 Vision RL 完整指南（2026）">
+  <title>Unsloth 多模態 VLM 微調與 Vision RL 完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 多模態 VLM 微調與 Vision RL 完整指南（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">VLM</span><span class="tag">多模態</span><span class="tag">Vision Language Model</span><span class="tag">GRPO</span><span class="tag">GSPO</span><span class="tag">FastVisionModel</span><span class="tag">LoRA</span><span class="tag">Qwen2-VL</span><span class="tag">Llama 3.2 Vision</span><span class="tag">Pixtral</span><span class="tag">強化學習</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth 多模態 VLM 微調與 Vision RL 完整指南</h1>
+<h2>概述</h2>
+<p>Unsloth 自 2025 年末開始支援 Vision Language Model（VLM）的微調與強化學習，透過 <code>FastVisionModel</code> API 實現多模態模型的高效訓練。相比 Flash Attention 2 + Hugging Face 原生方案，Unsloth 達成 <strong>1.5-2x 加速</strong>、<strong>70-90% VRAM 節省</strong>、以及 <strong>4-15x 更長的上下文長度</strong>，且無精度損失。這使得在消費級 GPU（如 T4 16GB）上微調 7-11B 規模的視覺語言模型成為可能。</p>
+<p>---</p>
+<h2>一、支援模型清單</h2>
+<h3>SFT（監督微調）支援</h3>
+<p>| 模型 | 參數量 | 最低 VRAM | 備註 |</p>
+<p>|------|--------|-----------|------|</p>
+<p>| Llama 3.2 Vision | 11B / 90B | 12GB（11B 4bit） | Meta 原生多模態 |</p>
+<p>| Qwen2-VL / Qwen2.5-VL | 2B / 7B | 12GB（7B 4bit） | 影像+影片理解 |</p>
+<p>| Qwen3-VL | 8B / 32B / 235B | T4（8B 4bit） | 最新，支援影片+物件偵測 |</p>
+<p>| Pixtral | 12B | 16GB | Mistral 視覺模型 |</p>
+<p>| Gemma 3 | 4B | L4+（需 BF16） | Google 多模態 |</p>
+<p>| LLaVA | 多種 | 依模型而定 | 經典 VLM |</p>
+<p>| QvQ | 72B | 高端 GPU | 2024/12 新增 |</p>
+<h3>RL（強化學習）支援</h3>
+<p>| 模型 | 演算法 | 備註 |</p>
+<p>|------|--------|------|</p>
+<p>| Qwen2.5-VL-7B | GRPO / GSPO | 可在 T4 上訓練 |</p>
+<p>| Qwen3-VL-8B | GRPO / GSPO | 免費 Colab 可跑 |</p>
+<p>| Gemma 3-4B | GRPO | 需 L4+（BF16 限制） |</p>
+<p>| Llama 3.2 Vision | GRPO | transforms-only，無 vLLM |</p>
+<p>---</p>
+<h2>二、核心 API：FastVisionModel</h2>
+<h3>2.1 模型載入</h3>
+<pre><code>
+from unsloth import FastVisionModel
+import torch
+
+# SFT 模式載入
+model, tokenizer = FastVisionModel.from_pretrained(
+    model_name="unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit",
+    max_seq_length=2048,
+    load_in_4bit=True,
+    use_gradient_checkpointing="unsloth",
+)
+
+# RL 模式載入（額外啟用 vLLM 加速推論）
+import os
+os.environ['UNSLOTH_VLLM_STANDBY'] = '1'
+model, tokenizer = FastVisionModel.from_pretrained(
+    model_name="Qwen/Qwen2.5-VL-7B-Instruct",
+    max_seq_length=16384,
+    load_in_4bit=True,
+    fast_inference=True,
+    gpu_memory_utilization=0.8,
+)
+</code></pre>
+<h3>2.2 LoRA 配接器配置</h3>
+<p><strong>關鍵特色</strong>：Unsloth 允許選擇性微調視覺模型的不同組件：</p>
+<pre><code>
+model = FastVisionModel.get_peft_model(
+    model,
+    finetune_vision_layers     = True,
+    finetune_language_layers   = True,
+    finetune_attention_modules = True,
+    finetune_mlp_modules       = True,
+    r = 16,
+    lora_alpha = 16,
+    lora_dropout = 0,
+    bias = "none",
+    random_state = 3407,
+    use_rslora = False,
+    loftq_config = None,
+    target_modules = "all-linear",
+    modules_to_save = ["lm_head", "embed_tokens"],
+)
+</code></pre>
+<p><strong>選擇性微調策略建議</strong>：</p>
+<ul>
+<li>僅語言層（vision=False, language=True）：適合影像理解能力已足夠，只需調整文字輸出風格</li>
+<li>僅視覺層（vision=True, language=False）：適合特定領域影像（醫學、衛星等）</li>
+<li>全部微調（預設）：新領域任務的最佳選擇</li>
+</ul>
+<p>---</p>
+<h2>三、資料集格式</h2>
+<h3>3.1 對話格式（SFT）</h3>
+<pre><code>
+def convert_to_conversation(sample):
+    conversation = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text",  "text": "請描述這張圖片的內容"},
+                {"type": "image", "image": sample["image"]},
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": sample["caption"]},
+            ],
+        },
+    ]
+    return {"messages": conversation}
+
+from datasets import load_dataset
+dataset = load_dataset("your_dataset", split="train")
+converted = [convert_to_conversation(s) for s in dataset]
+</code></pre>
+<p><strong>重要提醒</strong>：多圖訓練時使用 list comprehension 而非 <code>.map()</code>，影像建議 300-1000px</p>
+<p>---</p>
+<h2>四、訓練配置</h2>
+<h3>4.1 SFT 訓練</h3>
+<pre><code>
+from unsloth.trainer import UnslothVisionDataCollator
+from trl import SFTTrainer, SFTConfig
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    data_collator=UnslothVisionDataCollator(model, tokenizer),
+    train_dataset=dataset,
+    args=SFTConfig(
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,
+        warmup_steps=5,
+        max_steps=30,
+        learning_rate=2e-4,
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        optim="adamw_8bit",
+        weight_decay=0.01,
+        lr_scheduler_type="linear",
+        seed=3407,
+        output_dir="outputs",
+        remove_unused_columns=False,
+        dataset_text_field="",
+        dataset_kwargs={"skip_prepare_dataset": True},
+        max_seq_length=2048,
+    ),
+)
+trainer.train()
+</code></pre>
+<h3>4.2 Response-Only 訓練</h3>
+<pre><code>
+data_collator = UnslothVisionDataCollator(
+    model, tokenizer,
+    train_on_responses_only=True,
+    instruction_part="&lt;|start_header_id|&gt;user&lt;|end_header_id|&gt;\n\n",
+    response_part="&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;\n\n",
+)
+</code></pre>
+<h3>4.3 Vision GRPO（強化學習）</h3>
+<pre><code>
+from trl import GRPOConfig, GRPOTrainer
+
+def formatting_reward_func(completions, **kwargs):
+    import re
+    scores = []
+    for completion in completions:
+        score = 0
+        thinking = re.findall(r"&lt;think&gt;.*?&lt;/think&gt;", completion, re.DOTALL)
+        answer = re.findall(r"&lt;answer&gt;.*?&lt;/answer&gt;", completion, re.DOTALL)
+        if len(thinking) == 1:
+            score += 1.0
+        if len(answer) == 1:
+            score += 1.0
+        removal = completion.replace("addCriterion", "").replace("\n", "")
+        if len(completion) &gt; 0 and (len(completion) - len(removal)) / len(completion) &gt;= 0.5:
+            score -= 2.0
+        scores.append(score)
+    return scores
+
+# GSPO 配置
+training_args = GRPOConfig(
+    per_device_train_batch_size=8,
+    gradient_accumulation_steps=4,
+    learning_rate=5e-6,
+    num_generations=8,
+    max_prompt_length=1024,
+    max_completion_length=1024,
+    importance_sampling_level="sequence",
+    loss_type="dr_grpo",
+)
+</code></pre>
+<p><strong>GRPO vs GSPO 核心差異</strong>：GRPO 逐 token 計算 logprob ratio 再乘 advantage；GSPO 先加總 token logprobs 為序列級 logprob，再指數化後乘以 advantage，更穩定。</p>
+<p>---</p>
+<h2>五、推論程式碼</h2>
+<pre><code>
+FastVisionModel.for_inference(model)
+
+messages = [
+    {"role": "user", "content": [
+        {"type": "image"},
+        {"type": "text", "text": "請描述這張X光片的發現"}
+    ]}
+]
+
+from transformers import TextStreamer
+text_streamer = TextStreamer(tokenizer, skip_prompt=True)
+input_text = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
+inputs = tokenizer(image, input_text, add_special_tokens=False, return_tensors="pt").to("cuda")
+output = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128, use_cache=True)
+</code></pre>
+<p>---</p>
+<h2>六、效能基準數據</h2>
+<h3>VRAM 使用比較（gpt-oss-20b BF16 LoRA）</h3>
+<p>| 上下文長度 | Unsloth | Official+FA3 | Official |</p>
+<p>|-----------|---------|--------------|----------|</p>
+<p>| 1,024 | 45.2GB | 46.6GB | 47.3GB |</p>
+<p>| 4,096 | 47.07GB | 56.1GB | 71.1GB |</p>
+<p>| 16,384 | 54GB | OOM | OOM |</p>
+<p>| 32,768 | 63.73GB | OOM | OOM |</p>
+<h3>VLM 關鍵數據</h3>
+<ul>
+<li>Pixtral 12B：從 >20GB 降至 5GB（gradient checkpointing）</li>
+<li>Qwen3-VL-8B GSPO：免費 Colab T4 可訓練</li>
+<li>VLM RL：1.5-2x 加速、90% 更少 VRAM、15x 更長上下文</li>
+</ul>
+<p>---</p>
+<h2>七、實際應用案例</h2>
+<ol>
+<li><strong>醫學影像分析</strong>：X光/CT/超音波判讀（Llama 3.2 Vision 11B）</li>
+<li><strong>OCR/手寫辨識</strong>：手寫數學轉 LaTeX（Qwen2.5-VL 7B）</li>
+<li><strong>視覺數學推理</strong>：解含圖表的數學題（Qwen2.5-VL + GRPO + MathVista）</li>
+</ol>
+<p>---</p>
+<h2>八、常見問題</h2>
+<p>| 問題 | 解法 |</p>
+<p>|------|------|</p>
+<p>| 多圖 flat list 錯誤 | 用 list comprehension 而非 .map() |</p>
+<p>| addCriterion 亂碼 | 獎勵函數加懲罰項 |</p>
+<p>| T4 RL 60步後發散 | Unsloth 2026/02 已修復 F16 精度問題 |</p>
+<p>| Gemma 3 無法在 T4 跑 | 需 L4+（vLLM BF16 限制） |</p>
+<p>| 影像尺寸不一致 | UnslothVisionDataCollator 的 resize 參數 |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://unsloth.ai/docs/basics/vision-fine-tuning">Unsloth Vision Fine-tuning 官方文件</a></li>
+<li><a href="https://unsloth.ai/docs/get-started/reinforcement-learning-rl-guide/vision-reinforcement-learning-vlm-rl">Unsloth Vision RL 官方文件</a></li>
+<li><a href="https://unsloth.ai/blog/vision">Llama 3.2 Vision Fine-tuning Blog</a></li>
+<li><a href="https://www.unsloth.ai/blog/vision-rl">Vision RL Blog</a></li>
+<li><a href="https://github.com/unslothai/unsloth">Unsloth GitHub</a></li>
+<li><a href="https://www.kaggle.com/code/danielhanchen/qwen2-vision-finetuning-unsloth-kaggle">Qwen2-VL Finetuning Notebook</a></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

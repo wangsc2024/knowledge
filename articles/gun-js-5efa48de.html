@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gun.js 效能優化與分布式系統最佳實踐 -- 基準測試、替代方案比較與生產環境容錯策略">
+  <title>Gun.js 效能優化與分布式系統最佳實踐 -- 基準測試、替代方案比較與生產環境容錯策略 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Gun.js 效能優化與分布式系統最佳實踐 -- 基準測試、替代方案比較與生產環境容錯策略</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Gun.js</span><span class="tag">去中心化資料庫</span><span class="tag">效能優化</span><span class="tag">分布式系統</span><span class="tag">CRDT</span><span class="tag">最佳實踐</span><span class="tag">benchmark</span><span class="tag">容錯策略</span><span class="tag">Yjs</span><span class="tag">Automerge</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Gun.js 效能優化與分布式系統最佳實踐</h1>
+<blockquote>研究系列：gunjs-decentralized-db（階段：optimization）</blockquote>
+<blockquote>承接 application 階段的「Gun.js 最佳實踐完整指南」</blockquote>
+<h2>1. 效能基準測試</h2>
+<h3>官方基準</h3>
+<ul>
+<li>記憶體快取讀取：~20M ops/sec（MacBook Pro Chrome Canary）</li>
+<li>行動裝置：~5M ops/sec（Android Chrome）</li>
+<li>壓縮大小：~9KB gzipped</li>
+</ul>
+<p><strong>重要</strong>：以上為純記憶體測試，生產環境含磁碟 I/O 時延遲為 50-100 倍。</p>
+<h3>實測延遲</h3>
+<p>| 場景 | 延遲 |</p>
+<p>|------|------|</p>
+<p>| 本機 | 1-5ms |</p>
+<p>| 區域網路 P2P | 10-50ms |</p>
+<p>| 廣域網路 Relay | 100-500ms |</p>
+<p>| 含磁碟同步 | +50-200ms |</p>
+<h3>並發能力</h3>
+<ul>
+<li>單 Relay：50+ 並發 WebSocket</li>
+<li>每連線記憶體：~1-2MB</li>
+<li>訊息吞吐量：~100-500 msg/sec</li>
+</ul>
+<h2>2. RAD 調優指南</h2>
+<pre><code>
+const rad = Radisk({
+  chunk: 10 * 1024 * 1024,  // 10MB
+  until: 250,                // 批次刷新間隔 ms
+  batch: 10000              // 每批次最大項目數
+});
+</code></pre>
+<p>| 硬體 | chunk | until | batch |</p>
+<p>|------|-------|-------|-------|</p>
+<p>| IoT | 1MB | 500ms | 1,000 |</p>
+<p>| 桌機 | 5-10MB | 250ms | 5,000 |</p>
+<p>| SSD 伺服器 | 50-100MB | 100ms | 10,000 |</p>
+<p>| NVMe 生產 | 500MB | 50ms | 50,000 |</p>
+<h2>3. 替代方案比較</h2>
+<h3>決策矩陣（1-5 分）</h3>
+<p>| 維度 | Gun.js | Yjs | Automerge | Hypercore | PouchDB |</p>
+<p>|------|--------|-----|-----------|-----------|----------|</p>
+<p>| 大小 | 5 | 4 | 1 | 5 | 2 |</p>
+<p>| 效能 | 4 | 5 | 3 | 4 | 2 |</p>
+<p>| 內建安全 | 5 | 1 | 1 | 1 | 1 |</p>
+<p>| 社群 | 2 | 5 | 4 | 3 | 4 |</p>
+<p>| 文件 | 2 | 5 | 4 | 2 | 4 |</p>
+<h3>場景推薦</h3>
+<ul>
+<li><strong>即時協作編輯</strong> -> Yjs（首選）</li>
+<li><strong>去中心化 P2P + 加密</strong> -> Gun.js</li>
+<li><strong>CRDT 研究</strong> -> Automerge</li>
+<li><strong>IoT/嵌入式</strong> -> Gun.js（最小體積）</li>
+<li><strong>圖形查詢</strong> -> Gun.js（原生圖形模型）</li>
+<li><strong>交易一致性</strong> -> 以上都不適用</li>
+</ul>
+<blockquote>OrbitDB 已棄用（2019），不建議使用。</blockquote>
+<h2>4. 容錯策略</h2>
+<h3>HAM 衝突解決</h3>
+<ul>
+<li>每個鍵值對攜帶 state（時間戳）</li>
+<li>較新的更新勝出</li>
+<li>state 相同時以值的字典序決定</li>
+</ul>
+<h3>長時間離線處理</h3>
+<ul>
+<li>重連可能觸發同步爆炸（大量更新）</li>
+<li>解決：增量批次同步（每批 50 筆）+ 恢復窗口（30 秒）</li>
+<li>監控 radata 成長（日增量 >50MB 告警）</li>
+</ul>
+<h3>資料損壞恢復</h3>
+<ul>
+<li>啟動時驗證 RAD 檔案完整性（JSON.parse 檢查）</li>
+<li>每日增量備份（7 天保留）</li>
+<li>損壞時快速失敗（fail fast）而非帶傷運行</li>
+</ul>
+<h3>Split-Brain 防護</h3>
+<ul>
+<li>多 Relay 環境下比對各 Peer 回應一致性</li>
+<li>等待 3 秒收集回應再判斷</li>
+</ul>
+<h2>5. 關鍵邊緣案例</h2>
+<p>| 案例 | 嚴重度 | 解決方案 |</p>
+<p>|------|--------|----------|</p>
+<p>| 未啟用 radisk | P0 | <code>radisk: true</code> |</p>
+<p>| ACK <code>!ack.err</code> 邏輯錯誤 | P0 | <code>ack && ack.ok === true</code> |</p>
+<p>| .on() 未 .off() | P0 | 重連前清理舊監聽 |</p>
+<p>| ACK 超時 5 秒 | P1 | 調為 12-15 秒 |</p>
+<p>| 解密失敗靜默 | P1 | 加入錯誤日誌 |</p>
+<p>| 無重播攻擊防護 | P1 | 應用層時間戳驗證（60 秒窗口） |</p>
+<h2>6. 監控最佳實踐</h2>
+<h3>健康檢查端點</h3>
+<ul>
+<li>記憶體使用（heap used/total）</li>
+<li>連線 Peer 數量與 URL</li>
+<li>radata 啟用狀態</li>
+<li>告警：heap >75%、peers = 0</li>
+</ul>
+<h3>同步延遲偵測</h3>
+<ul>
+<li>每 5 分鐘發送 sync check marker</li>
+<li>量測寫入到 ACK 的往返時間</li>
+</ul>
+<h3>radata 成長趨勢</h3>
+<ul>
+<li>每小時記錄大小</li>
+<li>7 天歷史保留</li>
+<li>日增量 >50MB 觸發告警</li>
+</ul>
+<h2>7. 安全進階</h2>
+<ul>
+<li><strong>金鑰輪換</strong>：建議 30 天週期，備份舊金鑰</li>
+<li><strong>公鑰釘選</strong>：防止 MITM 替換 epub</li>
+<li><strong>私鑰加密儲存</strong>：使用 AES-256-GCM + 環境變數密碼</li>
+</ul>
+<h2>8. 成熟度模型</h2>
+<p>| 等級 | 條件 | 適合 |</p>
+<p>|------|------|------|</p>
+<p>| L1 原型 | 單 relay、無持久化 | 開發測試 |</p>
+<p>| L2 基礎 | radisk + PM2 + 健康檢查 | 1-10 用戶 |</p>
+<p>| L3 穩定 | HTTPS + 金鑰管理 + 備份 | 10-50 用戶 |</p>
+<p>| L4 企業 | 多 relay + 負載均衡 + 完整監控 | 50+ 用戶 |</p>
+<h2>與現有知識庫的關聯</h2>
+<ul>
+<li><strong>Gun.js 最佳實踐完整指南</strong>：本文承接其 application 階段知識，進入 optimization 階段的量化效能分析</li>
+<li><strong>Gun.js 三元件深度優化報告</strong>：本文將其 27 項修補方案歸納為系統性的容錯策略</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>Gun.js GitHub Repository (https://github.com/amark/gun)</li>
+<li>CRDT.tech (https://crdt.tech/)</li>
+<li>Yjs Documentation (https://docs.yjs.dev/)</li>
+<li>Automerge GitHub (https://github.com/automerge/automerge)</li>
+<li>Hypercore GitHub (https://github.com/holepunchto/hypercore)</li>
+<li>專案內部：gun-js-optimization-report-20260228.md、GunServer_Stability_Security_Improvement_Plan.md</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

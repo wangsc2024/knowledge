@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QVAC Fabric BitNet LoRA — 首個跨平台 1-bit LLM 消費級硬體微調框架：從手機到桌面的十億參數模型訓練革命">
+  <title>QVAC Fabric BitNet LoRA — 首個跨平台 1-bit LLM 消費級硬體微調框架：從手機到桌面的十億參數模型訓練革命 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>QVAC Fabric BitNet LoRA — 首個跨平台 1-bit LLM 消費級硬體微調框架：從手機到桌面的十億參數模型訓練革命</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">BitNet</span><span class="tag">1-bit LLM</span><span class="tag">LoRA</span><span class="tag">QVAC</span><span class="tag">微調</span><span class="tag">邊緣AI</span><span class="tag">消費級GPU</span><span class="tag">Microsoft Research</span><span class="tag">模型效率</span><span class="tag">2026突破技術</span><span class="tag">技術研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QVAC Fabric BitNet LoRA — 首個跨平台 1-bit LLM 消費級硬體微調框架</h1>
+<h2>概述</h2>
+<p>2026 年 3 月 17 日，Tether 旗下 QVAC 團隊發布了全球首個跨平台 BitNet LoRA 微調框架 <strong>QVAC Fabric</strong>，實現在消費級 GPU、筆電甚至智慧型手機上對十億參數語言模型進行 LoRA 微調與推論。這標誌著 AI 民主化的重要里程碑——大型語言模型的訓練不再被高端 GPU 壟斷。</p>
+<h2>核心技術：BitNet b1.58 架構</h2>
+<h3>什麼是 1-bit LLM？</h3>
+<p>Microsoft Research 提出的 BitNet b1.58 架構將模型權重限制為三元值 {-1, 0, +1}（即 log₂(3) ≈ 1.58 bit），以 <strong>BitLinear 層</strong>取代標準 Transformer 中的線性層。兩種量化格式：</p>
+<p>| 格式 | 每權重位元數 | 特點 |</p>
+<p>|------|------------|------|</p>
+<p>| TQ1_0 | 1.69 bits | 記憶體最小，適合推論 |</p>
+<p>| TQ2_0 | 2.06 bits | 訓練速度更快 |</p>
+<h3>QVAC Fabric 的 LoRA 微調機制</h3>
+<ul>
+<li><strong>凍結 BitNet 權重</strong>（三元值不變），僅訓練 FP16 LoRA adapter</li>
+<li>LoRA Rank: 8、Alpha: 16</li>
+<li>優化器：AdamW + 線性學習率衰減</li>
+<li>最大序列長度：512 tokens</li>
+<li>損失函數：僅對 assistant 回應 token 計算 masked loss</li>
+</ul>
+<h2>支援硬體（跨平台）</h2>
+<h3>行動裝置 GPU</h3>
+<ul>
+<li><strong>Apple A17 Pro</strong>（iPhone 16）</li>
+<li><strong>Qualcomm Adreno</strong>（Samsung S25）</li>
+<li><strong>ARM Mali</strong>（Google Pixel 9）</li>
+</ul>
+<h3>桌面 / 整合 GPU</h3>
+<ul>
+<li>AMD、NVIDIA、Intel GPU</li>
+<li>Apple M3 Pro GPU</li>
+</ul>
+<h3>後端技術</h3>
+<ul>
+<li><strong>主要</strong>：Vulkan compute shaders（跨平台統一）</li>
+<li><strong>次要</strong>：Metal（Apple 裝置）</li>
+<li>動態 tiling 處理大型矩陣運算</li>
+</ul>
+<h2>效能基準（關鍵數據）</h2>
+<h3>記憶體效率</h3>
+<p>| 模型 | VRAM | 對比 |</p>
+<p>|------|------|------|</p>
+<p>| BitNet-1B (TQ1_0) | 614 MB | 比 Gemma-3-1B (F16) 少 <strong>77.8%</strong> |</p>
+<p>| BitNet-2.7B (TQ1_0) | 1,228 MB | 比 Qwen3-1.7B 小 <strong>3.5x</strong> |</p>
+<p>| BitNet-13B (TQ1_0) | 2,789 MB | 比 Qwen3-4B Q4 少 <strong>29%</strong>（但參數量 3.25x） |</p>
+<h3>微調速度</h3>
+<p>| 模型 | 裝置 | 時間 |</p>
+<p>|------|------|------|</p>
+<p>| BitNet-125M | Samsung S25 | ~10 分鐘 |</p>
+<p>| BitNet-1B | Samsung S25 (Adreno) | ~1 小時 18 分 |</p>
+<p>| BitNet-1B | iPhone 16 | ~1 小時 45 分 |</p>
+<p>| BitNet-13B | iPhone 16 | 可微調（首次實現） |</p>
+<h3>推論速度（tokens/sec）</h3>
+<p>| 裝置 | GPU TQ1_0 | CPU TQ1_0 | GPU 加速比 |</p>
+<p>|------|-----------|-----------|------------|</p>
+<p>| iPhone 16 (A17) | 130.7 | 21.2 | <strong>6.2x</strong> |</p>
+<p>| Samsung S25 (Adreno) | 27.2 | 2.4 | <strong>11.3x</strong> |</p>
+<p>| Pixel 9 (Mali) | 8.2 | 3.9 | <strong>2.1x</strong> |</p>
+<h2>與傳統方案的比較優勢</h2>
+<ol>
+<li><strong>模型規模</strong>：同樣硬體上可跑 3.25x 更大的模型</li>
+<li><strong>推論速度</strong>：行動 GPU 比 CPU 快 2.1x - 11.3x</li>
+<li><strong>微調能力</strong>：首次實現 13B 模型在 iPhone 上微調</li>
+<li><strong>跨平台一致性</strong>：Vulkan 單一程式碼庫，推論結果與 CPU bit-exact 一致</li>
+<li><strong>能源效率</strong>：BitNet 在 ARM CPU 上減少 55-70% 能耗，x86 上減少 72-82%</li>
+</ol>
+<h2>Microsoft BitNet 生態系</h2>
+<ul>
+<li><strong>bitnet.cpp</strong>：官方推論框架，100B 模型可在單一 CPU 上跑（5-7 tokens/sec）</li>
+<li><strong>BitNet b1.58 2B4T</strong>：首個開源原生 1-bit LLM（2B 參數，4T tokens 訓練）</li>
+<li><strong>BitNet a4.8</strong>：進一步支援 4-bit activations</li>
+<li><strong>QVAC Fabric</strong>：首個支援 LoRA 微調的跨平台框架</li>
+</ul>
+<h2>應用場景</h2>
+<ul>
+<li><strong>邊緣 AI</strong>：醫療、金融等敏感領域的本地化部署</li>
+<li><strong>個人化微調</strong>：用戶在手機上以自有數據微調模型</li>
+<li><strong>離線 AI</strong>：無需網路連線的 AI 推論</li>
+<li><strong>開發原型</strong>：在筆電上快速迭代 AI 模型</li>
+</ul>
+<h2>影響與展望</h2>
+<p>QVAC Fabric 證明了 1-bit LLM 不僅是理論突破，更是實用技術。當十億參數模型可以在手機上微調時，AI 的門檻大幅降低。這對以下趨勢具有推動作用：</p>
+<ol>
+<li><strong>AI 民主化</strong>：不再依賴雲端 GPU 叢集</li>
+<li><strong>隱私保護</strong>：數據不離開裝置</li>
+<li><strong>成本降低</strong>：消除高端硬體需求</li>
+<li><strong>即時個人化</strong>：模型隨用戶偏好即時調整</li>
+</ol>
+<h2>來源</h2>
+<ul>
+<li><a href="https://huggingface.co/blog/qvac/fabric-llm-finetune-bitnet">QVAC Fabric BitNet LoRA 技術文件（Hugging Face Blog）</a></li>
+<li><a href="https://tether.io/news/tethers-qvac-launches-worlds-first-cross-platform-bitnet-lora-framework-to-enable-billion-parameter-ai-training-and-inference-on-consumer-gpus-and-smartphones/">Tether 官方公告</a></li>
+<li><a href="https://github.com/microsoft/BitNet">Microsoft BitNet 官方 GitHub</a></li>
+<li><a href="https://github.com/tetherto/qvac-fabric-llm.cpp">QVAC Fabric GitHub</a></li>
+<li><a href="https://venturebeat.com/ai/how-microsofts-next-gen-bitnet-architecture-is-turbocharging-llm-efficiency">VentureBeat: BitNet 架構效率分析</a></li>
+</ul>
+<p>---</p>
+<p><em>研究日期：2026-03-22</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「研究 1 項 AI 最新技術」。KB 去重檢查後確認 BitNet LoRA 微調方向尚未涵蓋，為 2026 年 3 月最重要的 AI 民主化突破之一。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

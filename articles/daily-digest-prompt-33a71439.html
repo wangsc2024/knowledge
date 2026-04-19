@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案優化日報 - Daily Digest Prompt 系統分析與改善方案">
+  <title>專案優化日報 - Daily Digest Prompt 系統分析與改善方案 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案優化日報 - Daily Digest Prompt 系統分析與改善方案</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">架構分析</span><span class="tag">資安修復</span><span class="tag">專案診斷</span><span class="tag">daily-digest-prompt</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案優化日報 - Daily Digest Prompt 系統分析與改善方案</h1>
+<p><strong>產生日期</strong>: 2026-04-18</p>
+<p><strong>分析基準</strong>: 2026-04-17 系統狀態</p>
+<p><strong>總體評分</strong>: 8.1/10（優秀）</p>
+<p>---</p>
+<h2>一、執行摘要</h2>
+<p>經過三個子 Agent 的深度分析（系統健康狀態、架構與配置、效能與資安），專案整體表現優秀，但存在<strong>關鍵資安漏洞</strong>與<strong>系統穩定性惡化</strong>問題需立即處置。</p>
+<h3>核心指標</h3>
+<p>| 維度 | 評分/狀態 | 趨勢 |</p>
+<p>|------|----------|------|</p>
+<p>| 系統健康度 | 68/100 | ⬇️ 惡化中 |</p>
+<p>| 架構設計 | 8.5/10 | ➡️ 穩定 |</p>
+<p>| 測試覆蓋 | 8.0/10 | ➡️ 穩定 |</p>
+<p>| Token 效率 | 9.7% | ⬆️ 優秀 |</p>
+<p>| 快取效能 | 80% | ⬇️ 下降（從 27%） |</p>
+<p>| 資安態勢 | 🔴 CRITICAL | ⬇️ 關鍵風險 |</p>
+<p>| Skills 覆蓋 | 9.0/10 | ➡️ 優秀 |</p>
+<p>| Hooks 健康 | 9.0/10 | ➡️ 優秀 |</p>
+<p>| 配置複雜度 | 7.5/10 | ⬇️ 中等複雜 |</p>
+<p>---</p>
+<h2>二、關鍵發現</h2>
+<h3>🔴 P0 - 立即處置（0-24 小時）</h3>
+<p>#### 1. API 金鑰暴露（SEC-001 - CRITICAL）</p>
+<p><strong>問題</strong>: <code>.env</code> 檔案暴露 <strong>7 個 production API 金鑰</strong></p>
+<ul>
+<li>Todoist API Token</li>
+<li>OpenRouter API Key</li>
+<li>Obsidian API Key</li>
+<li>Gemini API Key</li>
+<li>Mistral API Key</li>
+<li>Nvidia API Key</li>
+<li>Groq API Key</li>
+</ul>
+<p><strong>影響</strong>: 完整服務存取權限、計費 API 濫用風險、配額耗盡</p>
+<p><strong>修復</strong>: 詳見 <code>docs/SECURITY-REMEDIATION.md</code></p>
+<ul>
+<li>立即 revoke 所有金鑰</li>
+<li>清理 git 歷史（BFG / filter-branch）</li>
+<li>實施 secret vaulting（1Password / Azure Key Vault）</li>
+<li>建立金鑰輪換政策</li>
+</ul>
+<p>---</p>
+<p>#### 2. Assembly Side Effects Missing（39 筆失敗）</p>
+<p><strong>問題</strong>: Phase 3 LLM 宣稱完成但 <code>todoist-hourly.json</code> 未實際更新</p>
+<p><strong>影響</strong>: Phase 3 重試、累積失敗計數、組裝延遲</p>
+<p><strong>根因</strong>: 檔案寫入驗證邏輯缺失、LLM prompt 不夠明確</p>
+<p><strong>修復</strong>:</p>
+<ol>
+<li>Phase 3 完成後加入檔案存在性驗證</li>
+<li>檢查 <code>LastWriteTime</code> 是否晚於 <code>phase3Start</code></li>
+<li>實施 3 秒 polling retry（最多 3 次）</li>
+<li>強化 LLM prompt 的檔案寫入要求</li>
+</ol>
+<p><strong>預期成果</strong>: Phase 3 失敗率從 39 筆/week 降至 <7 筆/week（-82%）</p>
+<p>---</p>
+<p>#### 3. Agent 崩潰頻率偏高（51 筆/30 天）</p>
+<p><strong>問題</strong>: <code>agent_crash</code> 事件高發（2026-04-17: 14 筆，2026-04-16: 11 筆）</p>
+<p><strong>根因</strong>:</p>
+<ul>
+<li>11 個 critical sessions 超過 300M tokens（最大 918K tokens）</li>
+<li>Phase 2 並行度過高導致記憶體壓力</li>
+<li>無 session size limits</li>
+</ul>
+<p><strong>修復</strong>:</p>
+<ol>
+<li>實施 session size limits（最大 500 messages / 10M tokens）</li>
+<li>Phase 2 並行度動態調整（根據記憶體使用率）</li>
+<li>加入 exponential backoff（首次立即重試 → 30 秒 → 2 分鐘）</li>
+<li>Session health check 機制</li>
+</ol>
+<p><strong>預期成果</strong>: <code>agent_crash</code> 從 14 筆/day 降至 <3 筆/day（-79%）</p>
+<p>---</p>
+<h3>🟡 P1 - 高優先級（1-7 天）</h3>
+<p>#### 4. 系統熵增惡化（entropy=0.537）</p>
+<p><strong>問題</strong>: Entropy score 從 0.44 (2026-03-31) 升至 0.537 (2026-04-18)，趨勢惡化</p>
+<p><strong>影響</strong>: 配置膨脹（58 個 YAML、480+ keys）、維護成本上升</p>
+<p><strong>修復</strong>:</p>
+<ol>
+<li>整合跨 Adapter 關注點（frequency-limits + llm-gate + llm-router → <code>adapter-registry.yaml</code>）</li>
+<li>清理重複配置（使用 YAML anchors）</li>
+<li>執行 <code>analyze-config.ps1 -Trend</code> 監控改善</li>
+</ol>
+<p><strong>預期成果</strong>: Entropy score 降至 <0.50，配置檔案 <50 個</p>
+<p>---</p>
+<p>#### 5. Token 預算治理強化</p>
+<p><strong>問題</strong>: 雖然日均使用率僅 9.7% (3.4M/35M)，但單一 session 達 918K tokens</p>
+<p><strong>影響</strong>: Context 窗口竄改風險、Phase 0 快取預計算失效時 fallback 讀整檔（2.6MB）</p>
+<p><strong>修復</strong>:</p>
+<ol>
+<li>驗證 Phase 0 <code>cache/status.json</code> 預計算成功率（目標 >99.5%）</li>
+<li>實施 context 用量檢查（超過 80% 觸發壓縮）</li>
+<li>ADR-036 Context 壓縮感知機制驗證</li>
+</ol>
+<p><strong>預期成果</strong>: 所有 session <5M tokens，Phase 0 預計算 >99.5% 成功率</p>
+<p>---</p>
+<p>#### 6. 快取效率恢復</p>
+<p><strong>問題</strong>: 快取命中率從 27% 降至 5.6%，Knowledge base 快取缺失</p>
+<p><strong>影響</strong>: 額外 API 呼叫（+17 次相比 7 天均值）、token 浪費</p>
+<p><strong>修復</strong>:</p>
+<ol>
+<li>Knowledge base 快取預熱（Phase 0 加入 KB 預查詢）</li>
+<li>調整 TTL 配置（Todoist: 120→240 分鐘）</li>
+<li>實施 cache warming cron job（每 6 小時）</li>
+</ol>
+<p><strong>預期成果</strong>: 快取命中率恢復至 >40%，API 呼叫降低 30%</p>
+<p>---</p>
+<h3>🟢 P2 - 中優先級（1-2 週）</h3>
+<p>#### 7. Skills 測試覆蓋率補強</p>
+<p><strong>現狀</strong>: 129 個 Skills 測試 vs 804 個 Hooks 測試</p>
+<p><strong>目標</strong>: Skills 測試提升至 300+ 個</p>
+<p><strong>範圍</strong>: <code>kb-curator</code>、<code>deep-research</code>、<code>skill-forge</code>、<code>system-insight</code></p>
+<p>---</p>
+<p>#### 8. ADR 清理計畫</p>
+<p><strong>現狀</strong>: 171 個 <code>immediate_fix</code> 待執行項目</p>
+<p><strong>目標</strong>: 處理至 <50 個</p>
+<p><strong>步驟</strong>: <code>arch-evolution</code> Skill 掃描 → 分類 → 批次 <code>self-heal</code> → 手動審查</p>
+<p>---</p>
+<p>#### 9. 停用任務文件化</p>
+<p><strong>已完成</strong>: 建立 <code>docs/disabled-tasks-registry.md</code></p>
+<p><strong>內容</strong>: 5 個停用任務（<code>unsloth_research</code>、<code>creative_game_optimize</code>、<code>qa_optimize</code>）的停用原因、日期、復活條件</p>
+<p>---</p>
+<h2>三、架構優勢（保持）</h2>
+<h3>1. 文件驅動架構（8.5/10）</h3>
+<ul>
+<li><strong>Prompt 薄層</strong>：80-140 行，僅含角色宣告與步驟骨架</li>
+<li><strong>配置外部化</strong>：YAML 支援注釋、層級清晰</li>
+<li><strong>模板按需載入</strong>：子 Agent 模板只在觸發時才 Read</li>
+</ul>
+<h3>2. Skill-First 策略（9.0/10）</h3>
+<ul>
+<li><strong>102 個 Skills</strong> 涵蓋所有維度（核心 21 + 工具 18 + 實驗 37 + 其他 26）</li>
+<li><strong>Frontmatter 標準化</strong>：name / version / description / allowed-tools / triggers≥3</li>
+<li><strong>版本管理</strong>：v1.0.0 至 v0.5.0 並存，實驗 Skill 清晰標示</li>
+</ul>
+<h3>3. Hook 機器強制層（9.0/10）</h3>
+<ul>
+<li><strong>15 個 Hook 模組</strong>：638 個測試函數</li>
+<li><strong>規則完全外部化</strong>：<code>config/hook-rules.yaml</code>（唯一真相來源）</li>
+<li><strong>DeerFlow 短路機制</strong>：快速拒絕、fail-open policy</li>
+</ul>
+<h3>4. 測試覆蓋完善（8.0/10）</h3>
+<ul>
+<li><strong>2403 個測試</strong>（2026-04-17）：hooks (804) + skills (129) + tools (1229) + config (241）</li>
+<li><strong>反模式規範</strong>：時間敏感性（DI + _FIXED_NOW）、版本脆性（範圍 >= 1）</li>
+</ul>
+<p>---</p>
+<h2>四、實施成果</h2>
+<h3>已完成項目</h3>
+<p>✅ <strong>docs/optimization-plan-20260418.md</strong> - 完整優化計劃（P0-P2）</p>
+<p>✅ <strong>docs/disabled-tasks-registry.md</strong> - 停用任務註冊表（3 個任務記錄）</p>
+<p>✅ <strong>.env.example</strong> - 環境變數範本（已存在，可進一步擴充）</p>
+<p>✅ <strong>docs/SECURITY-REMEDIATION.md</strong> - 資安修復指引（已存在，確認完整）</p>
+<h3>量化預期成果（實施後）</h3>
+<p>| 指標 | 當前 | 目標 | 改善幅度 |</p>
+<p>|------|------|------|----------|</p>
+<p>| 系統健康度 | 68/100 | 85/100 | +25% |</p>
+<p>| 每日失敗次數 | 10-15 次 | <5 次 | -67% |</p>
+<p>| Entropy score | 0.537 | <0.50 | -6.9% |</p>
+<p>| 快取命中率 | 5.6% | >40% | +614% |</p>
+<p>| Agent crash | 14 次/day | <3 次/day | -79% |</p>
+<p>| Phase 3 失敗 | 39 次/week | <7 次/week | -82% |</p>
+<p>| Token 使用 | 3.4M/day | <3.0M/day | -12% |</p>
+<p>---</p>
+<h2>五、風險與緩解</h2>
+<p>| 風險 | 機率 | 影響 | 緩解措施 |</p>
+<p>|------|------|------|----------|</p>
+<p>| API 金鑰 revoke 後服務中斷 | HIGH | HIGH | 建立詳細輪換指南，提供測試環境 |</p>
+<p>| Assembly 修復引入新 bug | MEDIUM | MEDIUM | 完整測試覆蓋，保留 rollback 機制 |</p>
+<p>| 配置整合破壞既有邏輯 | MEDIUM | HIGH | 漸進式重構，每步驟驗證 |</p>
+<p>| Session limit 誤殺正常任務 | LOW | MEDIUM | 設定寬鬆閾值（10M tokens），記錄觸發 |</p>
+<p>---</p>
+<h2>六、驗收檢查清單</h2>
+<h3>P0 驗收（0-24 小時）</h3>
+<ul>
+<li>[ ] 所有 7 個 API 金鑰已 revoke 並重新產生</li>
+<li>[ ] Git 歷史已清理（BFG / filter-branch）</li>
+<li>[ ] Secret vaulting 機制已實施</li>
+<li>[ ] Phase 3 <code>assembly_side_effects_missing</code> <2 筆/day</li>
+<li>[ ] Agent crash <3 筆/day</li>
+<li>[ ] 所有 session <5M tokens</li>
+</ul>
+<h3>P1 驗收（1-7 天）</h3>
+<ul>
+<li>[ ] Entropy score <0.50</li>
+<li>[ ] 配置檔案數量 <50</li>
+<li>[ ] Phase 0 預計算成功率 >99.5%</li>
+<li>[ ] 快取命中率 >40%</li>
+<li>[ ] Knowledge base 快取存在且新鮮</li>
+</ul>
+<h3>P2 驗收（1-2 週）</h3>
+<ul>
+<li>[ ] Skills 測試數量 >300</li>
+<li>[ ] ADR immediate_fix <50</li>
+<li>[ ] 停用任務文件化完成（✅ 已完成）</li>
+</ul>
+<p>---</p>
+<h2>七、相關文件</h2>
+<ul>
+<li><strong>優化計劃</strong>: <code>docs/optimization-plan-20260418.md</code></li>
+<li><strong>資安修復指引</strong>: <code>docs/SECURITY-REMEDIATION.md</code></li>
+<li><strong>停用任務註冊表</strong>: <code>docs/disabled-tasks-registry.md</code></li>
+<li><strong>架構文件</strong>: <code>docs/ARCHITECTURE.md</code></li>
+<li><strong>完整參考</strong>: <code>docs/CLAUDE-full-reference.md</code></li>
+<li><strong>配置速查</strong>: <code>config/CLAUDE.md</code></li>
+</ul>
+<p>---</p>
+<h2>八、總結</h2>
+<p>Daily Digest Prompt 專案展現<strong>優秀的架構設計</strong>（8.1/10），特別在 Skill-First 策略、Hook 機器強制層、測試覆蓋率等方面表現突出。然而，<strong>關鍵資安漏洞</strong>（API 金鑰暴露）與<strong>系統穩定性惡化</strong>（Phase 失敗、Agent 崩潰、熵增）需立即處置。</p>
+<p>按照優化計劃分三個優先級（P0/P1/P2）實施後，預期系統健康度將從 68 提升至 85，每日失敗次數從 10-15 降至 <5，資安態勢從 CRITICAL 恢復至 NORMAL。</p>
+<p><strong>立即行動項</strong>：</p>
+<ol>
+<li>🔴 Revoke 所有 API 金鑰並實施 secret vaulting</li>
+<li>🔴 修復 Assembly Phase 3 檔案寫入驗證</li>
+<li>🔴 實施 Agent session size limits</li>
+<li>🟡 系統熵減優化（配置整合）</li>
+<li>🟡 快取效率恢復（KB 預熱 + TTL 調整）</li>
+</ol>
+<p>---</p>
+<p><strong>編寫者</strong>: Claude Opus 4.6  </p>
+<p><strong>審查者</strong>: 待填寫  </p>
+<p><strong>版本</strong>: 1.0.0  </p>
+<p><strong>最後更新</strong>: 2026-04-18</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

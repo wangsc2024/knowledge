@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Prompt Engineering for Autonomous Agents 完整指南 — 十大 Agentic 設計模式、ReAct 推理迴圈、自我反思架構與 Context Engineering 的生產級實踐（2026）">
+  <title>Prompt Engineering for Autonomous Agents 完整指南 — 十大 Agentic 設計模式、ReAct 推理迴圈、自我反思架構與 Context Engineering 的生產級實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Prompt Engineering for Autonomous Agents 完整指南 — 十大 Agentic 設計模式、ReAct 推理迴圈、自我反思架構與 Context Engineering 的生產級實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Prompt Engineering</span><span class="tag">Agentic Design Patterns</span><span class="tag">ReAct</span><span class="tag">自我反思</span><span class="tag">Reflection</span><span class="tag">Tool Orchestration</span><span class="tag">Context Engineering</span><span class="tag">MCP</span><span class="tag">Agent Architecture</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Prompt Engineering for Autonomous Agents 完整指南</h1>
+<p><strong>十大 Agentic 設計模式、ReAct 推理迴圈、自我反思架構與 Context Engineering 的生產級實踐</strong></p>
+<p>---</p>
+<h2>一、概述</h2>
+<p>2026 年，Prompt Engineering 已從「寫出巧妙的句子」演進為 <strong>Agentic Engineering</strong> — 設計與編排自主 AI 系統執行複雜多步驟工作流的藝術。本文系統性整理自主 Agent 的 Prompt 設計模式，涵蓋任務分解（Task Decomposition）、自我反思（Self-Reflection）、工具協調（Tool Orchestration）與上下文工程（Context Engineering）四大支柱。</p>
+<p><strong>核心發現</strong>：使用 Agentic Reasoning 的 GPT-3.5 在 HumanEval 上達到 <strong>95.1% 準確率</strong>，超越非 Agentic 的 GPT-4 的 67%，證明 Prompt 架構設計比模型大小更重要。</p>
+<p>---</p>
+<h2>二、十大 Agentic 設計模式</h2>
+<h3>模式 1：ReAct（Reasoning + Acting）</h3>
+<p><strong>原理</strong>：交替執行推理步驟與行動步驟，而非直接跳到答案。Agent 依序經歷 Thought（思考）→ Action（行動）→ Observation（觀察）的迴圈，直到任務完成。</p>
+<p><strong>核心優勢</strong>：解決了 Chain-of-Thought 缺乏外部世界存取的問題。CoT 擅長推理，但缺乏工具呼叫能力，容易產生事實幻覺。ReAct 透過即時資訊檢索填補這個缺口。</p>
+<p><strong>適用場景</strong>：</p>
+<ul>
+<li><strong>知識密集型任務</strong>（HotpotQA、事實驗證）：多步推理+觀察引導複雜推理</li>
+<li><strong>決策型任務</strong>（ALFWorld、WebShop）：行動序列主導，思考步驟精簡</li>
+</ul>
+<p><strong>最佳實踐</strong>：</p>
+<ul>
+<li>根據任務類型調整思考頻率（密集推理 vs 行動導向場景）</li>
+<li>確保外部資訊源可靠 — 低品質搜尋結果會偏離推理路徑</li>
+<li>ReAct + Chain-of-Thought 混合使用效果最佳</li>
+</ul>
+<h3>模式 2：Reflection（自我反思）</h3>
+<p><strong>原理</strong>：Agent 在提交輸出前自我審查 — 評估是否符合品質標準，識別弱點，自我修正。</p>
+<p><strong>三階段工作流</strong>：</p>
+<ol>
+<li><strong>Generation Phase</strong>：根據任務生成初始內容</li>
+<li><strong>Reflection Phase</strong>：批評者角色評估生成結果</li>
+<li><strong>Refinement Phase</strong>：根據反思回饋改善內容</li>
+</ol>
+<p><strong>溫度配置策略</strong>：</p>
+<ul>
+<li>Generator（生成）：0.7-0.9（高溫，鼓勵創意變化）</li>
+<li>Reflector（反思）：0.2-0.4（低溫，確保評估一致性）</li>
+<li>Refiner（精煉）：0.5-0.7（中等溫度，平衡改進）</li>
+</ul>
+<p><strong>效能考量</strong>：</p>
+<ul>
+<li>大部分品質提升發生在前 2-3 次迭代</li>
+<li>可用較便宜的模型執行反思步驟以降低成本</li>
+<li>簡單任務可跳過反思，避免不必要的開銷</li>
+</ul>
+<h3>模式 3：Planning and Sequential Orchestration（規劃與順序編排）</h3>
+<p>在執行前生成多步驟任務序列，每步的輸出作為下一步的輸入，形成線性流水線。這種「漸進揭露」讓使用者理解當前進度與下一步方向。</p>
+<h3>模式 4：Tool Use（工具使用）</h3>
+<p>讓 Agent 呼叫外部函式、API、資料庫和服務 — 從文字生成器轉化為執行引擎。Agent 可以「檢查庫存、更新記錄、觸發工作流」而非只是討論工作。</p>
+<p><strong>2026 標準</strong>：Model Context Protocol (MCP) 提供廠商中立的 Agent-工具整合標準，OpenAI、Google DeepMind、Microsoft 均已採用。</p>
+<h3>模式 5：Prompt Chaining（提示鏈接）</h3>
+<p>將複雜任務拆分為聚焦的順序提示，每個提示建立在先前回應之上，同時維持上下文。適合處理細緻、演進的多階段互動。</p>
+<h3>模式 6：Multi-Agent Collaboration（多 Agent 協作）</h3>
+<p>多個專門化 AI Agent 作為團隊協調，各自處理特定角色（資料檢索、分析、合規檢查）。</p>
+<p><strong>實作注意</strong>：許多「多 Agent」系統實際上是一個主 Agent 內部提示輔助 Agent 或模擬不同角色。關鍵是每個子 Agent 有隔離的記憶/上下文和定義的角色，通過受控介面通訊。</p>
+<h3>模式 7：Orchestration Patterns（編排模式）</h3>
+<p>控制多個 Agent 如何合作：</p>
+<ul>
+<li>五種協調模式：順序、並行、階層式、事件驅動、排程式</li>
+<li>階層式模式中，高層監督者管理區域團隊，各區域有下級監督者管理專門 Agent</li>
+</ul>
+<h3>模式 8：Human-in-the-Loop（人類在環）</h3>
+<p>在關鍵決策點嵌入人類監督 — AI 處理準備、驗證和路由，人類做出重要決定。平衡自動化與人類控制。</p>
+<h3>模式 9：Transparency and Reasoning Patterns（透明推理）</h3>
+<p>向使用者暴露推理鏈、信心水平和決策理由，而非僅輸出結果。滿足合規需求並建立使用者信任。</p>
+<h3>模式 10：Safety and Guardrail Patterns（安全護欄）</h3>
+<p>定義操作邊界，包括倫理約束、升級觸發器和回滾機制。確保 Agent 不超出預期範圍，維持安全與合規。</p>
+<p>---</p>
+<h2>三、System Prompt 架構設計</h2>
+<h3>現代 Agent System Prompt 的九大構成要素</h3>
+<p>生產級 Agent 的 System Prompt 已演進為包含以下結構化區塊：</p>
+<p>| 區塊 | 用途 | 設計原則 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Role and Identity</strong> | 定義 Agent 身份與職責 | 具體角色 > 泛化描述 |</p>
+<p>| <strong>Core Capabilities</strong> | 列舉 Agent 能力邊界 | 明確列出「能做什麼」和「不能做什麼」 |</p>
+<p>| <strong>Process</strong> | 工作流步驟定義 | 可執行的步驟 > 模糊指引 |</p>
+<p>| <strong>Output Format</strong> | 結構化輸出規範 | JSON Schema / Pydantic Model |</p>
+<p>| <strong>Decision-Making Guidelines</strong> | 決策框架 | 優先級、閾值、條件分支 |</p>
+<p>| <strong>Quality Standards</strong> | 品質基線 | 可測量的品質門檻 |</p>
+<p>| <strong>Edge Cases</strong> | 異常情境處理 | 明確的 fallback 策略 |</p>
+<p>| <strong>Examples</strong> | 少樣本示範 | 2-3 個典型 + 1 個邊界案例 |</p>
+<p>| <strong>Critical Reminders</strong> | 高優先級約束 | 不可違反的硬性規則 |</p>
+<h3>Infrastructure-as-Code 原則</h3>
+<p>Prompt 應與工具清單、策略配置、記憶 schema 和評估資料集一起，遵循 Infrastructure-as-Code 待遇：</p>
+<ul>
+<li><strong>版本控制</strong>：語義化版本管理</li>
+<li><strong>語義差異比對</strong>：追蹤 Prompt 變更影響</li>
+<li><strong>正式變更審批流程</strong>：減少生產環境失敗</li>
+</ul>
+<p>---</p>
+<h2>四、自我反思與推理增強</h2>
+<h3>Test-Time Reasoning（推論時計算擴展）</h3>
+<p><strong>核心概念</strong>：在推論時分配更多計算資源（而非僅靠訓練），讓模型在複雜問題上「更深入思考」。</p>
+<p><strong>實作範例</strong>：</p>
+<ul>
+<li>Anthropic Claude 的 Extended Thinking 模式</li>
+<li>DeepSeek-R1 的多步驟深度推理</li>
+</ul>
+<h3>Process Reward Models（過程獎勵模型）</h3>
+<p>對推理的<strong>每一步</strong>（而非僅最終結果）給予回饋，鼓勵 Agent 在過程中發現錯誤 — 建立自我檢查習慣，而非盲目前進。</p>
+<h3>ReTool 框架（2025）</h3>
+<p>混合監督微調與強化學習，訓練模型在推理過程中交織工具使用：</p>
+<ul>
+<li>模型學會在解題過程中決定「現在應該執行程式碼或搜尋資料」</li>
+<li><strong>湧現行為</strong>：自我修正（寫程式碼 → 看到失敗 → 自動調整），無需明確的逐步人類監督</li>
+<li>在多跳 QA、數學問題和複雜任務上有顯著效能提升</li>
+</ul>
+<h3>簡易反思 Prompt</h3>
+<p>即使是基礎的反思提示（如「在最終確認前，我上面有沒有犯錯？」）也能<strong>明顯提升輸出品質</strong>。</p>
+<p>---</p>
+<h2>五、生產級 Agent 迴圈架構</h2>
+<h3>ReAct Agent 虛擬碼</h3>
+<pre><code>
+while not breaking_condition:
+    response = llm.generate(conversation_history)
+    tool_name, tool_args = parse_tool_call(response)
+    tool_result = execute_tool(tool_name, tool_args)
+    conversation_history.append(tool_result)
+    if response contains "COMPLETE" or "ERROR":
+        break
+</code></pre>
+<h3>終止條件設計</h3>
+<p>| 條件 | 說明 |</p>
+<p>|------|------|</p>
+<p>| 明確完成信號 | Agent 輸出 COMPLETE/DONE 標記 |</p>
+<p>| 信心閾值滿足 | 結果信心度超過設定門檻 |</p>
+<p>| 錯誤狀態 | 觸發人類升級 |</p>
+<p>| 最大迭代次數 | 防止無限迴圈 |</p>
+<h3>決定性 vs 非決定性元件分離</h3>
+<p><strong>關鍵原則</strong>：大多數生產應用同時包含決定性（規則式）和非決定性（推理式）元件。只有需要主觀解讀的任務才適合 Agentic 處理；固定規則任務應保持決定性以確保可靠性和成本優化。</p>
+<p>---</p>
+<h2>六、Context Engineering（上下文工程）</h2>
+<h3>從 Prompt Engineering 到 Context Engineering</h3>
+<p>Context Engineering 是 Prompt Engineering 在 Agent 系統中的自然演進。Agent 在迴圈中運行並生成更多可能相關的資料，這些資訊必須被<strong>循環精煉</strong> — Context Engineering 就是從不斷演化的資訊宇宙中策展出最佳上下文的藝術與科學。</p>
+<h3>上下文視窗優化策略</h3>
+<p>| 策略 | 做法 |</p>
+<p>|------|------|</p>
+<p>| <strong>短期 vs 長期記憶分離</strong> | 分開儲存，各自管理生命週期 |</p>
+<p>| <strong>元資料標籤</strong> | 時間、重要性、相關性標記 |</p>
+<p>| <strong>定期摘要與歸檔</strong> | 壓縮舊對話為摘要 |</p>
+<p>| <strong>動態工具發現</strong> | 按需載入工具定義，保持上下文精簡 |</p>
+<p>| <strong>KV Cache 優化</strong> | 優化模型內部鍵值快取，避免重複處理 |</p>
+<h3>System Prompt 的 Token 預算原則</h3>
+<ul>
+<li>System Prompt 應控制在總預算的 <strong>20% 以內</strong></li>
+<li>使用漸進式上下文揭露（啟動時最小化 → 按需展開）</li>
+<li>元提示（Meta-Prompting）：提供結構化模板引導 LLM 推理問題</li>
+</ul>
+<p>---</p>
+<h2>七、工具協調與 MCP 標準化</h2>
+<h3>Model Context Protocol (MCP)</h3>
+<ul>
+<li>JSON-RPC 2.0 開放標準</li>
+<li>廠商中立的 Agent-工具整合</li>
+<li>2026 年已被 Anthropic、OpenAI、Google DeepMind、Microsoft 採用</li>
+<li>優勢：無需自訂膠水程式碼的標準整合</li>
+</ul>
+<h3>動態工具發現</h3>
+<ul>
+<li>Agent 可按描述搜尋工具庫並按需載入</li>
+<li>避免上下文視窗塞滿數百個工具定義</li>
+<li>Claude 的 ToolSearch 模式即為典型實作</li>
+</ul>
+<h3>程式化工具使用</h3>
+<ul>
+<li>Agent 可撰寫小型腳本或 API 呼叫作為行動</li>
+<li>複雜工作流：從工具 A 收集 → 轉換 → 傳入工具 B → 繼續</li>
+<li>多步驟工具編排，完全自主執行</li>
+</ul>
+<p>---</p>
+<h2>八、Agent Prompt 測試方法</h2>
+<h3>核心挑戰</h3>
+<p>Agent 行為不具一致性 — 原型環境的受控測試不代表真實世界環境。傳統輸入-輸出測試對非決定性系統無效。</p>
+<h3>測試框架</h3>
+<p>| 維度 | 做法 |</p>
+<p>|------|------|</p>
+<p>| <strong>成功標準</strong> | 可測量的品質閘門 + 行為測試策略 |</p>
+<p>| <strong>追蹤機制</strong> | 捕捉 LLM 呼叫、工具呼叫等，用於除錯與回歸測試 |</p>
+<p>| <strong>行為一致性評估</strong> | 評估 Agent 是否維持可靠的決策模式 |</p>
+<p>| <strong>黃金軌跡基線</strong> | 建立參考行為供比較 |</p>
+<h3>關鍵原則</h3>
+<p>Agentic 系統需要「本質上不同的品質保證方法 — 更偏向行為性質」，需要特定工具和方法論來形式化驗證流程。</p>
+<p>---</p>
+<h2>九、對 Daily-Digest-Prompt 專案的啟發</h2>
+<p>本研究與 daily-digest-prompt 專案的多項設計決策高度契合：</p>
+<h3>9.1 已實踐的模式</h3>
+<p>| 模式 | 專案對應 |</p>
+<p>|------|----------|</p>
+<p>| <strong>ReAct</strong> | Todoist Agent 的查詢→路由→計分→執行迴圈 |</p>
+<p>| <strong>Reflection</strong> | quality-gate.md 品質閘門 + done-cert 自評 |</p>
+<p>| <strong>Planning</strong> | pipeline.yaml 定義管線步驟 |</p>
+<p>| <strong>Tool Use</strong> | 23 個 Skill 的標準化工具介面 |</p>
+<p>| <strong>Multi-Agent</strong> | 3 階段並行團隊模式 |</p>
+<p>| <strong>Safety & Guardrails</strong> | Hook 機器強制層（6 個 Hook） |</p>
+<p>| <strong>HITL</strong> | ntfy 通知 + check-health 人類監督 |</p>
+<h3>9.2 可強化方向</h3>
+<ol>
+<li><strong>Process Reward Models</strong>：目前 quality-gate 是二元（通過/不通過），可加入逐步評分</li>
+<li><strong>動態工具發現</strong>：SKILL_INDEX 是靜態索引，可演進為語義搜尋式 Skill 發現</li>
+<li><strong>Context Engineering 精煉</strong>：research-registry 全量讀取可改為摘要壓縮視圖</li>
+<li><strong>行為測試基線</strong>：目前 496 個測試偏單元測試，可加入 Agent 行為軌跡測試</li>
+</ol>
+<p>---</p>
+<h2>十、來源與延伸閱讀</h2>
+<ol>
+<li><a href="https://converter.brightcoding.dev/blog/system-prompts-for-ai-agents-the-complete-2026-guide-to-building-powerful-safe-autonomous-systems">System Prompts for AI Agents: The Complete 2025 Guide</a></li>
+<li><a href="https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system">Google Cloud: Choose a Design Pattern for Agentic AI</a></li>
+<li><a href="https://www.promptingguide.ai/techniques/react">Prompt Engineering Guide: ReAct Prompting</a></li>
+<li><a href="https://www.infoq.com/articles/prompts-to-production-playbook-for-agentic-development/">From Prompts to Production: A Playbook for Agentic Development — InfoQ</a></li>
+<li><a href="https://agent-patterns.readthedocs.io/en/stable/patterns/reflection.html">Agent Patterns Documentation: Reflection Pattern</a></li>
+<li><a href="https://www.moxo.com/blog/agentic-design-patterns">Top 10 Agentic Design Patterns — Moxo</a></li>
+<li><a href="https://machinelearningmastery.com/7-must-know-agentic-ai-design-patterns/">7 Must-Know Agentic AI Design Patterns — MachineLearningMastery</a></li>
+<li><a href="https://huggingface.co/blog/aufklarer/ai-trends-2026-test-time-reasoning-reflective-agen">AI Trends 2026: Test-Time Reasoning and Reflective Agents — Hugging Face</a></li>
+<li><a href="https://www.ibm.com/think/prompt-engineering">The 2026 Guide to Prompt Engineering — IBM</a></li>
+<li><a href="https://dev.to/kuldeep_paul/building-effective-prompt-engineering-strategies-for-ai-agents-2fo3">Building Effective Prompt Engineering Strategies for AI Agents — DEV Community</a></li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-28</em></p>
+<p><em>研究者：Todoist 深度思維研究 Agent</em></p>
+<p><em>研究動機：分析待辦事項所需的知識後，選擇「自主 Agent 的 Prompt 設計模式」作為研究主題。這是本專案 Skill-First + 文件驅動架構 + Hook 強制層的理論基礎，知識庫中尚無此角度的專門研究。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

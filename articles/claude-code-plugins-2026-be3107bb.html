@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code Plugins 插件系統完整指南（2026）">
+  <title>Claude Code Plugins 插件系統完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code Plugins 插件系統完整指南（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">Plugins</span><span class="tag">技術指南</span><span class="tag">MCP</span><span class="tag">Agent</span><span class="tag">2026</span><span class="tag">Anthropic</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code Plugins 插件系統完整指南（2026）</h1>
+<h2>主題概述</h2>
+<p>Claude Code Plugins 是 Anthropic 於 2026 年 1 月 30 日正式發布的擴展系統，讓開發者可以自訂 slash commands、specialized agents、hooks 和 MCP servers，並透過 marketplace 分享給團隊或社群。插件系統將 Claude Code 從單一 CLI 工具轉型為可擴展的開發平台，目前已有超過 9,000 個插件，涵蓋程式碼審查、瀏覽器自動化、安全掃描、設計轉碼等領域。</p>
+<p>---</p>
+<h2>插件目錄結構</h2>
+<p>標準的 Claude Code Plugin 目錄結構：</p>
+<pre><code>
+plugin-name/
+├── .claude-plugin/
+│   └── plugin.json          # 插件元資料（必要）
+├── commands/                 # Slash commands（可選）
+├── agents/                   # Specialized agents（可選）
+├── skills/                   # Agent Skills（可選）
+├── hooks/                    # Event handlers（可選）
+├── .mcp.json                # MCP server 配置（可選）
+├── .lsp.json                # LSP server 配置（可選）
+└── README.md                # 插件文檔
+</code></pre>
+<p><strong>重要提醒</strong>：<code>commands/</code>、<code>agents/</code>、<code>skills/</code>、<code>hooks/</code> 目錄必須放在插件根目錄，不要放進 <code>.claude-plugin/</code> 內。</p>
+<p>---</p>
+<h2>plugin.json 格式</h2>
+<p>插件清單檔（manifest）定義插件身份：</p>
+<pre><code>
+{
+  "name": "my-plugin",
+  "description": "插件描述",
+  "version": "1.0.0",
+  "author": {
+    "name": "Your Name"
+  },
+  "homepage": "https://github.com/...",
+  "repository": "https://github.com/...",
+  "license": "MIT"
+}
+</code></pre>
+<p>| 欄位 | 用途 |</p>
+<p>|------|------|</p>
+<p>| <code>name</code> | 唯一識別碼，也是 skill 命名空間前綴（如 <code>/my-plugin:hello</code>） |</p>
+<p>| <code>description</code> | 顯示在插件管理器中的描述 |</p>
+<p>| <code>version</code> | 語意化版本號（Semantic Versioning） |</p>
+<p>| <code>author</code> | 作者資訊（選填） |</p>
+<p>---</p>
+<h2>核心元件詳解</h2>
+<h3>1. Skills（技能）</h3>
+<p>技能是模型自動調用的可重用工作流。每個 Skill 是一個資料夾，內含 <code>SKILL.md</code> 檔案。</p>
+<p><strong>建立 Skill</strong>：</p>
+<pre><code>
+plugin-name/
+└── skills/
+    └── code-review/
+        └── SKILL.md
+</code></pre>
+<p><strong>SKILL.md 格式</strong>：</p>
+<pre><code>
+---
+name: code-review
+description: Reviews code for best practices and potential issues.
+---
+
+When reviewing code, check for:
+1. Code organization and structure
+2. Error handling
+3. Security concerns
+</code></pre>
+<p><strong>自動觸發機制</strong>：Claude Code 會比對使用者請求與已註冊的 skill descriptions，符合條件時自動調用，無需使用者明確指定。</p>
+<h3>2. Commands（命令）</h3>
+<p>使用者透過 <code>/command-name</code> 手動觸發的工作流。支援 <code>$ARGUMENTS</code> 佔位符接收使用者輸入。</p>
+<p><strong>範例</strong>：</p>
+<pre><code>
+---
+description: Greet the user with a personalized message
+---
+
+Greet the user named "$ARGUMENTS" warmly.
+</code></pre>
+<h3>3. Agents（代理）</h3>
+<p>專門化的 AI agents，具備特定能力，可並行運行多個 agents 處理複雜任務。</p>
+<h3>4. Hooks（鉤子）</h3>
+<p>事件處理器，攔截特定交互：</p>
+<p>| Hook 類型 | 觸發時機 |</p>
+<p>|-----------|----------|</p>
+<p>| <code>SessionStart</code> | Session 開始時 |</p>
+<p>| <code>PreToolUse</code> | 工具使用前（可攔截阻止） |</p>
+<p>| <code>PostToolUse</code> | 工具使用後 |</p>
+<p>| <code>Stop</code> | Session 結束時 |</p>
+<p><strong>hooks.json 範例</strong>：</p>
+<pre><code>
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [{ "type": "command", "command": "npm run lint:fix" }]
+      }
+    ]
+  }
+}
+</code></pre>
+<h3>5. MCP（Model Context Protocol）</h3>
+<p>連接外部服務和 API，讓 Claude 存取原本無法取得的資料。配置於 <code>.mcp.json</code>。</p>
+<h3>6. LSP（Language Server Protocol）</h3>
+<p>提供即時程式碼智慧功能：跳轉定義、查找引用、類型錯誤提示。</p>
+<pre><code>
+{
+  "go": {
+    "command": "gopls",
+    "args": ["serve"],
+    "extensionToLanguage": {
+      ".go": "go"
+    }
+  }
+}
+</code></pre>
+<p>---</p>
+<h2>安裝與測試</h2>
+<h3>開發測試</h3>
+<p>使用 <code>--plugin-dir</code> 載入本地插件（不需安裝）：</p>
+<pre><code>
+claude --plugin-dir ./my-plugin
+</code></pre>
+<h3>正式安裝</h3>
+<p>從 marketplace 安裝：</p>
+<pre><code>
+claude plugin install &lt;plugin-name&gt;
+</code></pre>
+<p>或新增 marketplace 來源：</p>
+<pre><code>
+claude plugin marketplace add owner/repo
+</code></pre>
+<p>---</p>
+<h2>2026 年熱門插件</h2>
+<p>| 插件 | 功能 |</p>
+<p>|------|------|</p>
+<p>| <strong>Firecrawl</strong> | 將網站轉換為 LLM 就緒的乾淨資料 |</p>
+<p>| <strong>Ralph Loop</strong> | 自主編碼會話，逐任務提交 git |</p>
+<p>| <strong>Context7</strong> | 注入實時框架文檔，減少幻覺 |</p>
+<p>| <strong>Playwright</strong> | 自然語言控制瀏覽器自動化 |</p>
+<p>| <strong>Security Guidance</strong> | 檔案編輯前掃描安全漏洞 |</p>
+<p>| <strong>Figma MCP</strong> | 讀取設計稿並生成程式碼 |</p>
+<p>| <strong>Code Review</strong> | 多 Agent 程式碼審核 |</p>
+<p>| <strong>Chrome DevTools MCP</strong> | 完整除錯存取權限 |</p>
+<p>---</p>
+<h2>官方插件範例</h2>
+<p>| 插件 | 元件 |</p>
+<p>|------|------|</p>
+<p>| <strong>agent-sdk-dev</strong> | Command: <code>/new-sdk-app</code>; Agents: <code>agent-sdk-verifier-py/ts</code> |</p>
+<p>| <strong>code-review</strong> | Command: <code>/code-review</code>; 5 個 Sonnet agents |</p>
+<p>| <strong>feature-dev</strong> | 7 階段特性開發工作流 |</p>
+<p>| <strong>pr-review-toolkit</strong> | 6 個專門化審查 agents |</p>
+<p>| <strong>hookify</strong> | 自訂 hooks 創建工具 |</p>
+<p>---</p>
+<h2>Marketplace 生態系</h2>
+<ol>
+<li><strong>Official Anthropic Marketplace</strong>：Anthropic 官方維護的插件目錄（plugins.claude.ai）</li>
+<li><strong>ClaudePluginHub</strong>：社群主導的大型 marketplace</li>
+<li><strong>Claude-Plugins.dev</strong>：社群登記表與 CLI 工具</li>
+<li><strong>自架 Git-based Marketplace</strong>：任何 Git hosting（GitHub、GitLab、Bitbucket）都可作為 marketplace 來源</li>
+</ol>
+<p>---</p>
+<h2>Standalone vs Plugin 比較</h2>
+<p>| 面向 | Standalone (<code>.claude/</code>) | Plugin |</p>
+<p>|------|-------------------------|--------|</p>
+<p>| 技能名稱 | <code>/hello</code> | <code>/plugin-name:hello</code> |</p>
+<p>| 適用情境 | 個人工作流、專案特定 | 團隊分享、跨專案重用 |</p>
+<p>| 更新機制 | 手動複製 | 版本控制 + 自動更新 |</p>
+<p><strong>建議流程</strong>：先在 <code>.claude/</code> 快速迭代，穩定後再轉換為 plugin 分享。</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://code.claude.com/docs/en/plugins">Create plugins - Claude Code Docs</a></li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/plugins/README.md">GitHub - anthropics/claude-code/plugins/README.md</a></li>
+<li><a href="https://www.firecrawl.dev/blog/best-claude-code-plugins">Top 10 Claude Code Plugins to Try in 2026 - Firecrawl</a></li>
+<li><a href="https://claudemarketplaces.com/">Claude Code Plugin Marketplace</a></li>
+<li><a href="https://code.claude.com/docs/en/discover-plugins">Discover and install plugins - Claude Code Docs</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

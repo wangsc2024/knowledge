@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-29：安全性強化、狀態膨脹治理與工具測試覆蓋率提升">
+  <title>專案RAG優化日報 2026-03-29：安全性強化、狀態膨脹治理與工具測試覆蓋率提升 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-29：安全性強化、狀態膨脹治理與工具測試覆蓋率提升</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">日報</span><span class="tag">安全性</span><span class="tag">subprocess</span><span class="tag">狀態管理</span><span class="tag">測試</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-29</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-03-29</h1>
+<h2>概述</h2>
+<p>針對 daily-digest-prompt 專案進行安全性審計、狀態檔案膨脹治理與工具測試覆蓋率提升三大優化。本次聚焦 subprocess 注入防護（OWASP A03:2021 Injection）、累積型 JSON 狀態檔保留策略制定、以及新建 <code>security_utils.py</code> 安全工具模組。</p>
+<p>---</p>
+<h2>優化項目與成果</h2>
+<h3>1. Subprocess 注入防護（P0 — 安全性）</h3>
+<p><strong>問題發現</strong>：</p>
+<p>審計 87 個 Python 工具，發現 1 個 CRITICAL + 5 個 MEDIUM 風險漏洞：</p>
+<p>| 漏洞 | 檔案 | 風險等級 | 修復狀態 |</p>
+<p>|------|------|---------|----------|</p>
+<p>| f-string 嵌入 PowerShell -Command | <code>run_podcast_create.py:654</code> | CRITICAL | ✅ 已修復 |</p>
+<p>| 未驗證命令從 config 注入 | <code>autonomous_recovery_worker.py:158</code> | MEDIUM | ✅ 已修復 |</p>
+<p>| JSON 解析錯誤洩漏敏感資訊 | <code>audit_verify.py:52</code> | MEDIUM | ✅ 已修復 |</p>
+<p>| PowerShell 腳本注入 | <code>autonomous_harness.py:226</code> | MEDIUM | 待修 |</p>
+<p>| PowerShell 參數注入 | <code>run_podcast_create.py:503</code> | MEDIUM | 待修 |</p>
+<p>| <code>__import__()</code> 反模式 | <code>cache_eviction_benchmark.py:335</code> | LOW | 待修 |</p>
+<p><strong>修復方式</strong>：</p>
+<ul>
+<li><strong>run_podcast_create.py</strong>：將 <code>pwsh -Command f'curl ...'</code> 改為直接呼叫 <code>curl</code> 的 list 形式，消除 shell 字串插值風險</li>
+<li><strong>autonomous_recovery_worker.py</strong>：新增白名單命令驗證機制，未知目標的命令必須通過 <code>validate_command()</code> 檢查</li>
+<li><strong>audit_verify.py</strong>：移除 <code>_raw</code> 欄位（可能洩漏 token/password），改為僅記錄 <code>_length</code> 與 <code>_reason</code></li>
+</ul>
+<h3>2. 安全工具模組 `tools/security_utils.py`（新建）</h3>
+<p>提供 5 個安全函式：</p>
+<ul>
+<li><code>escape_ps_arg()</code> — PowerShell 參數安全轉義（單引號包裹 + 內部引號雙重轉義）</li>
+<li><code>validate_command()</code> — 白名單可執行檔驗證（10 個允許的可執行檔）</li>
+<li><code>get_restart_command()</code> — 重啟目標白名單（5 個預定義目標）</li>
+<li><code>safe_subprocess_run()</code> — 安全包裝，強制 <code>shell=False</code> 且驗證命令</li>
+<li><code>sanitize_log_line()</code> — 日誌敏感資訊消毒（偵測 token/password/secret/key/credential/auth）</li>
+</ul>
+<p><strong>測試覆蓋</strong>：42 個測試全部通過，涵蓋正常路徑、邊界條件、注入攻擊模擬。</p>
+<h3>3. 狀態檔案膨脹治理（config/memory-policy.yaml v2）</h3>
+<p><strong>問題發現</strong>：</p>
+<ul>
+<li><code>state/kb-note-scores.json</code>：23,823 行（708 KB），已有 30 天 TTL</li>
+<li><code>context/adr-registry.json</code>：10,431 行（478 KB），<strong>無保留策略</strong></li>
+<li><code>context/research-series.json</code>：6,444 行（251 KB），<strong>無保留策略</strong></li>
+<li><code>context/improvement-backlog.json</code>：3,506 行，<strong>無保留策略</strong></li>
+<li><code>state/token-usage.json</code>：2,701 行，<strong>無保留策略</strong></li>
+</ul>
+<p><strong>治理方案</strong>：</p>
+<p>在 <code>config/memory-policy.yaml</code>（v1→v2）新增 4 個保留策略層：</p>
+<p>| 層 | 目標 | 策略 |</p>
+<p>|-----|------|------|</p>
+<p>| <code>adr_registry</code> | adr-registry.json | max 500 entries，Superseded/Deprecated 優先歸檔 |</p>
+<p>| <code>research_series</code> | research-series.json | max 100 series，已完成 synthesis 且 >180 天歸檔 |</p>
+<p>| <code>improvement_backlog</code> | improvement-backlog.json | max 200 entries，closed >90 天歸檔 |</p>
+<p>| <code>state_files</code> | state/*.json | 30 天 TTL，由 cleanup_state_files.py 統一處理 |</p>
+<p>---</p>
+<h2>測試結果</h2>
+<p>| 測試套件 | 結果 |</p>
+<p>|---------|------|</p>
+<p>| <code>test_security_utils.py</code> | <strong>42 passed</strong> |</p>
+<p>| <code>test_audit_verify.py</code> | <strong>14 passed</strong>（回歸驗證） |</p>
+<p>| 總計新增測試 | <strong>42 個</strong> |</p>
+<p>---</p>
+<h2>專案狀態總覽（審計快照）</h2>
+<p>| 指標 | 值 | 趨勢 |</p>
+<p>|------|-----|------|</p>
+<p>| Python 工具 | 88 個（+1 security_utils） | ↑ |</p>
+<p>| 測試檔案 | 89 個 | ↑ |</p>
+<p>| 工具測試覆蓋率 | ~41%（54/88 有對應測試） | ↑ |</p>
+<p>| 已知安全漏洞 | 3 個已修復 / 3 個待修 | ↓ |</p>
+<p>| 配置檔案 | 60 個 YAML | → |</p>
+<p>| 無保留策略狀態檔 | 從 6 個降至 2 個 | ↓ |</p>
+<p>---</p>
+<h2>後續建議</h2>
+<ol>
+<li><strong>P1</strong>：修復剩餘 3 個 MEDIUM 漏洞（autonomous_harness、run_podcast_create 參數、cache_eviction_benchmark）</li>
+<li><strong>P1</strong>：將 <code>cleanup_state_files.py</code> 整合到 <code>run-system-audit-team.ps1</code> Phase 2 定期執行</li>
+<li><strong>P2</strong>：實作 adr-registry 歸檔工具（依 memory-policy.yaml v2 的 <code>oldest_first_archive</code> 策略）</li>
+<li><strong>P2</strong>：對剩餘 34 個無測試工具中的前 10 高風險工具補寫測試</li>
+<li><strong>P3</strong>：建立 pre-commit hook 攔截 <code>shell=True</code> 和 f-string 嵌入 <code>-Command</code> 的模式</li>
+</ol>
+<p>---</p>
+<h2>來源與參考</h2>
+<ul>
+<li><strong>安全標準</strong>：OWASP Top 10 2021 — A03:2021 Injection</li>
+<li><strong>知識庫既有研究</strong>：「Python 正規表達式安全模式與 Shell 命令注入防護完整指南（2026）」</li>
+<li><strong>專案既有工具</strong>：<code>tools/cleanup_state_files.py</code>（30 天 TTL）、<code>config/memory-policy.yaml</code></li>
+<li><strong>前次優化日報</strong>：「專案優化日報 2026-03-21：異常處理收窄、快取淘汰漸進化」</li>
+</ul>
+<p>---</p>
+<h2>交付物清單</h2>
+<p>| 檔案 | 類型 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| <code>tools/security_utils.py</code> | 新建 | 安全工具模組（5 函式） |</p>
+<p>| <code>tests/tools/test_security_utils.py</code> | 新建 | 42 個測試案例 |</p>
+<p>| <code>tools/run_podcast_create.py</code> | 修改 | CRITICAL 漏洞修復（curl list 化） |</p>
+<p>| <code>tools/autonomous_recovery_worker.py</code> | 修改 | 命令白名單驗證 |</p>
+<p>| <code>tools/audit_verify.py</code> | 修改 | 敏感資訊洩漏修復 |</p>
+<p>| <code>config/memory-policy.yaml</code> | 修改 v1→v2 | 新增 4 個保留策略層 |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

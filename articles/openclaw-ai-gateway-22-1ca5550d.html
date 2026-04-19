@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenClaw -- 開源個人 AI 助手深度研究：Gateway 控制平面架構、22+ 通訊頻道整合、Multi-Agent 路由與 Local-First 隱私設計的 245K Stars 標竿（2026-03）">
+  <title>OpenClaw -- 開源個人 AI 助手深度研究：Gateway 控制平面架構、22+ 通訊頻道整合、Multi-Agent 路由與 Local-First 隱私設計的 245K Stars 標竿（2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>OpenClaw -- 開源個人 AI 助手深度研究：Gateway 控制平面架構、22+ 通訊頻道整合、Multi-Agent 路由與 Local-First 隱私設計的 245K Stars 標竿（2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">OpenClaw</span><span class="tag">個人AI助手</span><span class="tag">開源專案</span><span class="tag">Gateway架構</span><span class="tag">Multi-Agent</span><span class="tag">Local-First</span><span class="tag">TypeScript</span><span class="tag">通訊整合</span><span class="tag">Skills平台</span><span class="tag">Voice Wake</span><span class="tag">Canvas</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>OpenClaw -- 開源個人 AI 助手深度研究</h1>
+<h2>Gateway 控制平面架構、22+ 通訊頻道整合、Multi-Agent 路由與 Local-First 隱私設計</h2>
+<p>研究日期：2026-03-02</p>
+<p>研究類型：GitHub 熱門專案深度分析</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p><strong>OpenClaw</strong>（<a href="https://github.com/openclaw/openclaw">openclaw/openclaw</a>）是一款開源個人 AI 助手，定位為「在你自己的裝置上運行的 AI 助手」。專案於 2025 年 11 月 24 日在 GitHub 建立，採用 MIT 授權，截至 2026 年 3 月已累積 <strong>245,576 Stars</strong>、47,436 Forks，是 2025-2026 年間增長最快的開源專案之一，在個人 AI 助手類別中 Stars 數遙遙領先（第二名 Khoj 僅 32,759 Stars）。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| Stars | 245,576 |</p>
+<p>| Forks | 47,436 |</p>
+<p>| Open Issues | 9,990 |</p>
+<p>| 主要語言 | TypeScript（85.9%）|</p>
+<p>| 授權 | MIT License |</p>
+<p>| 建立日期 | 2025-11-24 |</p>
+<p>| 最新版本 | v2026.3.1（2026-03-02）|</p>
+<p>| 發布節奏 | 每日/隔日更新 |</p>
+<p>| 主要貢獻者 | steipete（10,885 commits）|</p>
+<p>| 贊助商 | OpenAI、Vercel、Blacksmith、Convex |</p>
+<h3>專案演化</h3>
+<p>OpenClaw 經歷多次更名：Warelay -> Clawdbot -> Moltbot -> OpenClaw。最初是作者（steipete）的個人實驗專案，目標是「建造一個能在真實電腦上執行真實任務的 AI 助手」。</p>
+<p>---</p>
+<h2>二、核心架構</h2>
+<h3>2.1 Gateway 控制平面</h3>
+<p>OpenClaw 的核心是一個 <strong>WebSocket 控制平面（Gateway）</strong>，運行在本地 <code>ws://127.0.0.1:18789</code>，統一管理所有 sessions、channels、tools 和 events。</p>
+<pre><code>
+WhatsApp / Telegram / Slack / Discord / Signal / iMessage / ...
+               |
+               v
++-------------------------------+
+|          Gateway              |
+|     (control plane)           |
+|   ws://127.0.0.1:18789       |
++-------------------------------+
+               |
+               +-- Pi agent (RPC)
+               +-- CLI (openclaw ...)
+               +-- WebChat UI
+               +-- macOS app
+               +-- iOS / Android nodes
+</code></pre>
+<p><strong>設計特點</strong>：</p>
+<ul>
+<li><strong>單一控制平面</strong>：所有通訊頻道、工具、事件都經由 Gateway 統一路由</li>
+<li><strong>RPC 模式</strong>：Pi agent 以 RPC 方式運行，支援 tool streaming 和 block streaming</li>
+<li><strong>Session 模型</strong>：main session 用於直接聊天，群組隔離，支援 activation modes 和 queue modes</li>
+<li><strong>Media Pipeline</strong>：統一的圖片/音訊/影片處理管線，含轉錄 hooks 和大小上限</li>
+</ul>
+<h3>2.2 多頻道收件匣（22+ 頻道）</h3>
+<p>OpenClaw 支援的通訊頻道數量令人印象深刻：</p>
+<p><strong>核心頻道（內建）</strong>：WhatsApp（Baileys）、Telegram（grammY）、Slack（Bolt）、Discord（discord.js）、Google Chat（Chat API）、Signal（signal-cli）、BlueBubbles（iMessage）、IRC</p>
+<p><strong>擴充頻道（Extension）</strong>：Microsoft Teams、Matrix、Feishu（飛書）、LINE、Mattermost、Nextcloud Talk、Nostr、Synology Chat、Tlon、Twitch、Zalo、WebChat</p>
+<p><strong>原生 App</strong>：macOS 選單列 app、iOS node、Android node</p>
+<h3>2.3 Multi-Agent 路由</h3>
+<p>Gateway 支援將不同的 inbound channels/accounts/peers 路由到隔離的 agents：</p>
+<ul>
+<li>每個 agent 有獨立的 workspace 和 per-agent sessions</li>
+<li>Agent-to-Agent 通訊透過 <code>sessions_list</code>、<code>sessions_history</code>、<code>sessions_send</code> 工具</li>
+<li>支援 reply-back ping-pong 和 announce 步驟</li>
+</ul>
+<h3>2.4 技術棧分析</h3>
+<p>| 層級 | 技術 |</p>
+<p>|------|------|</p>
+<p>| 後端語言 | TypeScript（85.9%），ESM 模組 |</p>
+<p>| 執行環境 | Node.js 22+（Bun 可選）|</p>
+<p>| 建構工具 | tsdown（bundler）、pnpm（套件管理）|</p>
+<p>| 測試框架 | Vitest（V8 coverage，70% 門檻）|</p>
+<p>| Lint/Format | Oxlint + Oxfmt（Rust 工具鏈）|</p>
+<p>| iOS/macOS | Swift（9.5%，SwiftUI + Observation framework）|</p>
+<p>| Android | Kotlin（2.3%）|</p>
+<p>| 容器化 | Docker + Docker Compose + Fly.io |</p>
+<p>| 遠端存取 | Tailscale Serve/Funnel + SSH tunnels |</p>
+<p>| MCP 支援 | 透過 mcporter 橋接（非內建）|</p>
+<p><strong>依賴數量</strong>：57 個核心依賴，涵蓋：</p>
+<ul>
+<li><code>@whiskeysockets/baileys</code>（WhatsApp）</li>
+<li><code>@grammyjs/runner</code>（Telegram）</li>
+<li><code>@slack/bolt</code>（Slack）</li>
+<li><code>discord.js</code> 系列（Discord）</li>
+<li><code>@mariozechner/pi-agent-core</code>（AI Agent 核心）</li>
+<li><code>express@5</code>（Web 伺服器）</li>
+<li><code>croner</code>（定時排程）</li>
+</ul>
+<p>---</p>
+<h2>三、核心特色</h2>
+<h3>3.1 Local-First 隱私設計</h3>
+<ul>
+<li><strong>本地優先</strong>：Gateway 預設綁定 loopback，所有資料留在使用者裝置上</li>
+<li><strong>DM 配對安全</strong>：預設 <code>dmPolicy="pairing"</code>，未知發送者需輸入配對碼才能與 bot 互動</li>
+<li><strong>Tailscale 整合</strong>：支援 Serve（tailnet-only）和 Funnel（public）模式，Gateway 仍綁定 loopback</li>
+<li><strong>機密管理</strong>：v2026.2.26 引入完整的 <code>openclaw secrets</code> 工作流（audit/configure/apply/reload）</li>
+</ul>
+<h3>3.2 Voice Wake + Talk Mode</h3>
+<ul>
+<li><strong>Wake Words</strong>：macOS/iOS 支援語音喚醒</li>
+<li><strong>Talk Mode</strong>：Android 支援連續語音對話</li>
+<li><strong>TTS</strong>：ElevenLabs + 系統 TTS fallback</li>
+<li><strong>媒體理解</strong>：圖片/音訊/影片自動轉錄和理解</li>
+</ul>
+<h3>3.3 Live Canvas + A2UI</h3>
+<ul>
+<li><strong>Canvas</strong>：Agent 驅動的視覺化工作空間</li>
+<li><strong>A2UI（Agent-to-UI）</strong>：Agent 可直接推送/重置 Canvas 內容，支援 eval 和 snapshot</li>
+<li><strong>跨平台</strong>：macOS、iOS、Android 都支援 Canvas</li>
+</ul>
+<h3>3.4 Skills 平台 + ClawHub</h3>
+<ul>
+<li><strong>三層 Skills</strong>：bundled（內建）、managed（託管）、workspace（工作區）</li>
+<li><strong>ClawHub</strong>：Skills 登錄平台（clawhub.com），Agent 可自動搜尋和安裝新 Skills</li>
+<li><strong>Plugin API</strong>：完整的插件 API，npm 套件分發 + 本地擴充載入</li>
+</ul>
+<h3>3.5 瀏覽器控制</h3>
+<ul>
+<li>專用的 OpenClaw Chrome/Chromium 實例</li>
+<li>CDP（Chrome DevTools Protocol）控制</li>
+<li>Snapshots、Actions、Uploads、Profiles 管理</li>
+</ul>
+<h3>3.6 自動化能力</h3>
+<ul>
+<li><strong>Cron Jobs</strong>：定時排程任務</li>
+<li><strong>Webhooks</strong>：外部事件觸發</li>
+<li><strong>Gmail Pub/Sub</strong>：郵件事件監聽</li>
+<li><strong>Auto-Reply</strong>：智慧自動回覆（v2026.2.24 擴充 stop phrases）</li>
+</ul>
+<p>---</p>
+<h2>四、模型支援與 Failover</h2>
+<ul>
+<li><strong>多模型提供者</strong>：OpenAI、Anthropic、Google、AWS Bedrock</li>
+<li><strong>推薦模型</strong>：Anthropic Pro/Max（100/200）+ Opus 4.6，因長上下文能力和 prompt injection 抵抗力較佳</li>
+<li><strong>Auth Profile 輪替</strong>：支援 OAuth vs API keys 切換</li>
+<li><strong>Model Failover</strong>：自動降級到備用模型</li>
+<li><strong>Thinking Level</strong>：off/minimal/low/medium/high/xhigh（v2026.3.1 預設 Claude 4.6 為 adaptive）</li>
+</ul>
+<p>---</p>
+<h2>五、開發者體驗</h2>
+<h3>5.1 CLI-First 設計</h3>
+<pre><code>
+# 安裝
+npm install -g openclaw@latest
+
+# 引導設定精靈
+openclaw onboard --install-daemon
+
+# 啟動 Gateway
+openclaw gateway --port 18789 --verbose
+
+# 發送訊息
+openclaw message send --to +1234567890 --message "Hello"
+
+# 與助手對話
+openclaw agent --message "Ship checklist" --thinking high
+
+# 健康檢查
+openclaw doctor
+</code></pre>
+<h3>5.2 開發通道</h3>
+<ul>
+<li><strong>stable</strong>：tagged releases（<code>vYYYY.M.D</code>），npm dist-tag <code>latest</code></li>
+<li><strong>beta</strong>：prerelease（<code>vYYYY.M.D-beta.N</code>），npm dist-tag <code>beta</code></li>
+<li><strong>dev</strong>：main 分支最新，npm dist-tag <code>dev</code></li>
+</ul>
+<h3>5.3 測試基礎設施</h3>
+<ul>
+<li>Vitest 框架，V8 coverage</li>
+<li>門檻：70% lines/branches/functions/statements</li>
+<li>測試分類：unit（<code><em>.test.ts</code>）、e2e（<code></em>.e2e.test.ts</code>）、live（真實 API keys）、Docker live</li>
+<li>多 Agent 安全：git stash/worktree/branch 操作均有保護機制</li>
+</ul>
+<p>---</p>
+<h2>六、與同類專案比較</h2>
+<p>| 特性 | OpenClaw（245K Stars）| Khoj（32K Stars）| Leon（17K Stars）| DeepChat（5.5K Stars）|</p>
+<p>|------|---------|------|------|----------|</p>
+<p>| 語言 | TypeScript | Python | TypeScript | TypeScript |</p>
+<p>| 通訊頻道 | 22+ | Web + 少數 | 少數 | 少數 |</p>
+<p>| 本地部署 | 完全支援 | 支援 | 支援 | 支援 |</p>
+<p>| Voice Wake | macOS/iOS/Android | 有限 | 有限 | 無 |</p>
+<p>| Live Canvas | A2UI 完整支援 | 無 | 無 | 無 |</p>
+<p>| Multi-Agent | 完整路由 | 無 | 無 | 無 |</p>
+<p>| Skills 生態 | ClawHub 平台 | Plugins | Skills | 無 |</p>
+<p>| 跨平台 App | macOS/iOS/Android | Web | Desktop | Web |</p>
+<p>| 更新頻率 | 每日 | 每週 | 不定期 | 不定期 |</p>
+<p><strong>OpenClaw 的核心優勢</strong>：</p>
+<ol>
+<li><strong>頻道覆蓋度無與倫比</strong>：22+ 通訊平台，從 WhatsApp 到 Nostr 全覆蓋</li>
+<li><strong>Gateway 架構設計精巧</strong>：單一控制平面統一所有入口</li>
+<li><strong>跨平台原生體驗</strong>：macOS、iOS、Android 原生 app</li>
+<li><strong>安全預設值</strong>：DM 配對機制、Tailscale 整合、機密管理</li>
+<li><strong>社群活力</strong>：平均每天增長約 1,886 Stars，主要貢獻者每日活躍</li>
+</ol>
+<p>---</p>
+<h2>七、對 Daily-Digest-Prompt 的借鑑意義</h2>
+<ol>
+<li><strong>Gateway 模式</strong>：OpenClaw 的 WebSocket 控制平面概念可啟發 daily-digest 的通知管道統一化（目前僅 ntfy，未來可擴充）</li>
+<li><strong>Skills 平台</strong>：ClawHub 的 Skills 分發模式與本專案的 SKILL_INDEX.md 異曲同工，但 ClawHub 更進一步實現了 Skills 的自動發現與安裝</li>
+<li><strong>Multi-Agent 路由</strong>：OpenClaw 的 session 隔離與 Agent-to-Agent 通訊，與本專案的 Team 並行模式有相似設計理念</li>
+<li><strong>版本命名</strong>：<code>vYYYY.M.D</code> 的日曆版本號是值得借鑑的簡潔方案</li>
+<li><strong>Doctor 診斷工具</strong>：<code>openclaw doctor</code> 的自我診斷概念與本專案的 <code>check-health.ps1</code> 相似</li>
+<li><strong>MCP 橋接策略</strong>：透過 mcporter 保持 MCP 整合靈活且解耦，避免核心膨脹</li>
+</ol>
+<p>---</p>
+<h2>八、關鍵洞察</h2>
+<h3>為何 OpenClaw 能在 3 個月達到 245K Stars？</h3>
+<ol>
+<li><strong>解決真實痛點</strong>：將 AI 助手從 Web 界面帶入日常通訊工具（WhatsApp/Telegram/Slack），降低使用門檻</li>
+<li><strong>Local-First 信任模型</strong>：數據不離開使用者裝置，在隱私議題日益重要的時代具有強大號召力</li>
+<li><strong>開發者友善</strong>：TypeScript 生態、清晰的 CLI、豐富的文件、每日更新</li>
+<li><strong>平台完整性</strong>：不只是後端，還有 macOS/iOS/Android 原生 app、Voice Wake、Canvas</li>
+<li><strong>商業贊助</strong>：OpenAI、Vercel 等大廠背書增加可信度</li>
+</ol>
+<h3>潛在挑戰</h3>
+<ol>
+<li><strong>Open Issues 近萬</strong>：9,990 個 open issues 暗示維護壓力巨大</li>
+<li><strong>單人主導</strong>：steipete 貢獻 10,885 commits，佔壓倒性比例，bus factor 風險</li>
+<li><strong>MCP 策略保守</strong>：選擇橋接而非原生支援，可能限制 MCP 生態整合度</li>
+<li><strong>頻道維護成本</strong>：22+ 頻道各有 API 變更風險，長期維護是考驗</li>
+</ol>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li>GitHub 倉庫：https://github.com/openclaw/openclaw</li>
+<li>官方網站：https://openclaw.ai</li>
+<li>官方文件：https://docs.openclaw.ai</li>
+<li>ClawHub Skills 平台：https://clawhub.com</li>
+<li>GitHub API 查詢（2026-03-02 資料）</li>
+<li>VISION.md、AGENTS.md 原始碼分析</li>
+</ul>
+<p>---</p>
+<p><em>研究日期：2026-03-02</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：GitHub Trending 熱門專案研究，OpenClaw 為 2025-2026 年增長最快的開源個人 AI 助手，KB 去重確認尚未涵蓋。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Security Testing Mechanism — Claude Agent SDK × Temporal 工作流 × 安全工具編排原理 深度研究報告">
+  <title>AI Security Testing Mechanism — Claude Agent SDK × Temporal 工作流 × 安全工具編排原理 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AI Security Testing Mechanism — Claude Agent SDK × Temporal 工作流 × 安全工具編排原理 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">AI Security Testing Mechanism</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Security Testing Mechanism — Claude Agent SDK × Temporal 工作流 × 安全工具編排原理：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>本研究比對 Claude Agent SDK、PentestGPT、PentAGI、Microsoft 安全實務與 ReAct 式代理文章後，確認成熟的 AI 安全測試系統不會讓 LLM 直接自由操作滲透工具，而是讓模型負責推理，再由工具白名單、執行前風險檢查、沙箱隔離、持久狀態與監控閘門共同約束行為 [來源：Claude API Docs, 2026] [來源：PentestGPT, 2024] [來源：Microsoft Security Blog, 2026]。主流方案普遍採 Agent Loop，但可靠性來自外圍控制層與執行層。Temporal 適合承載多階段安全工作流，現階段多數系統仍依賴資料庫、向量記憶與 checkpoint。最穩健的設計原則，是採用「模型推理 + 確定性控制程式 + 可審計隔離環境」三層架構。</p>
+<h2>研究背景與動機</h2>
+<p>AI 安全測試系統之所以值得獨立研究，是因為它同時碰到兩種高風險問題。第一種是 LLM 的不確定性。模型擅長從不完整訊號推理下一步，但它也可能被 prompt injection、錯誤上下文或過度樂觀的中間結論誤導。第二種是安全工具本身的高破壞性。像 <code>nmap</code>、<code>sqlmap</code>、Burp Suite 或自訂 exploit runner 都屬於可以對外部系統產生實質影響的工具，因此即便模型判斷方向正確，也不代表工具調用本身是安全的 [來源：Securely deploying AI agents - Claude API Docs, 2026] [來源：From runtime risk to real-time defense: Securing AI agents, 2026]。</p>
+<p>因此，這類系統的核心問題不是「能不能讓 AI 做滲透測試」，而是「如何讓 AI 在可控的範圍內做滲透測試」。這也解釋了為什麼官方安全部署文件、學術代理框架與實務產品案例，最後都指向相似的設計原則：模型負責推理，程式負責限制，執行環境負責隔離，監控層負責即時阻斷。這套分工讓系統可以保留 AI 在探索與決策上的彈性，同時把真正的安全保證下沉到可驗證的基礎設施。</p>
+<h2>核心技術解析</h2>
+<p>第一個核心機制是 Agent Loop。PentestGPT 將長期滲透測試描述為持續的 Reason-Act-Observe 迴圈：模型讀取目前資產、選擇下一個工具、生成命令、解析輸出，再依新證據更新策略 [來源：PentestGPT - Automated Penetration Testing Agentic Framework, 2024]。ReAct 風格的安全代理實作也採同一路徑，但額外強調工具不是由 LLM 直接自由呼叫，而是透過程式中的 ToolRouter 與限制器進行路由 [來源：How to Build a ReAct AI Agent for Cybersecurity Scanning, 2025]。WenHaoFree 的 Claude Agent SDK 教學則把這個迴圈拆成五個穩定階段：分析目標、規劃步驟、工具調用、整合結果、完成檢查 [來源：Claude Agent SDK Complete Tutorial: Tool System, Agent Loop, and Controllable Execution, 2025]。三者共同指出，AI 安全測試不是單步命令生成，而是受回饋訊號驅動的迭代式決策系統，這一主張已有 4 個來源支持，屬於已驗證共識 ✅。</p>
+<p>第二個核心機制是工具調用權限控制。Claude Agent SDK 官方文件提供 allow / block / prompt 三種模式，並支援依工具與 bash 指令模式設定白名單與阻擋規則 [來源：Securely deploying AI agents - Claude API Docs, 2026]。Microsoft 的實務方案則把控制點推到工具執行前，利用 webhook 將參數、上下文與 metadata 送往 Defender 分析，由外部安全服務決定允許或封鎖 [來源：From runtime risk to real-time defense: Securing AI agents, 2026]。PentAGI 與 ReAct 方案雖然較少談企業級 webhook，但都實作了工具呼叫上限、迴圈次數限制或特定工具配額，以抑制代理無限試探 [來源：PentAGI - Fully autonomous AI Agents system for penetration testing, 2026] [來源：How to Build a ReAct AI Agent for Cybersecurity Scanning, 2025]。這代表權限控制不是附加功能，而是 AI 安全測試系統的最低可行條件；差異只在於控制是靜態政策、執行前即時判斷，或兩者疊加。</p>
+<p>第三個核心機制是安全邊界與隔離。Claude 官方文件明確指出，真正的風險往往不是代理突破系統，而是它在既有授權下濫用工具，因此建議用 proxy pattern 隔離憑證、用容器或 VM 隔離執行環境，並將 agent 與敏感資源放在不同安全邊界 [來源：Securely deploying AI agents - Claude API Docs, 2026]。Microsoft 也指出 prompt injection 的危險在於「操控代理使用已有權限的工具」，而非傳統意義上的權限提升 [來源：From runtime risk to real-time defense: Securing AI agents, 2026]。ReAct 實作文章則以確定性 if-else 工具控制說明同一件事：模型只能建議，真正的執行邊界必須由程式層維護 [來源：How to Build a ReAct AI Agent for Cybersecurity Scanning, 2025]。因此，成熟系統的安全模型更接近 capability confinement，而不是單純的輸入過濾。</p>
+<p>第四個核心機制是長任務狀態管理。PentestGPT 為了避免長測試過程中的上下文遺失，採模組化設計與外部狀態保留 [來源：PentestGPT - Automated Penetration Testing Agentic Framework, 2024]。PentAGI 更進一步把向量儲存、資料庫、角色分工與任務分解結合起來，讓 Research、Planning、Execution 三階段都能共享持久記憶 [來源：PentAGI - Fully autonomous AI Agents system for penetration testing, 2026]。WenHaoFree 的教學也把 checkpoint recovery 當作可控執行的一部分 [來源：Claude Agent SDK Complete Tutorial: Tool System, Agent Loop, and Controllable Execution, 2025]。這些證據一起支持一個明確結論：LLM context window 本身不足以支撐完整的安全測試工作流，外部記憶層與可恢復狀態是必要條件，這一主張同樣達到 3 個以上來源支持，屬於已驗證共識 ✅。</p>
+<p>第五個核心機制是工作流引擎的角色。研究原問題中點名 Temporal，但現有來源更接近「Temporal 類型需求」而非「Temporal 已成主流」。Microsoft 的案例展示了在代理執行前插入即時判斷與多步驟控制的需求，這與工作流引擎擅長的可恢復、可重放、可觀測特性高度契合 [來源：From runtime risk to real-time defense: Securing AI agents, 2026]。然而 PentestGPT、PentAGI 與 ReAct 實作並未以 Temporal 為主要骨幹，而是分別採資料庫、vector store、tool router 與 checkpoint 邏輯 [來源：PentestGPT - Automated Penetration Testing Agentic Framework, 2024] [來源：PentAGI - Fully autonomous AI Agents system for penetration testing, 2026] [來源：How to Build a ReAct AI Agent for Cybersecurity Scanning, 2025]。因此較精確的判斷是：Temporal 代表一種很合適的工程化方向，特別適合把 reconnaissance、planning、validation、reporting 拆成可重試的 Activities，但它目前不是 AI 安全測試框架中的唯一或主流實作，這是本研究的重要分歧點。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ 已驗證：AI 安全測試系統的主引擎是閉環 Agent Loop，而不是單次提示詞生成。支持來源 4 個。這說明設計時必須把觀察結果回寫到狀態層，而非把所有規則塞進單輪 prompt。</li>
+</ol>
+<ol>
+<li>✅ 已驗證：LLM 最適合扮演決策引擎，不應直接成為危險工具的最終執行者。支持來源 3 個。真正的安全性來自確定性控制程式、工具路由器與執行前守門機制。</li>
+</ol>
+<ol>
+<li>✅ 已驗證：工具權限控制是共通基礎設施，但成熟系統會從靜態白名單進化到動態風險判斷。支持來源 4 個。這意味著單靠 allowlist 不足以應對 prompt injection 或上下文污染。</li>
+</ol>
+<ol>
+<li>✅ 已驗證：長期滲透測試需要外部狀態管理，包含 checkpoint、資料庫或向量記憶。支持來源 3 個。沒有持久狀態層，代理很容易在多步測試中丟失上下文或重複探索。</li>
+</ol>
+<ol>
+<li>⚠️ 待驗證：Temporal 非必需，但很適合承載多階段、可重試、需審計的安全測試工作流。目前支持它「適合」的間接證據存在，但直接把 Temporal 用於自主滲透測試的實例仍偏少，需要後續補充 Temporal AI 案例與實作原始碼。</li>
+</ol>
+<ol>
+<li>⚠️ 待驗證：ADR（Agent Detection & Response）可能會成為 AI 代理安全的獨立產品類別。此點目前主要來自 Microsoft 案例，具有方向價值，但仍需更多市場與技術來源驗證。</li>
+</ol>
+<h2>實務應用建議</h2>
+<p>第一，若要落地 AI 安全測試系統，優先建立「模型層、控制層、執行層」三層架構。模型層只產生候選策略；控制層負責工具白名單、風險評分、次數限制與人工確認；執行層在沙箱或容器中實際跑工具。這比把所有邏輯交給 agent prompt 更可靠。</p>
+<p>第二，把每一類安全工具定義成具 JSON Schema 的受約束接口，而非讓模型自由拼字串命令。Claude Agent SDK 對工具參數結構化的做法可直接借鏡，用參數型工具替代裸 bash 命令能大幅提升審計性與安全性 [來源：Securely deploying AI agents - Claude API Docs, 2026]。</p>
+<p>第三，將 reconnaissance、enumeration、validation、exploitation candidate review、report generation 拆成明確工作流節點。即便不使用 Temporal，也應保留 Activity/Workflow 的思維，讓每一步都有輸入、輸出、重試與中止條件。</p>
+<p>第四，在系統中加入「優雅終止」與「循環偵測」機制。PentAGI 的 Adviser / Reflector 方向值得借鏡，因為自主系統常見問題不是攻不進去，而是卡在低價值重試，持續消耗資源。</p>
+<p>第五，若要走企業級部署，應把憑證與外部 API 權限從 agent 執行環境抽離，改由 proxy 或中介服務注入。這可以顯著降低 prompt injection 直接濫用憑證的風險。</p>
+<h2>與現有知識的連結</h2>
+<p>本研究與既有知識庫中的 Agent 工作流、執行品質閘門、Claude Code CLI 機制研究高度相連。先前研究已確認可靠代理系統需要 timeout、hook、結果驗證與多階段管線；本次研究則把同樣原理帶進高風險安全場景，顯示「受約束的代理執行」其實是跨領域共同模式。另一個重要連結是先前對 Dify、DeerFlow、n8n 等工作流平台的研究。那些系統著重通用流程編排與可觀測性，而 AI 安全測試把問題推向更嚴格的版本：每一次工具調用都必須可審計、可中止、可回放、可追責。換言之，AI 安全測試不是另起爐灶，而是把 Agent 工作流工程推到最需要安全保證的極端案例。</p>
+<h2>未來展望</h2>
+<p>接下來值得深化的方向有三個。第一，補齊 Temporal 在 AI 安全測試中的直接案例，檢查是否已有以 Activity 重試、Saga 補償或 durable execution 支撐紅隊流程的實作。第二，研究 ADR 類工具的技術棧，確認它們是在 tool boundary、syscall boundary 還是 network boundary 進行攔截。第三，把本研究的三層架構轉成可操作的系統設計模板，例如「安全工具註冊表 + 風險評分閘門 + execution sandbox + audit trail」，供後續平台實作使用。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Anthropic. (2026). Securely deploying AI agents. Claude API Docs. https://platform.claude.com/docs/en/agent-sdk/secure-deployment</li>
+<li>GreyDGL. (2024). PentestGPT - Automated Penetration Testing Agentic Framework. GitHub / USENIX Security 2024 project page. https://github.com/GreyDGL/PentestGPT</li>
+<li>Microsoft Security. (2026). From runtime risk to real-time defense: Securing AI agents. Microsoft Security Blog. https://www.microsoft.com/en-us/security/blog/2026/01/23/runtime-risk-realtime-defense-securing-ai-agents/</li>
+<li>Vitalii Honchar. (2025). How to Build a ReAct AI Agent for Cybersecurity Scanning. Vitalii Honchar Insights. https://www.vitaliihonchar.com/insights/how-to-build-react-agent</li>
+<li>WenHaoFree. (2025). Claude Agent SDK Complete Tutorial: Tool System, Agent Loop, and Controllable Execution. WenHaoFree Blog. https://blog.wenhaofree.com/en/posts/articles/claude-agent-sdk-tutorial/</li>
+<li>vxcontrol. (2026). PentAGI - Fully autonomous AI Agents system for penetration testing. GitHub. https://github.com/vxcontrol/pentagi</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

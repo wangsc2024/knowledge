@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="自動化品質閘門（Automated Quality Gates）完整指南 — CI/CD 管線中的品質保障策略、Ratchet 漸進式改善模式與 Agent 系統品質治理（2026）">
+  <title>自動化品質閘門（Automated Quality Gates）完整指南 — CI/CD 管線中的品質保障策略、Ratchet 漸進式改善模式與 Agent 系統品質治理（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>自動化品質閘門（Automated Quality Gates）完整指南 — CI/CD 管線中的品質保障策略、Ratchet 漸進式改善模式與 Agent 系統品質治理（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">品質閘門</span><span class="tag">Quality Gates</span><span class="tag">CI/CD</span><span class="tag">Ratchet模式</span><span class="tag">漸進式改善</span><span class="tag">SonarQube</span><span class="tag">靜態分析</span><span class="tag">自動化測試</span><span class="tag">DevOps</span><span class="tag">Agent品質保障</span><span class="tag">Shift Left</span><span class="tag">深度思維</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>自動化品質閘門（Automated Quality Gates）完整指南</h1>
+<h2>一、概述</h2>
+<p>品質閘門（Quality Gate）是 CI/CD 管線中的自動化強制檢查點，程式碼必須滿足預定義的品質標準才能推進至下一階段。其核心哲學為<strong>「左移（Shift Left）」</strong>——將測試、安全與品質保障活動儘早移至開發初期，因為修復缺陷的成本隨發現時間指數增長。</p>
+<p>品質閘門回答一個根本問題：<strong>我的專案是否已準備好進入下一階段？</strong></p>
+<p>---</p>
+<h2>二、品質閘門的六大分類</h2>
+<h3>2.1 品質驗證閘門（Quality Validation）</h3>
+<ul>
+<li><strong>測試通過率</strong>：單元、元件、整合測試的通過率</li>
+<li><strong>程式碼覆蓋率</strong>：建議最低 80% 行覆蓋率</li>
+<li><strong>程式碼重複率</strong>：控制在 3% 以下</li>
+<li><strong>技術債務比率</strong>：控制在 5% 以下</li>
+<li><strong>圈複雜度</strong>：每個函數 ≤10</li>
+</ul>
+<h3>2.2 安全掃描閘門（Security Scanning）</h3>
+<ul>
+<li><strong>SAST（靜態應用安全測試）</strong>：Semgrep、CodeQL</li>
+<li><strong>SCA（軟體成分分析）</strong>：檢測第三方依賴的 CVE，管理白名單與過期機制</li>
+<li><strong>容器/IaC 掃描</strong>：掃描 Dockerfile、K8s Manifest、Terraform</li>
+<li><strong>DAST（動態應用安全測試）</strong>：在執行環境中偵測漏洞</li>
+</ul>
+<h3>2.3 基礎設施健康閘門（Infrastructure Health）</h3>
+<ul>
+<li>環境合規性與資源使用驗證</li>
+<li>合約級測試（Contract Testing）確認依賴服務可用</li>
+<li>需週期性重新驗證，直到所有閘門同時通過</li>
+</ul>
+<h3>2.4 事件管理閘門（Incident Management）</h3>
+<ul>
+<li>部署前驗證無 Priority 級別 Bug</li>
+<li>部署後確認事件狀態</li>
+<li>與 Sprint/缺陷追蹤系統整合</li>
+</ul>
+<h3>2.5 外部核准閘門（External Approvals）</h3>
+<ul>
+<li>法律、稽核或監管簽核（透過 Teams/Slack 整合）</li>
+<li>覆寫機制需跨職能核准（開發 + 測試）</li>
+</ul>
+<h3>2.6 使用者體驗閘門（UX Metrics）</h3>
+<ul>
+<li>產品遙測數據與基線效能比較</li>
+<li>偵測使用者面向功能的退化</li>
+</ul>
+<p>---</p>
+<h2>三、典型管線架構（11 階段模型）</h2>
+<p>| 階段 | 內容 | 閘門類型 |</p>
+<p>|------|------|----------|</p>
+<p>| 1. Setup/Checkout | Linting 標準驗證 | 品質 |</p>
+<p>| 2. Build | 容器/Mock 環境編譯 | 建置 |</p>
+<p>| 3. Unit Tests | 100% 通過率、90% 覆蓋率 | 品質 |</p>
+<p>| 4. Static Analysis | 安全/編碼最佳實踐掃描 | 安全 |</p>
+<p>| 5. Environment Readiness | 合約級依賴測試 | 基礎設施 |</p>
+<p>| 6. Test Env Deployment | 整合/E2E 測試執行 | 品質 |</p>
+<p>| 7. Smoke Testing | 部署後輕量驗證 | 品質 |</p>
+<p>| 8. Functional Tests | 完整自動化測試套件 | 品質 |</p>
+<p>| 9. Dynamic Analysis | 執行環境漏洞偵測 | 安全 |</p>
+<p>| 10. Staging Deployment | 生產鏡像環境測試 | 基礎設施 |</p>
+<p>| 11. Non-Functional Tests | 負載、效能、安全驗證 | 效能 |</p>
+<p>---</p>
+<h2>四、Ratchet 漸進式改善模式</h2>
+<h3>4.1 核心概念</h3>
+<p>Ratchet（棘輪）源自物理機制：只允許朝一個方向移動，防止後退。在軟體品質領域，核心原則為<strong>「永不倒退」（Never Worse Than Before）</strong>——一旦達到某個品質標準，透過機制確保不會回到更低的狀態。</p>
+<h3>4.2 運作方式</h3>
+<ol>
+<li><strong>測量基線</strong>：測試覆蓋率為 50%</li>
+<li><strong>設定 CI 阻斷目標</strong>：低於 50% 則建置失敗</li>
+<li><strong>逐步提升</strong>：增加測試後，將目標調至 60%</li>
+<li><strong>持續漸進</strong>：永不降低閾值</li>
+</ol>
+<h3>4.3 適用指標</h3>
+<p>| 指標 | Ratchet 方式 |</p>
+<p>|------|-------------|</p>
+<p>| 測試覆蓋率 | 每次提升後調高最低門檻 |</p>
+<p>| 執行時間 | 關鍵路徑效能目標逐步收緊 |</p>
+<p>| 型別檢查嚴格度 | TypeScript: <code>false → true → strict</code> |</p>
+<p>| Linter 規則 | 全域啟用 + <code>.rubocop_todo.yml</code> 排除清單漸進清理 |</p>
+<p>| 棄用警告數 | 每次減少後更新上限 |</p>
+<h3>4.4 GitHub Rails 升級案例</h3>
+<p>GitHub 從 Rails 3.2 升級至 5.2 的策略：</p>
+<ul>
+<li><strong>平行建置驗證</strong>：舊版繼續執行，新版作為非阻斷信號</li>
+<li><strong>穩定切換</strong>：新版穩定後才切為強制標準</li>
+<li>允許「不停止整個團隊開發的情況下進行增量進展」</li>
+</ul>
+<h3>4.5 排除清單模式（Allow-List Pattern）</h3>
+<pre><code>
+# 全域啟用新規則
+# 排除現有違規檔案（逐步清理）
+ALLOWED_VIOLATIONS = ['legacy_module.rb', 'old_service.rb']
+
+# CI 中檢查：新增檔案不得出現在排除清單
+# 排除清單只能縮小，不能增長
+</code></pre>
+<p>---</p>
+<h2>五、具體配置範例</h2>
+<h3>5.1 GitHub Actions</h3>
+<pre><code>
+name: Code Quality Gates
+on: [push, pull_request]
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm ci
+      - name: ESLint Check
+        run: npm run lint
+      - name: Coverage Gate
+        run: |
+          COVERAGE=$(npm run test:coverage -- --silent | grep 'All files' | awk '{print $4}' | sed 's/%//')
+          if [ "$COVERAGE" -lt 80 ]; then
+            echo "Coverage $COVERAGE% is below 80% threshold"
+            exit 1
+          fi
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        with:
+          args: &gt;
+            -Dsonar.qualitygate.wait=true
+</code></pre>
+<h3>5.2 Jenkins Pipeline</h3>
+<pre><code>
+pipeline {
+  agent any
+  stages {
+    stage('Code Quality Gates') {
+      parallel {
+        stage('Test Coverage') {
+          steps {
+            sh 'npm run test:coverage'
+            script {
+              def coverage = sh(
+                script: "grep -o '[0-9.]*%' coverage/index.html | head -1 | sed 's/%//'",
+                returnStdout: true
+              ).trim()
+              if (coverage.toFloat() &lt; 80) {
+                error "Coverage ${coverage}% is below 80% threshold"
+              }
+            }
+          }
+        }
+      }
+    }
+    stage('Quality Gate') {
+      steps {
+        waitForQualityGate abortPipeline: true
+      }
+    }
+  }
+}
+</code></pre>
+<h3>5.3 SonarQube 品質閘門預設條件</h3>
+<p>| 指標 | 條件 |</p>
+<p>|------|------|</p>
+<p>| 覆蓋率（新程式碼） | ≥ 80% |</p>
+<p>| 重複率 | ≤ 3% |</p>
+<p>| 可靠性評級 | A（零 Bug） |</p>
+<p>| 安全評級 | A（零漏洞） |</p>
+<p>| 可維護性評級 | A |</p>
+<h3>5.4 Kubernetes 安全掃描策略</h3>
+<pre><code>
+kind: ScanPolicy
+metadata:
+  name: scan-policy
+spec:
+  regoFile: |
+    violatingSeverities := ["Critical", "High", "UnknownSeverity"]
+    isCompliant = isSafe(input.currentVulnerability)
+</code></pre>
+<p>---</p>
+<h2>六、五階段漸進式實施策略</h2>
+<p>| 階段 | 重點 | 門檻建議 |</p>
+<p>|------|------|----------|</p>
+<p>| Phase 1 | 基礎 Linting + 格式檢查 | ESLint/Prettier 零警告 |</p>
+<p>| Phase 2 | 單元測試執行（無覆蓋率要求） | 100% 通過率 |</p>
+<p>| Phase 3 | 逐漸提升覆蓋率門檻 | 從 60% → 70% → 80% |</p>
+<p>| Phase 4 | 安全掃描 + 漏洞檢測 | 零 Critical/High CVE |</p>
+<p>| Phase 5 | 複雜度 + 程式碼品質指標 | 圈複雜度 ≤10、技術債 ≤5% |</p>
+<p>---</p>
+<h2>七、AI 時代的品質閘門進化（2025-2026）</h2>
+<h3>7.1 AI-Augmented Testing</h3>
+<ul>
+<li><strong>自動測試生成</strong>：TestSprite、Harness 用 ML 自動生成測試腳本</li>
+<li><strong>自我修復測試</strong>：AI 偵測 UI 變更並自動更新測試選擇器</li>
+<li><strong>智慧測試選擇</strong>：基於變更範圍只執行受影響的測試</li>
+</ul>
+<h3>7.2 Agentic AI 品質代理</h3>
+<ul>
+<li>嵌入自主品質檢查到 CI/CD 管線</li>
+<li>自動識別程式碼品質問題並建議修正</li>
+<li>持續學習專案特定的品質模式</li>
+</ul>
+<h3>7.3 Trunk-Based Development 整合</h3>
+<ul>
+<li>品質閘門與 Feature Flags 配合</li>
+<li>解耦部署與發佈：不影響用戶的持續整合</li>
+<li>CI 持續驗證合併的程式碼</li>
+</ul>
+<p>---</p>
+<h2>八、對 Daily Digest Agent 系統的啟示</h2>
+<h3>8.1 現有品質機制對應</h3>
+<p>本專案已實施的品質閘門概念：</p>
+<p>| 專案機制 | 對應品質閘門類型 |</p>
+<p>|----------|------------------|</p>
+<p>| <code>hooks/pre_bash_guard.py</code> | 安全掃描閘門（PreToolUse 攔截） |</p>
+<p>| <code>hooks/pre_write_guard.py</code> | 安全掃描閘門（寫入保護） |</p>
+<p>| <code>templates/shared/quality-gate.md</code> | 品質驗證閘門（輸出品質檢查） |</p>
+<p>| <code>templates/shared/done-cert.md</code> | 外部核准閘門（完成認證） |</p>
+<p>| <code>config/audit-scoring.yaml</code> | UX 指標閘門（7 維度評分） |</p>
+<p>| <code>hooks/agent_guardian.py</code> | 事件管理閘門（迴圈偵測 + 斷路器） |</p>
+<h3>8.2 可引入的 Ratchet 模式</h3>
+<p>| 適用場景 | Ratchet 策略 |</p>
+<p>|----------|-------------|</p>
+<p>| Hook 測試覆蓋率 | 目前 544 個測試，可設基線並逐步提升 |</p>
+<p>| 系統審查分數 | 7 維度分數設為 Ratchet 下限 |</p>
+<p>| 研究去重精確度 | 追蹤重複率並逐步收緊冷卻天數 |</p>
+<p>| API 快取命中率 | 設定最低命中率閾值並漸進提升 |</p>
+<p>---</p>
+<h2>九、關鍵成功指標（KPI）</h2>
+<p>| KPI | 計算方式 | 目標 |</p>
+<p>|-----|----------|------|</p>
+<p>| 缺陷密度 | 缺陷數 / KLOC | < 1.0 |</p>
+<p>| 測試覆蓋率 | 覆蓋行數 / 總行數 | ≥ 80% |</p>
+<p>| 建置成功率 | 成功建置 / 總建置 | ≥ 95% |</p>
+<p>| 程式碼審查時間 | 平均 PR 審查週期 | < 24 小時 |</p>
+<p>| 部署頻率 | 成功發佈次數 / 週 | 持續提升 |</p>
+<p>| MTTR | 生產問題平均修復時間 | < 4 小時 |</p>
+<p>---</p>
+<h2>十、反模式與注意事項</h2>
+<h3>應避免的反模式</h3>
+<ol>
+<li><strong>過度嚴格的閘門</strong>：一次設定過高標準，導致頻繁建置失敗，打擊團隊士氣</li>
+<li><strong>只有手動閘門</strong>：依賴人工審查會減慢管線速度</li>
+<li><strong>不一致的閾值</strong>：不同環境使用不同標準造成混亂</li>
+<li><strong>無覆寫機制</strong>：緊急修復被品質閘門阻擋，缺乏緊急通道</li>
+<li><strong>忽略假陽性</strong>：靜態分析的誤報累積導致團隊忽視所有警告</li>
+</ol>
+<h3>最佳實踐</h3>
+<ol>
+<li><strong>漸進式實施</strong>：從 Phase 1 開始，每 2-4 週加入新閘門</li>
+<li><strong>覆寫需跨職能核准</strong>：開發 + 測試雙方同意</li>
+<li><strong>閘門定義應可量化</strong>：每個閘門有明確的數字閾值</li>
+<li><strong>並行執行閘門</strong>：獨立的品質檢查並行跑，減少總等待時間</li>
+<li><strong>快取分析結果</strong>：大型程式碼庫使用增量分析避免重複計算</li>
+<li><strong>網路相關檢查加重試機制</strong>：防止不穩定的外部服務導致假失敗</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li>InfoQ: The Importance of Pipeline Quality Gates and How to Implement Them</li>
+<li>Propel: Setting Up Code Quality Gates in Your CI/CD Pipeline</li>
+<li>Dusty Burwell: Ratchets — Improving Systems Incrementally</li>
+<li>testRigor: Software Quality Gates — What They Are and Why They Matter</li>
+<li>SonarSource: Integrating Quality Gates into Your CI/CD Pipeline</li>
+<li>DevOps.com: The Future of AI in Software Quality (2026)</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

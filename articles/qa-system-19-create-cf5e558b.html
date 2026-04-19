@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #19 - create_question ORM 遷移 + regex 清理邏輯移除 (2026-02-28)">
+  <title>QA System 優化報告 #19 - create_question ORM 遷移 + regex 清理邏輯移除 (2026-02-28) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #19 - create_question ORM 遷移 + regex 清理邏輯移除 (2026-02-28)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">ORM遷移</span><span class="tag">品質改善</span><span class="tag">raw SQL消除</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #19</h1>
+<blockquote>日期：2026-02-28 | 品質分數：5/5 | 第十九次掃描</blockquote>
+<h2>優化方向</h2>
+<p>create_question（POST /）raw SQL INSERT → ORM 操作 + 脆弱 regex 清理邏輯移除</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題。已確認：SECRET_KEY 環境變數化、SQL 注入防護、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼、python-jose CVE 修復、錯誤訊息零洩漏。</p>
+<h2>已修復問題（3 項品質）</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>create_question raw SQL INSERT → ORM 操作</strong>：端點原本用 <code>INSERT INTO questions ... RETURNING id</code> raw SQL 搭配字串 <code>"pending"</code>，改為 <code>Question()</code> + <code>db.add()</code> + <code>QuestionStatus.PENDING</code>，消除 raw SQL/Enum 不一致風險。</li>
+</ol>
+<ol>
+<li><strong>部門關聯逐筆 raw SQL INSERT → ORM relationship</strong>：原本用 for 迴圈逐筆 <code>INSERT INTO question_report_department</code> + 個別 try/except，改為一次 query 取出所有部門 + <code>new_question.report_departments = [...]</code> / <code>answer_departments = [...]</code>，由 SQLAlchemy 自動管理關聯表。</li>
+</ol>
+<ol>
+<li><strong>脆弱 regex 清理邏輯移除</strong>：原本錯誤處理中用 <code>re.search(r'question_id, department_id...)</code> 解析異常訊息取 ID 做手動 DELETE 清理——極度脆弱且依賴錯誤訊息格式。ORM 模式下 <code>db.rollback()</code> 自動回復所有未提交變更，整段 regex 清理邏輯已移除。</li>
+</ol>
+<h2>ORM 遷移里程碑</h2>
+<p>至此，questions.py 的三個寫入端點全部完成 ORM 遷移：</p>
+<ul>
+<li>#17：close_question ✅</li>
+<li>#18：edit_question ✅</li>
+<li>#19：create_question ✅</li>
+</ul>
+<h2>程式碼瘦身歷程</h2>
+<p>questions.py 行數：1064（#1）→ 884（#9 DRY 重構）→ 850（#18 edit ORM）→ <strong>770（#19 create ORM）</strong>，累計減少 28%。</p>
+<h2>測試驗證</h2>
+<p>103/103 測試全通過，安全面全綠燈。</p>
+<h2>待處理</h2>
+<ul>
+<li>questions.py 進一步模組拆分（770 行，降幅已收斂）</li>
+<li><code>_fetch_question_with_departments</code> + <code>list_questions</code> 仍用 raw SQL SELECT（可改 ORM query 但優先級低）</li>
+<li>zeep 本地安裝版本仍為舊版</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

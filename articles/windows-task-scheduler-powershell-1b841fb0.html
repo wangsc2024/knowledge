@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Windows Task Scheduler 深度研究 — 架構、PowerShell 自動化與可靠性設計基礎">
+  <title>Windows Task Scheduler 深度研究 — 架構、PowerShell 自動化與可靠性設計基礎 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Windows Task Scheduler 深度研究 — 架構、PowerShell 自動化與可靠性設計基礎</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Windows</span><span class="tag">Task Scheduler</span><span class="tag">PowerShell</span><span class="tag">排程自動化</span><span class="tag">系統管理</span><span class="tag">daily-digest</span><span class="tag">foundation</span><span class="tag">技術研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Windows Task Scheduler 深度研究 — 架構、PowerShell 自動化與可靠性設計基礎</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>Windows Task Scheduler 是 Windows 作業系統內建的任務排程服務，從 Windows 2000 開始提供，並在 Windows Vista/Server 2008 推出 2.0 版本進行重大架構升級 [Microsoft Learn - About Task Scheduler, 2018]。Task Scheduler 2.0 基於 42 個 COM 介面構建，支援透過圖形介面或 API 進行程式化管理 [Microsoft Learn - About Task Scheduler, 2018]。</p>
+<p>本研究針對 daily-digest-prompt 專案的 6 個排程任務（system-audit, daily-digest × 3, todoist × 2）運維需求，從三個核心面向建立知識框架：（1）<strong>架構與組件</strong>：深入拆解 Task Scheduler 的 6 大組件（triggers, actions, principals, settings, registration info, data）及其相互關係；（2）<strong>PowerShell 自動化</strong>：完整說明 ScheduledTasks 模組的 18 個 cmdlets，並提供任務建立、管理、除錯的最佳實踐；（3）<strong>可靠性設計</strong>：整合錯誤處理策略（重試策略、指數退避）、安全性配置（最小權限原則、批次登入權限）與失敗診斷方法。</p>
+<p>研究結果顯示，PowerShell 任務失敗的三大常見根因為：（1）未加 <code>-NoProfile</code> 參數導致 profile 干擾；（2）UAC 環境下未勾選「以最高權限執行」；（3）執行帳戶對腳本路徑無存取權限 [Rambling Cookie Monster - Troubleshooting, 2016]。透過結構化日誌（Try/Catch + Export-Clixml）與事件日誌整合，可將診斷時間從數小時縮短至分鐘級 [Rambling Cookie Monster - Troubleshooting, 2016]。</p>
+<p>本文為 Windows Task Scheduler 系列 foundation 階段，為後續 mechanism（服務內部執行引擎）、application（進階實作模式）、optimization（效能調優）階段奠定基礎。</p>
+<p>---</p>
+<h2>一、研究背景</h2>
+<h3>1.1 專案需求脈絡</h3>
+<p>daily-digest-prompt 專案依賴 Windows Task Scheduler 執行 6 個關鍵排程任務，每日總計執行約 44 次（雙軌模式：整點 + 半點）[專案 HEARTBEAT.md]。當前排程配置如下：</p>
+<p>| 排程任務 | 觸發時間 | 執行頻率 | 預期耗時 |</p>
+<p>|---------|---------|---------|---------|</p>
+<p>| system-audit | 每日 00:40 | 1 次/日 | 15-20 分鐘 |</p>
+<p>| daily-digest-am | 每日 08:00 | 1 次/日 | 1-2 分鐘 |</p>
+<p>| daily-digest-mid | 每日 11:15 | 1 次/日 | 1-2 分鐘 |</p>
+<p>| daily-digest-pm | 每日 21:15 | 1 次/日 | 1-2 分鐘 |</p>
+<p>| todoist-single | 每小時整點 02-23 | 22 次/日 | 2100 秒 timeout |</p>
+<p>| todoist-team | 每 30 分鐘 01-23 | 46 次/日（半點） | 2400 秒 timeout |</p>
+<p>然而，專案對 Task Scheduler 本身的機制、故障處理、安全配置缺乏系統性理解，導致：（1）排程失敗時缺乏結構化診斷流程；（2）錯誤日誌散落在多處（PowerShell 腳本輸出、Windows 事件日誌、專案 logs/），整合困難；（3）安全配置基於經驗法則，未驗證最小權限原則是否落實。</p>
+<h3>1.2 Task Scheduler 版本演進</h3>
+<p>Windows Task Scheduler 經歷兩個主要版本：</p>
+<ul>
+<li><strong>Task Scheduler 1.0</strong>（Windows 2000/XP/Server 2003）：基於 AT 命令與 <code>.job</code> 檔案格式，功能有限 [Microsoft Learn - About Task Scheduler, 2018]。</li>
+<li><strong>Task Scheduler 2.0</strong>（Windows Vista/Server 2008 及之後）：採用 XML Schema 儲存任務定義，支援事件觸發器、多重動作、更細緻的安全性控制 [Microsoft Learn - About Task Scheduler, 2018]。本研究專注於 2.0 版本。</li>
+</ul>
+<p>---</p>
+<h2>二、核心發現（含三角佐證標記）</h2>
+<h3>2.1 Task Scheduler 架構與六大組件 ✅</h3>
+<p>Task Scheduler 2.0 將每個任務（Task）分解為六個核心組件 [Microsoft Learn - About Task Scheduler, 2018]，彼此協作完成任務的定義、執行與監控：</p>
+<p>#### （1）Triggers（觸發器）</p>
+<p>定義任務執行的時間或事件條件，單一任務最多支援 48 個觸發器 [Microsoft Learn - About Task Scheduler, 2018; Wikipedia - Task Scheduler]。常見觸發器類型包括：</p>
+<ul>
+<li><strong>時間觸發器</strong>：每日、每週、每月、一次性執行（例如：<code>New-ScheduledTaskTrigger -At 10:00am -Daily</code>）</li>
+<li><strong>事件觸發器</strong>：響應 Windows 事件日誌中的特定事件（例如：應用程式崩潰時自動重啟）</li>
+<li><strong>登入觸發器</strong>：使用者登入或登出時執行</li>
+<li><strong>啟動觸發器</strong>：系統開機時執行</li>
+<li><strong>閒置觸發器</strong>：系統閒置達指定時間後執行</li>
+</ul>
+<p>事件觸發器無固定執行時間，錯誤碼為 <code>SCHED_S_EVENT_TRIGGER</code> [Microsoft Learn - Error Constants, 2024]。</p>
+<p>#### （2）Actions（動作）</p>
+<p>定義任務實際執行的工作，單一任務最多支援 32 個動作 [Microsoft Learn - About Task Scheduler, 2018]。動作類型包括：</p>
+<ul>
+<li><strong>執行程式或腳本</strong>：最常用，例如執行 PowerShell 腳本（<code>-Execute "PowerShell.exe" -Argument "-NoProfile -File C:\script.ps1"</code>）[Windows OS Hub, 2024]</li>
+<li><strong>發送電子郵件</strong>（已棄用，建議用腳本實現）</li>
+<li><strong>顯示訊息</strong>（已棄用）</li>
+</ul>
+<p><strong>關鍵實踐</strong>：PowerShell 動作必須加 <code>-NoProfile</code> 參數，避免使用者 profile 干擾腳本執行 [Rambling Cookie Monster - Troubleshooting, 2016]。</p>
+<p>#### （3）Principals（主體）</p>
+<p>定義任務執行的安全上下文，包括執行帳戶、UAC 設定、權限等級 [Microsoft Learn - About Task Scheduler, 2018]。核心設定包括：</p>
+<ul>
+<li><strong>執行帳戶</strong>：可選擇 SYSTEM、特定使用者、Managed Service Account（推薦用於提升安全性）[Cyber Gladius - Managed Service Accounts]</li>
+<li><strong>權限等級</strong>：「以最高權限執行」（Run with highest privileges）— UAC 環境下必須勾選，否則腳本可能因權限不足失敗 [Rambling Cookie Monster - Troubleshooting, 2016]</li>
+<li><strong>登入模式</strong>：「不論使用者登入與否均執行」需要「以批次工作登入」（Log on as a batch job）權限 [Microsoft Q&A - Permissions, 2022]</li>
+</ul>
+<p>#### （4）Settings（設定）</p>
+<p>控制 Task Scheduler 服務如何執行任務，包括：</p>
+<ul>
+<li><strong>多重實例策略</strong>：當上一次執行尚未結束，新觸發時的行為（並行執行/排隊/略過/停止現有實例）</li>
+<li><strong>重試策略</strong>：失敗後是否重試、間隔時間、最大重試次數</li>
+<li><strong>電源管理</strong>：是否在電池模式下執行、是否喚醒電腦執行任務</li>
+<li><strong>閒置條件</strong>：系統閒置時才執行</li>
+</ul>
+<p>#### （5）Registration Information（註冊資訊）</p>
+<p>任務建立時的元資料，包括：作者、建立日期、描述、版本、安全描述符（Security Descriptor）[Microsoft Learn - About Task Scheduler, 2018]。</p>
+<p><strong>安全注意</strong>：Windows Server 2012 R2 之後，任務安全性改為存放在 Registry 而非檔案系統權限，透過 <code>SecurityDescriptor</code> 值控制誰可以執行任務 [OSDeploy - Task Permissions, 2021]。</p>
+<p>#### （6）Data（資料）</p>
+<p>任務關聯的額外資料，例如參數、狀態記錄等。</p>
+<p>---</p>
+<h3>2.2 PowerShell ScheduledTasks 模組完整 API ✅</h3>
+<p>PowerShell ScheduledTasks 模組自 Windows 8 / Server 2012 起內建，提供 18 個 cmdlets 用於任務管理 [Microsoft Learn - ScheduledTasks Module, 2025]，取代傳統的 <code>schtasks.exe</code> 命令列工具。</p>
+<p>#### 核心 Cmdlets 分類</p>
+<p>| 類別 | Cmdlets | 功能說明 |</p>
+<p>|------|---------|---------|</p>
+<p>| <strong>建立與註冊</strong> | <code>New-ScheduledTask</code>, <code>New-ScheduledTaskAction</code>, <code>New-ScheduledTaskTrigger</code>, <code>New-ScheduledTaskPrincipal</code>, <code>New-ScheduledTaskSettingsSet</code>, <code>Register-ScheduledTask</code> | 建立任務物件與註冊 [Microsoft Learn - ScheduledTasks Module, 2025] |</p>
+<p>| <strong>查詢與監控</strong> | <code>Get-ScheduledTask</code>, <code>Get-ScheduledTaskInfo</code> | 列出任務與取得執行狀態 [Microsoft Learn - ScheduledTasks Module, 2025] |</p>
+<p>| <strong>修改與管理</strong> | <code>Set-ScheduledTask</code>, <code>Enable-ScheduledTask</code>, <code>Disable-ScheduledTask</code> | 修改任務設定、啟用/停用 [Microsoft Learn - ScheduledTasks Module, 2025] |</p>
+<p>| <strong>執行控制</strong> | <code>Start-ScheduledTask</code>, <code>Stop-ScheduledTask</code> | 立即執行或停止任務 [Microsoft Learn - ScheduledTasks Module, 2025] |</p>
+<p>| <strong>匯出與匯入</strong> | <code>Export-ScheduledTask</code>, <code>Register-ScheduledTask</code> (從 XML) | 匯出為 XML 或從 XML 匯入 [Microsoft Learn - ScheduledTasks Module, 2025] |</p>
+<p>| <strong>刪除</strong> | <code>Unregister-ScheduledTask</code> | 刪除任務 [Microsoft Learn - ScheduledTasks Module, 2025] |</p>
+<p>| <strong>叢集模式</strong> | <code>Get-ClusteredScheduledTask</code>, <code>Register-ClusteredScheduledTask</code>, <code>Set-ClusteredScheduledTask</code>, <code>Unregister-ClusteredScheduledTask</code> | 故障轉移叢集中的排程任務管理 [Microsoft Learn - ScheduledTasks Module, 2025] |</p>
+<p>#### 典型任務建立流程（範例）</p>
+<pre><code>
+# 步驟 1：定義觸發器（每日上午 10:00）
+$Trigger = New-ScheduledTaskTrigger -At 10:00am -Daily
+
+# 步驟 2：定義動作（執行 PowerShell 腳本，加 -NoProfile）
+$Action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
+  -Argument "-NoProfile -File C:\PS\MyScript.ps1"
+
+# 步驟 3：定義主體（以 SYSTEM 帳戶執行，最高權限）
+$Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" `
+  -LogonType ServiceAccount -RunLevel Highest
+
+# 步驟 4：定義設定（失敗後每 5 分鐘重試一次，最多 3 次）
+$Settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)
+
+# 步驟 5：註冊任務
+Register-ScheduledTask -TaskName "MyDailyTask" `
+  -Trigger $Trigger -Action $Action -Principal $Principal -Settings $Settings
+</code></pre>
+<p>[Windows OS Hub - PowerShell Scheduled Tasks, 2024]</p>
+<p>---</p>
+<h3>2.3 錯誤處理與重試策略 ✅</h3>
+<p>#### Task Scheduler 內建錯誤代碼</p>
+<p>Task Scheduler 定義了 30+ 個錯誤與成功常數 [Microsoft Learn - Error Constants, 2024]，關鍵錯誤碼包括：</p>
+<p>| 錯誤碼 | 意義 | 常見原因 | 處理方式 |</p>
+<p>|--------|------|---------|---------|</p>
+<p>| <code>SCHED_E_TASK_NOT_READY</code> (0x8004130A) | 任務未就緒（必要屬性未設定） | 缺少觸發器或動作 | 檢查任務定義完整性 |</p>
+<p>| <code>SCHED_E_ACCOUNT_INFORMATION_NOT_SET</code> (0x8004130F) | 帳戶資訊未設定 | 執行帳戶密碼過期或未提供 | 重新設定 Principal |</p>
+<p>| <code>SCHED_E_SERVICE_NOT_RUNNING</code> (0x80041315) | Task Scheduler 服務未執行 | 服務被停用或崩潰 | 啟動 Task Scheduler 服務 |</p>
+<p>| <code>SCHED_E_ALREADY_RUNNING</code> (0x8004131F) | 任務已在執行中 | 上次執行尚未結束 | 檢查 Settings 的多重實例策略 |</p>
+<p>| <code>SCHED_E_USER_NOT_LOGGED_ON</code> (0x80041320) | 使用者未登入 | 任務設定為「僅在使用者登入時執行」 | 改為「不論使用者登入與否均執行」 |</p>
+<p>| <code>SCHED_S_BATCH_LOGON_PROBLEM</code> (0x0004131C) | 批次登入權限問題（警告） | 帳戶缺少「以批次工作登入」權限 | 透過 Local Security Policy 授予權限 |</p>
+<p>#### 重試策略最佳實踐</p>
+<p>基於多個來源的重試策略建議 [Temporal.io - Retry Policies; Azure Functions - Error Handling; Google Cloud Scheduler]，Task Scheduler 應採用以下配置：</p>
+<ol>
+<li><strong>重試次數限制</strong>：3-5 次（避免無限重試浪費資源）</li>
+<li><strong>指數退避</strong>：初始間隔 1 分鐘，backoff coefficient 2.0，上限 30 分鐘</li>
+<li><strong>錯誤分類</strong>：</li>
+</ol>
+<p>   - <strong>Transient（暫時性）</strong>：網路中斷、服務暫時不可用 → 重試</p>
+<p>   - <strong>Intermittent（間歇性）</strong>：資源競爭、Lock 衝突 → 重試</p>
+<p>   - <strong>Permanent（永久性）</strong>：檔案不存在、權限不足 → 不重試，記錄錯誤</p>
+<ol>
+<li><strong>超時控制</strong>：使用 Task Settings 的 <code>ExecutionTimeLimit</code> 限制單次執行時間，避免殭屍任務</li>
+</ol>
+<p>#### PowerShell 層級錯誤處理</p>
+<p>腳本內部應實作 Try/Catch 並強制 terminating error [Rambling Cookie Monster - Troubleshooting, 2016]：</p>
+<pre><code>
+# 強制所有錯誤為 terminating（預設僅部分錯誤會中斷執行）
+$ErrorActionPreference = "Stop"
+
+try {
+    # 主邏輯
+    Import-Module MyModule
+    Invoke-MyCommand
+}
+catch {
+    # 錯誤記錄（匯出為 XML，保留完整物件結構供事後分析）
+    $_ | Export-Clixml -Path "C:\Logs\Error_$(Get-Date -Format 'yyyyMMdd_HHmmss').xml"
+
+    # 寫入 Windows 事件日誌（便於集中監控）
+    Write-EventLog -LogName Application -Source "MyScript" `
+      -EventId 1001 -EntryType Error -Message $_.Exception.Message
+
+    # 重新拋出錯誤（讓 Task Scheduler 記錄為失敗）
+    throw
+}
+</code></pre>
+<p>---</p>
+<h3>2.4 安全性與權限管理 ✅</h3>
+<p>#### 最小權限原則（Principle of Least Privilege）</p>
+<p>執行帳戶應僅授予完成任務所需的最小權限 [Microsoft Learn - Security Contexts; Cyber Gladius - Managed Service Accounts]：</p>
+<p>| 任務類型 | 建議執行帳戶 | 所需權限 |</p>
+<p>|---------|------------|---------|</p>
+<p>| 系統維護（清理暫存檔、重啟服務） | SYSTEM 或 Local Administrator | 完整系統存取 |</p>
+<p>| 應用程式任務（資料處理、API 呼叫） | Managed Service Account (sMSA/gMSA) | 應用程式特定權限 |</p>
+<p>| 使用者任務（個人檔案備份） | 使用者自己的帳戶 | 使用者檔案存取權限 |</p>
+<p><strong>Managed Service Account 優勢</strong>：自動密碼管理（120 天自動輪換）、無需手動維護密碼、可透過 Group Policy 集中管理 [Cyber Gladius - Managed Service Accounts]。</p>
+<p>#### 批次登入權限配置</p>
+<p>當任務設定為「不論使用者登入與否均執行」時，執行帳戶必須具備「以批次工作登入」（Log on as a batch job）權限 [Microsoft Q&A - Permissions, 2022]。</p>
+<p><strong>設定路徑</strong>：</p>
+<pre><code>
+Local Security Policy
+  → Local Policies
+    → User Rights Assignment
+      → Log on as a batch job
+</code></pre>
+<p>將執行帳戶加入此原則，重啟 Task Scheduler 服務後生效。</p>
+<p>#### Registry 安全描述符（SecurityDescriptor）</p>
+<p>Windows Server 2012 R2 之後，任務安全性改為存放在 Registry [OSDeploy - Task Permissions, 2021]：</p>
+<pre><code>
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\&lt;TaskPath&gt;
+  → SecurityDescriptor (REG_BINARY)
+</code></pre>
+<p>若此值不存在，預設僅 Administrators 與任務建立者可執行。若需授予特定使用者執行權限，需修改此 SecurityDescriptor（建議透過 <code>schtasks.exe /change /tn <TaskName> /ru <User></code> 修改，避免手動編輯 Registry）。</p>
+<p>---</p>
+<h3>2.5 PowerShell 任務常見失敗根因 ✅</h3>
+<p>基於實務經驗總結 [Rambling Cookie Monster - Troubleshooting, 2016; Windows OS Hub, 2024; NinjaOne - Audit Tasks, 2024]，PowerShell 排程任務失敗的三大常見根因：</p>
+<p>#### （1）未加 <code>-NoProfile</code> 參數</p>
+<p><strong>症狀</strong>：任務在互動式 PowerShell 中執行正常，但排程執行時失敗或行為異常。</p>
+<p><strong>根因</strong>：Task Scheduler 執行時會載入執行帳戶的 PowerShell profile（<code>$PROFILE</code>），若 profile 中有匯入模組、設定變數等操作，可能干擾腳本執行或因 profile 錯誤導致任務失敗。</p>
+<p><strong>解決方案</strong>：<strong>始終</strong>在 Action 參數中加 <code>-NoProfile</code>：</p>
+<pre><code>
+-Argument "-NoProfile -File C:\Scripts\MyScript.ps1"
+</code></pre>
+<p>[Rambling Cookie Monster - Troubleshooting, 2016; Windows OS Hub, 2024]</p>
+<p>#### （2）UAC 環境下未勾選「以最高權限執行」</p>
+<p><strong>症狀</strong>：腳本需要管理員權限（修改系統設定、存取受保護目錄），但執行時報錯「存取被拒」。</p>
+<p><strong>根因</strong>：即使執行帳戶是 Administrators 群組成員，UAC 預設仍會以受限權限執行任務，除非明確勾選「Run with highest privileges」。</p>
+<p><strong>解決方案</strong>：在 Principal 設定中加入 <code>-RunLevel Highest</code>：</p>
+<pre><code>
+$Principal = New-ScheduledTaskPrincipal -UserId "Domain\Admin" -RunLevel Highest
+</code></pre>
+<p>[Rambling Cookie Monster - Troubleshooting, 2016]</p>
+<p>#### （3）執行帳戶對腳本路徑無存取權限</p>
+<p><strong>症狀</strong>：任務失敗，錯誤訊息為「找不到檔案」或「存取被拒」。</p>
+<p><strong>根因</strong>：執行帳戶（例如 SYSTEM）對腳本所在路徑（例如使用者個人資料夾 <code>C:\Users\<User>\Scripts</code>）無讀取權限。</p>
+<p><strong>解決方案</strong>：</p>
+<ol>
+<li>將腳本移至所有帳戶可存取的位置（例如 <code>C:\Scripts</code>）</li>
+<li>或明確授予執行帳戶對腳本路徑的讀取與執行權限</li>
+<li>確認腳本中引用的所有檔案路徑（設定檔、日誌檔）也可被執行帳戶存取</li>
+</ol>
+<p>[Rambling Cookie Monster - Troubleshooting, 2016]</p>
+<p>---</p>
+<h2>三、深度分析</h2>
+<h3>3.1 Task Scheduler 2.0 的 COM 架構優勢</h3>
+<p>Task Scheduler 2.0 基於 42 個 COM 介面構建 [Microsoft Learn - About Task Scheduler, 2018]，相較於 1.0 版本的優勢包括：</p>
+<ol>
+<li><strong>程式化管理能力</strong>：透過 COM 介面，開發者可用 C#、VBScript、PowerShell 等語言完整控制任務的建立、修改、執行、監控</li>
+<li><strong>跨語言互操作性</strong>：COM 標準使得不同程式語言可無縫整合 Task Scheduler 功能</li>
+<li><strong>事件觸發器支援</strong>：2.0 版本新增事件觸發器，可響應 Windows 事件日誌中的任意事件，實現更複雜的自動化場景（例如：應用程式崩潰時自動重啟、磁碟空間不足時清理暫存檔）</li>
+<li><strong>XML Schema 標準化</strong>：任務定義採用 XML 格式，人類可讀且易於版本控制、跨系統匯出匯入 [Microsoft Learn - About Task Scheduler, 2018]</li>
+</ol>
+<h3>3.2 Task XML Schema 結構解析</h3>
+<p>每個任務儲存為 XML 檔案（位於 <code>C:\Windows\System32\Tasks\</code>），符合 <a href="https://learn.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-schema">Task Scheduler Schema</a>。典型結構如下：</p>
+<pre><code>
+&lt;?xml version="1.0" encoding="UTF-16"?&gt;
+&lt;Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"&gt;
+  &lt;RegistrationInfo&gt;
+    &lt;Date&gt;2026-03-22T00:00:00&lt;/Date&gt;
+    &lt;Author&gt;SYSTEM&lt;/Author&gt;
+    &lt;Description&gt;Daily system audit&lt;/Description&gt;
+  &lt;/RegistrationInfo&gt;
+  &lt;Triggers&gt;
+    &lt;CalendarTrigger&gt;
+      &lt;StartBoundary&gt;2026-03-22T00:40:00&lt;/StartBoundary&gt;
+      &lt;ScheduleByDay&gt;
+        &lt;DaysInterval&gt;1&lt;/DaysInterval&gt;
+      &lt;/ScheduleByDay&gt;
+    &lt;/CalendarTrigger&gt;
+  &lt;/Triggers&gt;
+  &lt;Principals&gt;
+    &lt;Principal id="Author"&gt;
+      &lt;UserId&gt;NT AUTHORITY\SYSTEM&lt;/UserId&gt;
+      &lt;LogonType&gt;ServiceAccount&lt;/LogonType&gt;
+      &lt;RunLevel&gt;HighestAvailable&lt;/RunLevel&gt;
+    &lt;/Principal&gt;
+  &lt;/Principals&gt;
+  &lt;Settings&gt;
+    &lt;MultipleInstancesPolicy&gt;IgnoreNew&lt;/MultipleInstancesPolicy&gt;
+    &lt;RestartOnFailure&gt;
+      &lt;Interval&gt;PT5M&lt;/Interval&gt;
+      &lt;Count&gt;3&lt;/Count&gt;
+    &lt;/RestartOnFailure&gt;
+    &lt;ExecutionTimeLimit&gt;PT20M&lt;/ExecutionTimeLimit&gt;
+  &lt;/Settings&gt;
+  &lt;Actions Context="Author"&gt;
+    &lt;Exec&gt;
+      &lt;Command&gt;pwsh.exe&lt;/Command&gt;
+      &lt;Arguments&gt;-NoProfile -File "D:\Source\daily-digest-prompt\run-system-audit-team.ps1"&lt;/Arguments&gt;
+    &lt;/Exec&gt;
+  &lt;/Actions&gt;
+&lt;/Task&gt;
+</code></pre>
+<p><strong>關鍵欄位說明</strong>：</p>
+<ul>
+<li><code><StartBoundary></code>：觸發器開始時間（ISO 8601 格式）</li>
+<li><code><MultipleInstancesPolicy></code>：多重實例策略（<code>IgnoreNew</code> = 若上次執行未結束，忽略新觸發；<code>Parallel</code> = 並行執行；<code>Queue</code> = 排隊等候）</li>
+<li><code><RestartOnFailure></code>：失敗重試設定（間隔 <code>PT5M</code> = 5 分鐘，最多 3 次）</li>
+<li><code><ExecutionTimeLimit></code>：單次執行超時限制（<code>PT20M</code> = 20 分鐘）</li>
+</ul>
+<h3>3.3 診斷工作流：從症狀到根因</h3>
+<p>基於錯誤分類與日誌分析，建立標準診斷流程：</p>
+<p>#### 診斷步驟</p>
+<ol>
+<li><strong>查詢任務狀態</strong>：</li>
+</ol>
+<p>   ```powershell</p>
+<p>   Get-ScheduledTaskInfo -TaskName "MyTask"</p>
+<p>   # 關鍵欄位：LastRunTime, LastTaskResult, NextRunTime</p>
+<p>   ```</p>
+<ol>
+<li><strong>解析 LastTaskResult</strong>：</li>
+</ol>
+<p>   - <code>0x0</code>：成功</p>
+<p>   - <code>0x1</code>：失敗（檢查腳本內部日誌）</p>
+<p>   - <code>0x8004131F</code>：<code>SCHED_E_ALREADY_RUNNING</code>（檢查上次執行是否卡住）</p>
+<p>   - <code>0x80041320</code>：<code>SCHED_E_USER_NOT_LOGGED_ON</code>（改為「不論登入與否均執行」）</p>
+<ol>
+<li><strong>檢查 Windows 事件日誌</strong>：</li>
+</ol>
+<p>   ```powershell</p>
+<p>   Get-WinEvent -LogName "Microsoft-Windows-TaskScheduler/Operational" -MaxEvents 20 |</p>
+<p>     Where-Object {$_.Message -like "<em>MyTask</em>"} |</p>
+<p>     Select-Object TimeCreated, Id, Message</p>
+<p>   ```</p>
+<p>   常見事件 ID：</p>
+<p>   - <strong>100</strong>：任務開始執行</p>
+<p>   - <strong>102</strong>：任務執行失敗</p>
+<p>   - <strong>201</strong>：任務成功完成</p>
+<ol>
+<li><strong>分析腳本日誌</strong>：</li>
+</ol>
+<p>   - 檢查 Try/Catch 匯出的 <code>Error_*.xml</code></p>
+<p>   - 檢查 PowerShell Transcript（<code>Start-Transcript</code> / <code>Stop-Transcript</code>）</p>
+<ol>
+<li><strong>權限驗證</strong>：</li>
+</ol>
+<p>   ```powershell</p>
+<p>   # 檢查執行帳戶是否可存取腳本路徑</p>
+<p>   Test-Path "C:\Scripts\MyScript.ps1" -ErrorAction Stop</p>
+<p>   # 檢查批次登入權限（需要 secedit）</p>
+<p>   secedit /export /cfg C:\temp\secpol.cfg</p>
+<p>   Select-String "SeBatchLogonRight" C:\temp\secpol.cfg</p>
+<p>   ```</p>
+<p>---</p>
+<h2>四、實務應用建議</h2>
+<h3>4.1 daily-digest-prompt 專案整合建議</h3>
+<p>針對專案的 6 個排程任務，建議採用以下優化措施：</p>
+<p>#### （1）統一錯誤處理模板</p>
+<p>建立共用的 PowerShell 錯誤處理模組（<code>ErrorHandler.psm1</code>），所有排程腳本匯入此模組：</p>
+<pre><code>
+# ErrorHandler.psm1
+function Write-TaskLog {
+    param([string]$Level, [string]$Message, [string]$TaskName)
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Level] [$TaskName] $Message"
+
+    # 寫入專案統一日誌
+    Add-Content -Path "D:\Source\daily-digest-prompt\logs\scheduled-tasks\$TaskName-$(Get-Date -Format 'yyyyMMdd').log" -Value $logEntry
+
+    # 寫入 Windows 事件日誌（便於集中監控）
+    Write-EventLog -LogName Application -Source "DailyDigest" -EventId 1001 -EntryType $Level -Message $Message
+}
+
+function Invoke-TaskWithRetry {
+    param([ScriptBlock]$ScriptBlock, [int]$MaxRetries = 3, [int]$RetryDelaySeconds = 60)
+
+    $attempt = 0
+    while ($attempt -lt $MaxRetries) {
+        try {
+            &amp; $ScriptBlock
+            return  # 成功則結束
+        }
+        catch {
+            $attempt++
+            Write-TaskLog -Level Error -Message "Attempt $attempt failed: $($_.Exception.Message)" -TaskName $env:TASK_NAME
+            if ($attempt -lt $MaxRetries) {
+                Start-Sleep -Seconds $RetryDelaySeconds
+            } else {
+                throw  # 最後一次失敗則拋出錯誤
+            }
+        }
+    }
+}
+</code></pre>
+<p>#### （2）標準化任務建立腳本</p>
+<p>建立 <code>New-DailyDigestTask.ps1</code> 工具，統一建立所有排程任務：</p>
+<pre><code>
+param(
+    [Parameter(Mandatory)][string]$TaskName,
+    [Parameter(Mandatory)][string]$ScriptPath,
+    [Parameter(Mandatory)][object]$Trigger,
+    [int]$TimeoutMinutes = 120,
+    [int]$RestartCount = 3,
+    [int]$RestartIntervalMinutes = 5
+)
+
+$Action = New-ScheduledTaskAction -Execute "pwsh.exe" `
+  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+
+$Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" `
+  -LogonType ServiceAccount -RunLevel Highest
+
+$Settings = New-ScheduledTaskSettingsSet `
+  -MultipleInstances IgnoreNew `
+  -RestartCount $RestartCount `
+  -RestartInterval (New-TimeSpan -Minutes $RestartIntervalMinutes) `
+  -ExecutionTimeLimit (New-TimeSpan -Minutes $TimeoutMinutes) `
+  -StartWhenAvailable
+
+Register-ScheduledTask -TaskName $TaskName `
+  -Trigger $Trigger -Action $Action -Principal $Principal -Settings $Settings -Force
+
+Write-Host "✅ Task '$TaskName' registered successfully."
+</code></pre>
+<p>#### （3）事件日誌整合</p>
+<p>在專案根目錄新增 <code>Register-EventSource.ps1</code>（需管理員權限執行一次）：</p>
+<pre><code>
+if (-not [System.Diagnostics.EventLog]::SourceExists("DailyDigest")) {
+    New-EventLog -LogName Application -Source "DailyDigest"
+    Write-Host "✅ Event source 'DailyDigest' registered."
+} else {
+    Write-Host "Event source already exists."
+}
+</code></pre>
+<p>之後所有排程任務的錯誤日誌會統一出現在 Windows 事件檢視器的「應用程式」日誌中，可透過 Event ID 過濾：</p>
+<pre><code>
+Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='DailyDigest'; Id=1001}
+</code></pre>
+<h3>4.2 與 daily-digest-prompt 現有架構整合</h3>
+<p><strong>整合點 1：setup-scheduler.ps1</strong></p>
+<p>修改現有的排程建立腳本，改用 <code>New-DailyDigestTask.ps1</code> 工具：</p>
+<pre><code>
+# system-audit 任務
+$Trigger = New-ScheduledTaskTrigger -At "00:40" -Daily
+.\New-DailyDigestTask.ps1 -TaskName "system-audit" `
+  -ScriptPath "D:\Source\daily-digest-prompt\run-system-audit-team.ps1" `
+  -Trigger $Trigger -TimeoutMinutes 20 -RestartCount 0  # system-audit 不重試，避免干擾排程
+</code></pre>
+<p><strong>整合點 2：check-health.ps1</strong></p>
+<p>新增 <code>[排程任務健康度]</code> 區塊：</p>
+<pre><code>
+Write-Host "[排程任務健康度]" -ForegroundColor Cyan
+$tasks = @("system-audit", "daily-digest-am", "daily-digest-mid", "daily-digest-pm", "todoist-single", "todoist-team")
+
+foreach ($task in $tasks) {
+    $info = Get-ScheduledTaskInfo -TaskName $task -ErrorAction SilentlyContinue
+    if ($info) {
+        $status = if ($info.LastTaskResult -eq 0) { "✅" } else { "❌" }
+        Write-Host "  $status $task - Last: $($info.LastRunTime), Result: 0x$($info.LastTaskResult.ToString('X'))"
+    } else {
+        Write-Host "  ⚠️ $task - 任務未找到" -ForegroundColor Yellow
+    }
+}
+</code></pre>
+<p>---</p>
+<h2>五、知識缺口與未來研究方向</h2>
+<h3>5.1 本次研究未涵蓋的面向</h3>
+<p>本研究聚焦於 foundation 階段（架構、基本使用、可靠性基礎），以下面向留待後續階段深入：</p>
+<ol>
+<li><strong>Mechanism 階段（機制深化）</strong>：</li>
+</ol>
+<p>   - Task Scheduler 服務內部執行引擎（<code>Schedule</code> 服務的執行緒模型、任務佇列管理）</p>
+<p>   - 時間精度與漂移（觸發器的誤差範圍、系統休眠對排程的影響）</p>
+<p>   - 與 Windows 事件系統的整合機制（EventTrigger 的內部訂閱機制）</p>
+<ol>
+<li><strong>Application 階段（應用實踐）</strong>：</li>
+</ol>
+<p>   - 複雜排程模式（依賴鏈任務、條件式執行、動態參數傳遞）</p>
+<p>   - 跨機器任務協調（網路共享路徑、遠端觸發）</p>
+<p>   - 與 CI/CD 整合（GitHub Actions 觸發 Task Scheduler、Jenkins 調度排程任務）</p>
+<ol>
+<li><strong>Optimization 階段（優化精進）</strong>：</li>
+</ol>
+<p>   - 效能調優（大量排程任務對系統效能的影響、記憶體與 CPU 使用分析）</p>
+<p>   - 可觀測性增強（Prometheus exporter for Task Scheduler、Grafana 儀表板整合）</p>
+<p>   - 高可用性設計（主備排程器、故障轉移策略）</p>
+<h3>5.2 建議後續研究主題</h3>
+<ol>
+<li><strong>「Task Scheduler 服務內部執行引擎深度解析」</strong>（Mechanism 階段）</li>
+<li><strong>「PowerShell 排程任務進階模式：依賴鏈與條件式執行」</strong>（Application 階段）</li>
+<li><strong>「Task Scheduler 可觀測性與 Prometheus 整合」</strong>（Optimization 階段）</li>
+</ol>
+<p>---</p>
+<h2>六、參考來源（完整書目）</h2>
+<h3>官方文件（High Credibility）</h3>
+<ol>
+<li><strong>Microsoft Learn</strong>. (2018). <em>About the Task Scheduler - Win32 apps</em>. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/taskschd/about-the-task-scheduler (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Microsoft Learn</strong>. (2025). <em>ScheduledTasks Module | Microsoft Learn</em>. Microsoft Learn. https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/?view=windowsserver2025-ps (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Microsoft Learn</strong>. (2024). <em>Task Scheduler error and success constants (WinError.h) - Win32 apps</em>. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-error-and-success-constants (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Microsoft Q&A</strong>. (2022). <em>Task Scheduler - The User account does not have permission to run this task</em>. Microsoft Q&A. https://learn.microsoft.com/en-us/answers/questions/707600/task-scheduler-the-user-account-does-not-have-perm (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Microsoft Learn</strong>. (2022). <em>Resolve Task Scheduler Access Denied Error - Windows Server</em>. Microsoft Learn. https://learn.microsoft.com/en-us/troubleshoot/windows-server/system-management-components/troubleshooting-task-scheduler-access-denied-error (retrieved 2026-03-22)</li>
+</ol>
+<h3>技術部落格與實務指南（Medium Credibility）</h3>
+<ol>
+<li><strong>Windows OS Hub</strong>. (2024). <em>How to Create and Manage Scheduled Tasks with PowerShell</em>. Windows OS Hub. https://woshub.com/how-to-create-scheduled-task-using-powershell/ (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Rambling Cookie Monster</strong>. (2016). <em>Troubleshooting PowerShell Based Scheduled Tasks</em>. Rambling Cookie Monster Blog. http://ramblingcookiemonster.github.io/Task-Scheduler/ (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>NinjaOne</strong>. (2024). <em>How to Use PowerShell to Audit Scheduled Tasks</em>. NinjaOne Blog. https://www.ninjaone.com/blog/use-powershell-to-audit-scheduled-tasks/ (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>OSDeploy</strong>. (2021). <em>Task Permissions | OSDeploy by Recast</em>. OSDeploy. https://www.osdeploy.com/blog/2021/scheduled-tasks/task-permissions (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Cyber Gladius</strong>. (n.d.). <em>Secure Windows Scheduled Tasks with Managed Service Accounts</em>. Cyber Gladius. https://cybergladius.com/secure-windows-scheduled-tasks-with-managed-service-accounts/ (retrieved 2026-03-22)</li>
+</ol>
+<h3>跨平台參考（重試策略通用模式）</h3>
+<ol>
+<li><strong>Temporal.io</strong>. (n.d.). <em>What is a Temporal Retry Policy?</em> Temporal Platform Documentation. https://docs.temporal.io/encyclopedia/retry-policies (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Microsoft Learn</strong>. (n.d.). <em>Handling errors and Retries - Azure Durable Functions</em>. Microsoft Learn. https://learn.microsoft.com/en-us/azure/azure-functions/durable/durable-functions-error-handling (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Google Cloud</strong>. (n.d.). <em>Retry jobs | Cloud Scheduler</em>. Google Cloud Documentation. https://docs.cloud.google.com/scheduler/docs/configuring/retry-jobs (retrieved 2026-03-22)</li>
+</ol>
+<h3>補充資源（Wikipedia、社群討論）</h3>
+<ol>
+<li><strong>Wikipedia</strong>. (n.d.). <em>Windows Task Scheduler</em>. Wikipedia. https://en.wikipedia.org/wiki/Windows_Task_Scheduler (retrieved 2026-03-22)</li>
+</ol>
+<ol>
+<li><strong>Advanced Task Scheduler</strong>. (n.d.). <em>Error handling in scheduled tasks</em>. Advanced Task Scheduler. https://www.advscheduler.com/error-handling-in-scheduled-tasks (retrieved 2026-03-22)</li>
+</ol>
+<p>---</p>
+<p><strong>撰寫日期</strong>：2026-03-22</p>
+<p><strong>研究層級</strong>：Standard（8+ 來源、主張 3+ 佐證、5-10 分鐘）</p>
+<p><strong>系列階段</strong>：Foundation（windows-task-scheduler-automation 系列第 1 階段）</p>
+<p><strong>下一階段建議</strong>：Mechanism — 研究 Task Scheduler 服務內部執行引擎、任務佇列管理、時間精度與漂移機制</p>
+<p>---</p>
+<p>🤖 Generated with Deep Research Skill (claude-deep-research-skill v2.3.1) + kb-research-strategist v1.1.0</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 程式碼審查 synthesis 指南：LLM Review、SARIF、Autofix 與需求／ADR／CI 閘門的全鏈路治理">
+  <title>AI 程式碼審查 synthesis 指南：LLM Review、SARIF、Autofix 與需求／ADR／CI 閘門的全鏈路治理 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 程式碼審查 synthesis 指南：LLM Review、SARIF、Autofix 與需求／ADR／CI 閘門的全鏈路治理</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">AI Code Review</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 程式碼審查 synthesis 指南：LLM Review、SARIF、Autofix 與需求／ADR／CI 閘門的全鏈路治理</h1>
+<h2>KB 現況與本次缺口</h2>
+<p>知識庫先前已涵蓋 AI Code Review 的 foundation、mechanism、application 與 optimization：包含 diff-aware review、CodeQL/Semgrep/SARIF 管線、AI auto-triage、誤報治理與 Autofix 驗證閉環。本次未重複這些內容，而是補上 <strong>synthesis 階段</strong>：如何把 LLM review、SAST/SARIF、安全修補建議、需求規格、ADR 與 branch protection 串成同一條治理流程。</p>
+<h2>技術概述</h2>
+<p>2026 年的 AI 程式碼審查實務，已不再只是「讓模型在 PR 留評論」。真正可落地的做法是三層架構：第一層由 PR review agent 做摘要、風險提示與風格檢查；第二層由 CodeQL、Semgrep 等工具輸出 SARIF，提供可機器排序的安全訊號；第三層才讓 Autofix 或建議型 AI 產生修補方案，再交給 CI、重新掃描與人工核准做最後把關。GitHub 的 Copilot Autofix 已直接建立在 code scanning 結果之上；Google Gemini Code Assist 則把 PR 摘要、嚴重度分級與 repo 級設定做成 GitHub review agent；Qodo Merge 進一步展示了靜態分析、元件級互動與 suggestion validation 的產品形態。綜合來看，最佳實踐是把 AI review 視為「治理編排器」，而非單獨的審查員。</p>
+<h2>核心方法與工具</h2>
+<h3>1. Review Agent 層</h3>
+<ul>
+<li><strong>Gemini Code Assist on GitHub</strong></li>
+</ul>
+<p>  - 新 PR 開啟時可自動產生摘要與 review。</p>
+<p>  - 支援 <code>LOW</code> 到 <code>CRITICAL</code> 的 review comment 嚴重度門檻。</p>
+<p>  - 可用 <code>.gemini/config.yaml</code>、<code>.gemini/styleguide.md</code> 做 repo 級規則管理。</p>
+<ul>
+<li><strong>Qodo Merge / PR-Agent</strong></li>
+</ul>
+<p>  - 對 PR 變更做 component-level 靜態分析。</p>
+<p>  - 可互動觸發 <code>/analyze</code>、<code>/test</code>、<code>/improve_component</code>。</p>
+<p>  - 對可直接套用的建議做定位、語法有效性與 self-reflection 驗證。</p>
+<h3>2. Security Signal 層</h3>
+<ul>
+<li><strong>GitHub Code Scanning + SARIF</strong></li>
+</ul>
+<p>  - 用 <code>upload-sarif</code> 匯入第三方掃描結果。</p>
+<p>  - 透過 <code>category</code> 分開 CodeQL、Semgrep、secret 掃描或 monorepo 子系統結果。</p>
+<p>  - 利用同一 commit 下多個 category 形成單一 PR 風險面板。</p>
+<ul>
+<li><strong>CodeQL / Semgrep / Secret scanning</strong></li>
+</ul>
+<p>  - CodeQL 提供高可信度資料流與語意規則。</p>
+<p>  - Semgrep 補充快速規則與 framework-specific policy。</p>
+<p>  - secrets 與 supply-chain 掃描作為阻斷式 gate，避免 review agent 掩蓋高風險項目。</p>
+<h3>3. Fix & Governance 層</h3>
+<ul>
+<li><strong>Copilot Autofix</strong></li>
+</ul>
+<p>  - 依 code scanning alert 與 code context 產出修補建議。</p>
+<p>  - 適合做「候選修補」，不適合作為無條件自動提交。</p>
+<ul>
+<li><strong>需求與 ADR 對齊</strong></li>
+</ul>
+<p>  - 把使用者故事、驗收條件、ADR 摘要放進 PR template 或 review prompt。</p>
+<p>  - 讓 AI review 從「語法/風格」提升到「是否違反設計決策與產品意圖」。</p>
+<h2>實際工作流程（step-by-step）</h2>
+<h3>工作流 A：PR 全鏈路治理</h3>
+<ol>
+<li>開發者建立 PR，PR template 強制填入需求連結、驗收條件、相關 ADR。</li>
+<li>Gemini 或同類 review agent 先產生 PR summary，做 correctness / maintainability / security 的第一輪檢查。</li>
+<li>GitHub Actions 執行 CodeQL、Semgrep、secret scan，將結果以不同 <code>category</code> 上傳 SARIF。</li>
+<li>Branch protection 規則只對「阻斷式檢查」生效，例如高嚴重度安全告警、測試失敗、schema 驗證失敗。</li>
+<li>AI review comment 僅作 advisory；若對應到 SARIF 高風險告警，才升級成人工必看項目。</li>
+<li>對可修補的 CodeQL 告警，由 Copilot Autofix 產出修補候選。</li>
+<li>套用候選修補後，重新跑單元測試、lint、掃描與必要的語意回歸測試。</li>
+<li>Reviewer 依需求/ADR/測試結果決定 merge；若 AI 建議與 ADR 衝突，ADR 優先。</li>
+<li>合併後把被接受與被駁回的 AI 建議回寫 triage memory，作為下一輪 prompt / style guide 調整依據。</li>
+</ol>
+<h3>工作流 B：風險分級規則</h3>
+<ol>
+<li><code>CRITICAL/HIGH</code> 安全告警：阻斷 merge，必須人工核准。</li>
+<li><code>MEDIUM</code> 安全告警：允許修補建議，但必須重新掃描通過。</li>
+<li><code>LOW</code> 或純風格建議：不阻斷，只做 reviewer queue 排序。</li>
+<li>與 ADR 衝突的建議：即使低風險，也要求人工覆核。</li>
+<li><code>.github/workflows/**</code>、部署腳本、權限設定等高風險檔案：禁用自動修補直送主分支。</li>
+</ol>
+<h2>程式碼 / 配置範例</h2>
+<h3>1. GitHub Actions：多來源 SARIF 匯入</h3>
+<pre><code>
+name: pr-ai-governance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  security-signals:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run Semgrep
+        run: semgrep scan --config auto --sarif --output semgrep.sarif
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-app
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python,javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: codeql-core
+</code></pre>
+<h3>2. Gemini Code Assist repo 級設定</h3>
+<pre><code>
+# .gemini/config.yaml
+memory_config:
+  disabled: false
+code_review:
+  disable: false
+  comment_severity_threshold: HIGH
+  max_review_comments: 20
+  pull_request_opened:
+    summary: true
+    code_review: true
+    include_drafts: false
+ignore_patterns:
+  - "dist/**"
+  - "coverage/**"
+  - "vendor/**"
+</code></pre>
+<pre><code>
+&lt;!-- .gemini/styleguide.md --&gt;
+# Review Rules
+
+- 若 PR 涉及 `config/*.yaml`，檢查是否破壞 schema 或 task_key 對應。
+- 若 PR 涉及 `hooks/**`，優先檢查 shell injection、路徑遍歷與權限提升風險。
+- 若 PR 涉及 `results/*.json`，檢查欄位完整性與 status enum。
+- 若與既有 ADR 衝突，明確指出衝突點，不要只給風格建議。
+</code></pre>
+<h3>3. PR Template：把需求與 ADR 放進 review context</h3>
+<pre><code>
+## Requirement Context
+- User story:
+- Acceptance criteria:
+
+## Architecture Context
+- Related ADR:
+- Non-functional constraints:
+
+## Validation
+- Tests added/updated:
+- Security impact:
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>GitHub 官方說明目前用 <strong>超過 2,300 個有測試覆蓋的 alert</strong> 持續評估 Copilot Autofix 品質；對許多測試案例，建議可在不修改下直接提交且 CI 仍通過。這代表 Autofix 已具備「可驗證候選修補」水準，但仍不是 100% 保證。</li>
+<li>Gemini Code Assist on GitHub 的官方配額在 2026-03-23 文件中列為：<strong>consumer 版 33 PR/日、enterprise 版 100+ PR/日</strong>。這比較接近營運吞吐量指標，而非傳統生產力提升百分比。</li>
+<li>Qodo Merge 官方揭露其靜態分析能力支援 <strong>8 種語言</strong>，且對可套用建議增加定位與語法有效性檢查。這代表產業趨勢正從「多給建議」轉向「只交付可驗證建議」。</li>
+<li>對於「開發速度提升 X%」這種泛用數字，官方文件目前多未提供可直接對比的嚴謹基準；因此在導入時應自行追蹤 <code>review turnaround time</code>、<code>false-positive rate</code>、<code>accepted suggestion rate</code>、<code>reopened security bug rate</code>。</li>
+</ul>
+<h2>與本專案的應用場景</h2>
+<p><code>daily-digest-prompt</code> 最適合的落地方向不是導入單一 AI reviewer，而是建立「輕量但硬邊界清楚」的治理：</p>
+<ol>
+<li>對 <code>hooks/<strong></code>、<code>tools/</strong></code>、<code>config/<em>.yaml</code>、<code>templates/</em>*</code> 建立不同 review policy。</li>
+<li>把 <code>results/*.json</code> schema、registry/continuity 一致性、PowerShell shell safety 視為阻斷式規則。</li>
+<li>把 AI comment 限定在 PR 摘要、規格對齊、漏測提醒與風險排序，不直接修改高風險腳本。</li>
+<li>若未來上 GitHub Actions，可把 Semgrep/secret scanning 匯成 SARIF，再讓 Code Scanning 做單一入口。</li>
+<li>對自動任務 prompt、workflow、hook 規則新增 ADR 摘要，讓 AI reviewer 能判斷「是否違反既有治理原則」。</li>
+</ol>
+<h2>風險與注意事項</h2>
+<ul>
+<li><strong>不要把 AI review 當單一真相來源</strong>：GitHub 也明示 Autofix 是 best-effort，存在非決定性與上下文截斷限制。</li>
+<li><strong>高風險檔案應有白名單保護</strong>：Google 官方直接排除 <code>.github/workflows</code> 的 review suggestion，這是合理的安全邊界，可類推到本專案的 hooks 與部署腳本。</li>
+<li><strong>多工具結果必須分 category</strong>：否則同 commit 的後上傳 SARIF 可能覆蓋先前結果，破壞 triage。</li>
+<li><strong>建議先 advisory、後 blocking</strong>：先累積 accepted rate 與誤報率，再決定哪些規則能升級為 merge gate。</li>
+<li><strong>記得管理忽略清單與 context</strong>：不該讓 vendor、build output、產物檔把 review 注意力稀釋。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>GitHub Docs, Responsible use of Copilot Autofix for code scanning  </li>
+</ol>
+<p>   https://docs.github.com/en/code-security/responsible-use/responsible-use-autofix-code-scanning</p>
+<ol>
+<li>GitHub Docs, Uploading a SARIF file to GitHub  </li>
+</ol>
+<p>   https://docs.github.com/en/code-security/how-tos/scan-code-for-vulnerabilities/integrate-with-existing-tools/uploading-a-sarif-file-to-github</p>
+<ol>
+<li>Google for Developers, Review GitHub code using Gemini Code Assist  </li>
+</ol>
+<p>   https://developers.google.com/gemini-code-assist/docs/review-github-code</p>
+<ol>
+<li>Google for Developers, Customize Gemini Code Assist behavior in GitHub  </li>
+</ol>
+<p>   https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github</p>
+<ol>
+<li>Qodo Merge Docs, Static Code Analysis  </li>
+</ol>
+<p>   https://qodo-merge-docs.qodo.ai/core-abilities/static_code_analysis/</p>
+<ol>
+<li>Qodo Merge Docs, Code Validation  </li>
+</ol>
+<p>   https://qodo-merge-docs.qodo.ai/core-abilities/code_validation/</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

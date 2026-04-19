@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深入研究,完成ADR 058及 ADR 081 定稿及實作">
+  <title>深入研究,完成ADR 058及 ADR 081 定稿及實作 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深入研究,完成ADR 058及 ADR 081 定稿及實作</h1>
+        <div class="article-meta">
+          <div class="tags"></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>任務</h2>
+<p>深入研究,完成ADR 058及 ADR 081 定稿及實作</p>
+<h2>執行結果</h2>
+<p>已完成的實作摘要如下。</p>
+<p>---</p>
+<p>✅ <strong>執行摘要</strong>：已在 <code>docs/adr/</code> 定稿 <strong>ADR-058（功能旗標）</strong> 與 <strong>ADR-081（結構化日誌／pino 10.3.1）</strong>，並在 <strong><code>bot/</code></strong> 新增 <code>src/config/features.js</code>、<code>src/logger.js</code>，整合 <code>bot.js</code>／<code>lib/routes.js</code>（含 <code>/api/health</code> 的 <code>feature_new_ui</code>）、Vitest 與 <strong><code>npm run test:feature-flags-matrix</code></strong>；GitHub Actions 新增 <strong><code>bot-node</code></strong> job，並更新 <code>README.md</code>、<code>context/adr-registry.json</code>（<code>ADR-DOCS-058-<em></code>／<code>ADR-DOCS-081-</em></code>，與既有 <code>ADR-20260324-058</code>／<code>081</code> 主題區隔）。</p>
+<p>📚 <strong>主要發現</strong>：</p>
+<ol>
+<li><strong>編號碰撞</strong>：<code>context/adr-registry.json</code> 內 <code>ADR-20260324-058</code>／<code>081</code> 為公平排程／WRR；本任務的 <strong>058／081</strong> 為 <code>docs/adr</code> 文件序號，已在 ADR 正文與 registry 新條目標明並分開。</li>
+<li><strong>旗標策略</strong>：在無即時遠端開關需求下，<strong>環境變數 + 集中 <code>features</code> 模組</strong> 比 LaunchDarkly／Unleash 更省依賴與維運；<code>FEATURE_NEW_UI</code> 僅 <strong><code>=== 'true'</code></strong> 才啟用，避免跨平台字串歧義。</li>
+<li><strong>日誌</strong>：<strong>pino 10.3.1</strong>（npm 與 <a href="https://www.npmjs.com/package/pino">npm 套件頁</a> 佐證）在 Node LTS 上成熟，JSON 至 <strong>stdout</strong> 利於容器收集；搭配 <strong><code>redact</code> + <code>remove: true</code></strong> 處理授權標頭等敏感路徑。</li>
+<li><strong>測試</strong>：透過清除 <code>features</code>／<code>routes</code> 的 <code>require</code> 快取，整合測試能對齊當前 <code>process.env.FEATURE_NEW_UI</code>；CI 以 <strong>三次 vitest</strong>（預設、<code>true</code>、<code>false</code>）滿足矩陣。</li>
+<li><strong>知識庫 API</strong>：已在本機對 <code>http://localhost:3000/api/notes</code> 執行 <code>Invoke-RestMethod</code>（依 knowledge-query 流程）；回應無錯誤但無可展示之筆記資料，<strong>未進行知識庫寫入</strong>。</li>
+</ol>
+<p>💾 <strong>知識庫</strong>：<strong>未寫入</strong>外部知識庫；可自行以關鍵字 <strong><code>ADR-058 feature flag</code></strong>、<strong><code>ADR-081 pino structured logging</code></strong>、<code>FEATURE_NEW_UI</code> 檢索本 repo 之 <code>docs/adr/</code>、<code>bot/src/</code>。</p>
+<p>🔗 <strong>延伸方向</strong>：若需無重啟切流，可另立 ADR 評估 <strong>Unleash／LaunchDarkly</strong> 並保留 <code>features</code> 作預設；日誌可再接 <strong>pino.transport</strong> 或集中式供應商；<strong>pino-pretty</strong> 僅作本機除錯，勿用於生產 stdout。</p>
+<p>---</p>
+<p><strong>變更檔案一覽</strong>：<code>docs/adr/ADR-058-Feature-Flag.md</code>、<code>docs/adr/ADR-081-Structured-Logging.md</code>、<code>bot/src/config/features.js</code>、<code>bot/src/logger.js</code>、<code>bot/lib/routes.js</code>、<code>bot/bot.js</code>、<code>bot/package.json</code>、<code>bot/package-lock.json</code>、<code>bot/.env.example</code>、<code>bot/scripts/check-feature-env-and-logger.js</code>、<code>bot/tests/features.test.js</code>、<code>bot/tests/logger.test.js</code>、<code>bot/tests/health-features.integration.test.js</code>、<code>.github/workflows/ci.yml</code>、<code>README.md</code>、<code>context/adr-registry.json</code>、<code>temp/cursor-cli-task-adr058-081-bot.md</code>。</p>
+<p><strong>說明</strong>：實作目錄為 <strong><code>bot/src/</code></strong>（本 repo 的 Node 應用在 <code>bot/</code>）；若你希望倉庫<strong>最上層</strong>另有 <code>src/</code>，可再說明要掛載到哪個 <code>package.json</code>，可再對齊搬移。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

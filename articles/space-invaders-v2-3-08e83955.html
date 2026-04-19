@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Space Invaders v2.3 優化心得：連擊計分系統（Combo Chain）+ Top 10 排行榜">
+  <title>Space Invaders v2.3 優化心得：連擊計分系統（Combo Chain）+ Top 10 排行榜 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Space Invaders v2.3 優化心得：連擊計分系統（Combo Chain）+ Top 10 排行榜</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">Space Invaders</span><span class="tag">小蜜蜂</span><span class="tag">Combo Chain</span><span class="tag">排行榜</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">遊戲開發</span><span class="tag">v2.3</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Space Invaders v2.3 優化心得</h1>
+<h2>概述</h2>
+<p>小蜜蜂 v2.3 新增兩大社交/玩法機制：<strong>連擊計分系統（Combo Chain）</strong>和 <strong>Top 10 本地排行榜</strong>。這兩個功能相輔相成——連擊系統讓高手能刷出更高分數，排行榜則提供長期追分動力。</p>
+<p>---</p>
+<h2>一、連擊計分系統（Combo Chain）</h2>
+<h3>設計理念</h3>
+<p>經典 Space Invaders 的計分是固定的（10/20/30 分），缺乏「技巧獎勵」。Combo Chain 為連續擊殺提供倍率加成，獎勵精準且快速的射擊。</p>
+<h3>核心機制</h3>
+<ul>
+<li><strong>Combo 窗口</strong>：每次擊殺後有 2 秒倒數，在窗口內再次擊殺累積連擊</li>
+<li><strong>倍率公式</strong>：<code>multiplier = min(8, 1 + floor(comboCount / 3))</code></li>
+</ul>
+<p>  - 1-2 擊：1x（基礎）</p>
+<p>  - 3-5 擊：2x</p>
+<p>  - 6-8 擊：3x</p>
+<p>  - 9-11 擊：4x</p>
+<p>  - ...最高 8x</p>
+<ul>
+<li><strong>倒數重置</strong>：2 秒內未擊殺 → 連擊中斷，播放提示音效</li>
+<li><strong>被命中重置</strong>：玩家被擊中時也會重置連擊</li>
+</ul>
+<h3>視覺回饋</h3>
+<ol>
+<li><strong>HUD Combo Bar</strong>：左上角顯示 combo 狀態，含倒數計時條</li>
+</ol>
+<p>   - 顏色分級：白(1x) → 橙(2-3x) → 紅(4x+)</p>
+<p>   - 脈動動畫增加緊迫感</p>
+<ol>
+<li><strong>浮動分數文字</strong>：擊殺位置顯示 <code>+30 (x3)</code> 等文字，向上飄移後淡出</li>
+</ol>
+<p>   - 使用物件池（MAX_FLOAT_TEXTS=10）避免 GC 壓力</p>
+<ol>
+<li><strong>音效遞進</strong>：連擊 3/6/9 次時播放越來越高的提示音</li>
+</ol>
+<h3>實作要點</h3>
+<ul>
+<li><code>registerKill(basePoints, x, y)</code> 統一擊殺入口，取代直接 <code>score +=</code></li>
+<li>倍率僅影響擊殺得分，不影響道具或關卡獎勵</li>
+<li>浮動文字池預分配，避免每次 new 物件</li>
+</ul>
+<p>---</p>
+<h2>二、Top 10 排行榜</h2>
+<h3>設計理念</h3>
+<p>原本只有單一 <code>highScore</code>，無法記錄不同場次的成就。Top 10 排行榜提供：</p>
+<ul>
+<li>多次遊玩的歷史記錄</li>
+<li>名稱+分數+關卡+日期的完整記錄</li>
+<li>視覺化排名展示（金色前三名）</li>
+</ul>
+<h3>資料結構</h3>
+<pre><code>
+// localStorage key: 'si_leaderboard'
+[{ name: 'ACE', score: 12350, level: 5, date: '2026-03-02' }, ...]
+</code></pre>
+<h3>流程</h3>
+<ol>
+<li><strong>Game Over</strong> → 檢查分數是否能進入 Top 10</li>
+<li><strong>能進榜</strong> → 顯示名稱輸入介面（最長 8 字元）</li>
+</ol>
+<p>   - 鍵盤輸入 + 閃爍游標</p>
+<p>   - Enter 確認 → 寫入 localStorage → 顯示排行榜</p>
+<p>   - 輸入期間阻擋所有其他按鍵（防止意外重啟）</p>
+<ol>
+<li><strong>不能進榜</strong> → 直接顯示排行榜</li>
+<li><strong>Menu 畫面</strong> → 底部顯示 Top 3 預覽</li>
+</ol>
+<h3>防呆設計</h3>
+<ul>
+<li><code>nameInputActive</code> 狀態鎖：名稱輸入期間阻擋 touch/click/keyboard 的遊戲操作</li>
+<li>名稱長度限制 8 字元</li>
+<li>空名稱不允許確認</li>
+<li>JSON parse 失敗時回傳空陣列（容錯）</li>
+</ul>
+<p>---</p>
+<h2>三、品質基線（v2.3）</h2>
+<ul>
+<li>requestAnimationFrame 遊戲迴圈（非 setInterval）</li>
+<li>AABB 碰撞偵測</li>
+<li>物件池：粒子(200) + 子彈(30) + 浮動文字(10)</li>
+<li>Web Audio API 8-bit 音效合成</li>
+<li>CRT 復古濾鏡（離屏預渲染）</li>
+<li>動態背景音樂</li>
+<li>道具系統（4 種道具）</li>
+<li>localStorage 高分+CRT偏好+排行榜 持久化</li>
+<li>觸控+鍵盤+滑鼠 三種輸入支援</li>
+</ul>
+<p>---</p>
+<h2>四、版本演進</h2>
+<p>| 版本 | 新增功能 |</p>
+<p>|------|----------|</p>
+<p>| v1.0 | 基礎遊戲（移動射擊、碰撞、護盾） |</p>
+<p>| v2.0 | 觸控暫停、關卡過渡、星空深度 |</p>
+<p>| v2.1 | 道具系統（護盾/三連射/射速/生命） |</p>
+<p>| v2.2 | CRT 復古濾鏡 + 動態背景音樂 |</p>
+<p>| v2.3 | 連擊計分系統 + Top 10 排行榜 |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

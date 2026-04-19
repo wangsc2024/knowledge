@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarkItDown — Microsoft 開源文件轉 Markdown 工具研究：插件化架構、MCP 伺服器、RAG 前處理與限制評估（84.9K Stars, 2026-03）">
+  <title>MarkItDown — Microsoft 開源文件轉 Markdown 工具研究：插件化架構、MCP 伺服器、RAG 前處理與限制評估（84.9K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>MarkItDown — Microsoft 開源文件轉 Markdown 工具研究：插件化架構、MCP 伺服器、RAG 前處理與限制評估（84.9K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">MarkItDown</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>MarkItDown — Microsoft 開源文件轉 Markdown 工具研究：插件化架構、MCP 伺服器、RAG 前處理與限制評估</h1>
+<h2>執行摘要</h2>
+<p>MarkItDown 是 Microsoft 維護的 Python 開源工具，核心目標不是做最重型的文件理解，而是把 PDF、Office、HTML、圖片、音訊與 URL 內容快速轉成 LLM/RAG 容易處理的 Markdown。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> 截至我於 2026-03-27 檢索 GitHub 頁面時，專案約有 84.9K stars、4.9K forks，且 2025-12-01 仍釋出 v0.1.4 維護版，顯示社群採用度與維護節奏都不低。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://github.com/microsoft/markitdown/releases">來源：GitHub Releases, 2026-03-27</a></p>
+<p>它的真正價值在於「AI ingestion 中介層」：先保留標題、段落、表格等結構，再把輸出餵給 embedding、chunking 或 agent pipeline，而不是直接把原始二進位文件丟給模型。<a href="https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown">來源：Thoughtworks, 2025</a> <a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a> 這也解釋了為什麼 MarkItDown 在 RAG 與自動化工作流中特別常見，但在複雜 PDF、圖像密集文件與大檔批次處理時，會面臨品質與穩定性邊界。<a href="https://www.reddit.com/r/Python/comments/1ls6hj5/i_benchmarked_4_python_text_extraction_libraries/">來源：Reddit r/Python Benchmark, 2025</a> <a href="https://www.reddit.com/r/LocalLLaMA/comments/1jz80f1/i_benchmarked_7_ocr_solutions_on_a_complex/">來源：Reddit r/LocalLLaMA OCR Benchmark, 2025</a></p>
+<h2>研究背景</h2>
+<p>近期 <code>ai_github_research</code> 已研究過 Google ADK、DeepEval、TensorZero 等框架或 LLMOps 類專案，因此這次優先挑選更偏文件處理基建、但仍直接服務 AI pipeline 的工具，以避免持續重複 Agent framework 路線。MarkItDown 符合這個條件：它不是大型 agent runtime，而是「把異質文件清洗成模型友善格式」的前處理層。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown">來源：Thoughtworks, 2025</a></p>
+<h2>核心發現</h2>
+<h3>1. 專案概述</h3>
+<p>MarkItDown 的目標是把多種文件格式轉為 Markdown，讓 LLM、RAG 與一般開發工作流都能直接使用。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> README 與 Real Python 都指出它支援 PDF、Word、PowerPoint、Excel、HTML、圖片、音訊與文字類格式，並可透過 CLI 與 Python API 使用。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a> Thoughtworks 則從實務面補充，Markdown 可保留標題與章節等結構訊號，讓後續做 structure-aware chunking 時更能維持語意段落完整。<a href="https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown">來源：Thoughtworks, 2025</a></p>
+<h3>2. 技術架構</h3>
+<p>MarkItDown 在 0.1.0 做了一次明顯的架構升級：官方 release 明確寫出三個關鍵決策，包括插件化架構、依賴按功能分組，以及全面改為 in-memory conversion、取消暫存檔。<a href="https://github.com/microsoft/markitdown/releases">來源：GitHub Releases, 2026-03-27</a> README 也同步提到 <code>DocumentConverter</code> 介面從讀檔路徑改為讀 file-like stream，表示核心抽象已從「檔案導向」轉為「串流導向」，這有利於把來源擴展到 stdin、URI、MCP 與程式內記憶體物件。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> Real Python 再次驗證了這個方向，說明使用者可以從 CLI、Python API 與 MCP server 三條路徑呼叫相同轉換能力。<a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a></p>
+<p>從這些來源綜合來看，可較有把握地主張 MarkItDown 的核心架構是「統一轉換入口 + 各格式 converter + 可選外掛能力 + 多介面暴露」。其中統一入口由 <code>MarkItDown</code> 類別與 CLI/MCP server 承接，不同格式則由對應 converter 處理，功能延伸再透過 optional dependency 與 plugin 機制掛載。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://github.com/microsoft/markitdown/releases">來源：GitHub Releases, 2026-03-27</a> <a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a> 關於某些具體 converter 內部如何分派到 <code>markdownify</code> 或其他庫，社群討論提供了旁證，但因非官方且範圍有限，我只將其視為輔助訊號，不作確定結論。<a href="https://www.reddit.com/r/Python/comments/1igtrtp">來源：Reddit r/Python html-to-markdown thread, 2025</a></p>
+<h3>3. 功能特色與同類差異</h3>
+<p>MarkItDown 和 Docling、Unstructured、Kreuzberg 這類工具相比，差異不在「最深文件理解」，而在「快速、輕量、Markdown-first」。Thoughtworks 之所以把它列為 Trial，理由正是它很適合在 RAG 流程中先把文件轉成有結構的 Markdown，再做 chunking。<a href="https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown">來源：Thoughtworks, 2025</a> Real Python 也強調它的 minimal setup、multi-format 與 plugin support，說明它更像實用型 ingestion utility，而不是重量級 document intelligence platform。<a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a></p>
+<p>但社群 benchmark 也顯示這種定位有代價。r/Python 的比較指出 MarkItDown 對簡單文件與 LLM preprocessing 很合適，但在大檔或高複雜度文件上會吃力；r/LocalLLaMA 的 OCR 實測甚至把「不搭配 AzureAI 的本地 MarkItDown」評為較弱，尤其在圖片抽取方面明顯不足。<a href="https://www.reddit.com/r/Python/comments/1ls6hj5/i_benchmarked_4_python_text_extraction_libraries/">來源：Reddit r/Python Benchmark, 2025</a> <a href="https://www.reddit.com/r/LocalLLaMA/comments/1jz80f1/i_benchmarked_7_ocr_solutions_on_a_complex/">來源：Reddit r/LocalLLaMA OCR Benchmark, 2025</a> 因此若要一句話概括它的差異化，就是「不是最強文件理解器，但很可能是最容易接進 AI 工作流的 Markdown 入口層」。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown">來源：Thoughtworks, 2025</a></p>
+<h3>4. 使用方式</h3>
+<p>最基本的安裝方式是：</p>
+<pre><code>
+pip install "markitdown[all]"
+</code></pre>
+<p>這個 <code>[all]</code> 安裝方式來自官方 README 與 0.1.0 release，代表它把各格式依賴拆成 feature groups，需要完整能力時再一次裝齊。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://github.com/microsoft/markitdown/releases">來源：GitHub Releases, 2026-03-27</a></p>
+<p>CLI 快速上手：</p>
+<pre><code>
+markitdown path-to-file.pdf -o document.md
+</code></pre>
+<p>Python API：</p>
+<pre><code>
+from markitdown import MarkItDown
+
+md = MarkItDown()
+result = md.convert("example.docx")
+print(result.markdown)
+</code></pre>
+<p>若要和 MCP client 整合，可安裝：</p>
+<pre><code>
+pip install markitdown-mcp
+</code></pre>
+<p>上述三種方式都出自官方或 Real Python 教學，因此屬可直接採信的上手路徑。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a> 另外 0.1.1 release 顯示 <code>convert_url</code> 已改名為 <code>convert_uri</code>，並支援 <code>file:</code> 與 <code>data:</code> URI，這對 agent/middleware 以非檔案來源傳遞內容很有價值。<a href="https://github.com/microsoft/markitdown/releases">來源：GitHub Releases, 2026-03-27</a></p>
+<h3>5. 社群活躍度</h3>
+<p>官方 GitHub 頁面顯示 MarkItDown 約有 84.9K stars、4.9K forks、295 個 issues、119 個 pull requests；這代表它不是單純爆紅後停更的專案，而是仍維持高互動量。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> Release 頁面顯示 2025-12-01 發出 v0.1.4，2025-08-26 有 v0.1.3，且從 2025-03 的 v0.1.0 到年底仍持續修補安全與格式支援，表示最近三個月內仍有活躍維護紀錄。<a href="https://github.com/microsoft/markitdown/releases">來源：GitHub Releases, 2026-03-27</a> 此外，MCP Registry 頁面收錄 MarkItDown 伺服器，也反映它已被納入 MCP 生態的標準工具清單。<a href="https://github.com/mcp/microsoft/markitdown">來源：MCP Registry, 2026-03-27</a></p>
+<h3>6. 潛在應用</h3>
+<p>對 <code>daily-digest-prompt</code> 而言，MarkItDown 最直接的用途不是替代現有研究流程，而是補足「外部文件 ingestion」。例如把 PDF 報告、PPT、Word 會議紀錄先轉成 Markdown，再進入知識庫匯入、chunking 與 hybrid search，可減少非結構化文件直接進 embedding 時的資訊流失。<a href="https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown">來源：Thoughtworks, 2025</a> <a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a></p>
+<p>對個人專案，最合理的切入點有三個。第一，做「文件前處理微服務」，把各種附件一律轉 Markdown 後再存 RAG；第二，做 MCP 工具，讓 agent 在對話中直接請求文件轉換；第三，做批次匯入腳本，先把本地資料夾內容轉換後送進知識庫。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a> 不過若需求是複雜學術 PDF、OCR、圖表還原與大型文件批次，則應評估 Docling、Unstructured 或其他更重量級方案，而不是直接把 MarkItDown 當唯一解。<a href="https://www.reddit.com/r/Python/comments/1ls6hj5/i_benchmarked_4_python_text_extraction_libraries/">來源：Reddit r/Python Benchmark, 2025</a> <a href="https://www.reddit.com/r/LocalLLaMA/comments/1jz80f1/i_benchmarked_7_ocr_solutions_on_a_complex/">來源：Reddit r/LocalLLaMA OCR Benchmark, 2025</a></p>
+<h3>7. 優缺點評估</h3>
+<p>優點方面，第一是學習成本低且接入快，CLI、Python API、MCP 三條介面都很直接。<a href="https://github.com/microsoft/markitdown">來源：GitHub Repo, 2026-03-27</a> <a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a> 第二是 0.1.0 之後的插件化與 feature-group 依賴設計，使它更容易以最小依賴部署在不同工作流。<a href="https://github.com/microsoft/markitdown/releases">來源：GitHub Releases, 2026-03-27</a> 第三是 Markdown-first 對 RAG 很實用，因為它能保留標題與章節訊號，提升 chunking 與檢索品質。<a href="https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown">來源：Thoughtworks, 2025</a></p>
+<p>缺點方面，第一是複雜 PDF 與圖片密集文件品質有限，這在兩個獨立 benchmark 與教學中都有反映。<a href="https://realpython.com/python-markitdown/">來源：Real Python, 2025</a> <a href="https://www.reddit.com/r/Python/comments/1ls6hj5/i_benchmarked_4_python_text_extraction_libraries/">來源：Reddit r/Python Benchmark, 2025</a> <a href="https://www.reddit.com/r/LocalLLaMA/comments/1jz80f1/i_benchmarked_7_ocr_solutions_on_a_complex/">來源：Reddit r/LocalLLaMA OCR Benchmark, 2025</a> 第二是 MCP 與遠端 URI 能力帶來安全面，2025-12 的 issue 列表可見 Zip Bomb DoS、blocking I/O 等問題，而 2026-01 的第三方漏洞整理指出其 MCP 伺服器存在 SSRF 風險；這些都代表它若部署成服務，而非單機 CLI，需要額外的 URL allowlist、檔案大小限制與沙箱隔離。<a href="https://github.com/microsoft/markitdown/issues">來源：GitHub Issues Search, 2026-03-27</a> <a href="https://www.darkreading.com/application-security/microsoft-anthropic-mcp-servers-risk-takeovers">來源：Dark Reading, 2026</a> 第三是文件與生態成熟度仍偏工具型，像早期就有使用者直接反映文件不足，說明採用時仍需參照 README、教學與 issue 自行補齊操作知識。<a href="https://github.com/microsoft/markitdown/issues/54">來源：GitHub Issue #54, 2024</a></p>
+<h2>知識缺口與未來方向</h2>
+<p>本輪研究完成的是 foundation 階段，已能回答「它是什麼、怎麼用、適合什麼、不適合什麼」。下一輪若進入 mechanism，值得深入的問題包括：各 converter 如何根據 MIME/extension 分派；plugin entry point 如何註冊；MCP server 如何處理 URI 與串流；以及安全修補是否會重構遠端抓取路徑。這些內容目前只有 README、release 與零散社群討論，仍需讀原始碼才能下更確定的結論，因此我把它列為下一階段，而非在本報告中過度推論。</p>
+<h2>參考來源</h2>
+<ul>
+<li>Microsoft. (2026). MarkItDown GitHub Repository. GitHub. https://github.com/microsoft/markitdown</li>
+<li>Microsoft. (2026). MarkItDown Releases. GitHub. https://github.com/microsoft/markitdown/releases</li>
+<li>Microsoft / MCP Registry. (2026). Markitdown MCP Server Entry. GitHub. https://github.com/mcp/microsoft/markitdown</li>
+<li>Ramos, Leodanis Pozo. (2025). Python MarkItDown: Convert Documents Into LLM-Ready Markdown. Real Python. https://realpython.com/python-markitdown/</li>
+<li>Thoughtworks. (2025). MarkItDown. Thoughtworks Technology Radar. https://www.thoughtworks.com/radar/languages-and-frameworks/markitdown</li>
+<li>Reddit user <code>ppkantorski</code>. (2025). I benchmarked 4 Python text extraction libraries so you don't have to. Reddit r/Python. https://www.reddit.com/r/Python/comments/1ls6hj5/i_benchmarked_4_python_text_extraction_libraries/</li>
+<li>Reddit user <code>nicolasx</code>. (2025). I benchmarked 7 OCR solutions on a complex academic document. Reddit r/LocalLLaMA. https://www.reddit.com/r/LocalLLaMA/comments/1jz80f1/i_benchmarked_7_ocr_solutions_on_a_complex/</li>
+<li>GitHub. (2026). microsoft/markitdown Issues Search. GitHub. https://github.com/microsoft/markitdown/issues</li>
+<li>GitHub. (2024). MarkItDown documentation Issue #54. GitHub. https://github.com/microsoft/markitdown/issues/54</li>
+<li>Dark Reading. (2026). Microsoft and Anthropic MCP Servers at Risk of Takeovers. https://www.darkreading.com/application-security/microsoft-anthropic-mcp-servers-risk-takeovers</li>
+<li>Reddit user <code>Icy-Chard-1101</code>. (2025). html-to-markdown 1.2 thread. Reddit r/Python. https://www.reddit.com/r/Python/comments/1igtrtp</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

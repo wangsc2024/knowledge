@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent Tool Use 可靠性設計：重試、補償交易、可觀測性與 MCP 工程模式（2026）">
+  <title>Agent Tool Use 可靠性設計：重試、補償交易、可觀測性與 MCP 工程模式（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Agent Tool Use 可靠性設計：重試、補償交易、可觀測性與 MCP 工程模式（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">Agent Tool Use</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent Tool Use 可靠性設計：重試、補償交易、可觀測性與 MCP 工程模式（2026）</h1>
+<h2>技術概述</h2>
+<p>2026 年的 Agent 工程實務已從「能不能呼叫工具」轉向「工具呼叫失敗時系統是否仍可控」。真正的工程難點不是單次 tool call，而是多步驟 tool loop 中的 schema 漂移、錯誤結果回傳、平行工具競爭、長任務暫停續跑與跨工具追蹤。官方文件顯示，成熟做法是把 tool schema、tool result 排版規則、錯誤攔截、回退結果與可觀測性視為同一個可靠性面，而不是分散在 prompt、SDK 與 workflow 之間各自處理。MCP 進一步把工具定義、輸出 schema、錯誤語義與資源連結標準化，讓 Agent 系統可以把工具從一次性函式提升為可治理的介面契約。</p>
+<h2>核心方法與工具</h2>
+<h3>1. 嚴格 schema 與高訊號工具設計</h3>
+<ul>
+<li>Anthropic 官方建議工具描述必須非常詳細，清楚說明何時使用、何時不該使用、參數意義與限制。</li>
+<li>對複雜工具可加入 <code>input_examples</code>，降低模型填錯參數的機率。</li>
+<li>若要保證一定發生工具呼叫且輸入符合 schema，可搭配 <code>tool_choice={"type":"any"}</code> 與 <code>strict: true</code>。</li>
+<li>工具表面應盡量收斂：把高度相關操作整併為少量但能力較完整的工具，避免 selection ambiguity。</li>
+</ul>
+<h3>2. 可恢復的 tool loop</h3>
+<ul>
+<li>Anthropic tool runner 會自動執行工具、維護對話狀態、追加 tool result，適合大多數標準流程。</li>
+<li>若手動實作，必須嚴格遵守訊息順序：<code>tool_result</code> 要緊接對應的 <code>tool_use</code>，而且在 user content array 中要排在最前面，否則會直接觸發 400 錯誤。</li>
+<li>長任務要處理 <code>pause_turn</code> 與 <code>max_tokens</code>：前者需把 paused response 原樣續傳，後者若截斷到不完整 tool block，需提高 <code>max_tokens</code> 重試。</li>
+</ul>
+<h3>3. 錯誤分級與補償策略</h3>
+<ul>
+<li>MCP 把錯誤分成兩層：JSON-RPC protocol error 與 tool execution error。前者代表協議或參數層出錯，後者代表業務執行失敗。</li>
+<li>Google ADK Plugins 提供 <code>before_tool_callback</code>、<code>after_tool_callback</code>、<code>on_tool_error_callback</code>。其中 <code>on_tool_error_callback</code> 可回傳 fallback dict，讓流程恢復並繼續跑 <code>after_tool_callback</code>。</li>
+<li>實務上可把工具分成三類：</li>
+</ul>
+<p>  1. 讀取型：可安全重試。</p>
+<p>  2. 具副作用但可冪等：需 request id / operation id。</p>
+<p>  3. 不可逆操作：需人工確認與補償交易。</p>
+<ul>
+<li>補償交易不是「失敗就反向呼叫一次」，而是為每個副作用步驟預先定義 rollback 能力、可逆範圍與人工接管點。</li>
+</ul>
+<h3>4. MCP 的工具治理能力</h3>
+<ul>
+<li>MCP <code>tools/list</code> / <code>tools/call</code> 讓工具發現與呼叫都具備標準 JSON-RPC 介面。</li>
+<li><code>outputSchema</code> 與 <code>structuredContent</code> 讓工具回傳可以被驗證與型別化處理，而不只是任意文字。</li>
+<li>工具結果可返回 <code>resource_link</code> 或 embedded resource，把大型上下文留在資源層，避免每次 tool result 都塞滿 prompt。</li>
+<li><code>notifications/tools/list_changed</code> 讓 client 能感知工具表面變更，適合動態插件或權限切換場景。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>先定義工具契約：名稱、用途、輸入 schema、輸出 schema、錯誤碼、冪等鍵。</li>
+<li>依副作用等級標記工具：<code>read_only</code>、<code>idempotent_write</code>、<code>destructive</code>。</li>
+<li>在 Agent runtime 加一層 tool wrapper，統一記錄 <code>tool_name</code>、<code>tool_use_id</code>、<code>attempt</code>、<code>latency_ms</code>、<code>status</code>、<code>error_type</code>。</li>
+<li>讀取型工具預設可重試 2-3 次；寫入型工具只有在有冪等鍵時才允許自動重試。</li>
+<li>對高風險工具要求 human-in-the-loop，至少在 UI 或日誌中顯示將被呼叫的工具與參數。</li>
+<li>若工具失敗，先判定是 schema/protocol 問題、依賴暫時失敗，還是業務規則失敗。</li>
+<li>可恢復失敗走 fallback：回傳結構化錯誤或降級結果，讓模型改變下一步策略。</li>
+<li>不可恢復失敗停止 workflow，保留完整 trace，必要時觸發補償交易或人工接管。</li>
+<li>事後以 trace 檢查哪些工具最常失敗、哪些欄位最常漂移，再回頭修 schema 與描述。</li>
+</ol>
+<h2>程式碼／配置範例</h2>
+<h3>Anthropic tool 定義與嚴格呼叫</h3>
+<pre><code>
+tools = [
+    {
+        "name": "kb_import_note",
+        "description": "匯入研究筆記到知識庫。只在內容已完成驗證、標題唯一且 tags 已整理時使用。若匯入失敗，會回傳結構化錯誤與可重試建議。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "content_markdown": {"type": "string"},
+                "tags": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["title", "content_markdown", "tags"]
+        },
+        "strict": True,
+        "input_examples": [
+            {
+                "title": "Agent Tool Use 可靠性設計",
+                "content_markdown": "# ...",
+                "tags": ["AI", "系統開發", "Agent Tool Use"]
+            }
+        ]
+    }
+]
+</code></pre>
+<h3>Python tool wrapper：重試 + 結構化錯誤</h3>
+<pre><code>
+import time
+from dataclasses import dataclass
+
+@dataclass
+class ToolResult:
+    ok: bool
+    data: dict | None = None
+    error_type: str | None = None
+    message: str | None = None
+
+
+def run_tool_with_retry(tool_fn, *, max_attempts=3, retryable=True):
+    for attempt in range(1, max_attempts + 1):
+        started = time.time()
+        try:
+            data = tool_fn()
+            return ToolResult(ok=True, data=data)
+        except TimeoutError as exc:
+            if not retryable or attempt == max_attempts:
+                return ToolResult(ok=False, error_type="timeout", message=str(exc))
+        except ValueError as exc:
+            return ToolResult(ok=False, error_type="schema", message=str(exc))
+        finally:
+            latency_ms = int((time.time() - started) * 1000)
+            print({"attempt": attempt, "latency_ms": latency_ms})
+</code></pre>
+<h3>Google ADK Plugin：集中處理 tool error</h3>
+<pre><code>
+from google.adk.plugins import BasePlugin
+
+class ReliabilityPlugin(BasePlugin):
+    async def on_tool_error_callback(self, *, tool, tool_args, tool_context, error):
+        return {
+            "ok": False,
+            "error_type": type(error).__name__,
+            "message": str(error),
+            "fallback_action": "ask_user_or_switch_strategy"
+        }
+</code></pre>
+<h3>MCP 工具回傳結構化內容</h3>
+<pre><code>
+{
+  "result": {
+    "content": [
+      {"type": "text", "text": "{"status":"partial","note_id":null}"}
+    ],
+    "structuredContent": {
+      "status": "partial",
+      "note_id": null,
+      "retryable": true
+    },
+    "isError": false
+  }
+}
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>Anthropic 官方文件明確指出，詳細描述與 schema 驗證能顯著改善 tool performance；這裡屬官方定性建議，而非單一公開百分比。</li>
+<li>Claude 官方推薦 tool runner，原因是它自動處理 request/response cycle、conversation state 與 validation，可直接減少手寫 loop 的錯誤面。這是從文件能力推導出的工程效益。</li>
+<li>Google ADK Plugin 機制讓全域 logging、policy、monitoring 與 fallback 可以在 Runner 層統一實作。推論上，這能降低每個 tool 各自重寫錯誤處理的維護成本。</li>
+<li>MCP <code>outputSchema</code> + <code>structuredContent</code> 可把「文字解析」轉成「schema 驗證」，通常能降低 client 端 brittle parsing。這是依規格能力所做的工程推論。</li>
+</ul>
+<h2>與本專案的應用場景</h2>
+<p>daily-digest-prompt 已經有大量 Shell、KB、registry、results JSON、workflow 交接等工具式操作，最容易出錯的不是單一 API，而是跨步驟半成功。這份模式可直接用在：</p>
+<ul>
+<li><code>knowledge-query</code> 匯入：加入冪等鍵與結構化錯誤，避免 KB 已寫入但結果檔仍標記失敗。</li>
+<li><code>research-registry</code> 更新：把 registry 寫入視為具副作用工具，設計補償與重複寫入保護。</li>
+<li>多步驟 workflow：用統一 trace 欄位追蹤 <code>tool_use_id</code>、topic、task_key、status，讓失敗點可回放。</li>
+<li>高風險 shell：對刪檔、覆寫、發通知等操作加 human-in-the-loop 或至少加 destructive 標記。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>不能把所有失敗都交給模型「自己想辦法」，副作用工具一定要有 runtime 層的硬性保護。</li>
+<li>自動重試若沒有冪等鍵，可能造成重複寫入、重複通知或狀態污染。</li>
+<li>平行 tool use 雖可提速，但若工具彼此有順序依賴，必須顯式關閉 parallel 或改成批次工具。</li>
+<li>MCP annotations 與工具描述若來自不受信任 server，client 端不能直接信任。</li>
+<li>補償交易只能降低損害，不能假設所有外部副作用都可完全回滾。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>Anthropic, How to implement tool use: https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use</li>
+<li>Model Context Protocol, Tools specification (Protocol Revision 2025-06-18): https://modelcontextprotocol.io/specification/2025-06-18/server/tools</li>
+<li>Google Agent Development Kit, Plugins and tool callbacks: https://google.github.io/adk-docs/plugins/</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

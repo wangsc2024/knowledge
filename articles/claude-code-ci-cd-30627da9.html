@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code CI/CD 整合與 Headless 自動化完整指南 — GitHub Actions、GitLab CI、Agent SDK 程式化控制與企業級自動化開發工作流（2026-02）">
+  <title>Claude Code CI/CD 整合與 Headless 自動化完整指南 — GitHub Actions、GitLab CI、Agent SDK 程式化控制與企業級自動化開發工作流（2026-02） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code CI/CD 整合與 Headless 自動化完整指南 — GitHub Actions、GitLab CI、Agent SDK 程式化控制與企業級自動化開發工作流（2026-02）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">CI/CD</span><span class="tag">GitHub Actions</span><span class="tag">GitLab CI</span><span class="tag">Agent SDK</span><span class="tag">Headless</span><span class="tag">自動化</span><span class="tag">知識庫</span><span class="tag">研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code CI/CD 整合與 Headless 自動化完整指南</h1>
+<h2>主題概述</h2>
+<p>Claude Code 的 CI/CD 整合與 Headless 自動化是將 AI 編程助手從互動式開發工具擴展為<strong>自動化基礎設施</strong>的核心能力。透過 <code>-p</code>（print）旗標、Agent SDK 程式化介面、GitHub Actions 官方整合與 GitLab CI/CD 支援，開發團隊可以在持續整合管線中嵌入 AI 驅動的程式碼審查、自動修復、測試生成與文件產出。2026 年的資料顯示，超過 60% 採用 Claude Code 的團隊使用非互動式模式自動化重複任務，平均減少 lint 錯誤解決時間 85%、程式碼審查時間 40%。</p>
+<p>---</p>
+<h2>一、Headless 模式（CLI `-p` 旗標）</h2>
+<h3>1.1 基本概念</h3>
+<p>Headless 模式（現已整合入 Agent SDK）是 Claude Code 的非互動式執行模式，透過 <code>-p</code> 旗標將提示作為單一命令發送，取得回應後立即退出，無需互動介面。</p>
+<pre><code>
+claude -p "Find and fix the bug in auth.py" --allowedTools "Read,Edit,Bash"
+</code></pre>
+<h3>1.2 三種輸出格式</h3>
+<p>| 格式 | 用途 | 解析方式 |</p>
+<p>|------|------|----------|</p>
+<p>| <code>text</code>（預設） | CI 日誌、終端顯示 | 直接輸出 |</p>
+<p>| <code>json</code> | 腳本整合、API 串接 | jq 或 JSON 解析器 |</p>
+<p>| <code>stream-json</code> | 即時儀表板、串流處理 | NDJSON 逐行解析 |</p>
+<p>JSON 回應包含：<code>type</code>、<code>result</code>、<code>cost_usd</code>、<code>duration_ms</code>、<code>num_turns</code>、<code>session_id</code>。</p>
+<h3>1.3 結構化輸出（JSON Schema）</h3>
+<p>可透過 <code>--json-schema</code> 指定輸出格式，Claude 會嚴格遵守 Schema 定義：</p>
+<pre><code>
+claude -p "Extract the main function names from auth.py" \
+  --output-format json \
+  --json-schema '{"type":"object","properties":{"functions":{"type":"array","items":{"type":"string"}}},"required":["functions"]}'
+</code></pre>
+<p>結構化輸出存放在回應的 <code>structured_output</code> 欄位。</p>
+<h3>1.4 串流輸出</h3>
+<p>使用 <code>--output-format stream-json --verbose --include-partial-messages</code> 可接收逐 token 生成的 NDJSON 事件：</p>
+<pre><code>
+claude -p "Write a poem" --output-format stream-json --verbose --include-partial-messages | \
+  jq -rj 'select(.type == "stream_event" and .event.delta.type? == "text_delta") | .event.delta.text'
+</code></pre>
+<h3>1.5 工具權限控制</h3>
+<p><code>--allowedTools</code> 使用權限規則語法（Permission Rule Syntax），支援前綴匹配：</p>
+<pre><code>
+# 允許 git 相關指令（注意 * 前的空格）
+--allowedTools "Bash(git diff *),Bash(git log *),Bash(git status *),Bash(git commit *)"
+</code></pre>
+<p><strong>安全最佳實踐</strong>：CI/CD 環境中應始終限制工具為最小必要集合。</p>
+<h3>1.6 系統提示自訂</h3>
+<ul>
+<li><code>--append-system-prompt</code>：追加指令，保留預設行為</li>
+<li><code>--system-prompt</code>：完全替換預設系統提示</li>
+</ul>
+<pre><code>
+gh pr diff "$1" | claude -p \
+  --append-system-prompt "You are a security engineer. Review for vulnerabilities." \
+  --output-format json
+</code></pre>
+<h3>1.7 多輪對話（Session 管理）</h3>
+<pre><code>
+# 首次請求
+claude -p "Review this codebase for performance issues"
+
+# 繼續最近的對話
+claude -p "Now focus on the database queries" --continue
+
+# 恢復特定 session
+session_id=$(claude -p "Start a review" --output-format json | jq -r '.session_id')
+claude -p "Continue that review" --resume "$session_id"
+</code></pre>
+<p>每個 session 保留約 200,000 tokens 的上下文。</p>
+<p>---</p>
+<h2>二、GitHub Actions 整合</h2>
+<h3>2.1 核心功能</h3>
+<p>Claude Code GitHub Actions（<code>anthropics/claude-code-action@v1</code>）是官方維護的 GitHub Action，支援：</p>
+<ul>
+<li><strong>@claude 提及觸發</strong>：在 PR 或 Issue 留言中 @claude 即可觸發</li>
+<li><strong>自動 PR 建立</strong>：描述需求後 Claude 自動建立完整的 PR</li>
+<li><strong>程式碼實作</strong>：將 Issue 轉化為可運作的程式碼</li>
+<li><strong>技能整合</strong>：支援 <code>/review</code>、<code>/fix</code> 等預建技能</li>
+<li><strong>CLAUDE.md 感知</strong>：遵循專案中的 CLAUDE.md 編碼標準</li>
+</ul>
+<h3>2.2 基本工作流配置</h3>
+<pre><code>
+name: Claude Code
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+</code></pre>
+<h3>2.3 自動化排程工作流</h3>
+<pre><code>
+name: Daily Report
+on:
+  schedule:
+    - cron: "0 9 * * *"
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "Generate a summary of yesterday's commits and open issues"
+          claude_args: "--model opus"
+</code></pre>
+<h3>2.4 v1.0 GA 版本參數</h3>
+<p>| 參數 | 說明 | 必填 |</p>
+<p>|------|------|------|</p>
+<p>| <code>prompt</code> | Claude 的指令（文字或技能如 <code>/review</code>） | 否 |</p>
+<p>| <code>claude_args</code> | 傳遞給 Claude CLI 的參數 | 否 |</p>
+<p>| <code>anthropic_api_key</code> | API 金鑰 | 是（直連）|</p>
+<p>| <code>github_token</code> | GitHub 存取權杖 | 否 |</p>
+<p>| <code>trigger_phrase</code> | 觸發詞（預設 <code>@claude</code>） | 否 |</p>
+<p>| <code>use_bedrock</code> | 使用 AWS Bedrock | 否 |</p>
+<p>| <code>use_vertex</code> | 使用 Google Vertex AI | 否 |</p>
+<h3>2.5 企業雲端整合</h3>
+<p>支援三種認證方式：</p>
+<ul>
+<li><strong>Claude API 直連</strong>：<code>ANTHROPIC_API_KEY</code></li>
+<li><strong>AWS Bedrock</strong>：透過 OIDC 角色假設（<code>AWS_ROLE_TO_ASSUME</code>）</li>
+<li><strong>Google Vertex AI</strong>：透過 Workload Identity Federation（<code>GCP_WORKLOAD_IDENTITY_PROVIDER</code>）</li>
+</ul>
+<p>---</p>
+<h2>三、GitLab CI/CD 整合（Beta）</h2>
+<h3>3.1 核心架構</h3>
+<p>GitLab 整合由 GitLab 官方維護（非 Anthropic），採用三層架構：</p>
+<ol>
+<li><strong>事件驅動編排</strong>：監聽 <code>@claude</code> 提及、MR 事件、Web pipeline</li>
+<li><strong>供應商抽象</strong>：Claude API / AWS Bedrock / Google Vertex AI</li>
+<li><strong>沙箱執行</strong>：每個任務在隔離容器中執行，寫入受限</li>
+</ol>
+<h3>3.2 基本 .gitlab-ci.yml</h3>
+<pre><code>
+stages:
+  - ai
+
+claude:
+  stage: ai
+  image: node:24-alpine3.21
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  variables:
+    GIT_STRATEGY: fetch
+  before_script:
+    - apk update
+    - apk add --no-cache git curl bash
+    - curl -fsSL https://claude.ai/install.sh | bash
+  script:
+    - /bin/gitlab-mcp-server || true
+    - &gt;
+      claude
+      -p "${AI_FLOW_INPUT:-'Review this MR and implement changes'}"
+      --permission-mode acceptEdits
+      --allowedTools "Bash Read Edit Write mcp__gitlab"
+      --debug
+</code></pre>
+<h3>3.3 安全治理</h3>
+<ul>
+<li>每個 job 在隔離容器中執行</li>
+<li>所有變更通過 MR 流程，審閱者可見完整 diff</li>
+<li>分支保護與核准規則適用於 AI 生成的程式碼</li>
+<li>Claude Code 使用工作區範圍權限限制寫入</li>
+</ul>
+<p>---</p>
+<h2>四、Claude Agent SDK 程式化控制</h2>
+<h3>4.1 SDK 概述</h3>
+<p>Claude Agent SDK（原 Claude Code SDK）提供與 Claude Code 相同的工具、agent 迴圈和上下文管理，可在 Python 和 TypeScript 中程式化使用。</p>
+<p><strong>版本</strong>（2026-02）：Python v0.1.34 / TypeScript v0.2.37</p>
+<h3>4.2 核心能力矩陣</h3>
+<p>| 能力 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>內建工具</strong> | Read、Write、Edit、Bash、Glob、Grep、WebSearch、WebFetch |</p>
+<p>| <strong>Hooks 回呼</strong> | PreToolUse、PostToolUse、Stop、SessionStart、SessionEnd |</p>
+<p>| <strong>子 Agent</strong> | 透過 <code>AgentDefinition</code> 定義專責子 Agent 委派任務 |</p>
+<p>| <strong>MCP 整合</strong> | 連接外部系統（資料庫、瀏覽器、API） |</p>
+<p>| <strong>權限模型</strong> | <code>allowedTools</code> + <code>permissionMode</code>（bypassPermissions、acceptEdits） |</p>
+<p>| <strong>Session 管理</strong> | 跨多輪對話保持上下文，支援恢復與分支 |</p>
+<p>| <strong>結構化輸出</strong> | JSON Schema 約束輸出格式 |</p>
+<h3>4.3 Python SDK 基本用法</h3>
+<pre><code>
+import asyncio
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+async def main():
+    async for message in query(
+        prompt="Find and fix the bug in auth.py",
+        options=ClaudeAgentOptions(allowed_tools=["Read", "Edit", "Bash"]),
+    ):
+        if hasattr(message, "result"):
+            print(message.result)
+
+asyncio.run(main())
+</code></pre>
+<h3>4.4 TypeScript SDK 基本用法</h3>
+<pre><code>
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+for await (const message of query({
+  prompt: "Find and fix the bug in auth.py",
+  options: { allowedTools: ["Read", "Edit", "Bash"] }
+})) {
+  if ("result" in message) console.log(message.result);
+}
+</code></pre>
+<h3>4.5 SDK vs CLI 選型指南</h3>
+<p>| 使用場景 | 最佳選擇 |</p>
+<p>|----------|----------|</p>
+<p>| 互動式開發 | CLI |</p>
+<p>| CI/CD 管線 | SDK |</p>
+<p>| 自訂應用程式 | SDK |</p>
+<p>| 一次性任務 | CLI |</p>
+<p>| 生產自動化 | SDK |</p>
+<p>---</p>
+<h2>五、常見 CI/CD 自動化場景</h2>
+<h3>5.1 AI 驅動的程式碼審查</h3>
+<pre><code>
+steps:
+  - uses: anthropics/claude-code-action@v1
+    with:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      prompt: "/review"
+      claude_args: "--max-turns 5"
+</code></pre>
+<p><strong>效益</strong>：平均減少審查時間 40%。</p>
+<h3>5.2 自動測試生成</h3>
+<pre><code>
+claude -p "Generate unit tests for the auth module" \
+  --allowedTools "Read,Write" \
+  --max-turns 5
+</code></pre>
+<p><strong>效益</strong>：平均覆蓋 72% 的未測試程式碼分支。</p>
+<h3>5.3 Lint 錯誤自動修復</h3>
+<pre><code>
+claude -p "Fix all ESLint errors in src/" \
+  --allowedTools "Read,Edit,Bash(npx eslint *)" \
+  --output-format json
+</code></pre>
+<p><strong>效益</strong>：平均減少解決時間 85%。</p>
+<h3>5.4 自動提交訊息</h3>
+<pre><code>
+claude -p "Look at my staged changes and create an appropriate commit" \
+  --allowedTools "Bash(git diff *),Bash(git log *),Bash(git status *),Bash(git commit *)"
+</code></pre>
+<p>---</p>
+<h2>六、安全最佳實踐</h2>
+<h3>6.1 五大安全規則</h3>
+<ol>
+<li><strong>限制工具權限</strong>：<code>--allowedTools Read,Write</code>（CI 中避免 Bash）</li>
+<li><strong>密鑰管理</strong>：使用 GitHub Secrets / GitLab CI Variables / Vault</li>
+<li><strong>限制迭代次數</strong>：<code>--max-turns 3-10</code> 防止無限迴圈</li>
+<li><strong>驗證輸出</strong>：對 JSON 回應進行 Schema 驗證</li>
+<li><strong>審計日誌</strong>：<code>--verbose 2>claude-audit.log</code></li>
+</ol>
+<h3>6.2 成本控制</h3>
+<ul>
+<li>典型 CI 執行成本：$0.03-$0.20 / 次</li>
+<li>設定適當的 <code>--max-turns</code> 防止過度迭代</li>
+<li>使用 GitHub/GitLab 的並行控制限制同時執行數</li>
+<li>設定工作流層級的 timeout 避免失控</li>
+</ul>
+<h3>6.3 環境變數</h3>
+<p>| 變數 | 用途 | 預設值 |</p>
+<p>|------|------|--------|</p>
+<p>| <code>ANTHROPIC_API_KEY</code> | API 認證 | 必填 |</p>
+<p>| <code>CLAUDE_CODE_MAX_TURNS</code> | 迭代上限 | 無限制 |</p>
+<p>| <code>CLAUDE_CODE_MODEL</code> | 模型選擇 | claude-sonnet-4-6 |</p>
+<p>| <code>CLAUDE_CODE_OUTPUT_FORMAT</code> | 輸出格式 | text |</p>
+<p>| <code>CLAUDE_CODE_VERBOSE</code> | 除錯日誌 | false |</p>
+<p>---</p>
+<h2>七、與本專案（daily-digest-prompt）的關聯</h2>
+<p>本專案廣泛使用 Claude Code 的 Headless 模式進行排程自動化：</p>
+<p>| 本專案實踐 | 對應 CI/CD 技術 |</p>
+<p>|-----------|----------------|</p>
+<p>| <code>claude -p --allowedTools</code> | Headless 工具權限控制 |</p>
+<p>| PowerShell <code>Start-Job</code> 並行 | 類似 GitHub Actions 矩陣策略 |</p>
+<p>| <code>--output-format json</code> 結果解析 | JSON 結構化輸出管線 |</p>
+<p>| <code>--resume</code> session 恢復 | 多輪對話上下文維持 |</p>
+<p>| CLAUDE.md 專案指引 | GitHub Actions 中的 CLAUDE.md 感知 |</p>
+<h3>潛在改進方向</h3>
+<ol>
+<li><strong>Agent SDK 遷移</strong>：從 CLI <code>-p</code> 遷移至 Python Agent SDK，獲得更細粒度的控制（hooks 回呼、結構化輸出、tool approval）</li>
+<li><strong>JSON Schema 約束</strong>：為自動任務結果定義 JSON Schema，確保輸出一致性</li>
+<li><strong>串流監控</strong>：使用 <code>stream-json</code> 格式實現即時執行監控儀表板</li>
+<li><strong>GitHub Actions 整合</strong>：將部分自動任務遷移至 GitHub Actions 以利用雲端計算資源</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://code.claude.com/docs/en/headless">Run Claude Code programmatically - Claude Code Docs</a></li>
+<li><a href="https://code.claude.com/docs/en/github-actions">Claude Code GitHub Actions - Claude Code Docs</a></li>
+<li><a href="https://code.claude.com/docs/en/gitlab-ci-cd">Claude Code GitLab CI/CD - Claude Code Docs</a></li>
+<li><a href="https://platform.claude.com/docs/en/agent-sdk/overview">Agent SDK overview - Claude API Docs</a></li>
+<li><a href="https://github.com/anthropics/claude-code-action">anthropics/claude-code-action - GitHub</a></li>
+<li><a href="https://institute.sfeir.com/en/claude-code/claude-code-headless-mode-and-ci-cd/cheatsheet/">Headless Mode and CI/CD - SFEIR Institute</a></li>
+<li><a href="https://angelo-lima.fr/en/claude-code-cicd-headless-en/">CI/CD and Headless Mode with Claude Code</a></li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-28</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「研究 1 項 Claude Code 最新技術」。KB 去重檢查後確認 CI/CD 整合與 Headless 自動化方向尚未涵蓋（已有 Hooks、Plugin、Worktree、SDK 基礎功能），此主題與本專案的排程自動化架構直接相關。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

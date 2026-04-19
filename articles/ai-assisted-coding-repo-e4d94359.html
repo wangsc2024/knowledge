@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI-Assisted Coding 優化：repo map 壓縮策略、token 成本治理與多代理協作 KPI（2026）">
+  <title>AI-Assisted Coding 優化：repo map 壓縮策略、token 成本治理與多代理協作 KPI（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI-Assisted Coding 優化：repo map 壓縮策略、token 成本治理與多代理協作 KPI（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">AI-Assisted Coding</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI-Assisted Coding 優化：repo map 壓縮策略、token 成本治理與多代理協作 KPI（2026）</h1>
+<h2>技術概述</h2>
+<p>AI-Assisted Coding 在 2026 年的關鍵瓶頸已不是「模型會不會寫程式」，而是「如何在大型程式庫裡給對上下文、控制 token 成本，並讓多代理分工不把延遲和費用炸掉」。OpenAI 對 Codex 的公開說明顯示，coding agent 會在工具呼叫與多輪對話中快速吃掉 context window，因此需要 compaction、prompt caching 與明確的 repository instructions。Anthropic 的 Claude Code 文件則把 <code>CLAUDE.md</code>、路徑層級規則、subagent 與 Plan Mode 納入日常工作流。最新 AGENTS.md 研究進一步提醒：上下文檔不是越長越好，過多要求反而會拉低成功率並增加推理成本。這代表最佳實踐應從「多塞文件」轉為「分層上下文 + 最小必要指令 + 可量化 KPI」。</p>
+<h2>核心方法與工具</h2>
+<ol>
+<li><strong>分層記憶與最小指令面</strong></li>
+</ol>
+<p>   - 全域規則放在 <code>CLAUDE.md</code> 或 <code>AGENTS.md</code>，只保留架構、慣例、必跑命令、禁令。</p>
+<p>   - 子目錄規則只在真的讀到該樹時載入，避免把整個 repo 的規則一次塞進 context。</p>
+<p>   - 指令原則是最小必要：列出 build/test/lint、目錄責任、危險區域，不寫長篇教學。</p>
+<ol>
+<li><strong>Repo map + Just-in-Time context</strong></li>
+</ol>
+<p>   - 先產生結構化 repo map：模組邊界、依賴關係、入口點、測試位置、常用命令。</p>
+<p>   - 代理只在需要時載入目標檔、相依檔、對應測試與規則檔。</p>
+<p>   - 以 directory reference、檔案 reference、symbol search 取代整包原始碼灌入。</p>
+<ol>
+<li><strong>Token budget policy</strong></li>
+</ol>
+<p>   - 把 token 視為預算而不是免費資源。</p>
+<p>   - 為 <code>explore</code>、<code>edit</code>、<code>verify</code>、<code>delegate</code> 設定配額與升級條件。</p>
+<p>   - 對長對話啟用 compaction；對穩定不變的前綴用 prompt caching。</p>
+<ol>
+<li><strong>Subagent / Multi-agent 協作</strong></li>
+</ol>
+<p>   - 把可平行的工作拆給專用 subagent，例如 <code>code-reviewer</code>、<code>test-writer</code>、<code>debugger</code>。</p>
+<p>   - 每個 subagent 只拿到任務必需工具與局部上下文，避免 context 汙染。</p>
+<p>   - 主代理只彙總摘要與結論，不接收全部原始探索輸出。</p>
+<ol>
+<li><strong>量化治理 KPI</strong></li>
+</ol>
+<p>   - 成功率：task success rate、首次通過率、人工接管率。</p>
+<p>   - 成本：每任務 input/output tokens、prompt cache hit ratio、每成功變更成本。</p>
+<p>   - 效能：P50/P95 延遲、探索步數、工具呼叫數、verify 迴圈次數。</p>
+<p>   - 品質：回歸失敗率、測試通過率、review 接受率、reopen rate。</p>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>建立專案級 <code>CLAUDE.md</code> 或 <code>AGENTS.md</code>，只放必要規則：架構邊界、常用命令、禁止事項。</li>
+<li>產生 repo map：列出核心模組、依賴、資料流、測試入口與危險檔案。</li>
+<li>定義 token budget：例如探索 20%、編輯 35%、驗證 35%、緩衝 10%。</li>
+<li>收到任務後先用 Plan Mode 或 read-only 階段確認要改哪些模組，不直接全庫掃描。</li>
+<li>僅載入當前任務需要的檔案、相鄰相依與對應測試；超出預算時先 compact 再繼續。</li>
+<li>可平行的工作交給 subagent：例如一個代理整理影響面，另一個代理補測試。</li>
+<li>主代理整合 patch 後執行 verify：lint、unit test、必要時 integration test。</li>
+<li>記錄 KPI：本次任務 token、延遲、快取命中、verify 次數、是否人工修正。</li>
+<li>每週回顧高成本任務，縮短或重寫規則檔，刪除無效 repo context。</li>
+</ol>
+<h2>程式碼 / 配置範例</h2>
+<h3>1. 最小必要的 `CLAUDE.md`</h3>
+<pre><code>
+# Project Memory
+- Architecture: `apps/api` 提供 REST API，`packages/domain` 放核心規則，`apps/web` 只呼叫公開 service。
+- Commands:
+  - test: `pnpm test --filter @acme/api`
+  - lint: `pnpm lint`
+  - typecheck: `pnpm typecheck`
+- Rules:
+  - 修改 API handler 時，必須同步檢查 `packages/domain` 與 `apps/web/src/lib/api.ts`
+  - 不要直接修改 `packages/domain/generated/*`
+  - PR 前至少跑受影響模組的單元測試
+</code></pre>
+<h3>2. Repo map 與 token budget 設定</h3>
+<pre><code>
+context_policy:
+  repo_map:
+    include:
+      - apps/api
+      - packages/domain
+      - tests
+    summarize:
+      - entrypoints
+      - public_interfaces
+      - test_locations
+      - forbidden_paths
+  token_budget:
+    explore_pct: 20
+    edit_pct: 35
+    verify_pct: 35
+    reserve_pct: 10
+  compaction:
+    trigger_tokens: 120000
+    keep:
+      - current_goal
+      - changed_files
+      - failing_tests
+      - open_questions
+  delegation:
+    enable_subagents: true
+    max_parallel_agents: 2
+</code></pre>
+<h3>3. 任務遙測事件</h3>
+<pre><code>
+{
+  "task": "refactor-auth-session",
+  "success": true,
+  "input_tokens": 18400,
+  "output_tokens": 5200,
+  "cache_hit_ratio": 0.41,
+  "tool_calls": 17,
+  "verify_loops": 3,
+  "latency_ms_p95": 48600,
+  "human_edits_after_agent": 2
+}
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>OpenAI 在 2026-01-23 的 Codex agent loop 技術文指出，conversation 會因工具呼叫與歷史訊息快速膨脹，因此 CLI 內建 auto compaction 與 prompt caching 穩定策略；這代表大型 repo 場景中，context 管理已是 agent 的核心責任，而不是附屬優化。</li>
+<li>OpenAI 在 2025-05-16 的 Codex 發布文建議把任務切成多個 well-scoped agents 同時執行，並指出 Codex mini 在 API 定價上提供 prompt caching 折扣，可直接把「快取命中率」視為成本治理指標之一。</li>
+<li>Anthropic Claude Code 文件明確把 <code>CLAUDE.md</code>、subagent、自動委派、Plan Mode、測試驗證列為日常工作流，代表一線工具已把「分層記憶 + 專用代理 + verify」視為標準做法。</li>
+<li>2026-02 的 AGENTS.md 研究則指出：自動或過度冗長的 repository context 常使成功率下降，且推理成本上升超過 20%。因此 repo context 的最佳化目標不是寫更多，而是寫得更少、更精準。</li>
+</ul>
+<blockquote>推論：若團隊已經有穩定測試與清楚模組邊界，最值得先追的 KPI 通常不是更大的 context window，而是 <code>cache_hit_ratio</code>、<code>tokens per successful task</code>、<code>verify_loops per merged task</code> 與 <code>human_edits_after_agent</code>。</blockquote>
+<h2>與本專案的應用場景（daily-digest-prompt 如何受益）</h2>
+<ol>
+<li><code>templates/</code>、<code>skills/</code>、<code>workflows/</code> 很多，適合建立 repo map，讓代理先知道哪裡是規範、哪裡是執行邏輯。</li>
+<li>可把 <code>skills/knowledge-query</code>、<code>results/</code>、<code>context/</code> 的讀寫規則濃縮到專案級記憶檔，避免每次研究任務都重複探索。</li>
+<li>適合將研究型流程拆成兩個 subagent：</li>
+</ol>
+<p>   - <code>kb-strategist</code>：只負責查 KB、做去重與系列判斷。</p>
+<p>   - <code>web-researcher</code>：只負責搜來源與提煉量化數據。</p>
+<ol>
+<li>可新增任務遙測欄位：每次自動任務記錄 token、快取命中、KB 搜尋次數、verify 迴圈，做週期回顧。</li>
+<li>對 <code>context/research-registry.json</code>、<code>context/research-series.json</code> 這類大檔，可優先導入摘要視圖或局部索引，避免主代理整檔載入。</li>
+</ol>
+<h2>風險與注意事項</h2>
+<ul>
+<li>Context 檔過長會讓代理更聽話，但不一定更有效；要定期刪掉過期規則。</li>
+<li>多代理若沒有明確邊界，可能把 token 成本與整體延遲倍增。</li>
+<li>把 compaction 做成黑箱摘要會遺失驗證證據；至少要保留目標、變更檔、失敗測試與待決策事項。</li>
+<li>KPI 不能只看 token 下降，還要一起看成功率與人工返工率，不然容易壓低成本卻惡化品質。</li>
+<li>prompt caching、repo map、subagent 都建立在「專案結構穩定」前提上；若 repo 持續大改，索引與規則要跟著更新。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>OpenAI, <em>Introducing Codex</em> (2025-05-16): https://openai.com/index/introducing-codex/</li>
+<li>OpenAI, <em>Unrolling the Codex agent loop</em> (2026-01-23): https://openai.com/index/unrolling-the-codex-agent-loop/</li>
+<li>Anthropic, <em>How Claude remembers your project</em>: https://code.claude.com/docs/en/memory</li>
+<li>Anthropic, <em>Common workflows</em>: https://code.claude.com/docs/en/tutorials</li>
+<li>Gloaguen et al., <em>Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?</em> (arXiv:2602.11988, 2026-02-12): https://huggingface.co/papers/2602.11988</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

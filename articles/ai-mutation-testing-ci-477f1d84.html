@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 輔助突變測試（Mutation Testing）與 CI Quality Gate：增量執行與測試強化工作流（2026-04-09）">
+  <title>AI 輔助突變測試（Mutation Testing）與 CI Quality Gate：增量執行與測試強化工作流（2026-04-09） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 輔助突變測試（Mutation Testing）與 CI Quality Gate：增量執行與測試強化工作流（2026-04-09）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">突變測試與 CI Gate</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 輔助突變測試（Mutation Testing）與 CI Quality Gate</h1>
+<h2>技術概述（約 150 字）</h2>
+<p>突變測試透過對程式碼注入「突變」（例如把 <code>></code> 改成 <code>>=</code>、把常數加一），再執行既有測試套件，檢查測試是否能<strong>偵測並殺死</strong>這些錯誤版本。相較於單純行覆蓋率，突變分數（Mutation Score, MSR）更能反映「測試是否真能抓錯」。現行工具鏈（Stryker、PIT、mutmut 等）已可與 CI 整合；大型語言模型則適合擔任<strong>測項設計助理</strong>（建議邊界案例、補強 assertion），但<strong>不應</strong>取代實際執行突變與測試——否則無法得到可稽核的 MSR。</p>
+<h2>核心方法與工具</h2>
+<p>| 生態 | 代表工具 | 備註 |</p>
+<p>|------|-----------|------|</p>
+<p>| JavaScript/TS | <a href="https://stryker-mutator.io/">Stryker</a> | 支援增量、並行、報表與 dashboard |</p>
+<p>| Java/JVM | <a href="https://pitest.org/">PIT (Pitest)</a> | 與 Maven/Gradle 整合成熟 |</p>
+<p>| Python | mutmut、Cosmic Ray | 適合腳本型專案與小型模組 |</p>
+<p>| .NET | Stryker.NET | 與 <code>dotnet test</code> 管線銜接 |</p>
+<p><strong>指標</strong>：<code>MSR = 被殺死的突變數 / 總突變數</code>（已排除被標記為等價的突變）。另需區分「無法殺死」是因為測試不足，還是突變在語意上等價。</p>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li><strong>基線</strong>：確保單元測試在乾淨分支上全綠，並固定種子（若測試有隨機性）。</li>
+<li><strong>本地試跑</strong>：以預設或縮小範圍（單一模組）執行突變測試，產生 HTML/JSON 報表，檢視「存活突變」清單。</li>
+<li><strong>增量模式</strong>：在 CI 僅對變更檔或依賴圖子集跑突變（Stryker <code>incremental</code>、或僅對 PR diff），控制時間成本。</li>
+<li><strong>門檻策略</strong>：初期採 <strong>軟門檻</strong>（報告＋警告），待 MSR 穩定後再設 <strong>硬門檻</strong>（例如 MSR ≥ 某團隊共識值，且僅統計非等價突變）。</li>
+<li><strong>LLM 輔助（可選）</strong>：將「存活突變片段＋對應測試」餵給模型，請其建議<strong>額外斷言或案例</strong>；人類審核後再合併。</li>
+<li><strong>治理</strong>：將 MSR、執行時間、突變數寫入儀表板或 <code>results/*.json</code> 類可稽核欄位，與 flaky 測試指標分開追蹤。</li>
+</ol>
+<h2>程式碼／配置範例</h2>
+<h3>Stryker（`stryker.conf.json` 片段）</h3>
+<pre><code>
+{
+  "packageManager": "npm",
+  "reporters": ["html", "clear-text", "progress"],
+  "testRunner": "jest",
+  "coverageAnalysis": "perTest",
+  "mutate": ["src/**/*.js", "!src/**/*.spec.js"]
+}
+</code></pre>
+<h3>GitHub Actions（概念性 job）</h3>
+<pre><code>
+mutation:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+    - run: npm ci
+    - run: npx stryker run --incremental
+</code></pre>
+<blockquote>實際快取目錄、並行數與 timeout 請依專案調整；Windows 排程／本機 runner 亦適用相同邏輯。</blockquote>
+<h2>效果量化（實務觀察）</h2>
+<ul>
+<li>產業與教學材料普遍認為：突變測試能揭露「高覆蓋但弱斷言」的測試；<strong>具體 MSR 目標應依專案風險與執行成本共識化</strong>，不宜抄固定百分比作為全專案 KPI。</li>
+<li><strong>執行成本</strong>常為導入瓶頸：需搭配增量、並行、夜間全量與 PR 子集等分層策略。</li>
+</ul>
+<h2>與 daily-digest-prompt 的應用場景</h2>
+<ul>
+<li><strong>自動任務與 Hook</strong>：Python/PowerShell 測試可選定關鍵模組做突變門檻，與既有 <code>pytest</code>／品質閘門並列，驗證「守衛邏輯是否真的被測到」。</li>
+<li><strong>多後端／沙箱備援</strong>：突變測試驗證的是<strong>本機測試套件</strong>，與 Cursor CLI／OpenRouter 配額無直接衝突；可放在<strong>非 LLM 關鍵路徑</strong>的 CI job，避免與 Phase2 搶佔時間。</li>
+<li><strong>文件驅動架構</strong>：當 <code>config/*.yaml</code> 或 schema 變更時，可用突變測試確認 hooks／驗證器測試是否跟進。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ol>
+<li><strong>等價突變</strong>：過多誤判會打擊信心，需使用工具兪示的 equivalent mutant 標記或審核流程。</li>
+<li><strong>時間與 CI 額度</strong>：全量突變可能極慢；必須增量與分層。</li>
+<li><strong>LLM 幻覺</strong>：模型可能建議語意錯誤的測試；需 code review 與實際綠燈。</li>
+<li><strong>與 flaky 測試共存</strong>：flaky 會讓突變結果不穩定，宜先治理 flaky（見既有 CI/CD 智能化筆記）。</li>
+</ol>
+<h2>參考來源</h2>
+<ul>
+<li>Stryker 官方文件：<https://stryker-mutator.io/docs/></li>
+<li>Pitest（PIT）官方：<https://pitest.org/></li>
+<li>維基百科 Mutation testing 條目（概念與歷史背景）：<https://en.wikipedia.org/wiki/Mutation_testing></li>
+<li>IEEE／軟體測試經典文獻對突變測試效度的討論（搜尋關鍵字：<code>mutation testing survey</code>）</li>
+</ul>
+<p>---</p>
+<p><em>匯入來源：import｜研究類型：ai_sysdev｜日期：2026-04-09</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

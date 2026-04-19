@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-27）：task-quality-gate + prompt-version-tracker 深度審查">
+  <title>Skill 品質審查報告（2026-03-27）：task-quality-gate + prompt-version-tracker 深度審查 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-27）：task-quality-gate + prompt-version-tracker 深度審查</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">task-quality-gate</span><span class="tag">prompt-version-tracker</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-27）</h1>
+<h2>審查範圍</h2>
+<p>本次深度審查 2 個 Skill：</p>
+<ul>
+<li><strong>task-quality-gate</strong>（LLM-as-a-Judge 品質門檻評估，工具 Skill #59）</li>
+<li><strong>prompt-version-tracker</strong>（Prompt 模板主動版本管理，工具 Skill #57）</li>
+</ul>
+<h2>選擇理由</h2>
+<p>子 Agent 掃描結果顯示 6 個 Skill 缺少 "Use when" 描述（quality-tracker、todoist-task-creator、prompt-version-tracker、add-podcast-task、task-quality-gate、task-manager），但實際讀取後發現前兩者<strong>均有</strong> "Use when" 描述，掃描邏輯可能有誤。選擇這兩個 Skill 因為：</p>
+<ul>
+<li>均為系統品質監控類 Skill，使用頻率中等但品質影響大</li>
+<li>從未被深度審查過（過往審查記錄：2026-02-15 全面體檢、2026-03-01 git-smart-commit+chatroom-query、2026-03-25 agent-result-validator+behavior-pattern-analyzer）</li>
+</ul>
+<p>---</p>
+<h2>task-quality-gate 審查結果</h2>
+<h3>4.1 Frontmatter 規範性：✅ 通過</h3>
+<ul>
+<li>✅ name 與目錄名一致</li>
+<li>✅ description 含明確 "Use when: 自動任務完成後、寫入最終結果前"</li>
+<li>✅ allowed-tools: Read, Write, Bash（合理，需讀配置、建 prompt、執行 claude）</li>
+<li>✅ cache-ttl: N/A（合理，評估不需快取）</li>
+<li>✅ triggers 10 個（充足）</li>
+</ul>
+<h3>4.2 內容品質：⚠️ 部分問題</h3>
+<ul>
+<li>✅ 步驟結構清晰（步驟 1-8，編號明確）</li>
+<li>✅ 包含可執行的 bash/curl 範例</li>
+<li>✅ 輸出格式有明確規範（步驟 4、5 的 JSON 解析）</li>
+<li>✅ 錯誤處理/降級機制完善（表格「錯誤處理與降級」）</li>
+<li>✅ 依賴檔案 <code>config/evaluation-criteria.yaml</code> 存在（2238 bytes）</li>
+<li>❌ <strong>關鍵缺失</strong>：步驟 6 提到整合至 <code>prompts/team/todoist-assemble.md</code> 步驟 6.5，但<strong>實際未整合</strong>（Grep 搜尋無結果）</li>
+</ul>
+<h3>4.3 路由一致性：⚠️ 需確認</h3>
+<ul>
+<li>SKILL_INDEX.md 中列在 #59，triggers 包含 10 個關鍵字</li>
+<li>觸發關鍵字（"品質評估"、"quality gate"）未在 routing.yaml 中映射（需手動觸發或整合後自動觸發）</li>
+</ul>
+<h3>4.4 覆蓋度分析：⚠️ 未落地</h3>
+<ul>
+<li><strong>設計完整，但未整合至實際執行流程</strong></li>
+<li>建議：先完成 todoist-assemble.md 步驟 6.5 整合，再將 status 改為 active</li>
+</ul>
+<h3>修正動作</h3>
+<ol>
+<li><strong>version</strong>: 1.0.0 → 1.0.1（patch，補充狀態說明）</li>
+<li><strong>新增 frontmatter 欄位</strong>：</li>
+</ol>
+<p>   - <code>status: "draft"</code></p>
+<p>   - <code>integration_status: "待整合至 prompts/team/todoist-assemble.md 步驟 6.5"</code></p>
+<ol>
+<li><strong>標題下加狀態提示</strong>："狀態：Draft — 整合至 todoist-assemble.md 步驟 6.5 尚未完成（2026-03-27 審查發現）"</li>
+</ol>
+<p>---</p>
+<h2>prompt-version-tracker 審查結果</h2>
+<h3>4.1 Frontmatter 規範性：✅ 通過</h3>
+<ul>
+<li>✅ name 與目錄名一致</li>
+<li>✅ description 含 "Use when: 追蹤 prompt 版本變更、遞增版本號、補齊 frontmatter、分析版本與品質因果、自主偵測品質回歸。"</li>
+<li>✅ allowed-tools: Read, Write, Edit, Bash, Grep, Glob（完整權限，合理）</li>
+<li>✅ cache-ttl: N/A</li>
+<li>✅ triggers 11 個（充足）</li>
+<li>✅ depends-on 明確列出（tools/prompt-versioning.py + system-insight + agent-result-validator）</li>
+</ul>
+<h3>4.2 內容品質：⚠️ 複雜度高</h3>
+<ul>
+<li>✅ 步驟結構清晰（步驟 0-9，編號明確）</li>
+<li>✅ 包含可執行的 Python/Bash 範例（每個步驟都有）</li>
+<li>✅ 輸出格式明確（步驟 7 注入欄位、步驟 9 報告 JSON）</li>
+<li>✅ 錯誤處理/降級機制（表格「降級處理」完整）</li>
+<li>✅ 工具依賴 <code>tools/prompt-versioning.py</code> 存在（16797 bytes）</li>
+<li>⚠️ <strong>複雜度高</strong>：步驟 2/5/7/9 包含大量內嵌 Python（50-100 行），可讀性略低，但功能完整</li>
+</ul>
+<h3>4.3 路由一致性：⚠️ 手動觸發</h3>
+<ul>
+<li>SKILL_INDEX.md 中列在 #57，triggers 包含 11 個關鍵字</li>
+<li>觸發關鍵字（"prompt 版本"、"版本遞增"）未在 routing.yaml 中映射（手動觸發設計，合理）</li>
+</ul>
+<h3>4.4 覆蓋度分析：✅ 功能完整</h3>
+<ul>
+<li>CLI 工具完整（bump/init/check/report 四個子命令）</li>
+<li>降級機制覆蓋所有失敗情境（工具不存在→內嵌 Python 替代）</li>
+<li><strong>無需修正</strong></li>
+</ul>
+<p>---</p>
+<h2>總評分：8.5/10</h2>
+<ul>
+<li><strong>task-quality-gate</strong>: 7/10（設計優秀但未整合，標記為 draft）</li>
+<li><strong>prompt-version-tracker</strong>: 10/10（功能完整，複雜度合理）</li>
+</ul>
+<h2>修正清單</h2>
+<p>| Skill | 修正項目 | 狀態 |</p>
+<p>|-------|---------|------|</p>
+<p>| task-quality-gate | 新增 status=draft + integration_status 說明 | ✅ 完成 |</p>
+<p>| task-quality-gate | version 1.0.0 → 1.0.1 | ✅ 完成 |</p>
+<p>| prompt-version-tracker | 無需修正 | - |</p>
+<h2>驗證結果</h2>
+<ul>
+<li>✅ task-quality-gate frontmatter YAML 可解析</li>
+<li>✅ version 已更新為 1.0.1</li>
+<li>✅ status 和 integration_status 欄位已新增</li>
+</ul>
+<h2>建議後續行動</h2>
+<ol>
+<li><strong>task-quality-gate</strong>：實施 todoist-assemble.md 步驟 6.5 整合，測試通過後將 status 改為 active</li>
+<li><strong>prompt-version-tracker</strong>：可考慮將步驟 2/5/7/9 的內嵌 Python 提取為獨立腳本（例如 <code>tools/prompt-registry-sync.py</code>），提升可維護性（非緊急）</li>
+</ol>
+<h2>審查方法論</h2>
+<ol>
+<li>✅ 使用 Explore 子 Agent 掃描 frontmatter（避免主 Agent OOM）</li>
+<li>✅ 查詢知識庫過往審查記錄（避免重複審查）</li>
+<li>✅ 選定從未審查的系統品質監控類 Skill</li>
+<li>✅ 四維度深度審查（frontmatter、內容品質、路由一致性、覆蓋度）</li>
+<li>✅ 實施修正並驗證（YAML 解析、version 更新）</li>
+<li>✅ 匯入知識庫（tags: Skill/審查/品質優化）</li>
+</ol>
+<p><strong>建立者</strong>: todoist-auto-skill_audit  </p>
+<p><strong>最後更新</strong>: 2026-03-27T00:00:00+08:00</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

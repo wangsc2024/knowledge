@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #24 - list_questions 過濾策略重構 + zeep 升級 (2026-03-04)">
+  <title>QA System 優化報告 #24 - list_questions 過濾策略重構 + zeep 升級 (2026-03-04) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #24 - list_questions 過濾策略重構 + zeep 升級 (2026-03-04)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">過濾重構</span><span class="tag">品質改善</span><span class="tag">zeep升級</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #24</h1>
+<blockquote>日期：2026-03-04 | 品質分數：5/5 | 第二十四次掃描</blockquote>
+<h2>優化方向</h2>
+<p>list_questions 過濾策略重構（抽取 _matches_question_filters 純函式）+ zeep 本地版本 4.2.1→4.3.2 升級</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題。已確認：SECRET_KEY 環境變數化、SQL 注入防護（全 ORM，raw SQL 零殘留）、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼 30 分鐘過期、python-jose CVE 修復、錯誤訊息零洩漏。</p>
+<h2>已修復問題（3 項品質）</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>list_questions 過濾策略重構</strong>：將 ~70 行 inline 過濾邏輯（權限+狀態+部門+年份混合判斷）抽取為 <code>_matches_question_filters()</code> 純函式。消除迴圈內冗餘的 <code>db.query(Department)</code> 和 <code>can_access_department()</code> 呼叫，改用預先計算的 set 交集。questions.py 644→604 行（-6%），自原始 1064 行已降 43%。</li>
+</ol>
+<ol>
+<li><strong>部門過濾冗餘 DB 查詢移除</strong>：原本部門過濾先查 DB 確認部門存在、再檢查用戶權限、最後逐筆迴圈比對。重構後直接用 accessible_dept_ids set 交集判斷，一步完成。</li>
+</ol>
+<ol>
+<li><strong>zeep 本地版本升級</strong>：pip install --upgrade zeep 從 4.2.1 升級至 4.3.2，消除 Python 3.13 將移除的 cgi 模組棄用警告。</li>
+</ol>
+<h2>測試結果</h2>
+<p>103/103 全部通過（29.18 秒）</p>
+<h2>累計改善</h2>
+<ul>
+<li>questions.py：1064 行 → 604 行（-43%，24 次迭代漸進式重構）</li>
+<li>全專案 raw SQL text() 零殘留</li>
+<li>8/8 路由模組測試覆蓋</li>
+<li>OWASP Top 10 全綠燈</li>
+</ul>
+<h2>剩餘項目</h2>
+<ul>
+<li>questions.py 604 行仍為最大模組（各端點職責明確，拆分收益遞減）</li>
+<li>list_questions 可考慮將 ORM query 推至 DB 層過濾（當前為記憶體過濾）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

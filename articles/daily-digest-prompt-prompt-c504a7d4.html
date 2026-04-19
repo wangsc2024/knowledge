@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt Prompt 模板生態系統治理 — 模板膨脹度量、跨模板重複消除與共用片段抽取策略（2026-03-08）">
+  <title>Daily-Digest-Prompt Prompt 模板生態系統治理 — 模板膨脹度量、跨模板重複消除與共用片段抽取策略（2026-03-08） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt Prompt 模板生態系統治理 — 模板膨脹度量、跨模板重複消除與共用片段抽取策略（2026-03-08）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">模板治理</span><span class="tag">Template Bloat</span><span class="tag">DRY原則</span><span class="tag">共用片段</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-08</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt Prompt 模板生態系統治理</h1>
+<p><strong>模板膨脹度量、跨模板重複消除與共用片段抽取策略</strong></p>
+<p><em>研究日期：2026-03-08</em></p>
+<p><em>類型：專案優化 / 深度思維 / 知識庫</em></p>
+<p><em>適用對象：daily-digest-prompt 專案</em></p>
+<p>---</p>
+<h2>一、現況分析：模板全景地圖</h2>
+<h3>1.1 規模概覽</h3>
+<p>| 維度 | 數值 |</p>
+<p>|------|------|</p>
+<p>| templates/ 目錄 | 32 個 .md 檔案，3,067 行 |</p>
+<p>| prompts/team/ 目錄 | 37 個 .md 檔案，4,857 行 |</p>
+<p>| 模板總行數 | <strong>7,924 行</strong> |</p>
+<p>| 自動任務模板 | 20 個（auto-tasks/），2,164 行 |</p>
+<p>| 子 Agent 模板 | 8 個（sub-agent/），約 540 行 |</p>
+<p>| 共用模板 | 4 個（shared/），約 100 行 |</p>
+<p>| 團隊模式 prompt | 37 個（prompts/team/），4,857 行 |</p>
+<h3>1.2 模板行數分佈（Top 10 最大檔案）</h3>
+<p>| 檔案 | 行數 | 類型 |</p>
+<p>|------|------|------|</p>
+<p>| todoist-query.md | 425 | 團隊 Phase 1 |</p>
+<p>| todoist-assemble.md | 386 | 團隊 Phase 3 |</p>
+<p>| assemble-audit.md | 320 | 審查組裝 |</p>
+<p>| assemble-digest.md | 307 | 摘要組裝 |</p>
+<p>| creative-game-optimize.md | 212/178 | 遊戲優化（團隊/模板） |</p>
+<p>| ai-deep-research.md | 167/160 | AI 深度研究（團隊/模板） |</p>
+<p>| qa-system-optimize.md | 165 | QA 優化 |</p>
+<p>| chatroom-optimize.md | 151 | 聊天室優化 |</p>
+<p>| buddhist-research.md | 141 | 佛學研究 |</p>
+<p>| shurangama-research.md | 138/128 | 楞嚴經研究（團隊/模板） |</p>
+<p>---</p>
+<h2>二、核心問題：六大重複熱點</h2>
+<h3>2.1 重複段落跨檔案擴散統計</h3>
+<p>| 重複段落 | 出現次數 | 估計重複行數 | 嚴重度 |</p>
+<p>|---------|---------|------------|-------|</p>
+<p>| Skill-First 宣告 | 60 個檔案 | ~180 行 | 高 |</p>
+<p>| localhost:3000 API 呼叫 | 35 個檔案 | ~210 行 | 高 |</p>
+<p>| 品質自評迴圈 | 30 個檔案 | ~150 行 | 高 |</p>
+<p>| DONE_CERT 輸出 | 26 個檔案 | ~104 行 | 中 |</p>
+<p>| 研究註冊表檢查 | 24 個檔案 | ~288 行 | 高（含不一致） |</p>
+<p>| 更新研究註冊表 | 23 個檔案 | ~368 行 | 高（含不一致） |</p>
+<p>| <strong>估計總重複</strong> | — | <strong>~1,300 行</strong> | — |</p>
+<h3>2.2 雙重維護負擔</h3>
+<p>每個自動任務存在兩份近似檔案：</p>
+<ul>
+<li><code>templates/auto-tasks/<name>.md</code>（單一模式用）</li>
+<li><code>prompts/team/todoist-auto-<name>.md</code>（團隊模式用）</li>
+</ul>
+<p>兩者差異僅在外層包裝（角色宣告、輸出路徑），核心邏輯（去重、研究、匯入、註冊表更新）幾乎相同。維護時容易只改一處忘記另一處。</p>
+<h3>2.3 一致性漂移實例</h3>
+<p><strong>發現 1：ai-sysdev-research.md 使用舊版 registry 格式</strong></p>
+<ul>
+<li>舊版：<code>{"version":1,"entries":[]}</code> — 無 summary 欄位</li>
+<li>新版（其他 10+ 模板）：<code>{"version":1,"summary":{...},"entries":[]}</code> — 有 summary</li>
+<li>影響：ai-sysdev 任務每次都會讀完整 entries 做去重，而非利用 summary 快速判定</li>
+</ul>
+<p><strong>發現 2：部分模板的判定邏輯差異</strong></p>
+<ul>
+<li>tech-research.md：<code>summary.by_type.tech_research</code>（新版 summary 路徑）</li>
+<li>ai-sysdev-research.md：讀完整 entries 後手動計算（舊版方式）</li>
+<li>這種不一致來自不同時期的修改，難以靠人工審查發現</li>
+</ul>
+<p><strong>發現 3：品質自評問題不同但位置相同</strong></p>
+<ul>
+<li>tech-research：「是否聚焦於今日任務實際所需？」「是否提供可操作的最佳實踐？」</li>
+<li>ai-sysdev：「是否包含可執行的工作流程？」「是否有程式碼或配置範例？」</li>
+<li>這是合理的差異化（不同任務有不同品質標準），但應顯式參數化而非隱性散落</li>
+</ul>
+<p>---</p>
+<h2>三、優化建議：三層治理策略</h2>
+<h3>3.1 P0：共用片段抽取（Extract Shared Fragments）</h3>
+<p><strong>目標</strong>：消除 ~1,300 行重複代碼，建立「單一定義處」原則</p>
+<p><strong>方案</strong>：在 <code>templates/shared/</code> 新增可參數化的共用片段</p>
+<pre><code>
+templates/shared/
+  preamble.md                 # 已有：Skill-First + nul 禁令
+  done-cert.md                # 已有：DONE_CERT 格式
+  quality-gate.md             # 已有：品質閘門
+  kb-depth-check.md           # 已有：KB 深度分析
+  registry-check.md           # 新增：研究註冊表檢查（參數：task_type）
+  registry-update.md          # 新增：研究註冊表更新（參數：task_type, tags）
+  kb-import.md                # 新增：知識庫匯入標準流程
+  quality-self-review.md      # 新增：品質自評（參數：criteria 列表）
+  dedup-search.md             # 新增：去重搜尋兩階段流程
+</code></pre>
+<p><strong>引用方式</strong>（在各模板中）：</p>
+<pre><code>
+## 第零步：研究註冊表檢查
+讀取 `templates/shared/registry-check.md`，以 task_type=`tech_research` 執行。
+</code></pre>
+<p><strong>預估收益</strong>：</p>
+<ul>
+<li>每個研究模板從 ~120 行減至 ~50 行（僅保留任務特定邏輯）</li>
+<li>修改去重邏輯只需改 1 個檔案（目前需改 24 個）</li>
+<li>消除一致性漂移的根本原因</li>
+</ul>
+<h3>3.2 P1：雙軌模板合併（Single Source of Truth）</h3>
+<p><strong>問題</strong>：templates/auto-tasks/ 和 prompts/team/todoist-auto-* 的雙重維護</p>
+<p><strong>方案 A（推薦）：團隊模式 prompt 改為動態引用模板</strong></p>
+<p>團隊模式 prompt 精簡為 ~15 行，僅含角色宣告、模板引用和輸出路徑設定。</p>
+<p><strong>方案 B：建構時生成</strong></p>
+<ul>
+<li>寫一個 <code>generate-team-prompts.ps1</code> 腳本</li>
+<li>從 <code>templates/auto-tasks/<em>.md</code> + 團隊模式 wrapper 模板自動生成 <code>prompts/team/todoist-auto-</em>.md</code></li>
+<li>修改源模板後執行一次生成即可</li>
+</ul>
+<p><strong>預估收益</strong>：</p>
+<ul>
+<li>消除 ~2,000 行重複（19 個自動任務 x ~100 行重複部分）</li>
+<li>維護點從 2N 降為 N+1（N 個源模板 + 1 個 wrapper）</li>
+</ul>
+<h3>3.3 P2：模板健康度量化（Template Health Metrics）</h3>
+<p>在 <code>check-health.ps1</code> 中新增模板健康指標：</p>
+<ul>
+<li>template_total_lines（警戒閾值 > 8,000）</li>
+<li>template_count（警戒閾值 > 75）</li>
+<li>avg_lines_per_template（警戒閾值 > 120）</li>
+<li>shared_fragment_ratio（警戒閾值 < 15%）</li>
+<li>duplication_hotspot_count（警戒閾值 > 5）</li>
+</ul>
+<p>---</p>
+<h2>四、實施路線圖</h2>
+<h3>Phase 1（P0 緊急修復，1-2 小時）</h3>
+<ol>
+<li>修復 <code>ai-sysdev-research.md</code> 的 registry 格式（對齊新版 summary 方案）</li>
+<li>建立 <code>templates/shared/registry-check.md</code> 和 <code>registry-update.md</code></li>
+<li>在 2-3 個模板中試行引用，驗證效果</li>
+</ol>
+<h3>Phase 2（P1 雙軌合併，2-3 小時）</h3>
+<ol>
+<li>建立 <code>templates/shared/kb-import.md</code> 和 <code>dedup-search.md</code></li>
+<li>所有研究模板改為引用共用片段</li>
+<li>選擇方案 A 或 B 合併團隊模式 prompt</li>
+</ol>
+<h3>Phase 3（P2 度量建設，1 小時）</h3>
+<ol>
+<li><code>check-health.ps1</code> 新增模板健康指標</li>
+<li>設定基線值和警戒閾值</li>
+</ol>
+<h3>預期效果</h3>
+<p>| 維度 | 修改前 | 修改後（預估） |</p>
+<p>|------|--------|---------------|</p>
+<p>| 模板總行數 | 7,924 | ~5,500（-30%） |</p>
+<p>| 重複段落 | 6 個熱點 | 0（全部共用化） |</p>
+<p>| 修改一致性流程的檔案數 | 24 | 1 |</p>
+<p>| 一致性漂移風險 | 高 | 極低 |</p>
+<p>---</p>
+<h2>五、風險評估</h2>
+<ol>
+<li><strong>共用片段的 Token 成本</strong>：LLM 每次需額外 Read 共用檔案，增加 ~5 個工具呼叫。但消除重複帶來的維護收益遠大於此。</li>
+<li><strong>間接引用的可理解性</strong>：模板不再自包含，需要跨檔案閱讀。建議在每個共用片段中加入一行用途說明。</li>
+<li><strong>向後相容</strong>：單一模式和團隊模式的讀取路徑不同，合併需確保兩條路徑都能正確解析。</li>
+</ol>
+<p>---</p>
+<h2>六、與知識庫已有研究的關聯</h2>
+<ol>
+<li><strong>配置文件治理（2026-02-24）</strong>：本文是 YAML 配置治理的姊妹篇 — 前者聚焦配置層（16 YAML），本文聚焦模板層（69 MD）</li>
+<li><strong>可觀測性成熟度路線圖（2026-03-03）</strong>：模板健康指標可整合進可觀測性 Phase 2 的度量體系</li>
+<li><strong>系統成熟度評估（2026-03-06）</strong>：Phase 3 演進中提到「自適應模板」，本文的共用片段是其前置條件</li>
+<li><strong>跨 Phase 資料契約（2026-03-07）</strong>：雙軌模板合併將降低跨 Phase 命名不一致風險</li>
+<li><strong>Hooks 子系統優化（2026-03-07）</strong>：hook-rules.yaml 的外部化成功經驗可複製到模板層</li>
+<li><strong>執行管線效率（2026-03-03）</strong>：模板精簡直接減少 LLM context window 佔用，提升效率</li>
+</ol>
+<p>---</p>
+<h2>七、結論</h2>
+<p>Daily-Digest-Prompt 的「文件驅動架構」理念正確，但模板層在 20+ 個自動任務的擴張下出現了「模板膨脹」（Template Bloat）— 7,924 行中估計 ~1,300 行是純重複。這不僅增加維護成本，更導致一致性漂移（如 ai-sysdev 的 registry 格式落後）。</p>
+<p>核心解法是<strong>共用片段抽取</strong>（Extract Shared Fragments），遵循已在 <code>preamble.md</code> 和 <code>hook-rules.yaml</code> 驗證成功的「單一定義處」原則。預計可將模板總量減少 30%，將修改一個通用邏輯的成本從修改 24 個檔案降為修改 1 個檔案。</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>專案實測數據：<code>wc -l templates/*<em>/</em>.md prompts/team/*.md</code> 的直接量測（2026-03-08）</li>
+<li>知識庫：Daily-Digest-Prompt 配置文件治理與 YAML 工程化（2026-02-24）</li>
+<li>知識庫：Daily-Digest-Prompt 執行管線效率與容錯架構優化建議（2026-03-03）</li>
+<li>知識庫：Daily-Digest-Prompt 可觀測性成熟度演進路線圖（2026-03-03）</li>
+<li>知識庫：Daily-Digest-Prompt 系統成熟度評估與 Phase 3 演進路線圖（2026-03-06）</li>
+<li>知識庫：Daily-Digest-Prompt 跨 Phase 資料契約與防禦性編排模式（2026-03-07）</li>
+<li>知識庫：Daily-Digest-Prompt Hooks 子系統優化（2026-03-07）</li>
+<li>知識庫：YAML 配置驅動架構完整指南（2026-03-04）</li>
+<li>DRY 原則 — Andrew Hunt & David Thomas, The Pragmatic Programmer</li>
+<li>Template Method Pattern — GoF Design Patterns</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-08</em></p>
+<p><em>任務 ID：6g2FfvWmxqhCWx85</em></p>
+<p><em>研究類型：todoist_research（專案優化 + 深度思維 + 知識庫）</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

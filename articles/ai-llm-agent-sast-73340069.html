@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 程式碼審查的內部機制 — LLM 差異感知審查架構、多 Agent 並行審查模式、SAST-LLM 融合分析與大規模 Code Review 系統設計模式（2026）">
+  <title>AI 程式碼審查的內部機制 — LLM 差異感知審查架構、多 Agent 並行審查模式、SAST-LLM 融合分析與大規模 Code Review 系統設計模式（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 程式碼審查的內部機制 — LLM 差異感知審查架構、多 Agent 並行審查模式、SAST-LLM 融合分析與大規模 Code Review 系統設計模式（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">Code Review</span><span class="tag">程式碼審查</span><span class="tag">LLM機制</span><span class="tag">多Agent架構</span><span class="tag">SAST融合</span><span class="tag">差異感知</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 程式碼審查的內部機制</h1>
+<h2>LLM 差異感知審查架構、多 Agent 並行審查模式、SAST-LLM 融合分析與大規模 Code Review 系統設計模式</h2>
+<p>研究日期：2026-03-04</p>
+<p>任務類型：ai_sysdev（AI 應用於系統開發）</p>
+<p>知識階段：mechanism（承接 foundation 概論，深入內部運作原理）</p>
+<p>---</p>
+<h2>一、技術概述</h2>
+<p>AI 程式碼審查（AI Code Review）已從 2024 年的「PR 注釋機器人」演進為 2026 年的「多 Agent 並行審查系統」。核心機制鏈為：<strong>程式碼差異解析 → 結構化分塊 → 上下文擴充 → 多 Agent 並行審查 → 結果聚合與去重 → 信心評分過濾</strong>。兩個關鍵技術突破推動了這一演進：（1）差異感知處理（diff-aware processing）讓 LLM 從「看整個檔案」轉為「精準聚焦變更」；（2）SAST（靜態應用安全測試）與 LLM 的融合架構，將規則型偵測的高精確度與 LLM 的上下文推理能力結合，誤報率降低 40-70%。</p>
+<p>產業數據揭示了緊迫性：AI 輔助的 Pull Request 平均大 18%、事故率高 24%、變更失敗率高 30%。AI 生成的程式碼含有 1.7 倍更多的邏輯錯誤，XSS 漏洞高 2.74 倍。這使得 AI Code Review 從「好用的附加功能」變為「必備的品質閘門」。</p>
+<p>---</p>
+<h2>二、核心機制：LLM 如何理解程式碼差異</h2>
+<h3>2.1 差異解析與結構化分塊</h3>
+<p>原始 git diff 是為人類和 patch 工具設計的，對 LLM 不友善。現代系統使用 <code>unidiff</code>（Python）或 <code>DiffPlex</code>（C#）等函式庫將 diff 轉為結構化格式：</p>
+<pre><code>
+# 結構化 Diff Chunk 模型
+{
+  "file_path": "src/auth/handler.py",
+  "language": "python",
+  "added_lines": [{"line_no": 42, "content": "token = jwt.encode(payload, SECRET_KEY)"}],
+  "removed_lines": [{"line_no": 40, "content": "token = base64.encode(payload)"}],
+  "context_before": "# 前 3 行上下文...",
+  "context_after": "# 後 3 行上下文..."
+}
+</code></pre>
+<p><strong>分塊策略</strong>：</p>
+<ul>
+<li>每個 Agent 呼叫上限 ~4,000 tokens 的 diff 內容</li>
+<li>超過 token 限制時按 hunk 邊界切分（不切斷單個變更區塊）</li>
+<li>每個 hunk 保留前後 3 行上下文（context window），避免漏判「清理發生在 diff 視窗外」的情況</li>
+</ul>
+<h3>2.2 五層理解機制</h3>
+<p>LLM 處理程式碼 diff 時依序進行五層分析：</p>
+<p>| 層級 | 分析內容 | 技術手段 |</p>
+<p>|------|---------|----------|</p>
+<p>| 1. 語法解析 | 結構、語法正確性 | Token 模式匹配 |</p>
+<p>| 2. 模式識別 | 常見反模式、Code Smell | 訓練資料中的模式庫 |</p>
+<p>| 3. 上下文分析 | 在周圍程式碼中的行為 | context_before/after 注入 |</p>
+<p>| 4. 最佳實踐比對 | 與學習到的慣例比較 | Few-shot 範例 + 指令 |</p>
+<p>| 5. 回饋生成 | 產生人類可讀的建議 | 結構化 JSON 輸出 |</p>
+<h3>2.3 差異感知 vs. 全檔案審查</h3>
+<p>| 維度 | 全檔案審查 | 差異感知審查 |</p>
+<p>|------|-----------|-------------|</p>
+<p>| Token 消耗 | 高（整個檔案） | 低（僅變更 + 上下文） |</p>
+<p>| 精準度 | 容易產生「既有程式碼」的雜訊 | 聚焦本次變更 |</p>
+<p>| 上下文風險 | 完整但冗餘 | 可能遺漏遠距依賴 |</p>
+<p>| 適用場景 | 新檔案、架構審查 | PR 審查（主流模式） |</p>
+<p>---</p>
+<h2>三、多 Agent 並行審查架構</h2>
+<h3>3.1 四 Agent 並行模型</h3>
+<p>現代 AI Code Review 系統採用<strong>單一職責</strong>原則，將審查拆解為四個專責 Agent 並行執行：</p>
+<pre><code>
+┌─────────────────────────────────────────┐
+│              Orchestrator               │
+│   （接收 PR diff → 分發 → 聚合結果）    │
+└─────┬──────┬──────┬──────┬──────────────┘
+      │      │      │      │
+      ▼      ▼      ▼      ▼
+┌─────┐┌─────┐┌─────┐┌─────┐
+│ Sec ││Perf ││ Bug ││Style│
+│Agent││Agent││Agent││Agent│
+└──┬──┘└──┬──┘└──┬──┘└──┬──┘
+   │      │      │      │
+   ▼      ▼      ▼      ▼
+┌─────────────────────────────────────────┐
+│         Finding Aggregator              │
+│  （去重 + 信心評分 + 嚴重度排序）       │
+└─────────────────────────────────────────┘
+</code></pre>
+<p><strong>四個專責 Agent</strong>：</p>
+<p>| Agent | 職責 | 偵測目標 |</p>
+<p>|-------|------|----------|</p>
+<p>| Security Agent | OWASP 漏洞偵測 | 注入攻擊、認證缺陷、Secrets 暴露 |</p>
+<p>| Performance Agent | 效能分析 | N+1 查詢、不必要的記憶體配置、演算法複雜度 |</p>
+<p>| Bug Detection Agent | 缺陷偵測 | Null Reference、Race Condition、未處理邊界 |</p>
+<p>| Style Agent | 風格一致性 | 命名慣例、文件標準、團隊模式 |</p>
+<h3>3.2 LangGraph 狀態機編排</h3>
+<pre><code>
+# Python 範例：使用 LangGraph 編排四 Agent
+from langgraph.graph import StateGraph
+
+workflow = StateGraph(ReviewState)
+workflow.add_node("parse_diff", diff_parser)
+workflow.add_node("security_review", security_agent)
+workflow.add_node("performance_review", performance_agent)
+workflow.add_node("bug_review", bug_detection_agent)
+workflow.add_node("style_review", style_agent)
+workflow.add_node("aggregate", finding_aggregator)
+
+# 並行分發到四個 Agent
+workflow.add_edge("parse_diff", "security_review")
+workflow.add_edge("parse_diff", "performance_review")
+workflow.add_edge("parse_diff", "bug_review")
+workflow.add_edge("parse_diff", "style_review")
+
+# 全部完成後聚合
+workflow.add_edge("security_review", "aggregate")
+workflow.add_edge("performance_review", "aggregate")
+workflow.add_edge("bug_review", "aggregate")
+workflow.add_edge("style_review", "aggregate")
+</code></pre>
+<pre><code>
+// C# 範例：使用 Semantic Kernel 並行執行
+var tasks = new[] {
+    _security.ReviewAsync(chunks),
+    _performance.ReviewAsync(chunks),
+    _bugDetection.ReviewAsync(chunks),
+    _style.ReviewAsync(chunks),
+};
+var results = await Task.WhenAll(tasks);
+var aggregated = _aggregator.Merge(results);
+</code></pre>
+<h3>3.3 Finding Aggregator：去重與信心評分</h3>
+<ul>
+<li><strong>跨 Agent 去重</strong>：若 Security Agent 與 Bug Agent 同時標記同一行程式碼，Aggregator 合併為單一 Finding</li>
+<li><strong>信心評分</strong>（0.0–1.0）：</li>
+</ul>
+<p>  - ≥ 0.8：高信心，標記為 Issue</p>
+<p>  - 0.6–0.8：中信心，標記為 Warning</p>
+<p>  - < 0.6：低信心，標記為 Suggestion（建議）</p>
+<ul>
+<li><strong>嚴重度排序</strong>：Critical > High > Medium > Low，同級別按信心分排序</li>
+<li><strong>所有 Agent 統一使用 <code>temperature=0</code></strong>，確保相同程式碼產生確定性、可重現的結果</li>
+</ul>
+<h3>3.4 多通道審查（Multi-Pass Review）</h3>
+<p>BugBot（Cursor）採用更激進的策略：<strong>8 個並行審查通道，隨機化 diff 順序</strong>。這利用了 LLM 的「位置偏差」（positional bias）——模型對序列前端的內容注意力更高，隨機化順序可降低因位置導致的遺漏。</p>
+<p>---</p>
+<h2>四、SAST-LLM 融合架構</h2>
+<h3>4.1 融合動機</h3>
+<p>| 工具類型 | 優勢 | 劣勢 |</p>
+<p>|---------|------|------|</p>
+<p>| 純 SAST | 高精確度、可解釋、快速 | 高誤報率（30-70%）、缺乏上下文 |</p>
+<p>| 純 LLM | 上下文推理、自然語言解釋 | 幻覺風險、不穩定 |</p>
+<p>| SAST+LLM 融合 | 精確度 + 上下文 = 最佳平衡 | 複雜度增加、成本較高 |</p>
+<h3>4.2 Datadog Bits AI 的 SAST 誤報過濾機制</h3>
+<p>Datadog 開發了 LLM 驅動的 SAST 誤報過濾系統：</p>
+<p><strong>核心原理</strong>：LLM 能推理「資料如何在函式間流動、輸入如何被驗證、漏洞條件是否真正可觸發」——這是規則型 SAST 做不到的。</p>
+<p><strong>工作流程</strong>：</p>
+<ol>
+<li>SAST 掃描器（如 Semgrep）產出候選漏洞清單</li>
+<li>LLM 接收每個候選漏洞 + 周圍程式碼上下文</li>
+<li>LLM 判定：「此漏洞是否在給定上下文中可被利用？」</li>
+<li>過濾掉「看似危險但因上下文而安全」的誤報</li>
+</ol>
+<p><strong>驗證方法</strong>：使用 OWASP Benchmark 資料集，測試多種參數（system prompt、模型類型、temperature、top-p、基準語言）。</p>
+<p><strong>關鍵取捨</strong>：「針對真陽性優化的 prompt 傾向誤判更多假陽性；針對假陽性過濾優化的 prompt 則可能漏掉真正的問題。」——這是 SAST+LLM 融合的核心工程挑戰。</p>
+<h3>4.3 量化成效</h3>
+<p>結合靜態分析與 LLM 的融合方法，在漏洞偵測上的量化表現：</p>
+<p>| 方法 | 精確度（Precision） | 召回率（Recall） | F1-Score |</p>
+<p>|------|-------------------|-----------------|----------|</p>
+<p>| 傳統 SAST（如 EESI） | 86.67% | 52.55% | — |</p>
+<p>| LLM + SAST 融合 | 85.12% | <strong>77.83%</strong> | <strong>0.804</strong> |</p>
+<p>| FirmAgent（IoT 專用） | <strong>91%</strong> | — | — |</p>
+<p><strong>核心洞察</strong>：融合方法在維持接近精確度的同時，將召回率從 52.55% 大幅提升至 77.83%（+25.28 個百分點）。</p>
+<h3>4.4 Prompt 工程：負向過濾技術</h3>
+<p>Security Agent 的 prompt 採用「明確排除」（negative filtering）策略，列出<strong>安全模式清單</strong>，減少對已知安全做法的誤報：</p>
+<pre><code>
+DO NOT FLAG the following patterns as vulnerabilities:
+- Parameterized queries (these are SAFE against SQL injection)
+- Framework-provided CSRF protection tokens
+- bcrypt/argon2 hashed passwords
+- Input validated through framework sanitizers
+</code></pre>
+<p>這種「白名單式排除」比「黑名單式偵測」更有效，因為安全模式有限且可窮舉，而攻擊模式無窮。</p>
+<p>---</p>
+<h2>五、大規模 Code Review 系統設計模式</h2>
+<h3>5.1 Google Conductor 的自動審查</h3>
+<p>Google 在 2025-2026 年推出 Conductor（Gemini CLI 擴展），引入 Automated Review 功能：</p>
+<ul>
+<li><strong>定位</strong>：不是取代人類審查，而是在「規劃→執行→驗證」開發週期中加入嚴格的 verify 步驟</li>
+<li><strong>機制</strong>：AI 在生成程式碼的同時進行審查（critique-while-generating），而非分離的審查步驟</li>
+<li><strong>輸出</strong>：post-implementation 報告，涵蓋程式碼品質和合規性評估</li>
+</ul>
+<h3>5.2 Google Jules 的 Critique 能力</h3>
+<p>Google 的 AI 編碼助手 Jules 內建了 Critique 功能——在程式碼生成過程中同步審查與精修，模糊了「生成」與「審查」的邊界。這代表了從「先寫後審」到「邊寫邊審」的範式轉移。</p>
+<h3>5.3 2026 年四大結構性轉變</h3>
+<p>| 轉變 | 內容 | 影響 |</p>
+<p>|------|------|------|</p>
+<p>| 1. AI 相關指標追蹤 | 正式量化 AI 歸因的回歸和事故嚴重度 | 品質可衡量 |</p>
+<p>| 2. 第三方驗證工具 | 獨立工具驗證 AI 生成程式碼（AI 不能自我評估） | 客觀品質保障 |</p>
+<p>| 3. 多 Agent 工作流 | 一個 Agent 寫、一個 Agent 審、一個 Agent 測、一個 Agent 驗 | 分層驗證 |</p>
+<p>| 4. 治理框架 | 明確的 AI 使用政策、文件要求、審查期望 | 組織級管控 |</p>
+<p>---</p>
+<h2>六、實際工作流程（Step-by-Step）</h2>
+<h3>6.1 完整審查管線</h3>
+<pre><code>
+1. PR 提交 → Webhook 觸發
+2. Diff 解析器：git diff → 結構化 chunks
+3. 上下文擴充：加入前後 3 行 + 檔案級 metadata
+4. 分塊：超過 4K tokens 按 hunk 邊界切分
+5. 並行分發：4 個 Agent 各自審查（temperature=0）
+6. 結果聚合：去重 + 信心評分 + 嚴重度排序
+7. 過濾：&lt; 0.6 信心的發現降級為建議
+8. 格式化：生成 PR Comment（行內注釋 + 摘要）
+9. 人類審查：開發者聚焦高信心發現
+</code></pre>
+<h3>6.2 ROI 估算模型</h3>
+<p>以 10 人開發團隊、每日 15 個 PR 為例：</p>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| 每次 AI 審查成本 | $0.08–$0.25 |</p>
+<p>| 每日節省時間 | 2 小時 × 5 位資深開發者 |</p>
+<p>| 每日淨節省 | ~$1,497 |</p>
+<p>| 投資回收期 | <strong>第一天</strong> |</p>
+<p>| 安全缺陷密度（季） | 從 ~2 降至 ~0.5 |</p>
+<p>| 人類審查時間 | 從 4-6 小時/天 → 2-3 小時/天 |</p>
+<p>---</p>
+<h2>七、與本專案的應用場景</h2>
+<h3>Daily-Digest-Prompt 系統可借鑑之處</h3>
+<ol>
+<li><strong>多 Agent 並行審查模式 → 現有團隊模式強化</strong>：本專案的 <code>run-todoist-agent-team.ps1</code> 已採用 Phase 1 N 路並行，可借鑑 4-Agent 審查模式，在 <code>code-task.md</code> 子 Agent 模板中加入審查步驟</li>
+</ol>
+<ol>
+<li><strong>信心評分機制 → 品質閘門量化</strong>：目前 <code>templates/shared/quality-gate.md</code> 使用定性評估，可引入 0.0–1.0 信心評分模型，低信心的自動任務產出標記為「需人工確認」</li>
+</ol>
+<ol>
+<li><strong>SAST+LLM 融合 → Hook 系統增強</strong>：<code>pre_bash_guard.py</code> 和 <code>pre_write_guard.py</code> 目前是規則型（SAST-like），可引入 LLM 上下文推理減少誤報（如辨別「讀取 .env」vs「外洩 .env」）</li>
+</ol>
+<ol>
+<li><strong>負向過濾 Prompt 技術 → Hooks 精確度提升</strong>：在 <code>config/hook-rules.yaml</code> 中加入「安全模式白名單」，目前已有類似機制（排除 ls/cat/grep），可進一步系統化</li>
+</ol>
+<ol>
+<li><strong>差異感知處理 → git-push 自動任務</strong>：<code>todoist-auto-gitpush.md</code> 可在推送前加入差異感知審查，僅審查本次變更而非全部檔案</li>
+</ol>
+<p>---</p>
+<h2>八、風險與注意事項</h2>
+<h3>8.1 技術限制</h3>
+<ul>
+<li><strong>LLM 幻覺</strong>：可能虛構不存在的漏洞或安全問題，信心評分機制可緩解但不能消除</li>
+<li><strong>上下文視窗限制</strong>：大型 PR（>4K tokens）必須分塊，分塊邊界可能遺漏跨函式的安全問題</li>
+<li><strong>位置偏差</strong>：LLM 對 prompt 前端的內容注意力較高，多通道隨機化可緩解</li>
+</ul>
+<h3>8.2 流程風險</h3>
+<ul>
+<li><strong>信任校準</strong>：過度信任 AI 審查 → 降低人類警覺性；過度不信任 → 回歸全人工審查</li>
+<li><strong>AI 生成程式碼的安全特性</strong>：45% 含安全漏洞、邏輯錯誤 1.75 倍、XSS 2.74 倍 → AI 審 AI 生成的程式碼是必要的</li>
+<li><strong>Prompt 精確度/召回率取捨</strong>：優化抓真漏洞 vs 過濾假漏洞不可兼得，需依團隊風險偏好調整</li>
+</ul>
+<h3>8.3 產業共識</h3>
+<ul>
+<li><strong>人類審查不可省略</strong>：安全、合規、架構決策仍需人類最終簽核</li>
+<li><strong>「PR Contract」新實踐</strong>：每個 PR 應附帶意圖說明、測試證據、風險評估、AI 使用揭露</li>
+<li><strong>Code Review as Human Alignment</strong>：在 LLM 時代，Code Review 的核心目的從「找 bug」轉為「確保 AI 輸出符合人類意圖」——類似 RLHF 的人類對齊機制</li>
+</ul>
+<p>---</p>
+<h2>九、參考來源</h2>
+<ol>
+<li>Addy Osmani — Code Review in the Age of AI (Substack, 2025)</li>
+<li>Jaffar Kazi — Building an AI-Powered Code Review Assistant: Architecture and Core Implementation (2025)</li>
+<li>Datadog — Using LLMs to Filter Out False Positives from Static Code Analysis (2025)</li>
+<li>CodeRabbit — 2025 Was the Year of AI Speed. 2026 Will Be the Year of AI Quality.</li>
+<li>arXiv:2404.18496 — AI-powered Code Review with LLMs: Early Results</li>
+<li>arXiv:2505.20206 — Evaluating Large Language Models for Code Review</li>
+<li>Google Developers Blog — Conductor Update: Introducing Automated Reviews (2026)</li>
+<li>ADTmag — Google Adds Code Review Capability to AI Coding Assistant Jules (2025)</li>
+<li>Qodo Blog — Best Automated Code Review Tools for Enterprises (2026)</li>
+<li>CodeRabbit — Pipeline AI vs. Agentic AI for Code Reviews (2025)</li>
+<li>ezyang's blog — Code Review as Human Alignment, in the Era of LLMs (2025)</li>
+<li>知識庫既有筆記：「AI-Assisted Code Review 完整指南」（foundation 階段）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

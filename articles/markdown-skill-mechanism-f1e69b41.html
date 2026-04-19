@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Markdown 指令、編輯與總結 Skill 完整指南（mechanism 階段）">
+  <title>Markdown 指令、編輯與總結 Skill 完整指南（mechanism 階段） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Markdown 指令、編輯與總結 Skill 完整指南（mechanism 階段）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Markdown</span><span class="tag">CommonMark</span><span class="tag">GFM</span><span class="tag">AST</span><span class="tag">解析機制</span><span class="tag">編輯技巧</span><span class="tag">摘要</span><span class="tag">系列研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>研究階段</h2>
+<p>系列：markdown-gfm-writing | 階段：mechanism（解析機制深化）</p>
+<h2>CommonMark AST 解析管線</h2>
+<p>Markdown 解析三階段：</p>
+<ol>
+<li><strong>區塊解析（Block Parsing）</strong>：逐行掃描，辨識容器區塊（引用、清單可嵌套）和葉子區塊（段落、標題、程式碼區塊不可嵌套）</li>
+<li><strong>行內解析（Inline Parsing）</strong>：在葉子區塊內，使用定界符堆疊演算法配對 <code>*</code>/<code>_</code> 等標記。優先級：行內程式碼 > 自動連結 > HTML > 連結 > 強調 > 換行</li>
+<li><strong>AST 輸出</strong>：Document → Heading/Paragraph/List → Text/Strong/Emphasis 等節點樹</li>
+</ol>
+<h2>關鍵機制洞察</h2>
+<h3>定界符堆疊（Delimiter Stack）</h3>
+<ul>
+<li>掃描到 <code>*</code> 或 <code>_</code> 時推入堆疊</li>
+<li>遇到匹配的關閉定界符時彈出配對</li>
+<li>單組=斜體，雙組=粗體，三組=粗斜體</li>
+<li><code>__</code> 有 intraword 側位規則限制（<code>foo__bar__baz</code> 不加粗），<code>**</code> 無此限制</li>
+</ul>
+<h3>區塊辨識規則</h3>
+<ul>
+<li>ATX 標題：行首 <code>#</code> + 空格（<code>#標題</code> 無空格不算）</li>
+<li>縮排程式碼：4 空格縮排（易與清單衝突，建議用圍欄式）</li>
+<li>分隔線：3+ 個 <code>-</code>/<code>*</code>/<code>_</code>，與 Setext 標題和 YAML front matter 的 <code>---</code> 需靠空行區分</li>
+</ul>
+<h2>33 種語法分類</h2>
+<h3>CommonMark 標準（20 種）</h3>
+<p>ATX 標題、Setext 標題、段落、換行、粗體、斜體、粗斜體、引用區塊、無序清單、有序清單、行內程式碼、程式碼區塊、連結、圖片、分隔線、跳脫字元、HTML 內嵌、自動連結、參考式連結、縮排程式碼</p>
+<h3>GFM 擴展（7 種）</h3>
+<p>刪除線、任務清單、表格、裸 URL 自動連結、Emoji <code>:name:</code>、告警區塊 <code>[!NOTE]</code>、YAML Front Matter</p>
+<h3>第三方擴展（6 種）</h3>
+<p>腳註、定義清單、上標/下標、高亮 <code>==</code>、數學公式 <code>$...$</code>、Mermaid 圖表</p>
+<h2>渲染器兼容性核心差異</h2>
+<p>| 功能 | GitHub | Typora | VS Code |</p>
+<p>|------|:------:|:------:|:-------:|</p>
+<p>| 表格 | GFM 標準 | GFM + 自定義 | GFM 標準 |</p>
+<p>| 腳註 | ✅ 2021+ | ✅ 原生 | 需擴充 |</p>
+<p>| 數學公式 | ✅ 2022+ MathJax | ✅ KaTeX/MathJax | 需擴充 |</p>
+<p>| Mermaid | ✅ 2022+ | ✅ 原生 | 需擴充 |</p>
+<p>| 告警 [!NOTE] | ✅ 2023+ | ❌ | 需擴充 |</p>
+<p>| HTML 過濾 | 最嚴格 | 最寬鬆 | 中等 |</p>
+<h2>編輯 Skill 要點</h2>
+<ol>
+<li><strong>一行一句</strong>（Semantic Line Breaks）：減少 Git 合併衝突</li>
+<li><strong>表格不對齊 <code>|</code></strong>：改動最小化</li>
+<li><strong>批次編輯用正則</strong>：如連結路徑替換 <code>\]\(https://.../(.*?)\)</code> → <code>](.\/\$1)</code></li>
+<li><strong>VS Code 必裝擴充</strong>：Markdown All in One（TOC）、markdownlint、Markdown Table Formatter</li>
+</ol>
+<h2>總結 Skill 要點</h2>
+<ol>
+<li><strong>TOC 生成</strong>：VS Code 「Markdown All in One」一鍵生成，或 Python 腳本 slugify + 遍歷標題</li>
+<li><strong>大綱擷取</strong>：遍歷標題行，跳過程式碼區塊中的 <code>#</code></li>
+<li><strong>摘要標記</strong>：<code><!-- summary:start/end --></code> 註釋框定摘要範圍</li>
+<li><strong>GitHub 錨點規則</strong>：小寫 → 移除標點 → 空格變 <code>-</code> → 重複加 <code>-1</code> 後綴</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

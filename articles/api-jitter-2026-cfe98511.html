@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="排程與 API 重試節流：指數退避、Jitter 與熔斷邊界（2026）">
+  <title>排程與 API 重試節流：指數退避、Jitter 與熔斷邊界（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>排程與 API 重試節流：指數退避、Jitter 與熔斷邊界（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">重試與指數退避</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>技術概述</h2>
+<p>在 <code>daily-digest-prompt</code> 這類「多排程、多子 Agent、頻繁呼叫外部 API」的系統中，單點失敗幾乎不可避免：Todoist、Groq、本機知識庫與 ntfy 都可能短暫不可用。若所有節點在同一時間窗內以固定間隔重試，容易造成<strong>同步重試尖峰（thundering herd）</strong>，反而延長故障回復時間。產業共識是：以<strong>指數退避</strong>拉開重試間隔，並以 <strong>jitter</strong> 打亂相位，使多實例、多排程的重試時間分散；同時用<strong>上限延遲、最大次數與熔斷／節流</strong>避免系統在錯誤狀態下失控放大負載。下列整理以雲端架構與 HTTP 標準文獻為三角佐證，並對照本專案腳本式管線可落地的實務切點。</p>
+<h2>核心概念與原理（含來源標註）</h2>
+<h3>1. 指數退避與重試策略</h3>
+<p><strong>主張</strong>：重試間隔應隨失敗次數<strong>遞增</strong>，而非固定常數，以降低對已過載服務的疊加壓力。[來源：Azure Architecture Patterns — Retry, 微軟]</p>
+<p><strong>主張</strong>：AWS 文件將 SDK 標準重試行為描述為「可配置、具上限」的自動重試，並強調針對節流類回應（例如限流）需要更長的等待與節制。[來源：AWS General Reference — AWS SDKs retry behavior]</p>
+<p><strong>主張</strong>：HTTP 語意層上，伺服器可透過 <code>Retry-After</code> 告知客戶端最短等待時間；客戶端應尊重此標頭以避免違反服務意圖。[來源：RFC 9110 HTTP Semantics（取代 RFC 7231 系列）]</p>
+<h3>2. Jitter（隨機化）與「全抖動」直覺</h3>
+<p><strong>主張</strong>：在指數退避之上加入隨機抖動，可讓多個並發客戶端不易在同一瞬間再次衝擊後端；此作法在公開架構指引中常被建議，用於緩解集體同步。[來源：Azure Architecture Patterns — Retry]</p>
+<p><strong>主張</strong>：雲端 SDK 普遍採取「指數 + 抖動」組合；實作細節依語言與服務而異，但<strong>相位分散</strong>是共通目標。[來源：AWS General Reference — API retries]</p>
+<h3>3. 過載治理與「用重試反制過載」的悖論</h3>
+<p><strong>主張</strong>：在服務已過載時，若客戶端仍以高頻或同步模式重試，會使過載惡化；SRE 文獻討論負載拒絕、排隊與退化等策略，核心訊息是<strong>把壓力留在邊界並盡量早失敗</strong>，而非無限堆疊重試。[來源：Google SRE Book — Handling Overload]</p>
+<h3>4. 可重試條件與幂等邊界（工程化判斷）</h3>
+<p><strong>主張</strong>：網路逾時、連線重置與部分 5xx / 429 往往被視為<strong>暫時性</strong>；但 4xx 中的語意錯誤（例如驗證失敗）通常<strong>不應</strong>盲目重試。[來源：RFC 9110 — 方法安全與幂等性語意，搭配 Azure Retry 模式的情境敘述]</p>
+<p><strong>與 daily-digest-prompt 的對照</strong>：本專案 <code>scheduler-state.json</code> 已記錄排程執行狀態；對於「同一小時內 Phase 2 再跑一次」這類設計，重試邏輯應區分：<strong>讀取型步驟</strong>（如 hybrid 搜尋）可較積極退避，<strong>寫入型步驟</strong>（如 KB <code>import</code>、Todoist 狀態變更）須檢查幂等或可安全重放的條件，避免雙寫。</p>
+<h2>最佳實踐與常見陷阱</h2>
+<p>| 作法 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>指數退避 + 上限</strong> | 每次重試加倍等待，但設 <code>cap</code>（例如最多 60–120 秒）避免單次任務拖過排程窗 |</p>
+<p>| <strong>完整 jitter</strong> | 在 <code>[0, delay]</code> 均勻取樣（概念上稱「full jitter」），或於基底延遲上加隨機偏移 |</p>
+<p>| <strong>尊重 <code>Retry-After</code></strong> | 429/503 若有標頭，優先採用伺服器建議 |</p>
+<p>| <strong>最大次數 + 熔斷</strong>| 連續失敗達閾值改走降級路徑（本專案已有 KB 不可用時跳過匯入的成功路徑，即屬一種降級） |</p>
+<p>| <strong>陷阱：固定 1s 重試 N 次</strong> | 多機用同一节奏會放大尖峰；亦不利長尾尾延 |</p>
+<p>| <strong>陷阱：對非幂等寫入盲目重試</strong> | 可能造成重複通知、重複匯入或重複 API 呼叫副作用 |</p>
+<h2>與本專案管線的應用建議</h2>
+<ol>
+<li><strong>PowerShell 排程層</strong>：Task Scheduler 觸發間隔固定時，腳本內部對外部 API 的重試應自管退避，避免「整點同時踩」<code>localhost:3000</code> 與雲端服務。</li>
+<li><strong>Phase 0 / Phase 2 銜接</strong>：若 Codex / Claude 子流程逾時，外層重試間隔應高於一般 API（例如 2^n * 基數秒），並寫入 <code>state/scheduler-state.json</code> 供診斷。</li>
+<li><strong>ntfy / JSON 檔推播</strong>：短暫網路失敗可退避重送；重複推播若要避免，需在內容層做去重鍵或單次 token（視 ntfy topic 策略而定）。</li>
+</ol>
+<h2>程式碼範例（PowerShell 7：指數退避 + jitter）</h2>
+<pre><code>
+function Get-RetryDelaySeconds {
+  param([int]$Attempt, [int]$Base = 2, [int]$Cap = 120)
+  # 指數部分
+  $exp = [Math]::Min([Math]::Pow($Base, $Attempt), $Cap)
+  # 全抖動：0..exp 均匀随机
+  $j = Get-Random -Minimum 0 -Maximum ([int][Math]::Ceiling($exp) + 1)
+  return [Math]::Min($j, $Cap)
+}
+
+for ($i = 0; $i -lt 5; $i++) {
+  try {
+    # Invoke-RestMethod ...
+    break
+  } catch {
+    Start-Sleep -Seconds (Get-RetryDelaySeconds -Attempt $i)
+  }
+}
+</code></pre>
+<h2>參考來源書目</h2>
+<ol>
+<li>Microsoft.（持續更新）<em>Retry pattern</em>。Azure Architecture Center. https://learn.microsoft.com/en-us/azure/architecture/patterns/retry  </li>
+<li>Amazon Web Services.（持續更新）<em>AWS SDKs retry behavior</em>（General Reference 一節）. https://docs.aws.amazon.com/general/latest/gr/api-retries.html  </li>
+<li>Fielding, R., Nottingham, M., & IETF.（2022）<em>RFC 9110: HTTP Semantics</em>. https://datatracker.ietf.org/doc/html/rfc9110  </li>
+<li>Google SRE Team.（持續更新）<em>Handling overload</em>，《Site Reliability Engineering》線上版章節. https://sre.google/sre-book/handling-overload/  </li>
+</ol>
+<p>---</p>
+<p><strong>品質自評</strong>：本筆記聚焦排程密集型自動化管線的重試節流，與連續記憶建議之「排程密度治理」一致；核心主張可由 Azure Retry、AWS SDK 重試文件、RFC 9110 與 Google SRE 過載章節四者交叉支持；字數與書目連結已滿足匯入規範。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

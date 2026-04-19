@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gun Relay Server 生產環境指南 — 高可用部署、安全強化與效能最佳化策略">
+  <title>Gun Relay Server 生產環境指南 — 高可用部署、安全強化與效能最佳化策略 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Gun Relay Server 生產環境指南 — 高可用部署、安全強化與效能最佳化策略</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Gun.js</span><span class="tag">去中心化資料庫</span><span class="tag">安全強化</span><span class="tag">穩定性</span><span class="tag">效能最佳化</span><span class="tag">生產環境</span><span class="tag">高可用</span><span class="tag">monitoring</span><span class="tag">gunjs-decentralized-db</span><span class="tag">系統設計</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Gun Relay Server 生產環境指南 v1.0</h1>
+<blockquote>系列：gunjs-decentralized-db（optimization 階段）</blockquote>
+<blockquote>承接 application 階段知識，本文聚焦生產環境的穩定性、安全性與效能最佳化。</blockquote>
+<h2>現況架構</h2>
+<p>my-gun-relay/index.js：204 行 Express + Gun.js relay server</p>
+<ul>
+<li>Port 8765，SEA ECDH 加密通訊</li>
+<li>Webhook 端點 POST /api/task（Bearer token 認證）</li>
+<li>RAD 持久化至 radata/</li>
+<li>Cloudflare Workers keepalive 每 10 分鐘探測</li>
+</ul>
+<h2>安全漏洞評估（9 項）</h2>
+<h3>高嚴重度</h3>
+<ol>
+<li><strong>無 Rate Limiting</strong>：relay 端完全沒有速率限制，DDoS 可直接癱瘓服務</li>
+<li><strong>無安全標頭</strong>：缺少 helmet，存在 XSS/clickjacking/MIME sniffing 風險</li>
+<li><strong>Token 比較不安全</strong>：使用字串直接比較（<code>!==</code>），易受 timing attack</li>
+</ol>
+<h3>中嚴重度</h3>
+<ol>
+<li><strong>CORS 過於寬鬆</strong>：<code>origin: '*'</code> 對 Gun peer 合理，但 /api/task 不應如此</li>
+<li><strong>未強制 WSS</strong>：本地用 WS，需確保外部一律走 Cloudflare TLS</li>
+<li><strong>API key 可選</strong>：未設定環境變數時直接跳過驗證</li>
+<li><strong>Gun.js 版本差異</strong>：relay ^0.2020.1241 vs bot ^0.2020.1235</li>
+</ol>
+<h3>低嚴重度</h3>
+<ol>
+<li><strong>無 IP 黑名單</strong></li>
+<li><strong>靜態檔案全暴露</strong>：<code>express.static(__dirname)</code> 可能洩漏原始碼</li>
+</ol>
+<h2>穩定性缺陷評估（8 項）</h2>
+<h3>高嚴重度</h3>
+<ol>
+<li><strong>無全域例外處理</strong>：未捕獲錯誤直接 crash</li>
+<li><strong>單進程部署</strong>：一個 crash = 全服務中斷</li>
+</ol>
+<h3>中嚴重度</h3>
+<ol>
+<li><strong>無 Graceful Shutdown</strong>：強制關閉可能損壞 radata</li>
+<li><strong>無記憶體洩漏偵測</strong>：長期運行無監控</li>
+<li><strong>Heartbeat 僅外部</strong>：最長 10 分鐘才發現離線</li>
+<li><strong>無自動重連 peer</strong>：外部 peer 斷線後靜默中斷</li>
+</ol>
+<h3>低嚴重度</h3>
+<ol>
+<li><strong>radata 無備份策略</strong></li>
+<li><strong>日誌不結構化</strong></li>
+</ol>
+<h2>穩定性優化方案</h2>
+<h3>1. PM2 進程管理</h3>
+<ul>
+<li>使用 fork 模式（Gun radata 不支援 cluster 多進程共享寫入）</li>
+<li>max_memory_restart: 300M</li>
+<li>指數退避重啟延遲</li>
+<li>配置檔：ecosystem.config.js</li>
+</ul>
+<h3>2. 全域例外處理 + Graceful Shutdown</h3>
+<ul>
+<li>process.on('unhandledRejection') — 記錄但不退出</li>
+<li>process.on('uncaughtException') — 給 Gun 1s flush 時間後退出</li>
+<li>SIGTERM/SIGINT — 先關 HTTP server，5s 超時強制退出</li>
+</ul>
+<h3>3. 增強 Health Check</h3>
+<ul>
+<li>回傳 memory（rss/heapUsed/heapTotal）、requestCount、uptimeHuman</li>
+<li>每 60 秒自我 heartbeat 檢查（記憶體警告 > 200MB、sharedSecret 重建）</li>
+</ul>
+<h3>4. 應用層 Rate Limiting</h3>
+<ul>
+<li>express-rate-limit：/api/ 路由 30 req/min</li>
+<li>Gun WebSocket 由 Gun 內部處理，不受 Express 限制</li>
+</ul>
+<h3>5. 負載均衡（NGINX）</h3>
+<ul>
+<li>WebSocket proxy（proxy_read_timeout 86400s）</li>
+<li>API rate limiting zone（30r/m）</li>
+<li>拒絕 .js/.json/.md 直接存取</li>
+</ul>
+<h3>6. radata 備份策略</h3>
+<ul>
+<li>PowerShell 腳本每日 00:10 備份（在 relay 重啟前）</li>
+<li>保留最近 7 天，自動清理舊備份</li>
+</ul>
+<h2>安全性加固方案</h2>
+<h3>1. Helmet 安全標頭</h3>
+<ul>
+<li>contentSecurityPolicy: false（Gun SEA 需要 eval）</li>
+<li>crossOriginEmbedderPolicy: false（允許跨域嵌入）</li>
+</ul>
+<h3>2. Timing-Safe Token 驗證</h3>
+<ul>
+<li>使用 crypto.timingSafeEqual() 替代字串比較</li>
+<li>固定長度 Buffer 比較防止長度洩漏</li>
+</ul>
+<h3>3. 強制 API Key</h3>
+<ul>
+<li>啟動時檢查 API_SECRET_KEY 環境變數</li>
+<li>未設定時拒絕啟動並輸出錯誤訊息</li>
+</ul>
+<h3>4. 靜態檔案安全</h3>
+<ul>
+<li>express.static 改為只暴露 public/ 子目錄</li>
+<li>index.html 移至 public/</li>
+</ul>
+<h3>5. CORS 分級策略</h3>
+<ul>
+<li>/gun 路由：寬鬆 CORS（origin: '*'）</li>
+<li>/api/ 路由：白名單 origin + 允許無 origin（server-to-server）</li>
+</ul>
+<h3>6. WSS 加密</h3>
+<ul>
+<li>方案 A（推薦）：Cloudflare Proxy（現行，確認 Full strict 模式）</li>
+<li>方案 B：自建 TLS（Let's Encrypt + https.createServer）</li>
+</ul>
+<h3>7. 依賴安全掃描</h3>
+<ul>
+<li>npm audit 每週排程</li>
+<li>high/critical 漏洞透過 ntfy 告警</li>
+</ul>
+<h3>8. 防火牆規則</h3>
+<ul>
+<li>Windows：僅允許 LocalSubnet 存取 8765</li>
+<li>Linux：ufw 允許 127.0.0.1 + Cloudflare IP 範圍</li>
+</ul>
+<h3>9. 請求體大小限制</h3>
+<ul>
+<li>express.json({ limit: '100kb' })</li>
+</ul>
+<h2>效能最佳化</h2>
+<h3>1. 記憶體管理</h3>
+<ul>
+<li>每 5 分鐘記錄 heap/rss 結構化指標</li>
+<li>PM2 max_memory_restart 300M 作為安全網</li>
+</ul>
+<h3>2. Gun.js 調優</h3>
+<ul>
+<li>axe: false（小規模不需 mesh optimizer）</li>
+<li>multicast: false（關閉 UDP）</li>
+<li>chunk: 2MB（RAD 分片大小）</li>
+<li>until: 2000（防洪等待時間）</li>
+</ul>
+<h3>3. 結構化日誌</h3>
+<ul>
+<li>JSON 格式日誌（level, msg, data, ts）</li>
+<li>替代 console.log 純文字</li>
+</ul>
+<h2>實施時間表（6 Phase / 4 週）</h2>
+<p>| Phase | 時間 | 內容 | 優先級 | 工時 |</p>
+<p>|-------|------|------|--------|------|</p>
+<p>| 1 | Week 1 | Helmet + Timing-Safe + 強制 API Key + 例外處理 + Graceful Shutdown + 靜態檔案 | P0 | 2h |</p>
+<p>| 2 | Week 1-2 | Rate Limiting + 請求體限制 + PM2 | P0 | 3h |</p>
+<p>| 3 | Week 2 | Health Check 增強 + 備份 + 結構化日誌 | P1 | 2h |</p>
+<p>| 4 | Week 3 | CORS 分級 + WSS 驗證 + npm audit 排程 | P1 | 2h |</p>
+<p>| 5 | Week 4 | NGINX（若上雲）+ IP 黑名單 + 防火牆 | P2 | 3h |</p>
+<p>| 6 | 持續 | 記憶體監控 + Gun 調優 + 版本統一 | P2 | 1h |</p>
+<p><strong>總預估工時：~13 小時</strong></p>
+<h2>安全不對稱問題</h2>
+<p>bot.js（客戶端）已有完整防護（helmet、rate-limit、timing-safe、graceful shutdown、全域例外處理），但 relay（伺服器端）幾乎裸奔。本計畫的核心目標就是消除這個「堡壘客戶端 + 裸奔伺服器」的反常格局。</p>
+<h2>與 KB 既有知識的關係</h2>
+<ul>
+<li>承接「Gun.js 最佳實踐完整指南」的基礎架構知識</li>
+<li>承接「Gun.js 效能優化與分布式系統最佳實踐」的 benchmark 知識</li>
+<li>填補「安全威脅模型」「穩定性監控」「生產部署」三大缺口</li>
+<li>系列進度：foundation ✅ → mechanism ✅ → application ✅ → <strong>optimization（本文）</strong> → synthesis</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

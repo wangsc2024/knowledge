@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="知識庫架構深度研究報告 — 資料模型、搜尋引擎分析、資訊擷取-分析-報告 SOP（2026-03-08）">
+  <title>知識庫架構深度研究報告 — 資料模型、搜尋引擎分析、資訊擷取-分析-報告 SOP（2026-03-08） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>知識庫架構深度研究報告 — 資料模型、搜尋引擎分析、資訊擷取-分析-報告 SOP（2026-03-08）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">知識庫</span><span class="tag">系統架構</span><span class="tag">RAG</span><span class="tag">搜尋策略</span><span class="tag">SOP</span><span class="tag">研究報告</span><span class="tag">daily-digest-prompt</span><span class="tag">Qdrant</span><span class="tag">FTS5</span><span class="tag">BM25</span><span class="tag">知識管理</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>知識庫架構深度研究報告</h1>
+<blockquote>產出日期：2026-03-08 | 版本：1.0 | 使用 Skill：knowledge-query、kb-curator、kb-research-strategist、web-research</blockquote>
+<p>---</p>
+<h2>一、知識庫架構完整說明</h2>
+<h3>1.1 系統拓撲</h3>
+<pre><code>
+┌─────────────────────────────────────────────────────┐
+│                  Knowledge Base API                   │
+│              http://localhost:3000                     │
+├─────────────────────────────────────────────────────┤
+│                                                       │
+│  ┌───────────────┐    ┌──────────────────────────┐   │
+│  │   SQLite DB    │    │    Qdrant Vector DB       │   │
+│  │  (FTS5 索引)   │    │   (9,345 vectors)        │   │
+│  │  883 筆筆記    │    │   chunked embeddings     │   │
+│  └───────┬───────┘    └────────────┬─────────────┘   │
+│          │                          │                  │
+│  ┌───────┴──────────────────────────┴─────────────┐  │
+│  │           Search Engine Layer                    │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌────────────────┐  │  │
+│  │  │ Title    │ │ BM25     │ │ Hybrid         │  │  │
+│  │  │ Search   │ │ Keyword  │ │ (BM25+Vector)  │  │  │
+│  │  └──────────┘ └──────────┘ └────────────────┘  │  │
+│  └─────────────────────────────────────────────────┘  │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │           Content Pipeline                       │  │
+│  │  Import → contentText(MD) → auto-gen content(JSON)│  │
+│  │  → FTS5 indexing → Vector chunking → Qdrant      │  │
+│  └─────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+</code></pre>
+<h3>1.2 資料模型</h3>
+<p>每筆筆記（Note）的完整 schema：</p>
+<p>| 欄位 | 類型 | 說明 | 索引 |</p>
+<p>|------|------|------|------|</p>
+<p>| <code>id</code> | UUID | 主鍵 | PK |</p>
+<p>| <code>title</code> | string | 筆記標題（支援標題搜尋） | FTS5 |</p>
+<p>| <code>contentText</code> | string(MD) | Markdown 純文字（全文搜尋+向量化） | FTS5 + Vector |</p>
+<p>| <code>content</code> | JSON | Tiptap JSON（前端編輯器用，由 contentText 自動生成） | — |</p>
+<p>| <code>tags</code> | string[] | 標籤陣列 | 標籤索引 |</p>
+<p>| <code>source</code> | enum | <code>manual</code> / <code>import</code> / <code>web</code> | — |</p>
+<p>| <code>createdAt</code> | ISO datetime | 建立時間 | — |</p>
+<p>| <code>updatedAt</code> | ISO datetime | 最後更新時間 | — |</p>
+<p>| <code>isDeleted</code> | boolean | 軟刪除標記 | — |</p>
+<h3>1.3 搜尋引擎架構</h3>
+<p>| 端點 | 演算法 | 適用場景 | 回傳格式 |</p>
+<p>|------|--------|---------|---------|</p>
+<p>| <code>GET /api/notes?limit=N</code> | 直接列舉 | 標題 regex 搜尋 | <code>{notes: [...]}</code> |</p>
+<p>| <code>POST /api/search/keyword</code> | BM25 (FTS5) | 精確詞彙匹配 | <code>{results: [{title, score, ...}]}</code> |</p>
+<p>| <code>POST /api/search/hybrid</code> | BM25 + Vector | 語義+關鍵字混合 | <code>{results: [{title, score, contentText, ...}]}</code> |</p>
+<p>| <code>POST /api/search/retrieve</code> | Hybrid + Format | 直接取得整合上下文 | <code>{formattedContext: "..."}</code> |</p>
+<h3>1.4 內容管線（ETL）</h3>
+<pre><code>
+匯入(import/manual/web)
+  │
+  ├→ contentText 寫入 SQLite → FTS5 全文索引
+  │
+  ├→ contentText 自動轉換 → content (Tiptap JSON)
+  │
+  └→ contentText 分塊(chunking) → 向量化(embedding)
+     → 寫入 Qdrant（平均 ~10.6 chunks/note）
+</code></pre>
+<h3>1.5 向量化統計</h3>
+<ul>
+<li><strong>總向量數</strong>：9,345</li>
+<li><strong>總筆記數</strong>：883</li>
+<li><strong>平均 chunks/note</strong>：≈10.6</li>
+<li><strong>Collection 狀態</strong>：green（健康）</li>
+<li><strong>搜尋引擎</strong>：Qdrant + SQLite FTS5 雙引擎</li>
+</ul>
+<p>---</p>
+<h2>二、知識庫內容分析</h2>
+<h3>2.1 整體統計</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| 總筆記數 | 883 |</p>
+<p>| 來源分佈 | import: 809 / manual: 60 / web: 14 |</p>
+<p>| 唯一標籤數 | 2,863 |</p>
+<p>| 標籤總使用次數 | 7,296 |</p>
+<p>| 平均標籤/筆記 | 8.3 個 |</p>
+<p>| 無標籤筆記 | 49 筆（5.5%） |</p>
+<p>| 已刪除筆記 | 0 筆 |</p>
+<h3>2.2 內容長度分佈</h3>
+<p>| 區間 | 筆記數 | 佔比 |</p>
+<p>|------|--------|------|</p>
+<p>| <100 字 | 2 | 0.2% |</p>
+<p>| 100-500 字 | 38 | 4.3% |</p>
+<p>| 500-2,000 字 | 183 | 20.7% |</p>
+<p>| 2,000-5,000 字 | 338 | 38.3% |</p>
+<p>| >5,000 字 | 322 | 36.5% |</p>
+<p>| <strong>平均</strong> | <strong>4,418 字</strong> | — |</p>
+<p>| <strong>中位數</strong> | <strong>4,022 字</strong> | — |</p>
+<p>| <strong>最長</strong> | <strong>45,965 字</strong> | — |</p>
+<blockquote>知識庫的內容品質相當高——75% 的筆記超過 2,000 字，適合深度研究。</blockquote>
+<h3>2.3 三大知識領域</h3>
+<pre><code>
+知識庫主題分佈（標籤出現次數）
+
+AI/ML ████████████████████████████████ 309
+佛學   ██████████████████████████████  294
+遊戲開發 ███████████████                150
+邏輯思維 ███████████                    108
+系統/專案 ████████                       91
+安全     ██                              16
+</code></pre>
+<h3>2.4 知識圖譜骨架（標籤共現 Top 10）</h3>
+<p>| 共現對 | 次數 | 語義關係 |</p>
+<p>|--------|------|---------|</p>
+<p>| 佛學 + 天台宗 | 90 | 學派歸屬 |</p>
+<p>| 2026 + AI | 82 | 時效標記 |</p>
+<p>| 佛學 + 楞嚴經 | 64 | 經典歸屬 |</p>
+<p>| GitHub + 開源專案 | 61 | 來源標記 |</p>
+<p>| 決策框架 + 邏輯思維 | 53 | 方法論叢集 |</p>
+<p>| AI + LLM | 52 | 技術子領域 |</p>
+<p>| 佛學 + 教觀綱宗 | 50 | 經典歸屬 |</p>
+<p>| 天台宗 + 教觀綱宗 | 50 | 學派經典 |</p>
+<p>| 批判性思考 + 決策框架 | 50 | 方法論叢集 |</p>
+<p>| Canvas + HTML5 | 41 | 技術棧 |</p>
+<h3>2.5 時間分佈</h3>
+<p>| 月份 | 筆記數 |</p>
+<p>|------|--------|</p>
+<p>| 2026-02 | 640 (72.5%) |</p>
+<p>| 2026-03 | 243 (27.5%) |</p>
+<blockquote>知識庫主要在 2026 年 2-3 月快速建立，屬於密集匯入期。</blockquote>
+<h3>2.6 研究系列追蹤（kb-research-strategist）</h3>
+<p>知識庫已建立五階段追蹤的研究系列，目前活躍系列包含：</p>
+<ul>
+<li><strong>ai-security-testing</strong>：foundation ✅ → mechanism（進行中）</li>
+<li><strong>logical-thinking-frameworks</strong>：foundation ✅ → mechanism（進行中）</li>
+<li>更多系列見 <code>context/research-series.json</code></li>
+</ul>
+<p>---</p>
+<h2>三、資訊利用可行性分析</h2>
+<h3>3.1 三種檢索方法比較</h3>
+<p>| 方法 | 精確度 | 召回率 | 適用場景 | 優缺點 |</p>
+<p>|------|--------|--------|---------|--------|</p>
+<p>| <strong>標題搜尋</strong> (regex) | ★★★★★ | ★★☆☆☆ | 知道確切筆記名 | 最快最準，但只搜標題 |</p>
+<p>| <strong>BM25 關鍵字</strong> | ★★★☆☆ | ★★★★☆ | 精確術語匹配 | 中文斷詞影響大，可能混入不相關結果 |</p>
+<p>| <strong>Hybrid 混合搜尋</strong> | ★★★★☆ | ★★★★★ | 概念性搜尋 | 語義理解佳，但分數區分度低(0.33-0.50) |</p>
+<p>| <strong>Retrieve 整合</strong> | ★★★★☆ | ★★★★☆ | LLM 直接消費 | 回傳格式化上下文，省去逐筆 fetch |</p>
+<h3>3.2 實測結果摘要</h3>
+<p><strong>測試 1：「Agentic RAG 多代理檢索」（技術概念）</strong></p>
+<ul>
+<li>Hybrid 找到 Dify、FTS5 指南等相關筆記，語義理解正確</li>
+<li>BM25 結果相似但排序不同</li>
+<li><strong>建議</strong>：技術概念用 hybrid</li>
+</ul>
+<p><strong>測試 2：「楞嚴經 五十陰魔」（佛學專有名詞）</strong></p>
+<ul>
+<li>Hybrid 第 2 名命中目標，但第 1 名是 Crawl4AI（不相關）</li>
+<li>BM25 同樣混入不相關結果</li>
+<li><strong>建議</strong>：專有名詞搜尋應先用標題 regex，再 hybrid 補充</li>
+</ul>
+<p><strong>測試 3：「Canvas 碰撞偵測」（遊戲技術）</strong></p>
+<ul>
+<li>Hybrid 第 1 名精確命中目標</li>
+<li>BM25 結果較差，混入 QA 報告和佛學筆記</li>
+<li><strong>建議</strong>：遊戲技術用 hybrid 優於 keyword</li>
+</ul>
+<h3>3.3 組合搜尋策略（推薦）</h3>
+<pre><code>
+研究型任務最佳搜尋流程：
+
+Step 1: 標題精確搜尋
+  GET /api/notes?limit=200 → regex filter
+  ↓ 命中 → 直接讀取 contentText
+  ↓ 未命中 ↓
+
+Step 2: Hybrid 語義搜尋
+  POST /api/search/hybrid {query, topK:10}
+  ↓ score ≥ 0.4 的結果 → 讀取全文
+  ↓ 結果不足 ↓
+
+Step 3: BM25 關鍵字搜尋（備援）
+  POST /api/search/keyword {query, topK:10}
+  ↓ 交叉比對 Step 2 結果，補充遺漏
+
+Step 4: Retrieve 整合上下文（LLM 消費用）
+  POST /api/search/retrieve {query, topK:5}
+  → 直接取得 formattedContext 供分析
+</code></pre>
+<h3>3.4 標籤體系治理建議</h3>
+<p>| 問題 | 現狀 | 建議 |</p>
+<p>|------|------|------|</p>
+<p>| 標籤過度分散 | 2,863 唯一標籤 / 883 筆記 | 建立核心標籤詞彙表（≤200），其餘為長尾標籤 |</p>
+<p>| 日期標籤泛濫 | 2026、2026-02、2026-02-14 等 | 移除精確日期標籤，保留 createdAt 欄位即可 |</p>
+<p>| 同義標籤 | AI / AI技術 / AI研究 / AI工具 | 建立標籤合併映射表 |</p>
+<p>| 無標籤筆記 | 49 筆(5.5%) | kb-curator 定期掃描補標籤 |</p>
+<p>---</p>
+<h2>四、「資訊擷取─分析─報告」SOP</h2>
+<h3>4.0 前置條件</h3>
+<ul>
+<li>知識庫 API 可用：<code>curl -s http://localhost:3000/api/health</code></li>
+<li>已讀取相關 SKILL.md</li>
+</ul>
+<h3>4.1 Phase 1：資訊擷取（Information Retrieval）</h3>
+<pre><code>
+┌─────────────────────────────────────────────┐
+│  1a. 去重檢查（research-registry.json）      │
+│      → 3 天冷卻 / 7 天飽和度                  │
+├─────────────────────────────────────────────┤
+│  1b. KB 知識感測（kb-research-strategist）     │
+│      → hybrid search topK=10                  │
+│      → 讀取 score 0.4-0.85 的筆記全文          │
+│      → 合成現有知識狀態（五階段模型）            │
+├─────────────────────────────────────────────┤
+│  1c. 外部研究（web-research Skill）           │
+│      → WebSearch 至少 2 個查詢角度             │
+│      → 來源品質分級（A/B/C/D）                 │
+│      → WebFetch 深度閱讀 ≥3 個有效來源         │
+├─────────────────────────────────────────────┤
+│  1d. KB 內部交叉檢索                          │
+│      → 標題搜尋 + hybrid 搜尋 + retrieve       │
+│      → 彙整所有相關既有知識                     │
+└─────────────────────────────────────────────┘
+</code></pre>
+<p><strong>關鍵指令：</strong></p>
+<pre><code>
+# 1b: KB 語義搜尋
+$body = @{ query = "研究主題"; topK = 10 } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:3000/api/search/hybrid" -Method POST -Body $body -ContentType "application/json"
+
+# 1d: Retrieve 整合上下文
+$body = @{ query = "研究主題"; topK = 5 } | ConvertTo-Json
+$ctx = Invoke-RestMethod -Uri "http://localhost:3000/api/search/retrieve" -Method POST -Body $body -ContentType "application/json"
+$ctx.formattedContext  # 直接供 LLM 分析
+</code></pre>
+<h3>4.2 Phase 2：深度分析（Analysis）</h3>
+<pre><code>
+┌─────────────────────────────────────────────┐
+│  2a. 知識差距分析                             │
+│      → covered_concepts vs missing_concepts   │
+│      → 五階段深度判定                          │
+├─────────────────────────────────────────────┤
+│  2b. 交叉驗證                                │
+│      → KB 內部事實 vs 外部來源                 │
+│      → 至少 2 個來源確認同一事實               │
+├─────────────────────────────────────────────┤
+│  2c. 洞察提煉                                │
+│      → 從多來源中提取 3-5 個關鍵洞察           │
+│      → 標記「已驗證」vs「待確認」              │
+├─────────────────────────────────────────────┤
+│  2d. 既有知識延伸                             │
+│      → 基於 KB 已有基礎，提出新角度            │
+│      → 交叉引用已有筆記（references_from_existing）│
+└─────────────────────────────────────────────┘
+</code></pre>
+<h3>4.3 Phase 3：報告撰寫（Report Generation）</h3>
+<p><strong>報告模板：</strong></p>
+<pre><code>
+# [主題] 深度研究報告
+
+&gt; 系列：[series_id] | 階段：[current_stage] | 日期：[date]
+&gt; 承接知識：[covered_concepts] | 本文深入：[knowledge_gaps]
+
+## 一、主題概述
+[2-3 段概述，引用 KB 已有知識作為起點]
+
+## 二、關鍵發現
+### 發現 1：[標題]
+[分析內容，標注來源等級]
+
+### 發現 2：[標題]
+...
+
+## 三、與既有知識的連結
+- 承接 KB 筆記「[title]」的 [concept]，本文進一步...
+- 補充 KB 中缺少的 [missing_concept]...
+
+## 四、實踐應用
+[具體可操作的建議或程式碼]
+
+## 五、結論與展望
+[總結 + 下一階段研究方向]
+
+---
+**參考來源：**
+- [來源 1](URL) — A 級 | 2026-03
+- KB 筆記：「[title]」
+</code></pre>
+<h3>4.4 Phase 4：KB 匯入與系列更新</h3>
+<pre><code>
+┌─────────────────────────────────────────────┐
+│  4a. 去重確認                                │
+│      → hybrid search score &gt; 0.85 → 不匯入   │
+├─────────────────────────────────────────────┤
+│  4b. 匯入知識庫                              │
+│      → contentText = Markdown 報告全文        │
+│      → tags = 主題標籤 + 系列標籤             │
+│      → source = "import"                     │
+├─────────────────────────────────────────────┤
+│  4c. 更新 research-series.json               │
+│      → 推進系列階段                           │
+│      → 記錄新覆蓋概念                         │
+├─────────────────────────────────────────────┤
+│  4d. 更新 research-registry.json             │
+│      → 寫入本次研究記錄                       │
+│      → 同步更新 summary 欄位                  │
+├─────────────────────────────────────────────┤
+│  4e. 清理暫存檔                              │
+│      → rm kb-research-brief.json 等           │
+└─────────────────────────────────────────────┘
+</code></pre>
+<p><strong>匯入指令：</strong></p>
+<pre><code>
+# 去重
+$body = @{ query = "報告標題關鍵字"; topK = 5 } | ConvertTo-Json
+$dup = Invoke-RestMethod -Uri "http://localhost:3000/api/search/hybrid" -Method POST -Body $body -ContentType "application/json"
+# 若無 score &gt; 0.85 → 執行匯入
+
+# 匯入
+$body = @{
+    notes = @(@{
+        title = "報告標題"
+        contentText = "Markdown 內容"
+        tags = @("主題", "子類", "系列ID")
+    })
+    autoSync = $true
+} | ConvertTo-Json -Depth 3
+Invoke-RestMethod -Uri "http://localhost:3000/api/import" -Method POST -Body $body -ContentType "application/json"
+</code></pre>
+<h3>4.5 完整 Skill 鏈路圖</h3>
+<pre><code>
+研究任務觸發
+  │
+  ├→ [knowledge-query] 查詢 KB 已有知識
+  │
+  ├→ [kb-research-strategist] 分析知識深度 + 系列管理
+  │     └→ 輸出 kb-research-brief.json
+  │
+  ├→ [web-research] 外部搜尋 + 品質評分
+  │     └→ 來源品質分級 A/B/C/D
+  │
+  ├→ [kb-curator] （可選）內容品質評分
+  │     └→ 四維度評分（非知識/完整性/保留價值/知識價值）
+  │
+  ├→ [groq] （可選）批次翻譯/摘要
+  │
+  ├→ [knowledge-query] 匯入成果
+  │
+  └→ [ntfy-notify] 完成通知
+</code></pre>
+<p>---</p>
+<h2>五、示範深度研究報告</h2>
+<h3>主題：「知識庫驅動的 Agentic RAG 架構——從本系統實踐看多層檢索策略的設計取捨」</h3>
+<blockquote>系列：kb-architecture | 階段：foundation | 日期：2026-03-08</blockquote>
+<blockquote>本文基於對 daily-digest-prompt 知識庫的實際架構分析</blockquote>
+<p>#### 一、主題概述</p>
+<p>本知識庫採用 SQLite FTS5 + Qdrant 向量資料庫的雙引擎架構，提供三種搜尋模式。這種「多層檢索」設計是 Agentic RAG 的核心模式——Agent 根據任務性質動態選擇最適合的檢索策略。</p>
+<p>根據 KB 筆記「SQLite FTS5 全文搜尋引擎完整指南」和「Dify — 開源 AI 工作流平台深度洞察」，我們已有 FTS5 和 RAG 管線的基礎知識。本文從實測數據出發，分析各檢索策略的實際表現。</p>
+<p>#### 二、關鍵發現</p>
+<p><strong>發現 1：Hybrid Search 的分數正規化瓶頸</strong></p>
+<p>實測中 hybrid search 的分數集中在 0.333-0.500，區分度低。這源於 BM25 和向量分數的正規化難題——BM25 是非 bounded 分數，向量 cosine similarity 是 0-1，兩者融合需要 min-max 正規化，導致壓縮。</p>
+<p>| 查詢類型 | Hybrid 分數範圍 | 有效區分度 |</p>
+<p>|----------|----------------|-----------|</p>
+<p>| 技術概念 | 0.333-0.500 | 低 |</p>
+<p>| 佛學專有名詞 | 0.392-0.500 | 低 |</p>
+<p>| 遊戲技術 | 0.333-0.500 | 低 |</p>
+<p><strong>發現 2：BM25 中文斷詞的盲點</strong></p>
+<p>「楞嚴經 五十陰魔」查詢中，BM25 將 Crawl4AI 爬蟲文章排在第一名。推測原因是 FTS5 的中文斷詞可能將「陰」「魔」等單字分別匹配到不相關文件。這是 CJK 語言 BM25 的已知限制。</p>
+<p><strong>發現 3：每筆記平均 10.6 chunks 的分塊策略</strong></p>
+<p>9,345 vectors / 883 notes ≈ 10.6 chunks/note。以平均 4,418 字/筆記計算，每 chunk 約 417 字。這在 RAG 最佳實踐中屬於適中的分塊大小（建議 200-500 字/chunk）。</p>
+<p><strong>發現 4：標籤體系的長尾效應</strong></p>
+<p>2,863 唯一標籤中，Top 30 標籤佔總使用次數的 ~40%，剩餘 2,833 個標籤佔 ~60%。這種長尾分佈表示標籤系統需要治理——建議建立核心詞彙表，將同義標籤合併。</p>
+<p>#### 三、與既有知識的連結</p>
+<ul>
+<li>承接 KB 筆記「Dify — 開源 AI 工作流平台深度洞察」中 RAG 管線設計的啟示</li>
+<li>承接 KB 筆記「SQLite FTS5 全文搜尋引擎完整指南」中 BM25 與向量混合檢索架構</li>
+<li>補充 KB 中缺少的：<strong>實測數據驅動的搜尋策略選擇指南</strong></li>
+</ul>
+<p>#### 四、實踐應用</p>
+<p><strong>推薦的動態搜尋策略選擇器：</strong></p>
+<pre><code>
+def select_search_strategy(query: str, task_type: str) -&gt; str:
+    """根據查詢特徵和任務類型選擇最佳搜尋策略"""
+
+    # 1. 專有名詞（含中文經典名、技術術語）→ 標題優先
+    if has_proper_nouns(query):
+        return "title_first_then_hybrid"
+
+    # 2. 概念性查詢 → hybrid 優先
+    if task_type in ("research", "explore", "synthesis"):
+        return "hybrid_with_retrieve"
+
+    # 3. 精確程式碼/函數名 → BM25 關鍵字
+    if has_code_tokens(query):
+        return "keyword_first"
+
+    # 4. 預設 → hybrid
+    return "hybrid"
+</code></pre>
+<p>#### 五、結論與展望</p>
+<p>本知識庫的「雙引擎+三種搜尋」架構已具備深度研究的基礎能力。主要優化方向：</p>
+<ol>
+<li><strong>搜尋策略自動選擇</strong>：基於查詢分析動態切換搜尋端點</li>
+<li><strong>標籤體系治理</strong>：建立核心詞彙表，合併同義標籤</li>
+<li><strong>分數校準</strong>：改善 hybrid search 的正規化，提升區分度</li>
+<li><strong>跨筆記知識圖譜</strong>：利用標籤共現建立顯式知識關聯</li>
+</ol>
+<p>---</p>
+<p><strong>參考來源：</strong></p>
+<ul>
+<li>KB 筆記：「SQLite FTS5 全文搜尋引擎完整指南」</li>
+<li>KB 筆記：「Dify — 開源 AI 工作流平台深度洞察」</li>
+<li>KB 筆記：「Docling — IBM 開源智慧文件解析平台深度研究」</li>
+<li>KB 筆記：「Claude Code 2026 最新功能與 Agent SDK 完整指南」</li>
+<li>實測數據：2026-03-08 搜尋效果比較實驗</li>
+</ul>
+<p>---</p>
+<h2>六、標籤體系治理洞察（附加分析）</h2>
+<h3>6.1 標籤同義群組建議</h3>
+<p>| 建議合併為 | 現有分散標籤 |</p>
+<p>|-----------|------------|</p>
+<p>| <code>AI</code> | AI、AI技術、AI研究、AI工具、AI動態 |</p>
+<p>| <code>Agent</code> | Agent、AI Agent、Agent架構、Agent開發、Agent編排、Agent SDK |</p>
+<p>| <code>遊戲開發</code> | 遊戲開發、遊戲設計、HTML5遊戲 |</p>
+<p>| <code>安全</code> | 資安、安全、AI安全、AI安全測試 |</p>
+<h3>6.2 建議移除的標籤類型</h3>
+<ul>
+<li><strong>精確日期</strong>：2026-02-14、2026-02-15 等 → 用 createdAt 欄位取代</li>
+<li><strong>專案名稱重複</strong>：daily-digest、daily-digest-prompt → 統一為一個</li>
+</ul>
+<p>---</p>
+<p><em>報告完成。所有數據基於 2026-03-08 實際 API 查詢結果。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

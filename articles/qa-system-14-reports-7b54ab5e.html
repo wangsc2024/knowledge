@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #14 - reports 路由測試覆蓋補全 + get_reports Bug 修復 (2026-02-25)">
+  <title>QA System 優化報告 #14 - reports 路由測試覆蓋補全 + get_reports Bug 修復 (2026-02-25) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #14 - reports 路由測試覆蓋補全 + get_reports Bug 修復 (2026-02-25)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">reports測試</span><span class="tag">Bug修復</span><span class="tag">品質改善</span><span class="tag">測試覆蓋</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #14</h1>
+<blockquote>日期：2026-02-25 | 品質分數：4.5/5 | 第十四次掃描</blockquote>
+<h2>優化方向</h2>
+<p>reports 路由測試覆蓋補全（21 個測試案例，覆蓋全部 3 個端點）+ get_reports 既有 Bug 修復</p>
+<h2>安全掃描結果</h2>
+<p>修復 1 個紅色問題，其餘全部綠燈：</p>
+<h3>已修復（安全）</h3>
+<ul>
+<li><strong>get_reports 端點 Bug（紅色）</strong>：使用不存在的 <code>question.department_id</code> 屬性，導致 <code>AttributeError</code> → 500 Internal Server Error。修復：改為遍歷 <code>question.report_departments</code> 和 <code>question.answer_departments</code>，與 create_report/update_report 一致。</li>
+</ul>
+<h3>仍有效（綠燈）</h3>
+<ul>
+<li>SECRET_KEY 環境變數化</li>
+<li>SQL 注入防護（參數化 text() + bind params）</li>
+<li>XSS 防護（無 innerHTML/document.write/|safe）</li>
+<li>CORS 限制來源、Cookie httponly/secure/samesite</li>
+<li>JWT 集中解碼 + 30 分鐘過期</li>
+<li>python-jose >=3.5.0 CVE 修復</li>
+<li>錯誤訊息洩漏全專案零殘留</li>
+</ul>
+<h2>已修復問題</h2>
+<h3>品質修復</h3>
+<p>新增 <code>test_reports_api.py</code>，21 個測試案例覆蓋 reports 路由全部 3 個端點：</p>
+<p>| 端點 | 測試數 | 涵蓋場景 |</p>
+<p>|------|--------|----------|</p>
+<p>| POST /reports/{question_id} | 7 | 認證、權限、404、成功建立、部門匹配、已結案拒絕、無部門存取拒絕 |</p>
+<p>| GET /reports/{question_id} | 7 | 認證、404、空列表、序列化 Bug 記錄、部門匹配、無部門存取拒絕、無權限拒絕 |</p>
+<p>| PUT /reports/{report_id} | 7 | 認證、404、創建者更新、管理員更新、非創建者拒絕、已結案拒絕、無權限拒絕 |</p>
+<h3>安全修復</h3>
+<p><code>get_reports</code> 端點使用 <code>question.department_id</code>（Question model 沒有此屬性），導致：</p>
+<ul>
+<li>所有非管理員存取一律 500 Internal Server Error</li>
+<li>錯誤堆疊可能洩漏內部資訊</li>
+</ul>
+<p>修復後改為遍歷多對多關聯表（與 create_report、update_report 一致）。</p>
+<h2>測試覆蓋里程碑</h2>
+<p><strong>8/8 路由模組全部覆蓋完成！</strong></p>
+<p>| 模組 | 測試檔 | 測試數 | 完成序號 |</p>
+<p>|------|--------|--------|----------|</p>
+<p>| auth | test_auth_api.py | 3 | 原有 |</p>
+<p>| questions | test_questions_api.py | 4 | 原有 |</p>
+<p>| models | test_models.py | 4 | 原有 |</p>
+<p>| departments | test_departments_api.py | 16 | #9 |</p>
+<p>| users | test_users_api.py | 17 | #11 |</p>
+<p>| roles | test_roles_api.py | 16 | #12 |</p>
+<p>| export | test_export_api.py | 22 | #13 |</p>
+<p>| reports | test_reports_api.py | 21 | #14（本次）|</p>
+<p>| <strong>合計</strong> | <strong>8 檔</strong> | <strong>103</strong> | |</p>
+<h2>待處理</h2>
+<ul>
+<li>get_reports response_model 改用 list[ReportResponse] 搭配 Pydantic schema</li>
+<li>修復 test_create_question_api 和 test_close_question_api 既有失敗</li>
+<li>zeep cgi 模組棄用警告（Python 3.13 將移除）</li>
+<li>questions.py 進一步模組拆分（仍 884 行）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

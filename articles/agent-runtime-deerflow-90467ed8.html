@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="多 Agent Runtime 的中介軟體鏈與雙執行緒池編排 — 從 DeerFlow 啟發到可落地的可靠執行模型">
+  <title>多 Agent Runtime 的中介軟體鏈與雙執行緒池編排 — 從 DeerFlow 啟發到可落地的可靠執行模型 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>多 Agent Runtime 的中介軟體鏈與雙執行緒池編排 — 從 DeerFlow 啟發到可落地的可靠執行模型</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">多 Agent Runtime 的中介軟體鏈與雙執行緒池編排</span><span class="tag">daily-digest</span><span class="tag">多 Agent Runtime</span><span class="tag">中介軟體鏈</span><span class="tag">雙執行緒池</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>多 Agent Runtime 的中介軟體鏈與雙執行緒池編排 — 從 DeerFlow 啟發到可落地的可靠執行模型</h1>
+<p>研究日期：2026-03-11</p>
+<p>研究類型：技術研究</p>
+<p>今日任務涉及技術：Vite 知識庫同步、RAG、Mamba / SSM、DeerFlow、SuperAgent、多 Agent Runtime</p>
+<p>本次研究主題：多 Agent Runtime 的中介軟體鏈與雙執行緒池編排（因知識庫尚無此主題的獨立深入研究，且可直接承接今日 DeerFlow 相關任務）</p>
+<h2>技術概述</h2>
+<p>多 Agent Runtime 的核心問題不是「如何再多叫幾個 Agent」，而是如何在同一套執行環境中，穩定處理代理間的呼叫、工具執行、錯誤傳遞、取消、觀測與資源競爭。近一年的框架演進顯示，主流作法逐漸收斂到兩個結構：其一是用中介軟體鏈攔截模型呼叫與工具執行，把 logging、retry、fallback、guardrail、rate limit 這類橫切能力從業務邏輯抽離；其二是用分離式執行池或排程器，把「協調決策」與「I/O / 工具工作」分開，降低互相阻塞與死鎖風險。這種設計很適合 daily-digest-prompt 這類同時有研究、匯入、同步、通知等多步驟工作的系統。</p>
+<h2>核心概念與原理</h2>
+<h3>1. 中介軟體鏈不是裝飾品，而是 Runtime 控制平面</h3>
+<p>LangChain 2025 年的 middleware 把 agent loop 前後的控制點正式產品化：可在模型前後插入 prompt 轉換、tool selection、retry、fallback、early termination、rate limit、PII 檢查等邏輯。這代表 Agent Runtime 不再只是一個 while-loop，而是一條可組裝的控制管線。</p>
+<p>gRPC 的 interceptor 設計提供了更成熟的對照：interceptor 適合放所有「與單一 RPC 無關、但應套用到多數呼叫」的橫切邏輯，而且<strong>順序本身就是行為定義的一部分</strong>。對多 Agent 系統來說，這意味著：</p>
+<ul>
+<li>靠近應用層的 middleware 適合做任務切分、上下文修整、路由決策</li>
+<li>靠近網路或工具層的 middleware 適合做 logging、metrics、retry、timeout、cache</li>
+<li>順序若錯，例如先 cache 後 logging，與先 logging 後 cache，得到的可觀測性完全不同</li>
+</ul>
+<h3>2. 雙執行緒池的本質是把「協調」與「工作」分流</h3>
+<p>雖然很多框架不一定直接命名為 dual thread pools，但其設計都在逼近這個模型：</p>
+<ul>
+<li><code>coordination pool</code>：負責 agent state transition、manager 決策、handoff、聚合結果、排程下一步</li>
+<li><code>worker / I-O pool</code>：負責工具執行、HTTP 呼叫、檔案 I/O、資料庫查詢、外部服務等待</li>
+</ul>
+<p>Google Cloud Pub/Sub 的 <code>ThreadScheduler</code> 是很好的參照物。它明確把 thread-safe queue 放在 callback 與 scheduling thread 之間，再由 thread pool 非同步執行 callback；並且特別標示 scheduler 不該跨 client 共享。這個設計說明兩件事：</p>
+<ol>
+<li>佇列是協調邊界，不只是資料結構</li>
+<li>執行池與 scheduler 的生命週期必須綁定，否則容易出現共享污染與停機不乾淨</li>
+</ol>
+<p>把這個概念搬到多 Agent Runtime，就會得到一個更穩定的流程：manager 只負責「決定誰做事」，真正耗時的工作交給 worker pool；manager 不應直接卡在工具 I/O 上。</p>
+<h3>3. 背壓、取消與關停語義必須是第一級設計</h3>
+<p>Python 3.14 的 <code>Executor.map(..., buffersize=...)</code> 很關鍵，因為它把「最多可同時提交多少尚未被消費的工作」變成標準介面的一部分。這就是背壓。沒有背壓時，多 Agent 系統最常見的故障模式是：</p>
+<ul>
+<li>manager 持續丟工作，worker queue 無限制膨脹</li>
+<li>某個慢工具拖住結果消費，導致未完成 future 堆積</li>
+<li>取消訊號只停在最上層，底下工具與 callback 仍繼續跑</li>
+</ul>
+<p>同一份 Python 文件也再次提醒 ThreadPoolExecutor 很容易死鎖，尤其是 worker 裡再等待另一個 future。這對 agent-to-agent handoff 特別危險。如果一個 agent worker 在同池內同步等待另一個 agent 的結果，就可能把整池鎖死。</p>
+<p>因此可靠的做法是：</p>
+<ul>
+<li>manager 永遠不要在 worker pool 內同步等待同池 future</li>
+<li>queue 必須有上限，或至少有 inflight 上限</li>
+<li>shutdown 時要區分 <code>wait</code> 與 <code>cancel_futures</code></li>
+<li>cancellation 要能從 task 層一路傳到 tool call 層</li>
+</ul>
+<h3>4. 最新多 Agent 框架趨勢：統一 orchestration 介面</h3>
+<p>Semantic Kernel 在 2025-05-27 公開 multi-agent orchestration，提供 Sequential、Concurrent、Group Chat、Handoff、Magentic 等模式，但 API 盡量統一：定義 agents、建立 orchestration、啟動 runtime、invoke task、等待 result。這代表框架層已經意識到：真正難的不是模式命名，而是要讓不同協作模式共用同一個 runtime 合約。</p>
+<p>對工程設計的啟示是：</p>
+<ul>
+<li>orchestration pattern 應與 runtime contract 分離</li>
+<li>無論 sequential 或 concurrent，都應共用相同的 task envelope、trace id、error model、shutdown policy</li>
+<li>manager pattern 可以替換，但 middleware、queue、observability 不應跟著重寫</li>
+</ul>
+<h2>最佳實踐與常見陷阱</h2>
+<h3>最佳實踐</h3>
+<ul>
+<li>先定義 middleware layer 順序。建議順序：<code>trace/context -> auth/guardrail -> routing -> retry/timeout -> tool adapter -> metrics/logging</code>。</li>
+<li>把 manager 與 worker 分池。manager 只做排程與狀態轉換；工具、HTTP、I/O 交給 worker pool。</li>
+<li>為 queue 設定明確上限或 inflight 上限，避免研究型任務同時大量 fan-out 時拖垮整體系統。</li>
+<li>所有任務都攜帶 <code>task_id</code>、<code>parent_task_id</code>、<code>trace_id</code>，中介軟體鏈統一傳遞，否則很難追跨 Agent 問題。</li>
+<li>shutdown 要支援兩段式：先停止接受新工作，再等待或取消未完成工作，並回報剩餘 queue 長度。</li>
+<li>對外部工具用 bulkhead 思維隔離。像 KB 搜尋、Web 研究、Git push 應有獨立併發限制，避免單一外部服務阻塞整個 runtime。</li>
+</ul>
+<h3>常見陷阱</h3>
+<ul>
+<li>在同一個 ThreadPoolExecutor 裡遞迴等待 future，造成飢餓或死鎖。</li>
+<li>middleware 放錯順序，導致 cache 命中工作完全沒有 logging 或 metrics。</li>
+<li>將 scheduler / executor 跨多個 runtime 共用，造成關停、重試、狀態污染難以推理。</li>
+<li>只做 timeout，不做 cancellation propagation，最後表面上任務結束，背景工具還在跑。</li>
+<li>把所有代理都丟到「同一池 + 同一 queue」，看似簡單，實際上最容易互相爭搶資源。</li>
+</ul>
+<h2>與本專案的關聯</h2>
+<p><code>daily-digest-prompt</code> 已經有多類自動任務：研究、知識庫匯入、Vite 同步、排程修復、通知。若未來要把這些流程更明確地 agent 化，可以採用以下落地方式：</p>
+<ul>
+<li><code>coordination pool</code>：負責 Phase 選題、去重決策、KB 策略分析、完成條件判定</li>
+<li><code>worker pool</code>：負責 Web 搜尋、KB API 呼叫、檔案同步、匯入 JSON 產生、通知送出</li>
+<li><code>middleware chain</code>：統一處理快取、trace、timeout、retry、結果檔 schema 驗證、done_cert 生成</li>
+<li><code>bounded queue</code>：限制單次研究最多 fan-out 幾組 Web 查詢、幾個匯入動作、幾個同步工作</li>
+</ul>
+<p>這樣可以直接改善兩類已知風險：</p>
+<ol>
+<li>單一慢速 I/O 讓整個 Phase 卡住</li>
+<li>某個子步驟失敗後，缺乏一致的取消與結果收尾機制</li>
+</ol>
+<h2>程式碼範例</h2>
+<pre><code>
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from queue import Queue, Full
+from threading import Event
+from typing import Callable, Any
+
+@dataclass
+class TaskEnvelope:
+    task_id: str
+    trace_id: str
+    kind: str
+    payload: dict[str, Any]
+
+class Middleware:
+    def before(self, task: TaskEnvelope) -&gt; TaskEnvelope:
+        return task
+
+    def after(self, task: TaskEnvelope, result: Any) -&gt; Any:
+        return result
+
+class Runtime:
+    def __init__(self, queue_size: int = 32):
+        self.stop_event = Event()
+        self.queue: Queue[TaskEnvelope] = Queue(maxsize=queue_size)
+        self.coordinator_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="coord")
+        self.worker_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="worker")
+        self.middleware: list[Middleware] = []
+
+    def submit(self, task: TaskEnvelope) -&gt; None:
+        if self.stop_event.is_set():
+            raise RuntimeError("runtime is shutting down")
+        try:
+            self.queue.put(task, timeout=1)
+        except Full as exc:
+            raise RuntimeError("backpressure: queue is full") from exc
+        self.coordinator_pool.submit(self._dispatch)
+
+    def _dispatch(self) -&gt; None:
+        if self.stop_event.is_set():
+            return
+        task = self.queue.get()
+        for mw in self.middleware:
+            task = mw.before(task)
+        future = self.worker_pool.submit(self._run_task, task)
+        result = future.result(timeout=60)
+        for mw in reversed(self.middleware):
+            result = mw.after(task, result)
+        print(task.task_id, result)
+
+    def _run_task(self, task: TaskEnvelope) -&gt; str:
+        return f"done:{task.kind}:{task.trace_id}"
+
+    def shutdown(self) -&gt; None:
+        self.stop_event.set()
+        self.coordinator_pool.shutdown(wait=True, cancel_futures=True)
+        self.worker_pool.shutdown(wait=True, cancel_futures=True)
+</code></pre>
+<p>這個範例重點不是語法，而是結構：協調與工作分池、queue 有上限、middleware 前後鉤子一致、shutdown 有明確語義。</p>
+<h2>品質自評</h2>
+<ul>
+<li>聚焦性：通過。主題直接承接今日 DeerFlow / SuperAgent 任務所需的 runtime 架構理解。</li>
+<li>可操作性：通過。已提供中介軟體順序、雙池分工、背壓與關停設計建議。</li>
+<li>字數：通過。全文超過 400 字。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://docs.langchain.com/oss/python/langchain/middleware/overview">LangChain Middleware Overview</a> — A 級，說明 agent loop 的 middleware 控制點與可插入能力。</li>
+<li><a href="https://docs.python.org/3.14/library/concurrent.futures.html">Python 3.14 <code>concurrent.futures</code> 文件</a> — A 級，提供 <code>buffersize</code>、<code>cancel_futures</code>、deadlock 風險與 executor shutdown 語義。</li>
+<li><a href="https://grpc.io/docs/guides/interceptors/">gRPC Interceptors Guide</a> — A 級，提供成熟的 middleware / interceptor 順序與職責邊界設計原則。</li>
+<li><a href="https://devblogs.microsoft.com/semantic-kernel/semantic-kernel-multi-agent-orchestration/">Semantic Kernel: Multi-agent Orchestration</a> — A 級，說明統一 orchestration 介面與 sequential / concurrent / handoff / manager pattern。</li>
+<li><a href="https://cloud.google.com/python/docs/reference/pubsub/latest/google.cloud.pubsub_v1.subscriber.scheduler.ThreadScheduler">Google Cloud Pub/Sub ThreadScheduler</a> — A 級，提供 queue + thread pool scheduler 的實際 API 參照與生命週期界線。</li>
+</ol>
+<h2>研究補充</h2>
+<ul>
+<li>交叉驗證事實 1：中介軟體 / interceptor 適合處理 logging、retry、policy、tool selection 等橫切邏輯，LangChain 與 gRPC 皆支持此模式。</li>
+<li>交叉驗證事實 2：併發池若沒有邊界與取消策略，很容易出現 pending 工作堆積與死鎖，Python 官方文件已明示相關風險。</li>
+<li>交叉驗證事實 3：多 Agent orchestration 的未來方向不是更多 pattern 名詞，而是統一 runtime contract 與可替換 orchestration interface。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

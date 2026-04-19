@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #21 - auth.py raw SQL 全面 ORM 遷移 (2026-03-01)">
+  <title>QA System 優化報告 #21 - auth.py raw SQL 全面 ORM 遷移 (2026-03-01) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #21 - auth.py raw SQL 全面 ORM 遷移 (2026-03-01)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">ORM遷移</span><span class="tag">品質改善</span><span class="tag">auth.py</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #21</h1>
+<blockquote>日期：2026-03-01 | 品質分數：5/5 | 第二十一次掃描</blockquote>
+<h2>優化方向</h2>
+<p>auth.py 6 處 raw SQL（user_role INSERT + user_department INSERT/SELECT）→ ORM relationship 操作</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題。已確認：SECRET_KEY 環境變數化、SQL 注入防護（auth.py raw SQL 已全部移除）、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼、python-jose CVE 修復、錯誤訊息零洩漏。</p>
+<h2>已修復問題（6 項品質）</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>新用戶角色關聯</strong>：raw SQL <code>INSERT INTO user_role</code> → <code>user.roles.append(staff_role)</code>，由 SQLAlchemy 自動管理關聯表</li>
+<li><strong>新用戶部門關聯</strong>：raw SQL <code>INSERT INTO user_department</code> → <code>user.departments.append(department)</code></li>
+<li><strong>既有用戶部門查詢</strong>：raw SQL <code>SELECT * FROM user_department</code> → <code>department not in user.departments</code>（ORM 自動載入）</li>
+<li><strong>既有用戶部門新增</strong>：raw SQL <code>INSERT INTO user_department</code> → <code>user.departments.append(department)</code></li>
+<li><strong>移除 <code>from sqlalchemy import text</code></strong>：auth.py 不再需要 raw SQL 模組</li>
+<li><strong>auth.py 行數</strong>：228 行 → 210 行（-18 行，-8%）</li>
+</ol>
+<h2>ORM 遷移里程碑</h2>
+<p>至此整個 QA System 主要模組全部完成 ORM 遷移：</p>
+<ul>
+<li>questions.py：close(#17) → edit(#18) → create(#19) → fetch/list(#20)</li>
+<li>auth.py：sso_login user_role + user_department(#21)</li>
+<li><strong>全專案零 raw SQL 字串操作</strong></li>
+</ul>
+<h2>測試結果</h2>
+<p>103/103 全通過（32.38 秒）</p>
+<h2>待處理</h2>
+<ul>
+<li>questions.py 模組拆分（723 行）</li>
+<li>zeep 本地版本升級</li>
+<li>users.py 中 pwd_context 重複定義（3 處 CryptContext）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

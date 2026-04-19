@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AutoGen 深度研究報告 - AI工作流自動化">
+  <title>AutoGen 深度研究報告 - AI工作流自動化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AutoGen 深度研究報告 - AI工作流自動化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">AutoGen</span><span class="tag">Multi-agent 框架</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AutoGen 深度研究報告</h1>
+<h2>概述</h2>
+<p>AutoGen 是 Microsoft 維護的多代理工作流框架，核心目標不是做單一提示包裝，而是把「多個具不同角色、工具與模型設定的代理」組合成可反覆執行的對話式工作流。它特別適合研究型、多步協作型與需要人機共同參與的任務，例如程式撰寫、資料分析、文件生成與代理群組討論。</p>
+<p>本文承接 <code>ai-workflow-automation</code> 系列既有的 Dify、Temporal、Phoenix、CrewAI、LangGraph 與 MCP 工具研究，聚焦 AutoGen 在多代理協作上的獨特路線：以事件驅動訊息流、分層 API 與可插拔執行環境，將 agent workflow 從 demo 對話提升到可治理的應用框架。</p>
+<h2>技術架構</h2>
+<p>AutoGen 目前採分層設計。最上層是 <code>AgentChat API</code>，提供 AssistantAgent、UserProxy / 互動代理、群組聊天與 team orchestration，讓開發者用較少程式碼就能組出對話式 workflow。中間層是 <code>Core API</code>，採事件驅動與 message-based 模型，支援本地與分散式 agent runtime、topic / subscription 類型路由、agent lifecycle 管理與 observability hook；這一層比較接近真正的工作流引擎。最下層則是 <code>Extensions API</code>，負責模型客戶端、工具、工作台、code executor、記憶體與外部服務整合。</p>
+<p>從架構觀點看，AutoGen 和 LangGraph 最大差異不在於「能不能做多代理」，而在於工作流抽象。LangGraph 偏向顯式 state graph；AutoGen 偏向由 agent 交換訊息、事件與輪次控制來推動流程。這讓 AutoGen 很適合快速表達角色協作、辯論、審查、規劃-執行-驗證這類會話型工作流，但也代表若要做到高度可預測、嚴格狀態控制與複雜分支治理，工程團隊通常需要自行補上流程約束。</p>
+<h2>工作流核心能力</h2>
+<p>AutoGen 的工作流能力主要集中在下列幾個面向。第一，支援單代理與多代理模式，開發者可用多個 agent 組成 planner、coder、reviewer、executor 等角色鏈。第二，支援 group chat 與 team 機制，可用 selector、round-robin 等方式控制下一位發言者，形成可迭代的協作循環。第三，支援工具呼叫、函式執行、程式碼執行工作台與外部 API 整合，讓代理不只聊天，也能查資料、寫程式、呼叫服務。第四，支援 memory 與 RAG 類擴充，可把對話歷史、外部知識與任務上下文注入 workflow。第五，Core API 允許事件訂閱與 runtime 組合，適合把代理嵌入較大的系統流程。</p>
+<p>若從觸發器角度看，AutoGen 本身不是像 n8n 那種大量內建 SaaS trigger 的 no-code 平台；它比較像 agent workflow SDK。常見觸發方式是由應用程式、HTTP 入口、排程器、Notebook、CLI 或其他 orchestrator 啟動。這也意味著它的整合彈性高，但企業若要大規模接 CRM、資料庫、訊息佇列與通知系統，仍需自行建一層 adapter 或搭配其他 workflow engine。</p>
+<h2>AI 整合機制</h2>
+<p>AutoGen 對 LLM 的整合不是綁死單一供應商，而是透過 model client 抽象層支援 OpenAI 相容介面、Azure OpenAI 與其他模型供應者。Agent 可各自配置不同模型、system prompt、tools 與 memory，因此很適合做 heterogenous agent team，例如便宜模型負責檢索與路由，較強模型負責推理與最終生成。這種 per-agent model assignment 是 AutoGen 的強項。</p>
+<p>它的另一個特色是把 code execution 視為一等公民。許多 AutoGen 範例都讓一個 agent 產生程式碼，另一個 agent 或 workbench 在隔離環境中執行，再把結果回饋到下一輪對話，形成 observe-act-refine 閉環。對 AI 工作流自動化來說，這比單純 function calling 更接近真正的任務代理。</p>
+<p>限制也很明顯。第一，官方文件已明確把新使用者導向 Microsoft Agent Framework，表示 AutoGen 雖仍維護，但不再是唯一主推入口，長期路線需審慎評估。第二，訊息驅動架構雖靈活，但在大型工作流中若缺少嚴格終止條件、成本上限與審計欄位，容易出現輪次膨脹、除錯困難與執行成本失控。第三，與 LangGraph 相比，AutoGen 對顯式狀態轉移與 durable execution 的內建治理相對弱一些。</p>
+<h2>部署與維運</h2>
+<p>AutoGen 主要以 Python 套件形式交付，適合在本地開發機、容器、雲端 VM 或 Kubernetes 服務中運行。基本需求是 Python 執行環境、模型 API 金鑰，以及視需求額外配置的 code executor、快取、向量庫或監測系統。若使用 Core API 與分散式 runtime，可延伸到多程序甚至分散式部署，但維運複雜度也會提高。</p>
+<p>實務上較穩健的做法是把 AutoGen 放在「代理協作層」，外層再用 FastAPI、Temporal、Prefect、n8n 或自家 job system 提供觸發、重試、排程與 SLA 管理；觀測則接 Phoenix 或 Langfuse 做 trace。這樣可以保留 AutoGen 的多代理表達力，同時補足生產治理能力。</p>
+<h2>與 daily-digest-prompt 的連結</h2>
+<p>對 <code>daily-digest-prompt</code> 這類 Claude Agent 系統，AutoGen 最值得借鑑的不是整套框架照搬，而是三個模式。第一是角色分工明確化：把研究、驗證、整理、QA 拆成不同 agent，再用 team selector 控制輪次，會比單一巨大 prompt 更容易管理。第二是事件驅動訊息流：目前專案已有 phase pipeline 與研究註冊表，若引入 AutoGen 式 message envelope，可讓子代理輸出更結構化，減少中間結果遺失。第三是 code executor / workbench 思維：把「查詢 KB、呼叫本機 API、寫結果 JSON、驗證 schema」視為受控工具，而不是散落在 prompt 中的自由文字指令，能提升可靠性與可審計性。</p>
+<p>但不建議直接把整個 daily-digest-prompt 改寫成 AutoGen。原因是本系統已 heavily 依賴技能路由、檔案導向狀態與本機工具調度；AutoGen 更適合拿來包裝其中某些高互動、多輪辯論型任務，例如 GitHub 專案比較、研究報告多代理審稿、或 planner-reviewer-executor 的研究流程，而不是取代既有 shell-first orchestration。</p>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>多代理協作抽象成熟，適合快速建立 planner / coder / reviewer / executor 類工作流。</li>
+<li>分層 API 清楚，從高階 AgentChat 到低階 Core runtime 都可依需求選擇。</li>
+<li>對工具呼叫、程式碼執行與模型異質編排支援完整，適合研究型與工程型任務。</li>
+<li>Microsoft 生態與官方文件完整，入門與擴充成本相對可控。</li>
+<li>與外部 orchestrator、觀測平台、記憶體模組的整合彈性高。</li>
+</ul>
+<p><strong>缺點 / 限制</strong>：</p>
+<ul>
+<li>官方已將新使用者導向 Microsoft Agent Framework，產品路線存在遷移訊號。</li>
+<li>對顯式狀態機、durable execution、工作流可預測性不如 LangGraph / Temporal 類方案。</li>
+<li>生產部署需要自行補足重試、配額、審計、權限與成本治理。</li>
+<li>若沒有嚴格終止條件，多代理對話容易失控並放大 token 成本。</li>
+<li>它是 SDK 而非完整 no-code 平台，企業整合大量業務系統時仍需自行開發橋接層。</li>
+</ul>
+<h2>社群狀態</h2>
+<p>Stars：約 55.8k | Forks：約 8.4k | 最近更新：2025-09-30</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://github.com/microsoft/autogen">microsoft/autogen GitHub</a></li>
+<li><a href="https://microsoft.github.io/autogen/">AutoGen 官方文件</a></li>
+<li><a href="https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/index.html">AutoGen Core API - Event-driven agents</a></li>
+<li><a href="https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/index.html">AutoGen AgentChat</a></li>
+<li><a href="https://www.datacamp.com/tutorial/crewai-vs-langgraph-vs-autogen">AutoGen vs LangGraph comparison</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

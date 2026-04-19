@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 自動測試修復與 Oracle 校準：結合 Mutation-Guided Generation、LLM Test Oracle 與 Multi-Agent Consensus 的優化實務">
+  <title>AI 自動測試修復與 Oracle 校準：結合 Mutation-Guided Generation、LLM Test Oracle 與 Multi-Agent Consensus 的優化實務 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 自動測試修復與 Oracle 校準：結合 Mutation-Guided Generation、LLM Test Oracle 與 Multi-Agent Consensus 的優化實務</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">自動測試修復</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 自動測試修復與 Oracle 校準：結合 Mutation-Guided Generation、LLM Test Oracle 與 Multi-Agent Consensus 的優化實務</h1>
+<p>承接既有筆記：</p>
+<ul>
+<li><code>AI 驅動的自動測試生成完整指南 -- 從 LLM 單元測試生成、Mutation Testing 自動化到工業級部署的工程實踐與工具鏈（2026）</code></li>
+<li><code>AI 驅動 CI/CD 優化：構建時間預測、flaky test 偵測與測試選擇實作指南（2026）</code></li>
+</ul>
+<h2>技術概述</h2>
+<p>AI 用於測試的真正瓶頸，已不再是「能不能生成測試」，而是「生成後的測試可不可信、壞掉時怎麼修、assert 是否真的反映預期行為」。最新實務顯示，有效方案不是單靠單次 LLM 產生測試，而是把 mutation-guided generation、oracle correctness 檢查、失敗測試修復與共識式審核串成閉環。這種閉環可把 AI 測試從一次性草稿提升為持續可運作的工程資產，特別適合需要長期維持 CI 穩定性與低誤報率的專案。</p>
+<h2>核心方法與工具</h2>
+<ul>
+<li>Mutation-guided generation：先故意植入目標型 mutant，再要求模型生成能殺死該 mutant 的測試，而不是只追求 coverage。</li>
+<li>Oracle calibration：把 assert 生成視為獨立問題，檢查它反映的是「預期行為」還是「目前實作行為」。</li>
+<li>Multi-agent consensus：用多個推理代理討論 oracle，再由較便宜的模型輸出精簡結論，降低 hallucination。</li>
+<li>Test repair loop：測試失敗後，不直接重寫全部測試，而是保留 failing signal、diff、stack trace，讓模型只修 prefix、fixture 或 assertion。</li>
+<li>Mutation / flaky gate：用 mutation score 與 flaky rate 做雙閘門，避免 AI 生成大量脆弱測試。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>先定義風險面向，不用直接要求「幫我寫測試」，而是描述想防止的回歸型態，例如權限繞過、空值處理、日期邊界或排程重入。</li>
+<li>針對該風險面向建立小量、具意義的 mutants；重點是模擬真實錯誤，不是大量隨機變異。</li>
+<li>讓 LLM 根據程式碼、既有測試與 mutant 差異生成候選測試，並保留生成 rationale 供後續比對。</li>
+<li>把 assertion 拆出去做 oracle review：要求第二個代理判斷 assert 捕捉的是預期規格還是既有實作，必要時提供規格、命名與註解做校準。</li>
+<li>執行 <code>pytest</code> 或對應測試框架，收集 compile/runtime failure、stack trace、snapshot diff 與 mutation kill 結果。</li>
+<li>若測試失敗，進入 test repair：只把失敗測試、錯誤訊息、相關函式與最小必要上下文交給模型，限制它只能修 fixture / assertion / test setup。</li>
+<li>再跑 mutation testing。若 coverage 提高但 mutation score 沒提升，表示測試可能只是碰到程式碼而沒有真正驗證行為。</li>
+<li>最後才進 CI：將 AI 生成測試標記為 <code>generated</code> 或 <code>candidate</code>，通過 mutation 與 flaky 門檻後再升級為正式回歸測試。</li>
+</ol>
+<h2>程式碼 / 配置範例</h2>
+<pre><code>
+# .github/workflows/ai-test-repair.yml
+name: ai-test-repair
+on:
+  pull_request:
+    paths:
+      - "tools/**"
+      - "hooks/**"
+      - "tests/**"
+
+jobs:
+  verify-generated-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      - run: pytest tests/tools -q --maxfail=1
+      - run: mutmut run --paths-to-mutate tools
+      - run: python tools/check_generated_tests.py --min-mutation-score 0.60 --max-flaky-rate 0.02
+</code></pre>
+<pre><code>
+# tools/check_generated_tests.py
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path('artifacts/generated-test-report.json').read_text(encoding='utf-8'))
+mutation_score = report['mutation_score']
+flaky_rate = report['flaky_rate']
+
+if mutation_score &lt; 0.60:
+    raise SystemExit(f'mutation score too low: {mutation_score:.2%}')
+if flaky_rate &gt; 0.02:
+    raise SystemExit(f'flaky rate too high: {flaky_rate:.2%}')
+
+print('generated tests passed quality gates')
+</code></pre>
+<pre><code>
+System prompt for oracle review agent
+- 你只審查 assertion 是否代表預期規格，不負責重寫整支測試。
+- 若 assertion 只是重述當前實作，標記為 implementation-derived oracle。
+- 優先使用函式名稱、docstring、ADR、驗收條件與既有回歸案例判斷 expected behaviour。
+- 只輸出：risk_level, rationale, suggested_assertion。
+</code></pre>
+<h2>效果量化（生產力提升數據，若有）</h2>
+<ul>
+<li>Meta 的 ACH 在 7 個平台、10,795 個 Android Kotlin 類別上產生 9,095 個 mutants 與 571 個測試案例；工程師接受了 73% 的測試，其中 36% 被評為隱私相關，代表 mutation-guided 方式已能在真實產品團隊內被採納。</li>
+<li>同一研究中，等價 mutant 偵測代理的 precision / recall 為 0.79 / 0.47；經簡單前處理後可提升到 0.95 / 0.96，說明前置清洗與過濾對 LLM 測試流程非常重要。</li>
+<li>CANDOR（2025/2026 版）顯示：在 Java 端對端單元測試生成上，coverage 可與 EvoSuite 相當，但 mutation score 更高；在 oracle correctness 上，至少比 TOGLL 高 21.1 個百分點，顯示多代理共識比單模型直接產生 assert 更穩。</li>
+<li>另一篇 2024 研究指出，LLM 生成的 oracle 仍常把「實際行為」誤當作「預期行為」；但若程式碼與測試命名清楚，其 fault detection potential 仍優於 EvoSuite。這代表命名品質與規格上下文是效果放大的前置條件。</li>
+</ul>
+<h2>與本專案的應用場景（daily-digest-prompt 如何受益）</h2>
+<ul>
+<li>可把 <code>tools/</code> 與 <code>hooks/</code> 的 AI 生成測試從單純 coverage 補洞，升級為 mutation-guided hardening，優先保護高風險腳本如結果檔驗證、registry 更新與 shell guard。</li>
+<li><code>results/todoist-auto-*.json</code> 的 schema 驗證已存在，下一步可把「錯誤結果是否真的被測試捕捉」改用 mutant 驅動方式驗證，避免只測 happy path。</li>
+<li>對 PowerShell / Python 混合流程，可導入 test repair agent：當 CI 因編碼、路徑、時區或 Windows 特性造成測試失敗時，只修最小測試片段，減少整包重生造成的漂移。</li>
+<li>可把 AGENTS/Skill/workflow 規格轉為 oracle context，讓生成測試不是只對著程式碼猜行為，而是對著專案規範驗證行為。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>最大風險不是 coverage 不足，而是錯誤 oracle 把 bug 固化成正確行為。</li>
+<li>若沒有規格、註解、命名或 ADR，模型容易用現有實作反推 assert，導致「測到了錯的東西」。</li>
+<li>test repair 必須限制修改範圍；否則模型會用大改 fixture 或跳過 assertion 的方式掩蓋問題。</li>
+<li>mutation testing 不能只看總分，還要看 survived mutants 分布；若都集中在權限、時間或例外分支，就表示風險仍高。</li>
+<li>flaky test 與 self-healing test 要分開治理：前者是環境/時序不穩，後者是模型修補策略；混在一起會讓根因模糊。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>Meta Engineering, Revolutionizing software testing: Introducing LLM-powered bug catchers, 2025-02-05  </li>
+</ol>
+<p>   https://engineering.fb.com/2025/02/05/security/revolutionizing-software-testing-llm-powered-bug-catchers-meta-ach/</p>
+<ol>
+<li>arXiv: Mutation-Guided LLM-based Test Generation at Meta, 2025-01-22  </li>
+</ol>
+<p>   https://arxiv.org/abs/2501.12862</p>
+<ol>
+<li>arXiv: Hallucination to Consensus: Multi-Agent LLMs for End-to-End JUnit Test Generation, submitted 2025-06-03, revised 2026-03-25  </li>
+</ol>
+<p>   https://arxiv.org/abs/2506.02943</p>
+<ol>
+<li>arXiv: Do LLMs generate test oracles that capture the actual or the expected program behaviour?, 2024-10-28  </li>
+</ol>
+<p>   https://arxiv.org/abs/2410.21136</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

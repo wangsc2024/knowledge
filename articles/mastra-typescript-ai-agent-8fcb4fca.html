@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mastra — TypeScript AI Agent 框架深度洞察：Observational Memory 三層壓縮架構、DAG 工作流編排、四層記憶系統與對 Daily-Digest-Prompt 系統的六大借鑑啟示（19.4K Stars, 2026-03）">
+  <title>Mastra — TypeScript AI Agent 框架深度洞察：Observational Memory 三層壓縮架構、DAG 工作流編排、四層記憶系統與對 Daily-Digest-Prompt 系統的六大借鑑啟示（19.4K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Mastra — TypeScript AI Agent 框架深度洞察：Observational Memory 三層壓縮架構、DAG 工作流編排、四層記憶系統與對 Daily-Digest-Prompt 系統的六大借鑑啟示（19.4K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">Mastra</span><span class="tag">AI Agent Framework</span><span class="tag">Observational Memory</span><span class="tag">TypeScript</span><span class="tag">工作流</span><span class="tag">記憶系統</span><span class="tag">DAG</span><span class="tag">Prompt Cache</span><span class="tag">開源專案</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Mastra — TypeScript AI Agent 框架深度洞察</h1>
+<h2>Observational Memory 三層壓縮架構、DAG 工作流編排、四層記憶系統與對 Daily-Digest-Prompt 系統的六大借鑑啟示</h2>
+<p>研究日期：2026-03-14</p>
+<p>研究類型：GitHub 熱門專案深度分析</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p><strong>Mastra</strong>（<a href="https://github.com/mastra-ai/mastra">mastra-ai/mastra</a>）是由 Gatsby 創始團隊打造的 TypeScript AI Agent 框架，定位為「The TypeScript AI Framework for building AI-powered applications and agents」。截至 2026 年 3 月已累積 <strong>19,400+ Stars</strong>、每週 <strong>300,000+ npm 下載量</strong>，採用 Apache-2.0 授權。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 19,400+ |</p>
+<p>| npm 週下載量 | 300,000+ |</p>
+<p>| 授權 | Apache-2.0 |</p>
+<p>| 語言 | TypeScript |</p>
+<p>| 創始團隊 | Gatsby 原班人馬 |</p>
+<p>| Y Combinator | 已獲投資 |</p>
+<p>| 支援 LLM 供應商 | 40+ |</p>
+<h3>為何選擇研究 Mastra</h3>
+<ol>
+<li><strong>記憶系統直接對標</strong>：Mastra 的 Observational Memory 與本系統的 <code>context/digest-memory.json</code> 跨次記憶機制解決相同問題——如何在有限 context window 中保持長期記憶</li>
+<li><strong>工作流架構可比較</strong>：Mastra 的 DAG 工作流 vs 本系統的 Phase 0→1→2 管線式架構</li>
+<li><strong>Skill/Tool 生態</strong>：Mastra 的 MCP Client + Tool 系統 vs 本系統的 Skill-First 策略</li>
+<li><strong>團隊血統</strong>：Gatsby 團隊有豐富的開發者工具經驗，設計決策值得深入分析</li>
+</ol>
+<p>---</p>
+<h2>二、核心架構——四大支柱</h2>
+<p>Mastra 的架構圍繞四個核心原語（Primitives）建構：</p>
+<h3>2.1 Agents（智能代理）</h3>
+<ul>
+<li><strong>定義方式</strong>：model + system instructions + tools</li>
+<li><strong>自主推理</strong>：Agent 自行決定使用哪些工具、何時停止</li>
+<li><strong>Supervisor 模式</strong>：支援主管代理委派子代理，可用 hooks 控制委派行為</li>
+<li><strong>記憶整合</strong>：每個 Agent 可獨立配置記憶範圍（thread-scoped / resource-scoped）</li>
+</ul>
+<pre><code>
+const agent = new Agent({
+  model: 'anthropic/claude-haiku-4-5',
+  instructions: '你是一個研究助手...',
+  tools: [searchTool, analyzeTool],
+  memory: new Memory({ observationalMemory: true })
+})
+</code></pre>
+<p><strong>與本系統對照</strong>：本系統的 Agent 由 Prompt 文件定義（<code>prompts/team/*.md</code>），Mastra 用 TypeScript 物件。Mastra 的 Supervisor 模式類似本系統的 <code>run-todoist-agent-team.ps1</code> Phase 分層調度。</p>
+<h3>2.2 Workflows（工作流）</h3>
+<ul>
+<li><strong>圖形狀態機</strong>：步驟組成有向圖（DAG），支援分支、迴圈、條件判斷</li>
+<li><strong>暫停與恢復</strong>：工作流可在任意步驟暫停，等待外部輸入後恢復</li>
+<li><strong>串流結果</strong>：支援步驟級別的即時結果串流</li>
+<li><strong>強型別</strong>：完整的 TypeScript 型別推論，input/output schema 自動推導</li>
+</ul>
+<p><strong>與本系統對照</strong>：本系統的 <code>config/pipeline.yaml</code> 定義線性管線，Mastra 支援更靈活的 DAG。本系統的 FSM（<code>state/run-fsm.json</code>）是簡化版狀態機，Mastra 的工作流系統更為通用。</p>
+<h3>2.3 RAG（檢索增強生成）</h3>
+<ul>
+<li><strong>完整管線</strong>：文件 → 分塊 → 嵌入 → 向量儲存 → 查詢時檢索</li>
+<li><strong>內建支援</strong>：無需外部依賴即可實現完整 RAG 流程</li>
+</ul>
+<h3>2.4 Evals（評估）</h3>
+<ul>
+<li><strong>內建評估框架</strong>：測試 Agent 效能、準確度、一致性</li>
+<li><strong>可量化品質</strong>：為 Agent 行為提供可衡量的品質指標</li>
+</ul>
+<p>---</p>
+<h2>三、Observational Memory（OM）——革命性記憶架構（核心洞察）</h2>
+<p>OM 是 Mastra 最具突破性的技術創新，也是本次研究的核心焦點。</p>
+<h3>3.1 設計哲學</h3>
+<p>OM 的核心理念：<strong>讓小 context window 表現得像大 context window</strong>。</p>
+<p>傳統方法的問題：</p>
+<ul>
+<li><strong>RAG 記憶</strong>：需要向量資料庫，檢索結果不穩定（每次不同），破壞 prompt cache</li>
+<li><strong>完整歷史</strong>：token 成本爆炸，長對話必然超出視窗</li>
+<li><strong>截斷歷史</strong>：丟失早期重要資訊</li>
+</ul>
+<p>OM 的解法：<strong>以觀察日誌取代原始訊息歷史</strong>，實現 5-40 倍壓縮率，同時保持 prompt 可快取性。</p>
+<h3>3.2 三層壓縮架構</h3>
+<pre><code>
+┌─────────────────────────────────────┐
+│ Tier 1: Recent Messages（原始訊息） │ ← 持續累積
+│ 閾值：30,000 tokens               │
+├─────────────────────────────────────┤
+│ Tier 2: Observations（觀察日誌）    │ ← Observer Agent 壓縮
+│ 閾值：40,000 tokens               │
+├─────────────────────────────────────┤
+│ Tier 3: Reflections（反思精華）     │ ← Reflector Agent 精煉
+│ 垃圾回收不相關觀察                 │
+└─────────────────────────────────────┘
+</code></pre>
+<p><strong>運作機制</strong>：</p>
+<ol>
+<li><strong>累積階段</strong>：新訊息持續附加到 Recent Messages 區塊</li>
+<li><strong>觀察觸發</strong>：當訊息 token 達到 30K，Observer Agent 將訊息壓縮為結構化觀察日誌</li>
+<li><strong>反思觸發</strong>：當觀察日誌達到 40K token，Reflector Agent 進行垃圾回收，移除不相關觀察</li>
+</ol>
+<h3>3.3 觀察日誌格式</h3>
+<p>觀察採用<strong>文本式日誌格式</strong>（非結構化物件或知識圖譜），具備三個關鍵特徵：</p>
+<ul>
+<li><strong>三日期模型</strong>：觀察日期、引用日期、相對日期（支援時間推理）</li>
+<li><strong>優先級標記</strong>：🔴 關鍵 / 🟡 中等 / 🟢 資訊性</li>
+<li><strong>時序排列</strong>：觀察按時間順序附加，非動態檢索</li>
+</ul>
+<pre><code>
+Date: 2026-01-15
+- 🔴 12:10 User building Next.js app with Supabase auth, due January 22nd
+  - 🔴 12:10 App uses server components with client-side hydration
+- 🟡 14:30 User prefers functional components over class components
+</code></pre>
+<h3>3.4 非同步緩衝機制</h3>
+<p>| 參數 | 預設值 | 用途 |</p>
+<p>|------|--------|------|</p>
+<p>| <code>bufferTokens</code> | <code>0.2</code>（20%） | 緩衝間隔（~6K tokens） |</p>
+<p>| <code>bufferActivation</code> | <code>0.8</code>（80%） | 清除訊息時的保留比例 |</p>
+<p>| <code>blockAfter</code> | <code>1.2</code>（120%） | 安全閾值（36K 強制同步） |</p>
+<h3>3.5 Benchmark 表現</h3>
+<p><strong>LongMemEval 基準測試</strong>（記憶持久性評估）：</p>
+<p>| 系統 | 模型 | 分數 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>Mastra OM</strong> | gpt-5-mini | <strong>94.87%</strong> |</p>
+<p>| <strong>Mastra OM</strong> | gemini-3-pro-preview | <strong>93.27%</strong> |</p>
+<p>| <strong>Mastra OM</strong> | gemini-3-flash-preview | <strong>89.20%</strong> |</p>
+<p>| <strong>Mastra OM</strong> | gpt-4o | <strong>84.23%</strong> |</p>
+<p>| Supermemory | gpt-4o | 81.63% |</p>
+<p>| Full Context Baseline | gpt-4o | 60.20% |</p>
+<ul>
+<li>以 gpt-5-mini 達到 <strong>94.87%</strong>，超越所有先前紀錄 3+ 百分點</li>
+<li>以 gpt-4o 達到 <strong>84.23%</strong>，超越 Supermemory 同模型 2.6 百分點</li>
+<li>超越全量 context baseline（60.20%）達 24 百分點</li>
+</ul>
+<h3>3.6 Prompt Cache 友善設計</h3>
+<p><strong>這是 OM 最精妙的設計</strong>：觀察日誌隨時間附加而非動態檢索，意味著 prompt 前綴保持穩定——每次對話回合都能獲得完整的 cache hit。僅在反思觸發時（不頻繁）才會使整個 cache 失效。</p>
+<p>對比 RAG 記憶：每次檢索不同文檔片段，prompt 前綴不斷變化，無法有效利用 prompt cache。</p>
+<p>---</p>
+<h2>四、四層記憶系統全景</h2>
+<p>| 層 | 名稱 | 用途 | 範圍 |</p>
+<p>|---|------|------|------|</p>
+<p>| 1 | Message History | 當前對話的原始訊息 | Thread-scoped |</p>
+<p>| 2 | Observational Memory | 壓縮後的觀察日誌 | Thread / Resource-scoped |</p>
+<p>| 3 | Working Memory | 持久化結構資料（姓名、偏好、目標） | Resource-scoped |</p>
+<p>| 4 | Semantic Recall | 基於語義相似度的關聯回憶 | Cross-thread |</p>
+<p><strong>與本系統對照</strong>：</p>
+<ul>
+<li>本系統的 <code>context/digest-memory.json</code> ≈ Working Memory（持久化結構資料）</li>
+<li>本系統的 <code>context/research-registry.json</code> ≈ 簡化版 Observational Memory（研究主題追蹤）</li>
+<li>本系統缺乏 Semantic Recall 層（可透過知識庫 hybrid search 部分替代）</li>
+<li>本系統缺乏動態壓縮機制（context 超限時直接截斷而非壓縮）</li>
+</ul>
+<p>---</p>
+<h2>五、Mastra Studio 開發者體驗</h2>
+<ul>
+<li><strong>本地開發遊樂場</strong>：視覺化測試 Agent 與工作流</li>
+<li><strong>MCP Client 整合</strong>：連接 Google Sheets、GitHub、內部資料庫等預建工具</li>
+<li><strong>追蹤功能</strong>：顯示每次 Agent 請求使用了哪些記憶內容</li>
+</ul>
+<p>---</p>
+<h2>六、對 Daily-Digest-Prompt 系統的六大借鑑啟示</h2>
+<h3>啟示 1：觀察式記憶壓縮（P1，高價值）</h3>
+<p><strong>現狀</strong>：本系統的 <code>context/digest-memory.json</code> 採用手動結構化格式，每次 session 由 Agent 自行判斷更新。</p>
+<p><strong>借鑑</strong>：引入「觀察日誌」概念，讓 <code>on_stop_alert.py</code> 在 session 結束時自動將本次互動壓縮為結構化觀察，附加到 <code>context/session-observations.json</code>。</p>
+<p><strong>具體方案</strong>：</p>
+<ul>
+<li>新增 <code>hooks/session_observer.py</code>，攔截 Stop 事件</li>
+<li>讀取本次 session 的 JSONL 日誌（<code>logs/structured/</code>），提取關鍵操作</li>
+<li>用優先級標記（🔴🟡🟢）分類觀察結果</li>
+<li>附加到觀察日誌，保留最近 30 天</li>
+<li>目標檔案：<code>hooks/session_observer.py</code>、<code>context/session-observations.json</code></li>
+</ul>
+<h3>啟示 2：Prompt Cache 友善的記憶設計（P1，低成本高效益）</h3>
+<p><strong>現狀</strong>：本系統的 prompt 每次都完整載入所有 YAML 配置和模板，前綴不穩定。</p>
+<p><strong>借鑑</strong>：將不變的配置內容固定在 prompt 最前端（前綴區），動態內容放在最後端。</p>
+<p><strong>具體方案</strong>：</p>
+<ul>
+<li>重新排列 prompt 結構：靜態規則（preamble.md）→ 靜態配置 → 動態上下文（放最後）</li>
+<li>確保 prompt 前綴在多次執行間保持一致</li>
+<li>預期效益：Anthropic prompt cache 命中率顯著提升，降低 token 成本</li>
+</ul>
+<h3>啟示 3：Working Memory 結構化（P2，中等工作量）</h3>
+<p><strong>現狀</strong>：<code>digest-memory.json</code> 混合了狀態追蹤（連續天數）和偏好資料（用戶習慣）。</p>
+<p><strong>借鑑</strong>：參照 Mastra 將 Working Memory 獨立為「持久化用戶資料」，與 session 狀態分離。</p>
+<p><strong>具體方案</strong>：</p>
+<ul>
+<li>將 <code>digest-memory.json</code> 拆分為 <code>context/user-profile.json</code>（偏好、習慣）和 <code>context/session-state.json</code>（連續天數、完成率）</li>
+<li>不同更新頻率：profile 低頻更新，state 每次 session 更新</li>
+</ul>
+<h3>啟示 4：DAG 工作流取代線性管線（P2，需評估）</h3>
+<p><strong>現狀</strong>：<code>config/pipeline.yaml</code> 定義線性 Phase 0→1→2 管線。</p>
+<p><strong>借鑑</strong>：Mastra 的 DAG 工作流支援分支、條件、暫停/恢復，更靈活處理異常路徑。</p>
+<p><strong>評估重點</strong>：</p>
+<ul>
+<li>本系統的線性管線足夠應對目前需求嗎？</li>
+<li>若引入 DAG，PowerShell 腳本的複雜度是否可控？</li>
+<li>建議：先在 <code>run-todoist-agent-team.ps1</code> 中試驗條件分支（如：Phase 2 任務依類型分流）</li>
+</ul>
+<h3>啟示 5：記憶可觀測性（P1，低成本）</h3>
+<p><strong>現狀</strong>：本系統缺乏記憶使用追蹤，無法知道 Agent 實際參考了哪些記憶內容。</p>
+<p><strong>借鑑</strong>：Mastra 的 Tracing 功能顯示每次請求使用了哪些記憶。</p>
+<p><strong>具體方案</strong>：</p>
+<ul>
+<li>在 <code>post_tool_logger.py</code> 中記錄每次 Read <code>context/*.json</code> 的行為</li>
+<li>在 <code>check-health.ps1</code> 中新增「記憶使用頻率」報表</li>
+<li>追蹤哪些記憶檔案被頻繁讀取、哪些被忽略</li>
+</ul>
+<h3>啟示 6：Eval 整合——Agent 品質量化（P3，長期投資）</h3>
+<p><strong>現狀</strong>：本系統依賴 <code>done_cert</code> 自評和 <code>audit-scoring.yaml</code> 人工審查。</p>
+<p><strong>借鑑</strong>：Mastra 的內建 Eval 框架可自動化測試 Agent 品質。</p>
+<p><strong>具體方案</strong>：</p>
+<ul>
+<li>建立 <code>tests/evals/</code> 目錄，定義 Agent 輸出品質測試</li>
+<li>用 LongMemEval 等標準基準測試記憶系統效能</li>
+<li>整合到 <code>run-system-audit-team.ps1</code> 的審查流程中</li>
+</ul>
+<p>---</p>
+<h2>七、技術決策比較矩陣</h2>
+<p>| 設計面向 | Mastra | Daily-Digest-Prompt | 啟示 |</p>
+<p>|---------|--------|---------------------|------|</p>
+<p>| 記憶壓縮 | Observer/Reflector 自動壓縮 | 手動結構化 JSON | 可引入自動壓縮 |</p>
+<p>| Prompt Cache | 穩定前綴設計 | 動態載入配置 | 應重排 prompt 結構 |</p>
+<p>| 工作流 | DAG 圖形狀態機 | 線性 Phase 管線 | 評估 DAG 必要性 |</p>
+<p>| 記憶範圍 | Thread/Resource 雙範圍 | 全域單一 JSON | 可分離 profile/state |</p>
+<p>| 工具整合 | MCP Client + TypeScript | Skill-First + Bash/PS | 設計理念相似 |</p>
+<p>| 評估 | 內建 Eval 框架 | done_cert 自評 | 可引入自動化品質測試 |</p>
+<p>| 型別安全 | 完整 TypeScript | YAML + Markdown | 各有優勢 |</p>
+<p>| 可觀測性 | Tracing 顯示記憶使用 | JSONL 日誌 | 可增加記憶追蹤 |</p>
+<p>---</p>
+<h2>八、關鍵數字摘要</h2>
+<ul>
+<li><strong>5-40x</strong> 訊息壓縮率（尤其 Playwright MCP 場景 50K→幾百 tokens）</li>
+<li><strong>94.87%</strong> LongMemEval 最高分（gpt-5-mini）</li>
+<li><strong>30K / 40K</strong> tokens 預設觀察/反思觸發閾值</li>
+<li><strong>40+</strong> 支援的 LLM 供應商</li>
+<li><strong>4 層</strong> 記憶系統（Message → Observation → Working → Semantic）</li>
+<li><strong>3 種</strong> 儲存後端（PostgreSQL、MongoDB、libSQL）</li>
+</ul>
+<p>---</p>
+<h2>來源</h2>
+<ul>
+<li><a href="https://github.com/mastra-ai/mastra">Mastra GitHub</a></li>
+<li><a href="https://mastra.ai/docs/memory/observational-memory">Observational Memory 文件</a></li>
+<li><a href="https://mastra.ai/blog/observational-memory">Observational Memory 公告部落格</a></li>
+<li><a href="https://mastra.ai/docs/memory/overview">Memory 系統概覽</a></li>
+<li><a href="https://mastra.ai/">Mastra 官方網站</a></li>
+<li><a href="https://www.ycombinator.com/companies/mastra">Y Combinator 公司頁面</a></li>
+</ul>
+<p>---</p>
+<p><em>研究日期：2026-03-14</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「參考 RAG 知識庫找出一個熱門的 GitHub 專案運用 skill 進行深度瞭解」。Mastra 的 Observational Memory 三層壓縮架構與本系統的跨次記憶機制高度相關，且 KB 去重確認尚未涵蓋。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

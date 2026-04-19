@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenClaw — 2026 年 GitHub 史上最速爆紅的本地 AI 助理平台：架構解析、Skill 生態與安全隱憂">
+  <title>OpenClaw — 2026 年 GitHub 史上最速爆紅的本地 AI 助理平台：架構解析、Skill 生態與安全隱憂 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>OpenClaw — 2026 年 GitHub 史上最速爆紅的本地 AI 助理平台：架構解析、Skill 生態與安全隱憂</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">OpenClaw</span><span class="tag">AI Agent</span><span class="tag">開源專案</span><span class="tag">架構分析</span><span class="tag">安全性</span><span class="tag">2026</span><span class="tag">深度研究</span><span class="tag">local-first</span><span class="tag">Skill生態</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>OpenClaw — 2026 年 GitHub 史上最速爆紅的本地 AI 助理平台</h1>
+<h2>執行摘要</h2>
+<p>OpenClaw 是由 PSPDFKit 創辦人 Peter Steinberger 開發的開源個人 AI 助理，於 2026 年 1 月底爆紅，72 小時內衝上 60,000+ GitHub Stars，截至 3 月已成為 GitHub 上最受關注的 AI Agent 專案之一。其核心定位是「本地優先的 AI Gateway」，讓使用者在自己的設備上運行 AI 助理，透過 WhatsApp、Telegram、Slack、Discord、LINE 等 25+ 通訊平台與 AI 互動，並支援 5,400+ 社群 Skill 插件。然而，其快速成長伴隨嚴重安全隱憂：CVE-2026-25253（CVSS 8.8）遠端程式碼執行漏洞、13.5 萬+暴露實例，以及 ClawHub 技能註冊表中 12% 惡意 Skill 的問題，使其成為「高潛力但須謹慎採用」的代表性專案。</p>
+<h2>研究背景</h2>
+<p>2026 年 AI Agent 開源生態進入爆發期。GitHub Octoverse 2025 報告顯示平台上已有 430 萬+ AI 相關 repo，LLM 專案年增 178%。在此背景下，OpenClaw 以「本地 AI 助理」定位脫穎而出，與 Claude Code（終端編碼 Agent）、OpenHands（AI 驅動開發）、goose（Block 的自主 Agent）形成差異化競爭 [來源：GitHub Octoverse, 2025] [來源：DigitalOcean, 2026]。</p>
+<h2>核心架構分析</h2>
+<h3>Hub-and-Spoke Gateway 架構</h3>
+<p>OpenClaw 採用 hub-and-spoke 架構，核心是單一 Gateway 控制面（<code>src/gateway/server.ts</code>），運行在 Node.js 22+ 上，使用 WebSocket 綁定 <code>127.0.0.1:18789</code>。每台主機只允許一個 Gateway 實例，負責協調所有通訊平台連接、Session 狀態管理、健康監控與 Cron 排程 [來源：OpenClaw Architecture, Substack, 2026]。</p>
+<h3>Agent Runtime 四階段迴圈</h3>
+<p><code>PiEmbeddedRunner</code> 執行 AI 迴圈，每輪包含四個階段：</p>
+<ol>
+<li><strong>Session Resolution</strong> — 將訊息映射到對應 Session（main/dm/group）</li>
+<li><strong>Context Assembly</strong> — 載入歷史、組建系統 prompt、執行語義記憶搜尋</li>
+<li><strong>Model Streaming</strong> — 呼叫語言模型並攔截 tool call</li>
+<li><strong>State Persistence</strong> — 將對話狀態持久化到磁碟</li>
+</ol>
+<p>典型延遲預算：存取控制 <10ms、Session 載入 <50ms、Prompt 組建 <100ms、首 token 200-500ms、工具執行 100ms-3s [來源：OpenClaw Architecture, Substack, 2026]。</p>
+<h3>記憶系統</h3>
+<p>多層記憶架構：</p>
+<ul>
+<li><strong>SQLite + 向量嵌入</strong>：存於 <code>~/.openclaw/memory/<agentId>.sqlite</code>，混合搜尋（向量相似度 + BM25 關鍵字）</li>
+<li><strong>MEMORY.md</strong>：策展式長期事實記憶</li>
+<li><strong>daily log</strong>：<code>memory/YYYY-MM-DD.md</code> 每日活動日誌</li>
+<li><strong>Session 壓縮</strong>：自動摘要舊對話回合，防止 context overflow</li>
+<li>嵌入優先順序：本地模型 > OpenAI > Gemini API [來源：OpenClaw Architecture, Substack, 2026]</li>
+</ul>
+<h3>Skill 生態系統</h3>
+<p>Skill 位於 <code>skills/<skill>/SKILL.md</code>，採<strong>選擇性注入</strong>而非全量載入，避免 prompt 膨脹。ClawHub 是社群 Skill 註冊表，目前收錄 5,400+ Skill。特色機制包括：</p>
+<ul>
+<li><strong>Self-Improving Agent</strong>：記錄錯誤、學習與偏好到記憶中，讓 Agent 隨使用越來越聰明</li>
+<li><strong>Foundry</strong>：元擴展（meta-extension），可自行擴展新能力、提取關鍵字做模式匹配、計算成功率並將高價值模式結晶為專屬工具 [來源：VoltAgent/awesome-openclaw-skills, GitHub] [來源：lekt9/openclaw-foundry, GitHub]</li>
+</ul>
+<h2>安全性深度分析（重要警示）</h2>
+<h3>CVE-2026-25253：遠端程式碼執行</h3>
+<ul>
+<li><strong>CVSS 8.8</strong>（高危）</li>
+<li>攻擊向量：WebSocket origin header 繞過</li>
+<li>影響：攻擊者可在任何暴露的 OpenClaw 實例上執行任意程式碼</li>
+<li>公網掃描發現 <strong>135,000+ 暴露實例</strong>，其中 50,000+ 直接受此漏洞影響 [來源：Security Research, 2026]</li>
+</ul>
+<h3>ClawHub 惡意 Skill 問題</h3>
+<ul>
+<li>審計結果：約 2,857 個 Skill 中有 <strong>341 個（12%）含惡意程式碼</strong></li>
+<li>類型：資料外洩程式碼、prompt injection payload</li>
+<li>總共發現 512 個漏洞，其中 8 個被評為 Critical [來源：ClawHub Security Audit, 2026]</li>
+</ul>
+<h3>與 Claude Code 安全模型對比</h3>
+<p>| 面向 | OpenClaw | Claude Code |</p>
+<p>|------|----------|-------------|</p>
+<p>| 權限模型 | 本機高權限，root 存取 | 逐指令請求權限，沙盒隔離 |</p>
+<p>| Prompt Injection 防禦 | Context 隔離 + 結構化工具結果包裝 | 嚴格分離對話上下文與系統存取 |</p>
+<p>| 供應鏈安全 | 12% 惡意 Skill | 封閉生態，官方審核 |</p>
+<p>| Docker 隔離 | DM/Group session 可用 | 不適用（終端模式） |</p>
+<h2>技術棧一覽</h2>
+<p>| 層 | 技術 |</p>
+<p>|----|------|</p>
+<p>| Runtime | Node.js 22+, TypeScript |</p>
+<p>| 通訊協議 | WebSocket (ws), Baileys (WhatsApp), grammY (Telegram), discord.js |</p>
+<p>| 儲存 | SQLite, 檔案系統 (JSON5 config, Markdown memory) |</p>
+<p>| 瀏覽器自動化 | Chrome DevTools Protocol |</p>
+<p>| 桌面端 | Swift (macOS), Lit (Web UI), Commander.js (CLI) |</p>
+<p>| 部署 | 本地, SSH tunneling, Tailscale, Fly.io |</p>
+<h2>與 daily-digest-prompt 的借鏡</h2>
+<p>| OpenClaw 特性 | 本專案對應 | 啟發 |</p>
+<p>|--------------|-----------|------|</p>
+<p>| SKILL.md 選擇性注入 | skills/SKILL_INDEX.md + 按需 Read | 機制高度相似，可參考其 prompt 組合策略 |</p>
+<p>| MEMORY.md + daily log | context/digest-memory.json + continuity | 已有類似設計 |</p>
+<p>| Gateway 控制面 | run-agent-team.ps1 Phase 0→1→2 | OpenClaw 的事件驅動可參考 |</p>
+<p>| Self-Improving Agent | system-insight + arch-evolution | 閉環自改進理念一致 |</p>
+<p>| ClawHub 12% 惡意 Skill | Hook 機器強制層 | 提醒外部 Skill 引入需審計 |</p>
+<h2>實務應用建議</h2>
+<ol>
+<li><strong>不建議直接暴露到公網</strong>：必須走 SSH tunneling 或 Tailscale，絕不開放 18789 埠</li>
+<li><strong>Skill 審計</strong>：從 ClawHub 安裝前應人工審查 SKILL.md 內容</li>
+<li><strong>本專案可借鏡</strong>：其 Session 壓縮機制（自動摘要舊 context）與 Foundry 自延展模式</li>
+<li><strong>模型自由度</strong>：支援 25+ LLM 提供者，一行 config 切換，適合成本敏感場景</li>
+</ol>
+<h2>知識缺口與未來方向</h2>
+<ul>
+<li>OpenClaw 的 multi-agent routing（不同 channel 路由到獨立 Agent）機制值得深入</li>
+<li>Foundry 自延展 Skill 的品質治理機制尚不明確</li>
+<li>CVE-2026-25253 修補後的安全架構改進待追蹤</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>[1] DigitalOcean. (2026). What is OpenClaw? Your Open-Source AI Assistant for 2026. https://www.digitalocean.com/resources/articles/what-is-openclaw</li>
+<li>[2] Paolo P. (2026). OpenClaw Architecture, Explained: How It Works. Substack. https://ppaolo.substack.com/p/openclaw-system-architecture-overview</li>
+<li>[3] VoltAgent. (2026). awesome-openclaw-skills: 5,400+ skills. GitHub. https://github.com/VoltAgent/awesome-openclaw-skills</li>
+<li>[4] OpenClaw GitHub Repository. https://github.com/openclaw/openclaw</li>
+<li>[5] DataCamp. (2026). OpenClaw vs Claude Code: Which Agentic Tool Should You Use in 2026?</li>
+<li>[6] Milvus Blog. (2026). OpenClaw Explained: A Complete Guide to the Autonomous AI Agent.</li>
+<li>[7] GitHub Octoverse. (2025). 4.3M AI repositories, 178% YoY LLM project growth.</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

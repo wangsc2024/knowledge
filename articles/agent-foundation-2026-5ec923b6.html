@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent 執行品質閘門與輸出驗證管線 — Foundation：核心概念、架構模式與業界標準（2026）">
+  <title>Agent 執行品質閘門與輸出驗證管線 — Foundation：核心概念、架構模式與業界標準（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent 執行品質閘門與輸出驗證管線 — Foundation：核心概念、架構模式與業界標準（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">quality-gate</span><span class="tag">validation</span><span class="tag">agent-quality</span><span class="tag">testing</span><span class="tag">observability</span><span class="tag">JSON Schema</span><span class="tag">foundation</span><span class="tag">agent-middleware</span><span class="tag">CoV</span><span class="tag">ASVCA</span><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent 執行品質閘門與輸出驗證管線 — 深度研究洞察簡報</h1>
+<blockquote><strong>系列</strong>: agent-quality-gates | <strong>階段</strong>: foundation</blockquote>
+<h2>摘要</h2>
+<p>本報告建立 Agent 執行品質閘門與輸出驗證管線的核心概念框架（foundation 階段）。關鍵發現：品質閘門已從單純阻擋機制演進為智能化、風險導向的決策系統；Agent 輸出驗證需採用三層架構（middleware → context → client）；多層驗證框架（CoV + ASVCA）可確保事實準確性、用戶安全性與可驗證溯源性。</p>
+<h2>5 個核心洞察</h2>
+<h3>1. 品質閘門核心模式（2026）</h3>
+<p>品質閘門具備 6 個關鍵特性：policy-driven、observable、automatable、composable、latency-bound、governance-aware。部署位置演進：CI 早期（靜態檢查）→中期（整合測試）→晚期（金絲雀閘門）→運行時（SLO-based 動態閘門）。風險導向轉型：從「阻擋一切」轉向「聚焦真正影響用戶、安全或業務功能的問題」。</p>
+<h3>2. Agent 輸出驗證管線三層架構</h3>
+<p><strong>來源</strong>: Microsoft Agent Framework</p>
+<pre><code>
+[Agent Middleware] → [Context Layer] → [Chat Client Layer]
+</code></pre>
+<ul>
+<li><strong>Agent Middleware</strong>：攔截所有 run() 呼叫，可檢查或修改輸入/輸出</li>
+<li><strong>Context Layer</strong>：管理對話歷史、注入額外上下文</li>
+<li><strong>Chat Client Layer</strong>：處理 LLM 通訊</li>
+</ul>
+<p>輸出驗證二階段：Pydantic validation → Custom output validators</p>
+<h3>3. 多層驗證框架（CoV + ASVCA）</h3>
+<p><strong>Chain-of-Verification (CoV)</strong>：分層驗證管線，獨立驗證器評估不同面向（事實/邏輯/安全/來源對齊）。</p>
+<p><strong>ASVCA 三維度評分</strong>：事實準確性、用戶安全性、可驗證溯源性。分數控制釋出許可、仲裁優先級、審計標記。</p>
+<h3>4. JSON Schema 驗證最佳實踐</h3>
+<p>核心原則：Be specific、Use the Right Version（<code>$schema</code>）、Leverage Built-in Formats、Keep it DRY（<code>$ref</code>）。</p>
+<p>運行時驗證策略：TypeScript 類型（開發時）+ JSON Schema（運行時）雙重驗證，API middleware 整合，入口驗證。</p>
+<p>效能陷阱：<code>additionalProperties: false</code> 成本高，複雜 <code>oneOf</code> 效能差，必須 benchmark。</p>
+<h3>5. 格式漂移偵測與自動修復</h3>
+<p><strong>偵測策略</strong>：持續驗證、漂移度量、趨勢分析（7/30 天驗證失敗率）。</p>
+<p><strong>自動修復機制</strong>（分級）：</p>
+<ul>
+<li>Tier 1：缺失預設值自動補上</li>
+<li>Tier 2：命名不一致自動正規化</li>
+<li>Tier 3：結構性錯誤標記 <code>format_failed</code></li>
+</ul>
+<h2>建議行動（daily-digest-prompt）</h2>
+<p><strong>P0（立即執行）</strong>：</p>
+<ol>
+<li>Phase 3 assemble 整合驗證（呼叫 validate_results.py）</li>
+<li>Schema 標準化升級（加入 <code>$schema</code> 版本號、<code>$defs</code> + <code>$ref</code> 複用）</li>
+</ol>
+<p><strong>P1（短期執行）</strong>：</p>
+<ol>
+<li>Agent Middleware 驗證層（重構 validate_results.py 為 middleware）</li>
+<li>格式漂移追蹤儀表板（check-health.ps1 新增區塊）</li>
+</ol>
+<p><strong>P2（中長期探索）</strong>：</p>
+<ol>
+<li>多層驗證框架試點（CoV 模式）</li>
+<li>版本追蹤與 Schema Evolution</li>
+</ol>
+<h2>參考來源</h2>
+<p><strong>A 級</strong>：Microsoft Learn (Agent Pipeline), JSON Schema 官方, AI Output Validation (學術論文 PDF)</p>
+<p><strong>B 級</strong>：Medium (Quality Gates), AgileVerify (CI/CD Gates), Postman Blog (JSON Schema), WizlyTools (JSON Validation)</p>
+<p><strong>C 級</strong>：NoOps School, DataFormatterPro</p>
+<h2>品質自評</h2>
+<ul>
+<li>sources_count: 9 (A:3, B:4, C:2)</li>
+<li>cross_verified_facts: 5</li>
+<li>research_depth: adequate</li>
+<li>confidence_level: high</li>
+<li>series_stage: foundation</li>
+<li>next_stage_hint: mechanism 階段深入驗證演算法實作</li>
+</ul>
+<p>---</p>
+<p><strong>研究員</strong>: insight-briefing Agent | <strong>日期</strong>: 2026-03-22</p>
+<p><strong>系列</strong>: agent-quality-gates (foundation 階段完成)</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

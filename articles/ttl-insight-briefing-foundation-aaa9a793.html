@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="快取命中率優化基礎知識 — TTL 策略、診斷流程與提升技術（insight-briefing foundation 2026-03-29）">
+  <title>快取命中率優化基礎知識 — TTL 策略、診斷流程與提升技術（insight-briefing foundation 2026-03-29） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>快取命中率優化基礎知識 — TTL 策略、診斷流程與提升技術（insight-briefing foundation 2026-03-29）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">insight-briefing</span><span class="tag">快取優化</span><span class="tag">cache-hit-rate</span><span class="tag">TTL</span><span class="tag">HTTP快取</span><span class="tag">系統效能</span><span class="tag">foundation</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>快取命中率優化基礎知識</h1>
+<p>專案當前快取命中率僅 <strong>23.9%</strong>，遠低於業界標準 <strong>90%+</strong>，存在 66.1% 改善空間。</p>
+<h2>核心概念</h2>
+<p><strong>快取命中率公式</strong>：</p>
+<pre><code>
+CHR = hits ÷ (hits + misses) × 100%
+</code></pre>
+<p><strong>業界標準</strong>：</p>
+<ul>
+<li>一般 Web 應用：90%+</li>
+<li>靜態內容：80%+</li>
+</ul>
+<h2>TTL 策略分層</h2>
+<p>| 內容類型 | 建議 TTL |</p>
+<p>|---------|----------|</p>
+<p>| 靜態資產（含版本號） | 天/週/年 |</p>
+<p>| API 回應（高頻更新） | 5-10 分鐘 |</p>
+<p>| 新聞/內容 | 15-60 分鐘 |</p>
+<p>| 知識庫筆記 | 60 分鐘 |</p>
+<p>| HTML 頁面 | 5 分鐘 |</p>
+<p><strong>來源</strong>：AWS CloudFront, Fastly 官方文件</p>
+<h2>自適應 TTL 演算法</h2>
+<p><strong>f-TTL</strong> 演算法：</p>
+<ul>
+<li>雙層快取架構</li>
+<li>效能提升：達同等命中率所需快取空間節省 <strong>49%</strong></li>
+<li>來源：arXiv 學術論文</li>
+</ul>
+<h2>快取金鑰優化原則</h2>
+<p><strong>原則</strong>：只包含真正影響內容的參數</p>
+<p><strong>反模式</strong>：</p>
+<ul>
+<li>包含所有 query params → 碎片化嚴重</li>
+<li>包含 <code>Accept-Language</code> → 語言變體爆炸</li>
+<li>包含追蹤 cookies → 每個用戶獨立快取</li>
+</ul>
+<p><strong>來源</strong>：AWS CloudFront, Fastly</p>
+<h2>命中率提升技術</h2>
+<h3>1. TTL Jitter（防雷擊效應）</h3>
+<p>為 TTL 加入隨機偏移量：</p>
+<pre><code>
+ttl_actual = ttl_base + random.randint(-jitter, +jitter)
+</code></pre>
+<p><strong>來源</strong>：Redis</p>
+<h3>2. Stale-While-Revalidate</h3>
+<p>快取過期時仍回傳舊資料，<strong>同時</strong>背景更新快取。</p>
+<h3>3. 混合淘汰策略（LFU + TTL）</h3>
+<p><strong>效果</strong>（Ekata 案例）：</p>
+<ul>
+<li>DRAM 使用降低 70%</li>
+<li>無延遲犧牲</li>
+<li>年省數十萬美元</li>
+</ul>
+<p><strong>來源</strong>：Redis</p>
+<h2>診斷流程</h2>
+<p><strong>當命中率 < 目標時，依序檢查</strong>：</p>
+<ol>
+<li><strong>Cache-Control 標頭</strong> — 檢查 <code>no-cache</code>/<code>no-store</code></li>
+<li><strong>TTL 設定</strong> — 比較實際更新頻率與 TTL</li>
+<li><strong>快取金鑰碎片化</strong> — 分析 unique cache keys</li>
+<li><strong>流量模式</strong> — 爬蟲/冷門路徑存取</li>
+<li><strong>後端效能</strong> — 回源請求延遲</li>
+</ol>
+<p><strong>來源</strong>：Fastly, AWS</p>
+<h2>專案應用建議</h2>
+<p><strong>短期（1-2 週）</strong>：</p>
+<ul>
+<li>分析當前 TTL 設定合理性</li>
+<li>實施 TTL jitter（± 10%）</li>
+<li>檢查快取金鑰碎片化</li>
+</ul>
+<p><strong>中期（1-2 月）</strong>：</p>
+<ul>
+<li>實施 stale-while-revalidate</li>
+<li>建立命中率儀表板</li>
+<li>A/B 測試 TTL 策略</li>
+</ul>
+<p><strong>長期（3-6 月）</strong>：</p>
+<ul>
+<li>考慮自適應 TTL 演算法（d-TTL）</li>
+<li>實施混合淘汰策略（LFU + TTL）</li>
+<li>快取預熱自動化</li>
+</ul>
+<h2>參考來源</h2>
+<p><strong>A 級來源</strong>：</p>
+<ul>
+<li>AWS CloudFront 官方文件</li>
+<li>arXiv 學術論文（Adaptive TTL）</li>
+</ul>
+<p><strong>B 級來源</strong>：</p>
+<ul>
+<li>Fastly 官方文件</li>
+<li>Redis 技術部落格</li>
+<li>Cloudflare Learning Center</li>
+</ul>
+<p><strong>總來源數</strong>：30 個搜尋結果，5 個深度閱讀</p>
+<h2>研究品質</h2>
+<ul>
+<li><strong>研究深度</strong>：thorough（徹底研究）</li>
+<li><strong>來源等級分佈</strong>：A 級 3 個，B 級 12 個，C 級 10 個</li>
+<li><strong>交叉驗證事實</strong>：6 個關鍵事實經 2+ 來源確認</li>
+<li><strong>信心度</strong>：high</li>
+</ul>
+<p>---</p>
+<p><strong>系列階段</strong>：foundation</p>
+<p><strong>下一階段</strong>：mechanism（專案內部快取機制深入分析）</p>
+<p><strong>建立時間</strong>：2026-03-29</p>
+<p><strong>主題</strong>：cache-hit-rate-optimization</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

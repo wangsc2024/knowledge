@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RAG-Anything — HKUDS 開源多模態 RAG 框架深度研究：MinerU 解析引擎、雙圖融合知識圖譜、向量-圖譜混合檢索與跨模態文件智慧問答（14K Stars, 2026-03）">
+  <title>RAG-Anything — HKUDS 開源多模態 RAG 框架深度研究：MinerU 解析引擎、雙圖融合知識圖譜、向量-圖譜混合檢索與跨模態文件智慧問答（14K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>RAG-Anything — HKUDS 開源多模態 RAG 框架深度研究：MinerU 解析引擎、雙圖融合知識圖譜、向量-圖譜混合檢索與跨模態文件智慧問答（14K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">RAG-Anything</span><span class="tag">多模態RAG</span><span class="tag">知識圖譜</span><span class="tag">LightRAG</span><span class="tag">MinerU</span><span class="tag">向量檢索</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>RAG-Anything — All-in-One 多模態 RAG 框架深度研究</h1>
+<h2>專案概述</h2>
+<p>RAG-Anything 是香港大學數據科學實驗室（HKUDS）開發的開源多模態 RAG（Retrieval-Augmented Generation）框架，建構於 LightRAG 之上，旨在解決傳統 RAG 系統僅支援純文字的根本限制。專案於 2025 年 6 月創建，截至 2026 年 3 月已累積 14,000+ Stars、1,671 Forks，採 MIT 授權。</p>
+<p><strong>核心價值主張</strong>：現代文件包含交錯的文字、圖片、表格、數學公式與圖表，RAG-Anything 提供單一統一框架處理所有模態，無需拼裝多個專用工具。</p>
+<p><strong>技術報告</strong>：arXiv:2510.12323</p>
+<p>---</p>
+<h2>技術架構：五階段多模態處理管線</h2>
+<h3>第一階段：文件解析（Document Parsing）</h3>
+<ul>
+<li><strong>核心引擎</strong>：MinerU（高保真度文件解析器）</li>
+<li>支援格式：PDF、Office 文件（.docx/.pptx/.xlsx，需 LibreOffice）、圖片</li>
+<li>自適應內容分解：保留原始版面結構與元素層級關係</li>
+<li>解析品質是整個管線的基石 — 改善 OCR/表格/公式辨識的收益往往大於更換 LLM</li>
+</ul>
+<h3>第二階段：內容分析與路由（Content Analysis & Routing）</h3>
+<ul>
+<li>自動分類識別內容類型（文字/圖片/表格/公式/圖表）</li>
+<li>並行多管線架構：文字管線與多模態管線同時處理</li>
+<li>智慧路由決定每段內容的最佳分析策略</li>
+</ul>
+<h3>第三階段：專用分析器（Specialized Analyzers）</h3>
+<p>| 分析器 | 功能 | 技術特點 |</p>
+<p>|--------|------|----------|</p>
+<p>| Visual Content Analyzer | 圖片描述、空間關係提取 | 整合 VLM（視覺語言模型）|</p>
+<p>| Structured Data Interpreter | 表格分析、統計模式識別 | 行列語義、數值趨勢 |</p>
+<p>| Mathematical Expression Parser | LaTeX 公式解析 | 數學符號語義化 |</p>
+<p>| Extensible Modality Handler | 自訂內容類型 | 插件式擴展架構 |</p>
+<h3>第四階段：多模態知識圖譜建構（Multimodal Knowledge Graph）</h3>
+<p>這是 RAG-Anything 最核心的創新 — <strong>雙圖融合架構</strong>（Dual-Graph Construction）：</p>
+<ol>
+<li><strong>跨模態關係圖</strong>：提取跨越不同模態的實體與關係（如：圖片中的數據與表格中的數字的對應關係）</li>
+<li><strong>文字語義圖</strong>：傳統的文字實體與關係提取</li>
+</ol>
+<p>兩張圖在統一表徵空間中融合，建立「證據鏈」（Evidence Chains）— 例如將圖片中的趨勢線連結到表格中的具體數值再連結到文字中的結論。</p>
+<h3>第五階段：模態感知檢索（Modality-Aware Retrieval）</h3>
+<ul>
+<li><strong>向量-圖譜混合檢索</strong>：結合向量相似度搜尋（語義模糊匹配）與知識圖譜遍歷（結構化精確推理）</li>
+<li>自適應排序機制：根據查詢類型動態調整向量 vs 圖譜的權重</li>
+<li>VLM-Enhanced Query Mode：查詢涉及視覺內容時，自動將相關圖片傳入 VLM 進行聯合分析</li>
+</ul>
+<p>---</p>
+<h2>功能特色與差異化</h2>
+<h3>與傳統 RAG 的根本區別</h3>
+<p>| 面向 | 傳統 RAG | RAG-Anything |</p>
+<p>|------|----------|---------------|</p>
+<p>| 內容支援 | 純文字 | 文字+圖片+表格+公式+圖表 |</p>
+<p>| 知識表徵 | 向量嵌入 | 向量 + 知識圖譜雙重表徵 |</p>
+<p>| 檢索策略 | 向量相似度 | 向量-圖譜混合 |</p>
+<p>| 跨模態理解 | 無 | 自動建立跨模態證據鏈 |</p>
+<p>| 長文件表現 | 顯著下降 | 圖譜結構維持連貫性 |</p>
+<h3>與同類框架比較</h3>
+<ul>
+<li><strong>vs LightRAG</strong>（父專案）：LightRAG 專注文字知識圖譜 RAG，RAG-Anything 擴展至多模態</li>
+<li><strong>vs Microsoft GraphRAG</strong>：GraphRAG 使用社群摘要策略，RAG-Anything 使用跨模態實體關係</li>
+<li><strong>vs RAGFlow</strong>：RAGFlow 以 DeepDoc 為解析核心，RAG-Anything 以 MinerU 為解析核心並加入知識圖譜層</li>
+<li><strong>vs NaiveRAG</strong>：純向量分塊檢索，在長文件和多模態場景遠不及 RAG-Anything</li>
+</ul>
+<h3>特殊功能</h3>
+<ol>
+<li><strong>Direct Content List Insertion</strong>：繞過文件解析，直接注入預處理的結構化內容</li>
+<li><strong>VLM-Enhanced Query</strong>：查詢時動態整合視覺分析</li>
+<li><strong>Context-Aware Processing Module</strong>：智慧上下文整合</li>
+<li><strong>可擴展模態處理器</strong>：支援自訂新的內容類型</li>
+</ol>
+<p>---</p>
+<h2>快速上手</h2>
+<h3>安裝</h3>
+<pre><code>
+# PyPI 安裝（推薦）
+pip install raganything
+pip install 'raganything[all]'  # 含所有可選功能
+
+# 從原始碼安裝（使用 uv）
+git clone https://github.com/HKUDS/RAG-Anything.git
+cd RAG-Anything
+uv sync
+uv run python examples/raganything_example.py
+</code></pre>
+<h3>基本使用</h3>
+<pre><code>
+from raganything import RAGAnything, RAGAnythingConfig
+
+config = RAGAnythingConfig(
+    working_dir="./rag_storage",
+    parser="mineru",
+    enable_image_processing=True,
+    enable_table_processing=True,
+    enable_equation_processing=True
+)
+
+rag = RAGAnything(config)
+
+# 處理文件
+await rag.ainsert("research_paper.pdf")
+
+# 多模態查詢
+result = await rag.aquery(
+    "圖表中的趨勢與表格數據是否一致？",
+    mode="hybrid"  # 向量 + 圖譜混合檢索
+)
+</code></pre>
+<h3>系統需求</h3>
+<ul>
+<li>Python 3.10+</li>
+<li>LibreOffice（Office 文件處理）</li>
+<li>VLM API（如 OpenAI GPT-4V 或本地 VLM）</li>
+</ul>
+<p>---</p>
+<h2>社群活躍度</h2>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| Stars | 14,000+ |</p>
+<p>| Forks | 1,671 |</p>
+<p>| Open Issues | 112 |</p>
+<p>| Commits | 281+ |</p>
+<p>| 建立日期 | 2025-06-06 |</p>
+<p>| 最近推送 | 2026-03-04 |</p>
+<p>| 授權 | MIT |</p>
+<p>| 語言 | Python |</p>
+<p><strong>成長軌跡</strong>：2025 年 7 月突破 1,000 Stars，9 個月內達到 14K Stars，月均增長約 1,500 Stars。社群有 Discord 和 WeChat 群組，文件支援英文和中文。</p>
+<p>---</p>
+<h2>潛在應用場景</h2>
+<h3>直接應用於 daily-digest-prompt 專案</h3>
+<ol>
+<li><strong>知識庫多模態化</strong>：目前 localhost:3000 知識庫僅支援純文字（contentText + Tiptap JSON），可借鑑 RAG-Anything 的多模態索引概念，未來支援圖表混排筆記的語義搜尋</li>
+<li><strong>研究報告增強</strong>：自動任務產出的研究報告若包含圖表引用，可用 RAG-Anything 建立跨模態知識圖譜</li>
+<li><strong>Podcast/Video 素材管理</strong>：article-to-podcast 和 article-to-video 管線可整合多模態 RAG 做素材檢索</li>
+</ol>
+<h3>其他應用</h3>
+<ul>
+<li><strong>學術論文分析</strong>：含大量公式和圖表的論文，跨模態問答</li>
+<li><strong>財務報告分析</strong>：表格數據與文字結論的交叉驗證</li>
+<li><strong>技術文件知識庫</strong>：工程圖紙 + 規格書的統一檢索</li>
+<li><strong>專利分析</strong>：圖示 + 權利要求 + 技術說明的關聯搜尋</li>
+</ul>
+<p>---</p>
+<h2>優缺點評估</h2>
+<h3>優點</h3>
+<ol>
+<li><strong>真正的多模態統一</strong>：不是把圖片轉文字再做 RAG，而是建立原生的多模態知識圖譜</li>
+<li><strong>雙圖融合架構創新</strong>：向量語義 + 圖譜結構的互補檢索，在長文件場景優勢明顯</li>
+<li><strong>基於 LightRAG 的成熟基礎</strong>：站在巨人肩上，文字 RAG 品質有保障</li>
+<li><strong>MIT 授權</strong>：商業友善</li>
+<li><strong>uv 支援</strong>：現代 Python 工具鏈，與本專案技術棧一致</li>
+<li><strong>模態可擴展</strong>：插件架構支援新增自訂內容類型</li>
+</ol>
+<h3>缺點</h3>
+<ol>
+<li><strong>掃描品質依賴</strong>：手寫文件或低品質掃描的表現會顯著下降</li>
+<li><strong>延遲較高</strong>：VLM/LLM 依賴導致即時系統面臨延遲挑戰</li>
+<li><strong>圖譜驗證需求</strong>：法律/合規場景中，自動提取的關係需人工驗證</li>
+<li><strong>資源消耗</strong>：多模態處理管線的計算和記憶體需求較純文字 RAG 高出數倍</li>
+<li><strong>生態成熟度</strong>：相比 LangChain/LlamaIndex 等老牌框架，社群生態尚在建設中</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li>GitHub 倉庫：https://github.com/HKUDS/RAG-Anything</li>
+<li>技術報告：arXiv:2510.12323</li>
+<li>Milvus Blog：RAG-Anything and Milvus for Multimodal RAG Systems</li>
+<li>36Kr：RAG Ultimate Framework: HKU's Open-Source RAG-Anything</li>
+<li>Medium：RAG-Anything Complete Guide by Mayurkumar Surani</li>
+<li>Refft.com：RAG-Anything All-in-One Multimodal Document RAG Framework</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

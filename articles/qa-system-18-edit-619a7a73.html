@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #18 - edit_question ORM 一致性修復 + 部門關聯 ORM 化 (2026-02-27)">
+  <title>QA System 優化報告 #18 - edit_question ORM 一致性修復 + 部門關聯 ORM 化 (2026-02-27) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #18 - edit_question ORM 一致性修復 + 部門關聯 ORM 化 (2026-02-27)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">ORM一致性</span><span class="tag">品質改善</span><span class="tag">DRY重構</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #18</h1>
+<blockquote>日期：2026-02-27 | 品質分數：5/5 | 第十八次掃描</blockquote>
+<h2>優化方向</h2>
+<p>edit_question raw SQL 改 ORM 操作（消除 Enum 不一致）+ 部門關聯 raw SQL 改 ORM relationship</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題。已確認：SECRET_KEY 環境變數化、SQL 注入防護、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼、python-jose CVE 修復、錯誤訊息零洩漏。</p>
+<h2>已修復問題（4 項品質）</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>edit_question raw SQL → ORM 操作</strong>：端點原本用 <code>UPDATE questions SET status = :status</code> raw SQL 搭配字串值（<code>"closed"</code>/<code>"answered"</code>/<code>"pending"</code>），與 ORM <code>Enum(QuestionStatus)</code> 不一致。改為 <code>question_obj.status = QuestionStatus.CLOSED/ANSWERED/PENDING</code>，與 close_question（#17 已修復）一致。</li>
+</ol>
+<ol>
+<li><strong>部門關聯 raw SQL → ORM relationship</strong>：原本用 <code>DELETE FROM question_report_department</code> + 逐筆 <code>INSERT INTO</code> 管理多對多關聯。改為 ORM relationship 賦值：<code>question_obj.report_departments = [...]</code>，由 SQLAlchemy 自動管理關聯表的刪除和插入。</li>
+</ol>
+<ol>
+<li><strong>程式碼精簡</strong>：16 行 raw SQL UPDATE 模板簡化為 10 行 ORM 屬性設定，逐筆 INSERT 迴圈替換為批次 relationship 賦值。</li>
+</ol>
+<ol>
+<li><strong>questions.py 從 884 行降至約 850 行</strong>。</li>
+</ol>
+<h2>測試驗證</h2>
+<p>103/103 測試全通過（零失敗），zeep cgi 棄用警告為本地舊版（requirements.txt 已指定 >=4.3.2）。</p>
+<h2>待辦事項</h2>
+<ul>
+<li>questions.py 進一步模組拆分（仍 ~850 行）</li>
+<li>zeep 本地安裝版本升級</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

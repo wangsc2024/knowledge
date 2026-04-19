@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19)">
+  <title>QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #8 - TemplateResponse 棄用語法全面遷移完成 (2026-02-19)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">TemplateResponse</span><span class="tag">棄用語法遷移</span><span class="tag">品質改善</span><span class="tag">Starlette</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #8</h1>
+<blockquote>日期：2026-02-19 | 品質分數：4.5/5 | 第八次掃描</blockquote>
+<h2>優化方向</h2>
+<p>TemplateResponse 棄用語法遷移完成（users.py 8 處 + questions.py 9 處，全專案零殘留）</p>
+<h2>已修復問題（2 項品質 + 1 項確認）</h2>
+<h3>品質修復（Starlette 棄用語法遷移）</h3>
+<ol>
+<li><strong>users.py 8 處遷移</strong></li>
+</ol>
+<p>   - <code>TemplateResponse("name", {"request": request, ...})</code> -> <code>TemplateResponse(request, "name", {...})</code></p>
+<p>   - 涵蓋：list_users、create_user_page、create_user(2處)、edit_user_page、update_user(2處)、delete_user</p>
+<ol>
+<li><strong>questions.py 9 處遷移</strong></li>
+</ol>
+<p>   - 同上遷移模式</p>
+<p>   - 涵蓋：list_questions(3處)、create_question_page、get_question、edit_question(2處)、edit_question_page、create_question POST</p>
+<ol>
+<li><strong>全專案零殘留確認</strong></li>
+</ol>
+<p>   - <code>grep '"request": request'</code> 確認無舊語法殘留</p>
+<p>   - 7 個 router 檔案 + main.py 全部已使用新語法</p>
+<h2>累計遷移統計</h2>
+<p>| 檔案 | 遷移處數 | 完成版本 |</p>
+<p>|------|---------|----------|</p>
+<p>| main.py | 3 處 | #7 |</p>
+<p>| auth.py | 8 處 | #7 |</p>
+<p>| roles.py | 原已新語法 | - |</p>
+<p>| departments.py | 原已新語法 | - |</p>
+<p>| export.py | 原已新語法 | - |</p>
+<p>| users.py | 8 處 | #8（本次） |</p>
+<p>| questions.py | 9 處 | #8（本次） |</p>
+<p>| <strong>合計</strong> | <strong>28 處</strong> | <strong>全部完成</strong> |</p>
+<h2>安全掃描結果（無新問題）</h2>
+<p>全部 8 項安全措施仍有效：SECRET_KEY 環境變數化、SQL 參數化、無 XSS、CORS 限制、Cookie 安全、JWT 集中/30 分鐘、python-jose CVE 修復、錯誤訊息零洩漏</p>
+<h2>測試結果</h2>
+<ul>
+<li>9/11 通過（2 個既有失敗：test_create_question_api + test_close_question_api，非本次引入）</li>
+<li>py_compile 驗證通過</li>
+</ul>
+<h2>品質趨勢</h2>
+<p>| 版本 | 分數 | 重點 |</p>
+<p>|------|------|------|</p>
+<p>| #1 | 2.0 | SQL 注入 + 硬編碼密碼 + Cookie |</p>
+<p>| #2 | 3.0 | SECRET_KEY + CORS + 錯誤洩漏 |</p>
+<p>| #3 | 3.5 | print->logger + JWT + 依賴鎖定 |</p>
+<p>| #4 | 4.0 | 重複函式 + SSO URL + Token 遮蔽 |</p>
+<p>| #5 | 4.5 | JWT DRY + datetime + 錯誤洩漏 |</p>
+<p>| #6 | 4.5 | roles/dept/users 錯誤洩漏 |</p>
+<p>| #7 | 4.5 | CVE 修復 + TemplateResponse 開始 |</p>
+<p>| #8 | 4.5 | TemplateResponse 完成（零殘留）|</p>
+<h2>待處理事項</h2>
+<ol>
+<li>questions.py 拆分（>1000 行）</li>
+<li>補全 users/roles/departments/export/reports 測試</li>
+<li>修復既有失敗測試</li>
+<li>zeep cgi 棄用（Python 3.13）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

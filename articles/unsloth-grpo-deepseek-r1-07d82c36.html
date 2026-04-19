@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth GRPO 強化學習實戰 — 從零訓練推理模型的完整指南（DeepSeek R1 風格）（2026）">
+  <title>Unsloth GRPO 強化學習實戰 — 從零訓練推理模型的完整指南（DeepSeek R1 風格）（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth GRPO 強化學習實戰 — 從零訓練推理模型的完整指南（DeepSeek R1 風格）（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">GRPO</span><span class="tag">強化學習</span><span class="tag">推理模型</span><span class="tag">DeepSeek R1</span><span class="tag">Reinforcement Learning</span><span class="tag">LoRA</span><span class="tag">QLoRA</span><span class="tag">vLLM</span><span class="tag">長上下文</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth GRPO 強化學習實戰 — 從零訓練推理模型的完整指南</h1>
+<h2>概述</h2>
+<p>GRPO（Group Relative Policy Optimization）是由 DeepSeek 開發的強化學習演算法，用於訓練其 R1 系列推理模型。相比傳統 PPO，GRPO 移除了 Value Model 和 Reward Model，以自訂獎勵函數取代，大幅降低記憶體需求。Unsloth 將 GRPO 訓練帶入消費級 GPU，最低僅需 5GB VRAM 即可在本地訓練推理模型——這意味著你可以用一張 RTX 3060 複製 DeepSeek R1 的核心訓練方法論。本指南涵蓋 GRPO 原理、Unsloth 支援的 RL 方法、完整程式碼、獎勵函數設計、長上下文最佳化與效能基準。</p>
+<p>---</p>
+<h2>一、GRPO 核心原理</h2>
+<h3>1.1 與 PPO 的關鍵差異</h3>
+<p>| 特徵 | PPO | GRPO |</p>
+<p>|------|-----|------|</p>
+<p>| Value Model | 需要（額外 VRAM） | <strong>移除</strong> |</p>
+<p>| Reward Model | 需要獨立 LLM | <strong>以自訂函數取代</strong> |</p>
+<p>| 記憶體效率 | 低（需 3 個模型） | <strong>高（僅需 1 個模型 + 獎勵函數）</strong> |</p>
+<p>| 訓練穩定性 | 依賴 Value 估計 | 依賴群組統計量 |</p>
+<p>| 適用場景 | 通用 RLHF | <strong>可驗證推理任務（數學、程式、邏輯）</strong> |</p>
+<h3>1.2 演算法流程</h3>
+<ol>
+<li><strong>產生群組回應</strong>：對每個問題，模型產生 N 個候選回應（如 8 個）</li>
+<li><strong>獎勵評分</strong>：每個回應透過獎勵函數取得分數</li>
+<li><strong>計算群組平均</strong>：以群組內所有回應的平均分數作為基線</li>
+<li><strong>相對優勢計算</strong>：高於平均的回應獲得正向強化，低於平均的被抑制</li>
+<li><strong>策略更新</strong>：模型權重朝「好回應」方向調整</li>
+</ol>
+<p>核心洞察：GRPO 不需要預先收集 chain-of-thought 資料，它能讓模型<strong>自主發展推理能力</strong>——DeepSeek 稱此為「aha moment」。</p>
+<p>---</p>
+<h2>二、Unsloth 支援的 RL 方法</h2>
+<p>Unsloth 不僅支援 GRPO，還整合了多種最新 RL 方法：</p>
+<p>| 方法 | 特色 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>GRPO</strong> | DeepSeek 原版，群組相對優化 | 通用推理訓練 |</p>
+<p>| <strong>GSPO</strong> | 可設定 epsilon/delta 的增強版 | 需精細控制探索的場景 |</p>
+<p>| <strong>DrGRPO</strong> | 替代損失函數公式 | 更穩定的梯度更新 |</p>
+<p>| <strong>DAPO</strong> | 額外優化策略 | 特定分佈偏好調整 |</p>
+<p>| <strong>RFT</strong> | OpenAI 風格強化微調 | 簡單的 SFT + RL 混合 |</p>
+<p>配置切換非常簡單：</p>
+<pre><code>
+from trl import GRPOConfig
+
+training_args = GRPOConfig(
+    loss_type='grpo',        # 選項: 'grpo', 'gspo', 'dr_grpo'
+    epsilon=0.2,             # GRPO 預設
+    epsilon_high=0.28,       # GSPO 單側參數
+    delta=1.5,               # GSPO 雙側參數
+    mask_truncated_completions=True,
+)
+</code></pre>
+<p>---</p>
+<h2>三、完整訓練程式碼（GSM8K 數學推理）</h2>
+<h3>3.1 環境安裝</h3>
+<pre><code>
+pip install unsloth vllm
+# 或使用 Colab 免費 notebook
+</code></pre>
+<h3>3.2 載入模型</h3>
+<pre><code>
+from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Qwen3-8B-bnb-4bit",
+    max_seq_length=2048,
+    load_in_4bit=True,
+    fast_inference=True,        # 啟用 vLLM 快速推論
+    max_lora_rank=32,
+    gpu_memory_utilization=0.6, # vLLM GPU 記憶體佔比
+)
+</code></pre>
+<h3>3.3 配置 LoRA</h3>
+<pre><code>
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=32,                   # LoRA rank
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"],
+    lora_alpha=32,
+    lora_dropout=0,
+    use_gradient_checkpointing="unsloth",  # 30% 更少 VRAM
+)
+</code></pre>
+<h3>3.4 定義獎勵函數（關鍵）</h3>
+<pre><code>
+import re
+
+def correctness_reward_func(prompts, completions, answer, **kwargs):
+    """檢查最終答案是否正確"""
+    responses = [c[0]["content"] for c in completions]
+    rewards = []
+    for response, correct in zip(responses, answer):
+        # 從 &lt;answer&gt;...&lt;/answer&gt; 標籤中提取答案
+        match = re.search(r'&lt;answer&gt;(.*?)&lt;/answer&gt;', response)
+        if match:
+            extracted = match.group(1).strip()
+            rewards.append(3.0 if extracted == correct else -3.0)
+        else:
+            rewards.append(-1.0)  # 格式不符也扣分
+    return rewards
+
+def int_reward_func(completions, **kwargs):
+    """鼓勵輸出整數答案"""
+    responses = [c[0]["content"] for c in completions]
+    rewards = []
+    for response in responses:
+        match = re.search(r'&lt;answer&gt;(.*?)&lt;/answer&gt;', response)
+        if match and match.group(1).strip().isdigit():
+            rewards.append(1.0)
+        else:
+            rewards.append(0.0)
+    return rewards
+
+def strict_format_reward_func(completions, **kwargs):
+    """嚴格要求 &lt;reasoning&gt;...&lt;/reasoning&gt;&lt;answer&gt;...&lt;/answer&gt; 格式"""
+    pattern = r'^&lt;reasoning&gt;\n.*?\n&lt;/reasoning&gt;\n&lt;answer&gt;\n.*?\n&lt;/answer&gt;$'
+    responses = [c[0]["content"] for c in completions]
+    return [1.0 if re.match(pattern, r, re.DOTALL) else 0.0 for r in responses]
+
+def xmlcount_reward_func(completions, **kwargs):
+    """根據 XML 標籤數量給分（漸進式獎勵）"""
+    responses = [c[0]["content"] for c in completions]
+    rewards = []
+    for response in responses:
+        score = 0.0
+        score += 0.25 if '&lt;reasoning&gt;' in response else 0.0
+        score += 0.25 if '&lt;/reasoning&gt;' in response else 0.0
+        score += 0.25 if '&lt;answer&gt;' in response else 0.0
+        score += 0.25 if '&lt;/answer&gt;' in response else 0.0
+        rewards.append(score)
+    return rewards
+</code></pre>
+<h3>3.5 配置 GRPO 訓練</h3>
+<pre><code>
+from trl import GRPOConfig, GRPOTrainer
+
+training_args = GRPOConfig(
+    output_dir="outputs",
+    learning_rate=5e-6,
+    num_train_epochs=1,
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=4,
+    num_generations=8,           # 每題產生 8 個候選回應
+    max_completion_length=512,   # 最大回應長度
+    max_prompt_length=256,       # 最大提示長度
+    logging_steps=1,
+    save_steps=100,
+    use_vllm=True,               # 使用 vLLM 加速推論
+    loss_type='grpo',
+    mask_truncated_completions=True,
+)
+</code></pre>
+<h3>3.6 準備資料集與啟動訓練</h3>
+<pre><code>
+from datasets import load_dataset
+
+# GSM8K 數學推理資料集（最熱門的 R1 風格訓練選擇）
+dataset = load_dataset('openai/gsm8k', 'main', split='train')
+
+# 訓練
+trainer = GRPOTrainer(
+    model=model,
+    processing_class=tokenizer,
+    reward_funcs=[
+        xmlcount_reward_func,       # 格式獎勵
+        strict_format_reward_func,  # 嚴格格式獎勵
+        int_reward_func,            # 整數獎勵
+        correctness_reward_func,    # 正確性獎勵（最重要）
+    ],
+    args=training_args,
+    train_dataset=dataset,
+)
+
+trainer.train()
+</code></pre>
+<p>---</p>
+<h2>四、獎勵函數設計最佳實踐</h2>
+<h3>4.1 設計原則</h3>
+<ul>
+<li><strong>可驗證性</strong>：獎勵函數必須能精確判斷對錯，不用 LLM 評分</li>
+<li><strong>漸進式獎勵</strong>：使用多個小獎勵函數組合，而非單一大函數</li>
+<li><strong>格式 + 正確性分離</strong>：格式獎勵確保可解析，正確性獎勵確保答案品質</li>
+<li><strong>避免獎勵駭客</strong>：過於寬鬆的獎勵會讓模型學到捷徑</li>
+</ul>
+<h3>4.2 適用場景範例</h3>
+<p>| 場景 | 獎勵設計策略 |</p>
+<p>|------|------------|</p>
+<p>| 數學推理 | 正確答案 +3 / 錯誤 -3 / 格式不符 -1 |</p>
+<p>| 程式碼生成 | 通過測試 +2 / 語法正確 +1 / 輸出格式 +0.5 |</p>
+<p>| 郵件撰寫 | 含必要關鍵字 +1 / 篇幅適中 +1 / 含簽名 +1 |</p>
+<p>| 邏輯推理 | 最終答案正確 +3 / 步驟合理 +1 / 含推理標籤 +1 |</p>
+<h3>4.3 進階：proximity-based 獎勵</h3>
+<p>Unsloth 提供接近度獎勵——預測 9 而正確答案為 10，比預測 3 得到更高獎勵。這對數值類任務特別有效。</p>
+<p>---</p>
+<h2>五、長上下文 GRPO 訓練（2026 年 1 月新功能）</h2>
+<h3>5.1 技術創新：Flattened Sequence Chunking</h3>
+<p>Unsloth 引入創新的批次演算法，實現 <strong>~7 倍更長的上下文</strong> RL 訓練：</p>
+<p>| 方法 | Logit 記憶體（batch=4, ctx=8192, vocab=128K） |</p>
+<p>|------|------|</p>
+<p>| 傳統方法 | 3.3 GB |</p>
+<p>| Fused Loss | 0.83 GB |</p>
+<p>| <strong>Unsloth Flattened Chunking</strong> | <strong>~0.2 GB</strong> |</p>
+<p>核心技術：</p>
+<ol>
+<li><strong>Flattened Sequence Chunking</strong>：不一次實體化整個 logit tensor，而是跨 batch + sequence 兩個維度分塊</li>
+<li><strong>Hidden States Chunking</strong>：log-probability 計算時的隱藏狀態也分塊，batch=8 + ctx=64K 從 2GB 降至 0.24GB</li>
+<li><strong>Activation Offloading</strong>：自訂 <code>Unsloth_Offloaded_Log_Softmax</code> 類，將前向傳播外的激活值卸載至 CPU</li>
+</ol>
+<h3>5.2 硬體與上下文對照表</h3>
+<p>| 硬體 | 模型 | 最大上下文長度 |</p>
+<p>|------|------|---------------|</p>
+<p>| NVIDIA B200 192GB | gpt-oss QLoRA | 380K |</p>
+<p>| H100 80GB | Qwen3-8B GRPO + vLLM | 110K |</p>
+<p>| 24GB VRAM | gpt-oss QLoRA | 20K |</p>
+<p>| 24GB VRAM | Qwen3-VL-8B QLoRA | 32K |</p>
+<h3>5.3 配置參數</h3>
+<pre><code>
+training_args = GRPOConfig(
+    unsloth_grpo_mini_batch=3,              # Hidden States 分塊大小
+    unsloth_logit_chunk_multiplier=2,       # Logit 分塊乘數
+    # 預設: max(4, context_length // 4096)
+)
+</code></pre>
+<p>---</p>
+<h2>六、VRAM 需求與最佳化對比</h2>
+<h3>6.1 QLoRA 4-bit 簡易估算</h3>
+<p><strong>經驗法則：模型參數量（十億）≈ 所需 VRAM（GB）</strong></p>
+<ul>
+<li>1.5B 模型 → ~5GB VRAM</li>
+<li>8B 模型 → ~15GB VRAM</li>
+<li>14B 模型 → ~15GB VRAM</li>
+</ul>
+<h3>6.2 Unsloth vs 標準方案記憶體對比（Qwen3-8B 範例）</h3>
+<p>| 組件 | Unsloth | 標準 + FA2 |</p>
+<p>|------|---------|------------|</p>
+<p>| 訓練 | 42 GB | 414 GB |</p>
+<p>| GRPO Loss | 9.8 GB | 78.3 GB |</p>
+<p>| 推論 | 0 GB（共享） | 16 GB |</p>
+<p>| KV Cache (20K ctx) | 2.5 GB | 2.5 GB |</p>
+<p>| <strong>合計</strong> | <strong>54.3 GB</strong> | <strong>510.8 GB</strong> |</p>
+<p><strong>記憶體節省約 90%</strong>，關鍵技術：</p>
+<ul>
+<li>Memory-efficient 線性核心（8 倍縮減）</li>
+<li>智慧梯度檢查點（節省 52GB）</li>
+<li>GPU/CUDA 記憶體與推論引擎共享（節省 16GB）</li>
+</ul>
+<p>---</p>
+<h2>七、訓練注意事項與常見問題</h2>
+<h3>7.1 關鍵訓練指引</h3>
+<p>| 項目 | 建議值 |</p>
+<p>|------|--------|</p>
+<p>| 最低訓練步數 | 300 步以上才會看到獎勵上升 |</p>
+<p>| 最佳資料量 | 500+ 行（最少 10 行可運作） |</p>
+<p>| 訓練時長 | 12+ 小時為佳 |</p>
+<p>| 模型大小 | ≥1.5B 參數才能穩定產生思考 token |</p>
+<p>| 建議起點 | 指令微調模型（非 base model） |</p>
+<h3>7.2 常見問題排除</h3>
+<p>| 症狀 | 解法 |</p>
+<p>|------|------|</p>
+<p>| 模型不產生推理過程 | 增加訓練步數，確認 ≥1.5B 參數 |</p>
+<p>| 獎勵不上升 | 檢查獎勵函數邏輯，確保可驗證 |</p>
+<p>| OOM 記憶體不足 | 減少 context length 或 batch size |</p>
+<p>| 獎勵駭客（reward hacking） | 重新設計獎勵函數，加入多維度評分 |</p>
+<h3>7.3 「耐心就是你需要的」原則</h3>
+<p>RL 的本質是透過取樣直到正向結果出現。只要正確答案的機率不為零，最終一定會遇到——RL 只是透過負向信號「剪枝」輸出分佈，加速這個過程。</p>
+<p>---</p>
+<h2>八、支援模型一覽</h2>
+<h3>文字模型</h3>
+<ul>
+<li><strong>小型</strong>：Gemma 3 (1B)、Llama 3.2 (3B)、Qwen2.5 (3B)</li>
+<li><strong>中型</strong>：Qwen3 (4B/8B)、Mistral v0.3 (7B)、Llama 3.1 (8B)、Phi-4 (14B)</li>
+<li><strong>大型</strong>：gpt-oss-20B、DeepSeek-R1-0528-Qwen3-8B</li>
+</ul>
+<h3>視覺多模態（VLM）</h3>
+<ul>
+<li>Qwen3-VL-8B、Gemma 3 (4B)</li>
+<li>支援 Vision RL：圖像推理訓練</li>
+</ul>
+<p>---</p>
+<h2>九、vLLM 整合推論效能</h2>
+<p>Unsloth 支援訓練與推論共享 GPU 記憶體：</p>
+<pre><code>
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="unsloth/Llama-3.2-3B-Instruct",
+    fast_inference=True,  # 啟用 vLLM
+)
+model.fast_generate(["What is 2+2?"])
+</code></pre>
+<p>推論速度參考：</p>
+<ul>
+<li>A100 40GB: ~4000 tokens/秒</li>
+<li>T4 16GB: ~300 tokens/秒</li>
+</ul>
+<p>---</p>
+<h2>十、與知識庫已有筆記的關聯</h2>
+<p>| 已有筆記 | 本筆記補充 |</p>
+<p>|---------|----------|</p>
+<p>| 架構原理與 LoRA/QLoRA 配置 | GRPO 專用的 LoRA 配置與 fast_inference 參數 |</p>
+<p>| 資料集準備與 DPO/ORPO/GRPO | GRPO 完整獎勵函數設計與 GSM8K 實戰 |</p>
+<p>| TRL / Hugging Face Trainer 整合 | GRPOTrainer 進階配置（loss_type, GSPO/DrGRPO） |</p>
+<p>| GGUF 量化匯出 | GRPO 訓練後的模型可直接用 GGUF 匯出 |</p>
+<p>| 故障排除 | GRPO 專屬的獎勵駭客、OOM 排除指引 |</p>
+<p>| 繁中 LLM 微調 | GRPO 可用於繁中推理模型訓練 |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://unsloth.ai/docs/get-started/reinforcement-learning-rl-guide">Reinforcement Learning (RL) Guide — Unsloth Docs</a></li>
+<li><a href="https://unsloth.ai/blog/r1-reasoning">Train your own R1 reasoning model locally (GRPO)</a></li>
+<li><a href="https://unsloth.ai/docs/new/grpo-long-context">Reinforcement Learning GRPO with 7x Longer Context</a></li>
+<li><a href="https://github.com/unslothai/unsloth">GitHub — unslothai/unsloth</a></li>
+<li><a href="https://huggingface.co/blog/shivance/post-training-llm-for-reasoning-with-grpo">Post training a LLM for reasoning with GRPO using Unsloth — HuggingFace Blog</a></li>
+<li><a href="https://docs.unsloth.ai/basics/reasoning-grpo">Reasoning - GRPO & RL — Unsloth Docs</a></li>
+</ol>
+<p><em>研究日期：2026-02-25</em></p>
+<p><em>研究者：Unsloth Research Agent</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

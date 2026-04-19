@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI-Assisted Coding 的 Repo Map、上下文工程與驗證閉環實務（2026）">
+  <title>AI-Assisted Coding 的 Repo Map、上下文工程與驗證閉環實務（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI-Assisted Coding 的 Repo Map、上下文工程與驗證閉環實務（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">AI-Assisted Coding</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI-Assisted Coding 的 Repo Map、上下文工程與驗證閉環實務（2026）</h1>
+<blockquote>承接既有 AI-Assisted Coding 系列的 foundation/mechanism 筆記，本文進入 application 階段，聚焦 repo 級導入、上下文治理與 verify loop。</blockquote>
+<h2>技術概述</h2>
+<p>AI-Assisted Coding 在 2026 年已從單次補全進化成「可治理的開發工作流」：先把專案規則與架構知識放進可重複引用的記憶層，再用 codebase indexing 或 repo map 讓模型快速掌握檔案關聯，最後以 lint、test、review、CI timeout 與權限邊界形成驗證閉環。Anthropic 文件強調 <code>CLAUDE.md</code> 與 <code>.claude/rules/</code> 應該具體、精簡，且 <code>CLAUDE.md</code> 以 200 行內為宜；Cursor 文件則把 rules、codebase indexing 與 background agents 拆成獨立能力。GitHub Spec Kit 進一步把 AI coding 結構化為 <code>specify -> plan -> tasks -> implement</code>。三者合併後，最佳實踐不是「把需求直接丟給模型」，而是先建立 repo map、上下文範圍、規格契約與驗證閘門，再讓 AI 在受控環境中迭代。</p>
+<h2>核心方法與工具</h2>
+<ul>
+<li><code>CLAUDE.md</code> / <code>.claude/rules/</code>：把專案架構、build/test 指令、命名規範與高風險限制變成持久上下文。</li>
+<li>Cursor Project Rules：把規則拆成可組合、可套用的規則檔，避免單一大 prompt 失控。</li>
+<li>Codebase Indexing / Repo Map：用 embeddings 或顯式目錄索引，讓模型知道哪些檔案該讀、哪些該忽略。</li>
+<li>Spec Kit / Spec-Driven Development：把需求轉成可執行流程，避免直接跳進修改程式。</li>
+<li>Verify Loop：每輪修改後強制執行 <code>lint -> unit test -> targeted integration/e2e -> human review/CI</code>。</li>
+<li>Background/Remote Agents：適合長時間重構或大量檔案修改，但必須加上最小權限、timeout、網路風險控管。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>建立專案記憶層：在 repo 根目錄放 <code>CLAUDE.md</code>，列出 build、test、lint、禁止行為、架構邊界。</li>
+<li>將規則模組化：把測試、API、安全、前端等規範拆到 <code>.claude/rules/</code> 或 <code>.cursor/rules</code>。</li>
+<li>建立 repo map：確認 indexing/ignore 設定，只留下程式碼、schema、測試與必要文件；排除大型產物與噪音檔。</li>
+<li>先規格後實作：使用 Spec Kit 或等價流程先產出 spec、plan、tasks，再交給 AI 實作。</li>
+<li>限縮單次任務：每次只讓 AI 處理單一 feature、單一 bug 或單一重構目標，避免跨模組失控。</li>
+<li>執行 verify loop：每輪都跑最小必要測試與靜態檢查；若失敗，AI 只能在失敗範圍內迭代。</li>
+<li>對長任務使用背景代理：只在可隔離分支、可控 secrets、明確 install script 下啟用 background agent。</li>
+<li>在 CI 中再驗一次：PR/issue comment agent 只做候選修改，合併前仍要經過完整 CI 與人工審查。</li>
+</ol>
+<h2>程式碼 / 配置範例</h2>
+<h3>1. `CLAUDE.md`</h3>
+<pre><code>
+# 專案工作流
+- 變更前先讀 `README.md`、`docs/architecture.md`
+- 修改 Python 後必跑 `pytest -q`
+- 修改前端後必跑 `npm run lint` 與 `npm test`
+- 禁止直接改動 `infra/production/`
+
+# 架構規則
+- API handlers 只能放在 `src/api/handlers/`
+- 背景任務邏輯放在 `src/jobs/`
+</code></pre>
+<h3>2. `.claude/rules/testing.md`</h3>
+<pre><code>
+---
+paths:
+  - "src/**/*.{ts,tsx,py}"
+  - "tests/**/*"
+---
+
+# Testing Rules
+- 新功能必須附單元測試
+- Bug fix 必須先重現失敗情境
+- 若改動公共介面，補 integration test
+</code></pre>
+<h3>3. Claude Code GitHub Action</h3>
+<pre><code>
+name: claude-review
+on:
+  issue_comment:
+    types: [created]
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "/review"
+          claude_args: |
+            --max-turns 5
+            --system-prompt "Follow CLAUDE.md and only review changed files"
+</code></pre>
+<h3>4. Cursor 規則範例</h3>
+<pre><code>
+---
+description: API change checklist
+globs:
+  - src/api/**/*.ts
+alwaysApply: false
+---
+- 驗證 input schema
+- 補 API 測試
+- 更新 OpenAPI 文件
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>Anthropic 文件明示：<code>CLAUDE.md</code> 過長會增加 context 消耗並降低 adherence，因此規則分拆可直接改善穩定性與成本控制。</li>
+<li>Claude Code GitHub Actions 建議以 issue template、精簡 <code>CLAUDE.md</code>、適當 timeout 控制成本與迭代次數，這是實務上最直接的生產力保護機制。</li>
+<li>Diffblue 與相關測試生成研究顯示，當 AI workflow 與 verify loop 結合時，團隊能獲得顯著測試與實作效率提升；但真正可持續的提升，前提是 repo context 與規格契約先被整理好。這裡的推論來自官方工作流文件與既有 KB 筆記交叉比對。</li>
+</ul>
+<h2>與本專案的應用場景（daily-digest-prompt 如何受益）</h2>
+<ul>
+<li>把現有 <code>AGENTS.md</code> 與各 prompt 規範透過 <code>CLAUDE.md</code> 匯入，降低多代理指令漂移。</li>
+<li>為 <code>config/</code>、<code>templates/</code>、<code>skills/</code>、<code>tools/</code> 建立 path-specific rules，讓 AI 修改不同區域時自動帶入相應檢查清單。</li>
+<li>用 repo map 明確排除大型 <code>context/</code> 歷史資料與產生物，減少無效讀取。</li>
+<li>將研究任務、結果 JSON、registry 更新都包進 verify loop：schema 驗證、KB 匯入確認、continuity 回寫確認。</li>
+<li>若未來採用背景代理處理長時間重構，可先限定在 feature branch 與唯讀 secrets 下執行。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>規則過長、互相矛盾，會讓模型遵循率下降。</li>
+<li>Background agents 具有自動執行命令能力，若開放網路與寫入權限，需防 prompt injection 與 secrets 外洩。</li>
+<li>Codebase indexing 若沒排除大型噪音檔，檢索品質會下降。</li>
+<li>Spec-Driven Development 若只做文件、不接 verify loop，最後仍會退化成高級版 vibe coding。</li>
+</ul>
+<h2>交叉引用</h2>
+<ul>
+<li>AI-Assisted Coding 實作指南：Spec-Driven Development 與 Prompt 契約工作流</li>
+<li>Spec Kit（GitHub 官方）— 規格驅動開發工具集深度洞察</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>Anthropic, How Claude remembers your project: https://code.claude.com/docs/en/memory</li>
+<li>Anthropic, Claude Code GitHub Actions: https://code.claude.com/docs/en/github-actions</li>
+<li>Cursor Docs, Rules: https://docs.cursor.com/en/context/rules</li>
+<li>Cursor Docs, Codebase Indexing: https://docs.cursor.com/context/codebase-indexing</li>
+<li>Cursor Docs, Background Agents: https://docs.cursor.com/background-agents</li>
+<li>GitHub Spec Kit repo: https://github.com/github/spec-kit</li>
+<li>Spec Kit documentation: https://github.github.com/spec-kit/</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

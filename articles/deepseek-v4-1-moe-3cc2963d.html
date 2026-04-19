@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="DeepSeek V4 — 1 兆參數開源多模態 MoE 大型語言模型：Engram 條件記憶、Sparse Attention 閃電索引、MLA KV 快取壓縮 90% 與華為昇騰晶片訓練的架構突破（2026-03）">
+  <title>DeepSeek V4 — 1 兆參數開源多模態 MoE 大型語言模型：Engram 條件記憶、Sparse Attention 閃電索引、MLA KV 快取壓縮 90% 與華為昇騰晶片訓練的架構突破（2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>DeepSeek V4 — 1 兆參數開源多模態 MoE 大型語言模型：Engram 條件記憶、Sparse Attention 閃電索引、MLA KV 快取壓縮 90% 與華為昇騰晶片訓練的架構突破（2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">DeepSeek</span><span class="tag">MoE</span><span class="tag">開源模型</span><span class="tag">多模態</span><span class="tag">AI架構</span><span class="tag">LLM</span><span class="tag">Engram</span><span class="tag">Sparse Attention</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>DeepSeek V4 — 1 兆參數開源多模態 MoE 大型語言模型</h1>
+<h2>概述</h2>
+<p>DeepSeek V4 於 2026 年 3 月 3 日發布，是中國 AI 公司 DeepSeek 推出的下一代旗艦大型語言模型。作為目前最大的開源 MoE（Mixture-of-Experts）模型，V4 擁有約 <strong>1 兆（1 Trillion）總參數</strong>，每個 token 僅啟動約 <strong>320 億活躍參數</strong>（約 3% 活化率），實現了前所未有的規模與效率平衡。模型支援原生多模態（文字、圖像、影片、音訊），上下文窗口超過 <strong>100 萬 tokens</strong>，並以 Apache 2.0 授權開源釋出。</p>
+<h2>三大架構創新</h2>
+<h3>1. Manifold-Constrained Hyper-Connections（mHC，流形約束超連接）</h3>
+<p>解決兆級參數模型的訓練穩定性挑戰。傳統大型模型在參數規模突破千億時常遭遇梯度爆炸或消失問題，mHC 透過在流形空間中約束連接路徑，確保訊號在深層網路中穩定傳播，使 1 兆參數的訓練成為可能。</p>
+<h3>2. Engram 條件記憶（Engram Conditional Memory）</h3>
+<p>2026 年 1 月 13 日發表的突破性技術。Engram 引入條件記憶模組，將<strong>靜態模式儲存</strong>與<strong>動態推理</strong>解耦，實現 <strong>O(1) 常數時間知識檢索</strong>。核心思路是將經典 N-gram 嵌入現代化，在神經骨幹網路旁建立恆定時間的查找表，大幅降低長上下文處理的計算開銷。這使得百萬 token 上下文的推理不再需要天文數字般的記憶體。</p>
+<h3>3. DeepSeek Sparse Attention（稀疏注意力 + 閃電索引器）</h3>
+<p>實現百萬 token 上下文窗口，同時將計算開銷降低 <strong>50%</strong>（相較標準 Transformer）。核心機制「Lightning Indexer（閃電索引器）」能從超長上下文中優先提取最相關的片段，避免對全部 token 做完整注意力計算。</p>
+<h2>MoE 路由與效率設計</h2>
+<h3>稀疏專家路由</h3>
+<ul>
+<li><strong>專家數量</strong>：256+ 個專家模組</li>
+<li><strong>每 token 啟用</strong>：約 16 個專家子網路（相較早期 MoE 的 Top-2 或 Top-4，顯著增加）</li>
+<li><strong>共享專家層</strong>：部分專家被指定為「共享專家」，對每個 token 永遠啟用，作為通用知識池處理共通語言和通用推理模式</li>
+</ul>
+<h3>負載平衡</h3>
+<ul>
+<li>採用<strong>無需輔助損失（auxiliary loss-free）</strong>的動態路由策略</li>
+<li>透過自適應容量限制自然平衡各專家的負載</li>
+<li>解決了 MoE 模型常見的「專家崩潰」問題</li>
+</ul>
+<h3>Multi-head Latent Attention（MLA，多頭潛在注意力）</h3>
+<p>MLA 將 Key-Value 快取壓縮至低秩潛在空間，KV 快取記憶體減少 <strong>90%+</strong>（相較標準多頭注意力），使百萬 token 上下文窗口在合理的 GPU 記憶體下成為可行。</p>
+<h3>FP8 混合精度訓練</h3>
+<p>延續 V3 的 FP8 訓練先驅，V4 將混合精度擴展至包括專家層在內的所有元件，記憶體需求<strong>減半</strong>（相較 FP16），同時維持訓練穩定性。</p>
+<h2>訓練成本與基礎設施</h2>
+<ul>
+<li><strong>訓練成本</strong>：約 <strong>560 萬美元</strong>，僅為同級西方模型的一小部分</li>
+<li><strong>硬體</strong>：針對<strong>華為昇騰（Ascend）</strong>和<strong>寒武紀（Cambricon）</strong>晶片優化</li>
+<li><strong>地緣政治意義</strong>：證明即使在美國出口管制限制 NVIDIA 先進 GPU 的情況下，前沿 AI 模型仍可在中國國產晶片上訓練和部署</li>
+<li><strong>消費級部署</strong>：可在雙 RTX 4090 上運行（量化後）</li>
+</ul>
+<h2>效能基準</h2>
+<h3>內部基準（待獨立驗證）</h3>
+<p>| 基準 | 宣稱成績 |</p>
+<p>|------|----------|</p>
+<p>| HumanEval | 90% |</p>
+<p>| SWE-bench | 80%+ |</p>
+<p>| 長上下文編碼 | 優於 Claude 3.5 Sonnet 和 GPT-4o |</p>
+<p>| 多檔案重構 | 優於同期競爭對手 |</p>
+<p>| 競程程式設計 | 優於同期競爭對手 |</p>
+<blockquote><strong>注意</strong>：截至 2026-03-05，HELM、Chatbot Arena、LiveCodeBench 等獨立評測仍在進行中，部署決策應等待第三方驗證結果。</blockquote>
+<h2>原生多模態</h2>
+<p>V4 採用「原生多模態」設計，在預訓練階段即同時處理文字、圖像、影片、音訊資料，而非採用後掛適配器（adapter）的方式。這讓模型發展出更豐富的跨模態表徵，而非學習在分別訓練的模態之間翻譯。</p>
+<h2>開源授權</h2>
+<ul>
+<li><strong>授權</strong>：Apache 2.0</li>
+<li><strong>允許商用</strong>、修改、再散布</li>
+<li><strong>明確專利授權</strong></li>
+<li>消除企業採用的供應商鎖定疑慮</li>
+</ul>
+<h2>與同期模型比較（2026-03 第一週）</h2>
+<p>| 模型 | 發布日 | 參數規模 | 上下文 | 特色 |</p>
+<p>|------|--------|----------|--------|------|</p>
+<p>| <strong>DeepSeek V4</strong> | 03-03 | 1T MoE / 32B 活躍 | 1M+ | 開源、多模態、華為昇騰 |</p>
+<p>| <strong>GPT-5.4</strong> | 03-05 | 未公開 | 1M | OSWorld 75% 超越人類基線 72.4% |</p>
+<p>| <strong>Gemini 3.1 Flash-Lite</strong> | 03-03 | 未公開 | - | $0.25/M tokens，2.5x 更快 TTFT |</p>
+<h2>產業影響與分析</h2>
+<ol>
+<li><strong>開源 vs 閉源格局逆轉</strong>：V4 證明開源模型可在規模和能力上與閉源前沿模型競爭，560 萬美元的訓練成本更是對「大模型需要數億美元」的假設提出根本挑戰</li>
+<li><strong>晶片自主化驗證</strong>：華為昇騰 + 寒武紀的成功訓練，意味著美國晶片出口管制的實際約束力正在減弱</li>
+<li><strong>MoE 效率典範</strong>：3% 活化率（32B/1T）設計，讓消費級硬體也能運行兆級模型，可能催生「大模型平民化」浪潮</li>
+<li><strong>多模態融合趨勢</strong>：原生多模態（非後掛適配器）成為 2026 前沿模型的標配設計</li>
+</ol>
+<h2>來源</h2>
+<ul>
+<li>QverLabs Blog: DeepSeek V4: Inside China's Trillion-Parameter Open-Source Challenger</li>
+<li>Macaron: DeepSeek-V4 MoE: The 1-Trillion Parameter Breakthrough</li>
+<li>NxCode: DeepSeek V4: Everything We Know — Specs, Benchmarks & Release Date (2026)</li>
+<li>Digital Applied: DeepSeek V4: Trillion-Parameter Open-Source AI</li>
+<li>Medium (Isabella King): What Is DeepSeek-V4 MoE? Inside the 1-Trillion Parameter Open-Source LLM</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

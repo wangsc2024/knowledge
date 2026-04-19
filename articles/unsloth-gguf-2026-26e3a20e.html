@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth GGUF 量化匯出與推論部署實戰指南（2026）">
+  <title>Unsloth GGUF 量化匯出與推論部署實戰指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth GGUF 量化匯出與推論部署實戰指南（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">GGUF</span><span class="tag">量化</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">llama.cpp</span><span class="tag">Ollama</span><span class="tag">vLLM</span><span class="tag">推論部署</span><span class="tag">Dynamic 2.0</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth GGUF 量化匯出與推論部署實戰指南</h1>
+<h2>概述</h2>
+<p>Unsloth 微調完成後，模型需經過量化匯出才能部署到各種推論引擎。GGUF（GPT-Generated Unified Format）是 llama.cpp 團隊設計的模型格式，已成為本地 LLM 推論的事實標準。Unsloth 內建一站式 GGUF 匯出功能，透過 <code>save_pretrained_gguf()</code> 方法可直接將微調模型量化並匯出為 GGUF 格式，無需手動操作 llama.cpp 工具鏈。支援 20+ 種量化方法，匯出的模型可直接在 Ollama、LM Studio、Open WebUI、llama-server 等推論引擎上運行。2025 年 4 月推出的 Dynamic 2.0 量化技術更進一步提升了量化模型的精度，在 5-shot MMLU 基準測試中創下新標竿。</p>
+<p>---</p>
+<h2>GGUF 量化方法完整列表</h2>
+<p>Unsloth 支援以下量化方法（透過 <code>quantization_method</code> 參數指定）：</p>
+<h3>推薦方法（快捷方式）</h3>
+<p>| 方法 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <code>not_quantized</code> | 快速轉換，不量化。推論慢、檔案大 |</p>
+<p>| <code>fast_quantized</code> | 快速轉換，推論與檔案大小適中 |</p>
+<p>| <code>quantized</code> | 慢速轉換，推論快、檔案小 |</p>
+<h3>精度保留方法</h3>
+<p>| 方法 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <code>f32</code> | 保留 100% 精度，但超慢且耗記憶體 |</p>
+<p>| <code>bf16</code> | Bfloat16，最快轉換 + 100% 精度 |</p>
+<p>| <code>f16</code> | Float16，最快轉換 + 100% 精度 |</p>
+<h3>K-Quant 系列（最常用）</h3>
+<p>| 方法 | bits/weight | 說明 |</p>
+<p>|------|------------|------|</p>
+<p>| <code>q8_0</code> | 8-bit | 快速轉換，資源用量高但品質可接受 |</p>
+<p>| <code>q6_k</code> | 6-bit | 使用 Q8_K 量化所有張量 |</p>
+<p>| <code>q5_k_m</code> | 5-bit | <strong>推薦</strong>。attention.wv/feed_forward.w2 用 Q6_K，其餘 Q5_K |</p>
+<p>| <code>q5_k_s</code> | 5-bit | 所有張量使用 Q5_K |</p>
+<p>| <code>q4_k_m</code> | 4-bit | <strong>推薦</strong>。attention.wv/feed_forward.w2 用 Q6_K，其餘 Q4_K |</p>
+<p>| <code>q4_k_s</code> | 4-bit | 所有張量使用 Q4_K |</p>
+<p>| <code>q3_k_l</code> | 3-bit | attention.wv/wo/feed_forward.w2 用 Q5_K，其餘 Q3_K |</p>
+<p>| <code>q3_k_m</code> | 3-bit | attention.wv/wo/feed_forward.w2 用 Q4_K，其餘 Q3_K |</p>
+<p>| <code>q3_k_s</code> | 3-bit | 所有張量使用 Q3_K |</p>
+<p>| <code>q3_k_xs</code> | 3-bit | 超小型 3-bit 量化 |</p>
+<p>| <code>q2_k</code> | 2-bit | attention.vw/feed_forward.w2 用 Q4_K，其餘 Q2_K |</p>
+<h3>傳統量化方法</h3>
+<p>| 方法 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <code>q4_0</code> | 原始 4-bit 量化 |</p>
+<p>| <code>q4_1</code> | 比 q4_0 精度高，推論比 q5 快 |</p>
+<p>| <code>q5_0</code> | 精度更高，資源更多 |</p>
+<p>| <code>q5_1</code> | 精度最高的 5-bit |</p>
+<h3>I-Quant 系列（極端壓縮）</h3>
+<p>| 方法 | bpw | 說明 |</p>
+<p>|------|-----|------|</p>
+<p>| <code>iq2_xxs</code> | 2.06 | 超低位元量化 |</p>
+<p>| <code>iq2_xs</code> | 2.31 | 低位元量化 |</p>
+<p>| <code>iq3_xxs</code> | 3.06 | 低位元量化 |</p>
+<p>---</p>
+<h2>核心匯出操作</h2>
+<h3>方法一：一鍵 GGUF 匯出（推薦）</h3>
+<pre><code>
+from unsloth import FastLanguageModel
+
+# 載入微調後的模型
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="./my-finetuned-lora",
+    max_seq_length=2048,
+    load_in_4bit=True,
+)
+
+# 匯出為 GGUF（本地儲存）
+# q4_k_m：最佳平衡點（精度 vs 檔案大小 vs 推論速度）
+model.save_pretrained_gguf(
+    "my-model-gguf",       # 輸出目錄
+    tokenizer,
+    quantization_method="q4_k_m"  # 量化方法
+)
+
+# 其他常用量化方法
+model.save_pretrained_gguf("dir", tokenizer, quantization_method="q8_0")   # 高品質
+model.save_pretrained_gguf("dir", tokenizer, quantization_method="q5_k_m") # 品質/大小平衡
+model.save_pretrained_gguf("dir", tokenizer, quantization_method="f16")    # 完整精度
+</code></pre>
+<h3>方法二：推送到 Hugging Face Hub</h3>
+<pre><code>
+# 直接推送 GGUF 到 HF Hub
+model.push_to_hub_gguf(
+    "your-username/my-model-gguf",
+    tokenizer,
+    quantization_method="q4_k_m",
+    token="hf_your_token"  # HF API token
+)
+</code></pre>
+<h3>方法三：先合併再手動轉換</h3>
+<pre><code>
+# 步驟 1：儲存合併後的 16-bit 模型
+model.save_pretrained_merged(
+    "merged_model",
+    tokenizer,
+    save_method="merged_16bit"
+)
+</code></pre>
+<pre><code>
+# 步驟 2：安裝 llama.cpp
+apt-get update
+apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev -y
+git clone https://github.com/ggerganov/llama.cpp
+cmake llama.cpp -B llama.cpp/build \
+    -DBUILD_SHARED_LIBS=ON -DGGML_CUDA=ON -DLLAMA_CURL=ON
+cmake --build llama.cpp/build --config Release -j \
+    --clean-first --target llama-quantize llama-cli llama-gguf-split llama-mtmd-cli
+cp llama.cpp/build/bin/llama-* llama.cpp
+
+# 步驟 3：轉換為 GGUF
+python llama.cpp/convert_hf_to_gguf.py merged_model --outfile model.gguf --outtype f16
+
+# 步驟 4：量化（可選）
+./llama.cpp/llama-quantize model.gguf model-q4km.gguf q4_k_m
+</code></pre>
+<p>---</p>
+<h2>部署到各推論引擎</h2>
+<h3>1. Ollama 部署</h3>
+<p>Unsloth 自動生成 Ollama 所需的 Modelfile（含正確的 chat template）。</p>
+<pre><code>
+# 匯出 GGUF（Unsloth 自動生成 Modelfile）
+model.save_pretrained_gguf(
+    "my-model",
+    tokenizer,
+    quantization_method="q8_0"
+)
+</code></pre>
+<pre><code>
+# 啟動 Ollama 服務
+ollama serve &amp;
+
+# 用自動生成的 Modelfile 建立模型
+ollama create my-model -f ./my-model/Modelfile
+
+# 執行推論
+ollama run my-model "你好，請介紹你自己"
+</code></pre>
+<p><strong>關鍵注意</strong>：Unsloth 的 <code>OLLAMA_TEMPLATES</code> 字典自動映射模型架構到正確的 Ollama chat template，避免推論時產生亂碼。</p>
+<h3>2. llama-server（OpenAI 相容 API）</h3>
+<pre><code>
+# 啟動 OpenAI 相容伺服器
+./llama.cpp/llama-server \
+    -m model-q4km.gguf \
+    --host 0.0.0.0 \
+    --port 8080 \
+    -ngl 99  # GPU 層數
+
+# 使用 curl 呼叫
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"model","messages":[{"role":"user","content":"Hello!"}]}'
+</code></pre>
+<h3>3. vLLM 部署</h3>
+<pre><code>
+# 先儲存為 16-bit 合併模型
+model.save_pretrained_merged(
+    "my-model-vllm",
+    tokenizer,
+    save_method="merged_16bit"
+)
+</code></pre>
+<pre><code>
+# vLLM 推論
+from vllm import LLM, SamplingParams
+
+llm = LLM(model="my-model-vllm")
+sampling_params = SamplingParams(temperature=0.7, max_tokens=512)
+outputs = llm.generate(["Tell me about AI"], sampling_params)
+print(outputs[0].outputs[0].text)
+</code></pre>
+<h3>4. LM Studio</h3>
+<ol>
+<li>將 GGUF 檔案放入 LM Studio 的模型目錄</li>
+<li>在 LM Studio UI 中選擇模型</li>
+<li>確保選用正確的 chat template（與訓練時一致）</li>
+</ol>
+<p>---</p>
+<h2>Dynamic 2.0 量化（Unsloth 獨家）</h2>
+<p>2025 年 4 月推出的 Dynamic 2.0 是 Unsloth 的進階量化技術：</p>
+<h3>核心特性</h3>
+<ul>
+<li><strong>智慧逐層量化</strong>：動態調整每一層的量化類型，不同模型使用不同的量化方案</li>
+<li><strong>模型專屬方案</strong>：Gemma 3 的量化策略與 Llama 4 完全不同</li>
+<li><strong>高品質校準資料集</strong>：30 萬到 150 萬 tokens 的手工精選數據，針對對話場景優化</li>
+<li><strong>通用架構支援</strong>：從 MoE（如 DeepSeek-R1）到 Dense 模型（如 Gemma 3）均可使用</li>
+</ul>
+<h3>基準測試結果</h3>
+<p>| 模型 | 方法 | 5-shot MMLU |</p>
+<p>|------|------|------------|</p>
+<p>| Gemma 3 12B (bf16) | 未量化 | 67.15% |</p>
+<p>| Gemma 3 12B | Google QAT Q4_0 | 67.07% |</p>
+<p>| Gemma 3 12B | Dynamic 2.0 Q4_K_M | 超越標準 imatrix |</p>
+<p>| Llama 4 Scout | Dynamic 2.0 | 超越傳統量化方法 |</p>
+<h3>使用 Dynamic 2.0 GGUF</h3>
+<p>Dynamic 2.0 模型可從 Hugging Face 直接下載：</p>
+<ul>
+<li><a href="https://huggingface.co/collections/unsloth/">Unsloth Dynamic 2.0 合集</a></li>
+<li>支援 DeepSeek-R1、DeepSeek-V3、Gemma 3（12B/27B）、Llama 4 Scout</li>
+</ul>
+<p>---</p>
+<h2>量化方法選擇指南</h2>
+<p>| 場景 | 推薦方法 | 理由 |</p>
+<p>|------|---------|------|</p>
+<p>| 生產部署（品質優先） | <code>q8_0</code> | 接近原始精度，推論可接受 |</p>
+<p>| 一般使用（平衡） | <code>q5_k_m</code> | 精度與大小的最佳平衡 |</p>
+<p>| 本地推論（預設推薦） | <code>q4_k_m</code> | 關鍵層用 Q6_K 保精度，其餘 Q4_K 省空間 |</p>
+<p>| 行動裝置 / 嵌入式 | <code>q3_k_m</code> 或 <code>q2_k</code> | 極致壓縮，精度損失較大 |</p>
+<p>| 開發測試 | <code>f16</code> | 完整精度，方便除錯 |</p>
+<p>| 存檔備份 | <code>not_quantized</code> 或 <code>f16</code> | 保留完整品質 |</p>
+<h3>7B 模型檔案大小參考</h3>
+<p>| 量化方法 | 約略大小 | 精度損失 |</p>
+<p>|---------|---------|----------|</p>
+<p>| f16 | ~14 GB | 0% |</p>
+<p>| q8_0 | ~7 GB | 極小 |</p>
+<p>| q5_k_m | ~5 GB | 小 |</p>
+<p>| q4_k_m | ~4 GB | 小到中 |</p>
+<p>| q3_k_m | ~3 GB | 中 |</p>
+<p>| q2_k | ~2.5 GB | 大 |</p>
+<p>---</p>
+<h2>常見問題與解法</h2>
+<h3>1. 匯出後推論產生亂碼或無限迴圈</h3>
+<p><strong>根因</strong>：Chat template 不一致。訓練時的 chat template 必須與推論時完全相同。</p>
+<p><strong>解法</strong>：</p>
+<ul>
+<li>使用 Unsloth 的 conversational notebook（自動設定正確 template）</li>
+<li>確認 EOS token 正確（不同模型的 EOS token 不同）</li>
+<li>檢查推論引擎是否多加了 BOS token</li>
+</ul>
+<h3>2. 儲存時 GPU OOM</h3>
+<p><strong>解法</strong>：降低 <code>maximum_memory_usage</code> 參數：</p>
+<pre><code>
+model.save_pretrained_gguf(
+    "dir", tokenizer,
+    quantization_method="q4_k_m",
+    maximum_memory_usage=0.5  # 預設 0.75，降到 0.5
+)
+</code></pre>
+<h3>3. Sentencepiece 模型的 GGUF 相容性</h3>
+<p>Unsloth 內建 <code>fix_sentencepiece_gguf</code> 函數自動處理 Sentencepiece tokenizer 的 GGUF 相容性問題。</p>
+<h3>4. Windows 環境手動編譯 llama.cpp</h3>
+<pre><code>
+# Windows (MSVC + CUDA)
+cmake llama.cpp -B llama.cpp/build -DGGML_CUDA=ON
+cmake --build llama.cpp/build --config Release
+</code></pre>
+<h3>5. 量化精度驗證</h3>
+<p>建議匯出後用相同 prompt 在原始模型和量化模型上做 A/B 測試，確認回答品質可接受。</p>
+<p>---</p>
+<h2>儲存方法總覽</h2>
+<p>| 方法 | 用途 | 程式碼 |</p>
+<p>|------|------|--------|</p>
+<p>| LoRA adapter | 小檔案（~100MB），需基礎模型 | <code>save_method="lora"</code> |</p>
+<p>| 合併 16-bit | vLLM / HF 推論 | <code>save_method="merged_16bit"</code> |</p>
+<p>| 合併 4-bit | DPO 訓練 / HF 線上推論 | <code>save_method="merged_4bit"</code> |</p>
+<p>| GGUF | Ollama / llama.cpp / LM Studio | <code>save_pretrained_gguf()</code> |</p>
+<p>| HF Hub GGUF | 分享量化模型 | <code>push_to_hub_gguf()</code> |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://docs.unsloth.ai/basics/saving-models/saving-to-gguf">Unsloth 官方文件 - Saving to GGUF</a></li>
+<li><a href="https://docs.unsloth.ai/basics/inference-and-deployment">Unsloth 官方文件 - Inference & Deployment</a></li>
+<li><a href="https://docs.unsloth.ai/basics/saving-models/saving-to-ollama">Unsloth 官方文件 - Saving to Ollama</a></li>
+<li><a href="https://github.com/unslothai/unsloth/blob/main/unsloth/save.py">Unsloth GitHub - save.py 原始碼</a></li>
+<li><a href="https://unsloth.ai/blog/dynamic-v2">Unsloth Dynamic 2.0 GGUFs 部落格</a></li>
+<li><a href="https://github.com/unslothai/unsloth/wiki#manually-saving-to-gguf">Unsloth GitHub Wiki - Manually Saving to GGUF</a></li>
+<li><a href="https://github.com/ggerganov/llama.cpp/blob/master/examples/quantize/quantize.cpp">llama.cpp GGUF 量化定義</a></li>
+</ul>
+<p><em>研究日期：2026-02-16</em></p>
+<p><em>研究者：Unsloth Research Agent</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

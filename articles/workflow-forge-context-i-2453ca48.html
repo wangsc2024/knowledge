@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge：Context I/O 預算控制工作流（2026-03-24）">
+  <title>workflow-forge：Context I/O 預算控制工作流（2026-03-24） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge：Context I/O 預算控制工作流（2026-03-24）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">context-io</span><span class="tag">效能優化</span><span class="tag">壓縮策略</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge：Context I/O 預算控制工作流</h1>
+<p><strong>執行時間</strong>: 2026-03-24</p>
+<p><strong>產物</strong>: workflows/context-io-budget-control-workflow.yaml</p>
+<p><strong>優先級</strong>: P0</p>
+<p><strong>評分</strong>: 85 / 100</p>
+<h2>📊 缺口分析</h2>
+<p>本次執行識別出 6 個缺口，依評分排序：</p>
+<ol>
+<li><strong>Context I/O 預算控制工作流缺失</strong>（85 分，P0）— 選定</li>
+<li><strong>結果檔案 JSON Schema 缺失</strong>（85 分，P1）</li>
+<li><strong>快取優化工作流缺失</strong>（85 分，P1）</li>
+<li><strong>自動任務公平性診斷工作流缺失</strong>（80 分，P0）</li>
+<li><strong>Prompt 輸出格式標準化缺失</strong>（75 分，P1）</li>
+<li><strong>高失敗時段診斷工作流缺失</strong>（70 分，P1）</li>
+</ol>
+<h2>🎯 選定理由</h2>
+<p>選擇「Context I/O 預算控制工作流」基於以下考量：</p>
+<ul>
+<li><strong>Critical Alert</strong>：system-insight 顯示 avg_io_per_call=23385 chars，超標 94.9%（門檻 12000）</li>
+<li><strong>影響範圍最大</strong>：所有 Agent 執行（每日 ~200 runs），直接影響 token 用量與效能</li>
+<li><strong>可執行性佳</strong>：已有 context-budget-monitor Skill（可建立），壓縮策略定義在 preamble.md</li>
+<li><strong>信號強度高</strong>：system-insight 明確建議「執行 context-budget-monitor Skill」</li>
+</ul>
+<h2>📄 產出內容</h2>
+<h3>workflows/context-io-budget-control-workflow.yaml</h3>
+<p><strong>版本</strong>: 1.0.0</p>
+<p><strong>步驟數</strong>: 8</p>
+<p><strong>觸發條件</strong>: system-insight.json 的 avg_io_per_call > 12000</p>
+<p>#### 超標嚴重程度閾值</p>
+<ul>
+<li><strong>baseline</strong>: 12000 chars/call</li>
+<li><strong>warning</strong>: 15000 chars/call（超標 25%）</li>
+<li><strong>critical</strong>: 18000 chars/call（超標 50%）</li>
+<li><strong>emergency</strong>: 24000 chars/call（超標 100%）</li>
+</ul>
+<p>#### 8 個工作流步驟</p>
+<ol>
+<li><strong>讀取當前 I/O 狀態</strong>：從 system-insight.json 取得 avg_io_per_call</li>
+<li><strong>判斷超標程度</strong>：warning / critical / emergency</li>
+<li><strong>執行 I/O 診斷分析</strong>：識別高 I/O Agent（top 5）與工具呼叫（top 10）</li>
+<li><strong>選擇壓縮策略</strong>：</li>
+</ol>
+<p>   - warning → BufferWindow（保留最近 5 次結果）</p>
+<p>   - critical → Summary（壓縮比 0.3）</p>
+<p>   - emergency → Delegation + Summary（壓縮比 0.2）</p>
+<ol>
+<li><strong>產出壓縮指示檔</strong>：寫入 <code>state/context-compression-hint-{SESSION_ID}.txt</code></li>
+<li><strong>記錄壓縮動作</strong>：寫入 <code>context/context-compression-history.json</code></li>
+<li><strong>7 天後驗證效果</strong>：重新執行 system-insight，確認 avg_io_per_call < 12000</li>
+<li><strong>更新 benchmark</strong>（可選）：記錄最佳實踐</li>
+</ol>
+<p>#### 依賴項目</p>
+<p><strong>Config 檔案</strong>：</p>
+<ul>
+<li>config/benchmark.yaml（avg_io_per_call 門檻）</li>
+<li>templates/shared/preamble.md（壓縮策略定義）</li>
+</ul>
+<p><strong>Skills</strong>：</p>
+<ul>
+<li>context-budget-monitor（需建立）</li>
+<li>system-insight（已存在）</li>
+<li>context-compressor（可選）</li>
+<li>ntfy-notify（已存在）</li>
+</ul>
+<p><strong>State 檔案</strong>：</p>
+<ul>
+<li>context/system-insight.json（read）</li>
+<li>state/context-compression-hint-*.txt（write）</li>
+<li>context/context-compression-history.json（append，新建）</li>
+</ul>
+<h2>🎁 預期成果</h2>
+<h3>短期（立即）</h3>
+<p>所有開發者有明確的 I/O 超標診斷與壓縮流程</p>
+<h3>中期（1-2 週）</h3>
+<p>avg_io_per_call 降至 15000 chars 以下（改善 35%），token 用量下降 20%+</p>
+<h3>長期（1-2 月）</h3>
+<p>avg_io_per_call 穩定在 12000 chars 以下，達成 system-insight 門檻目標</p>
+<h2>🔗 整合狀態</h2>
+<ul>
+<li>✅ 產物已產出：<code>workflows/context-io-budget-control-workflow.yaml</code></li>
+<li>✅ 已登記至：<code>workflows/index.yaml</code>（task_types: all, priority: P0）</li>
+<li>✅ 已登記至：<code>context/workflow-forge-registry.json</code></li>
+<li>✅ 格式驗證通過：YAML 語法正確、必填欄位完整、依賴檔案存在</li>
+<li>⚠️ 自動化整合：初期手動觸發，驗證穩定後可整合至 system-insight</li>
+</ul>
+<h2>📌 後續行動建議</h2>
+<ol>
+<li><strong>建立 context-budget-monitor Skill</strong>（依賴項目）</li>
+<li><strong>手動執行一次工作流</strong>，驗證步驟可行性</li>
+<li><strong>觀察 7 天後 avg_io_per_call 變化</strong>，調整壓縮策略參數</li>
+<li><strong>整合至 self-heal 或 system-insight</strong>（當 avg_io_per_call 超標時自動執行）</li>
+</ol>
+<p>---</p>
+<p><strong>關鍵字</strong>: workflow-forge, 流程標準化, Context I/O, 預算控制, 壓縮策略, BufferWindow, Summary, Delegation, 效能優化, token 用量控制</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動 Incident Triage、Log Root Cause 與 Runbook 自動化 — 2026 實作指南">
+  <title>AI 驅動 Incident Triage、Log Root Cause 與 Runbook 自動化 — 2026 實作指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動 Incident Triage、Log Root Cause 與 Runbook 自動化 — 2026 實作指南</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">Incident Triage</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動 Incident Triage、Log Root Cause 與 Runbook 自動化 — 2026 實作指南</h1>
+<h2>技術概述</h2>
+<p>2025-2026 年的 incident response 已從「告警後人工查 dashboard」轉向「AI 先做初步調查、整理假設、再由人決定是否自動修復」。主流做法不是讓模型直接接管生產環境，而是把它放在 triage 前段：先彙整 alerts、logs、traces、change events 與既有 runbook，產出初步根因、影響範圍與建議動作；接著用 automation engine 執行低風險步驟，將高風險 remediation 留在人審核後。這種模式同時降低告警噪音、縮短 MTTR，並把每次事件轉成可回收的組織記憶。</p>
+<h2>核心方法與工具</h2>
+<ul>
+<li><strong>事件入口與分級</strong>：Azure SRE Agent 將 incident handler 分成 <code>Reader mode</code> 與 <code>Autonomous mode</code>，並可依 incident 類型決定自治程度。</li>
+<li><strong>調查與記憶回饋</strong>：PagerDuty SRE Agent 會分析 alert payload、歷史 incidents、change events、runbooks、logs，並在事件結束後生成 playbook；建議每個 service 維護一份 runbook。</li>
+<li><strong>根因分析</strong>：Datadog Watchdog RCA 以 APM metrics、deployments、traces、infra metrics 與 log pattern anomalies 找 root cause、critical failure 與 impact。</li>
+<li><strong>自動化執行</strong>：Datadog Automations 可用 incident 事件觸發 workflow，並透過 <code>{{ incident.id }}</code>、<code>incident.attributes</code>、<code>incident.fieldDiffs</code> 傳遞上下文。</li>
+<li><strong>大量日誌摘要</strong>：New Relic AI Log Alert Summarization 在 log-based alert 觸發時，會分析超過 100,000 筆 log，輸出摘要、發現與建議。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li><strong>Ingest</strong>：收 alert、service metadata、最近 deploy、runbook URL、trace/query link，建立 incident context。</li>
+<li><strong>Classify</strong>：用規則加 AI 分類事件類型，例如 <code>deployment_issue</code>、<code>dependency_outage</code>、<code>resource_saturation</code>、<code>false_positive</code>。</li>
+<li><strong>Summarize evidence</strong>：先跑 logs/traces 摘要，輸出 3-5 個關鍵異常、時間窗與受影響服務。</li>
+<li><strong>Generate hypotheses</strong>：建立可驗證假設，例：<code>12:03 deploy 後 error rate 上升</code>、<code>db connection pool 滿載</code>。</li>
+<li><strong>Rank hypotheses</strong>：依變更事件、相關 incidents、服務拓樸與影響範圍排序。</li>
+<li><strong>Bind runbook</strong>：將最高分假設對應 SOP，例如 rollback、重啟 worker、切流、打開 feature flag fallback。</li>
+<li><strong>Guardrails</strong>：若動作屬於高風險或高嚴重度，只生成建議與待批核指令；低風險才可自動執行。</li>
+<li><strong>Execute automation</strong>：用 workflow engine 執行 Slack 通知、Jira 建單、抓更多 diagnostics、或觸發修復步驟。</li>
+<li><strong>Record learning</strong>：將有效步驟、失敗步驟、最終根因、修復時間寫回 KB 與 service runbook。</li>
+<li><strong>Postmortem reuse</strong>：事件結束後生成 playbook 與 prompt 範本，供下次 triage 直接調用。</li>
+</ol>
+<h2>程式碼 / 配置範例</h2>
+<h3>1. Incident triage policy</h3>
+<pre><code>
+incident_policy:
+  severity_rules:
+    - match: "sev in [SEV-1, SEV-2]"
+      autonomy: "reader"
+      approval_required: true
+    - match: "sev == SEV-3 and service in ['kb', 'worker']"
+      autonomy: "semi_auto"
+      approval_required: false
+  evidence_sources:
+    - alerts
+    - traces
+    - logs
+    - deployments
+    - runbooks
+    - related_incidents
+  output_contract:
+    - summary
+    - hypotheses
+    - recommended_actions
+    - confidence
+    - risk_level
+</code></pre>
+<h3>2. Workflow payload contract</h3>
+<pre><code>
+{
+  "incident_id": "inc_20260320_001",
+  "service": "daily-digest-prompt",
+  "severity": "SEV-3",
+  "summary": "KB import queue backlog after scheduled task burst",
+  "hypotheses": [
+    {
+      "name": "registry write contention",
+      "confidence": 0.72,
+      "evidence": [
+        "results write latency spike",
+        "multiple concurrent KB import attempts"
+      ]
+    }
+  ],
+  "recommended_actions": [
+    "pause duplicate jobs",
+    "run queue depth check",
+    "retry import with lock"
+  ],
+  "approval_required": false
+}
+</code></pre>
+<h3>3. Datadog / 類 Datadog 自動化思路</h3>
+<pre><code>
+Trigger: incident created or severity changed
+Context: {{ incident.id }}, {{ incident.attributes }}, {{ incident.fieldDiffs }}
+Steps:
+1. Send Slack incident summary
+2. Query logs for last 15 minutes
+3. Fetch latest deploy metadata
+4. Ask AI to rank hypotheses
+5. If risk_level == low =&gt; run remediation workflow
+6. Else =&gt; create approval task and attach runbook
+</code></pre>
+<h3>4. Prompt 範本</h3>
+<pre><code>
+你是 incident triage agent。
+請根據 alert、logs、traces、deployments、runbook，輸出：
+1. 100 字內事件摘要
+2. 3 個可驗證根因假設（含信心分數）
+3. 每個假設對應的下一步查證動作
+4. 只列出低風險且可回滾的自動修復建議
+5. 若證據不足，明確標示 unknown
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>New Relic 官方文件指出，其 AI Log Alert Summarization 可在 alert 觸發時分析 <strong>超過 100,000 筆 log</strong>，並在數秒內給出摘要、發現與建議。</li>
+<li>Datadog Watchdog RCA 的官方定位是透過自動化 preliminary investigations 來降低 <strong>MTTR</strong>；文件未提供公開百分比，但明確要求結合 APM 與 unified tagging 才能得到較完整 RCA。</li>
+<li>Azure SRE Agent 與 PagerDuty SRE Agent 目前公開資料偏產品能力說明，未見通用生產力百分比；較穩妥的結論是它們主要把人力從「蒐證與整理」轉移到「審核與決策」。</li>
+</ul>
+<h2>與本專案的應用場景（daily-digest-prompt 如何受益）</h2>
+<ul>
+<li>可把 <code>results/*.json</code>、structured logs、KB import 回應與 scheduler 狀態整合成 incident context，讓 agent 先判讀是 API 掛點、格式錯誤、重複匯入，還是排程衝突。</li>
+<li>可為 <code>todoist-auto-*</code> 任務建立 service-level runbook，例如 KB health check、registry lock、fallback import、結果檔 schema 驗證。</li>
+<li>可在高風險操作前加入 approval gate：例如大量覆寫 registry、批次刪除舊資料、重跑多個自動任務。</li>
+<li>可把每次失敗案例轉成 postmortem note，逐步累積「哪種錯誤訊號對應哪種修復」的 project memory。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li><strong>幻覺風險</strong>：AI 可生成看似合理但錯誤的根因，必須保留 evidence link 與 confidence。</li>
+<li><strong>自動修復風險</strong>：沒有 approval gate 的 rollback、restart、delete 很容易擴大事故。</li>
+<li><strong>資料截斷</strong>：PagerDuty SRE Agent 只分析 <code>custom_details</code> 與 notes 的前 2,000 字元，runbook 與 incident note 要控制密度。</li>
+<li><strong>觀測前提</strong>：Datadog Watchdog RCA 依賴 APM 與標籤治理；若 trace/tagging 不完整，AI 根因排序會失真。</li>
+<li><strong>記憶污染</strong>：把未驗證的 incident 摘要直接寫回知識庫，會讓後續 triage 反覆引用錯誤經驗。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>Microsoft Learn, Azure SRE Agent Incident Management: https://learn.microsoft.com/en-us/azure/sre-agent/incident-management</li>
+<li>PagerDuty Support, SRE Agent: https://support.pagerduty.com/main/docs/sre-agent</li>
+<li>Datadog Docs, Watchdog RCA: https://docs.datadoghq.com/watchdog/rca/</li>
+<li>Datadog Docs, Incident Automations: https://docs.datadoghq.com/incident_response/incident_management/incident_settings/automations/</li>
+<li>New Relic Docs, AI Log Alert Summarization: https://docs.newrelic.com/whats-new/2025/11/whats-new-11-13-ai-log-alert-summarization/</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

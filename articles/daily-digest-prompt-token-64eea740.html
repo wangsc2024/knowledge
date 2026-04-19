@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt Token 消耗效率與排程產能最佳化 — 七日資料驅動分析、空跑消除策略與多後端成本模型調優建議（2026-03-10）">
+  <title>Daily-Digest-Prompt Token 消耗效率與排程產能最佳化 — 七日資料驅動分析、空跑消除策略與多後端成本模型調優建議（2026-03-10） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt Token 消耗效率與排程產能最佳化 — 七日資料驅動分析、空跑消除策略與多後端成本模型調優建議（2026-03-10）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">Token效率</span><span class="tag">排程優化</span><span class="tag">成本控制</span><span class="tag">多後端模型</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-10</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt Token 消耗效率與排程產能最佳化</h1>
+<p><strong>七日資料驅動分析、空跑消除策略與多後端成本模型調優建議</strong></p>
+<p><em>研究日期：2026-03-10</em></p>
+<p><em>類型：專案優化 / 深度思維 / 知識庫</em></p>
+<p><em>適用對象：daily-digest-prompt 專案</em></p>
+<p>---</p>
+<h2>一、現況診斷：七日 Token 消耗模式分析</h2>
+<h3>1.1 消耗數據概覽（2026-03-03 至 2026-03-10）</h3>
+<p>| 日期 | 估算 Tokens | 工具呼叫次數 | 輸入字元 | 輸出字元 | 每次呼叫 Tokens |</p>
+<p>|------|------------|------------|---------|---------|---------------|</p>
+<p>| 03-03 | 224K | 1,547 | 786K | 0 | 145 |</p>
+<p>| 03-04 | 3.75M | 4,530 | 2.32M | 10.8M | 828 |</p>
+<p>| 03-05 | 85K | 152 | 88K | 211K | 562 |</p>
+<p>| 03-06 | 2.27M | 1,507 | 669K | 7.26M | 1,504 |</p>
+<p>| 03-07 | 16.3M | 4,879 | 2.77M | 54.4M | 3,347 |</p>
+<p>| 03-08 | 8.46M | 3,673 | 1.88M | 27.7M | 2,303 |</p>
+<p>| 03-09 | 30.5M | 2,438 | 1.04M | 105.6M | 12,507 |</p>
+<p>| 03-10 | 1.41M | 890 | 328K | 4.61M | 1,587 |</p>
+<h3>1.2 關鍵發現</h3>
+<ol>
+<li><strong>極端波動</strong>：最低 85K（03-05）至最高 30.5M（03-09），<strong>差距 358 倍</strong>。這表明系統缺乏穩定的每日 Token 預算控制。</li>
+<li><strong>輸出主導成本</strong>：03-09 的 output_chars 達 105.6M，而 input_chars 僅 1.04M（比值 101:1）。以業界輸出 token 計費約為輸入的 4-5 倍計算，<strong>輸出 token 佔總成本 >95%</strong>。</li>
+<li><strong>高密度日的效率反常</strong>：03-09 僅 2,438 次工具呼叫卻產出 30.5M tokens，平均每次呼叫 12,507 tokens — 這暗示某些自動任務產出了超長的研究報告或程式碼，但這些長文本不一定全部有效。</li>
+<li><strong>空跑浪費</strong>：<code>run-fsm.json</code> 顯示多個 todoist 執行的 Phase 2 為「0 agents done, 0 failed」（如 b2b09c51、f4823ed9），這些空跑仍消耗了完整的 Phase 1 查詢 token + Phase 3 組裝 token。</li>
+</ol>
+<h3>1.3 失敗模式統計</h3>
+<p>| 失敗類型 | 7 天總計 | 趨勢 |</p>
+<p>|---------|---------|------|</p>
+<p>| Timeout | 7 | 03-01~03-04 集中 |</p>
+<p>| Phase Failure | 6 | 零散分佈 |</p>
+<p>| API Error | 0 | 穩定 |</p>
+<p>| Circuit Open | 0 | 穩定 |</p>
+<p>每次 timeout 浪費的 token 約等於正常執行的 80-100%（等到超時才中斷），7 次 timeout 估計浪費 <strong>3-5M tokens</strong>。</p>
+<p>---</p>
+<h2>二、五大優化策略</h2>
+<h3>策略 1：空跑消除 — Phase 0 預判機制（預估節省 10-15%）</h3>
+<p><strong>問題</strong>：當 Todoist 無待辦且自動任務已達上限時，系統仍啟動完整的 Phase 1 Agent 查詢（~2 分鐘、~30K tokens），然後才在 Phase 1 末尾判定為 idle。</p>
+<p><strong>建議</strong>：在 <code>run-todoist-agent-team.ps1</code> 的 Phase 0（PowerShell 層）新增快速預判：</p>
+<pre><code>
+# Phase 0.5: 快速預判（PowerShell 層，0 token 消耗）
+$autoTasks = Get-Content 'context/auto-tasks-today.json' | ConvertFrom-Json
+$allExhausted = Test-AllAutoTasksExhausted -Tasks $autoTasks -Limits $frequencyLimits
+$lastPlanType = (Get-Content 'results/todoist-plan.json' -EA 0 | ConvertFrom-Json).plan_type
+
+if ($allExhausted -and $lastPlanType -eq 'idle') {
+    Write-Log "Phase 0.5: 預判 idle（自動任務全滿 + 上次 idle）→ 跳過本次執行"
+    Set-FsmState -Phase 'skipped' -Detail 'pre-judge-idle'
+    exit 0
+}
+</code></pre>
+<p><strong>預期效果</strong>：每日 44 次排程執行中，估計 10-15 次為空跑（深夜 02:00-07:00 + 任務清空後的尾時段），可節省 <strong>300K-450K tokens/日</strong>。</p>
+<h3>策略 2：輸出 Token 預算控制（預估節省 20-30%）</h3>
+<p><strong>問題</strong>：<code>model-selection.yaml</code> 的 <code>phase1_max_tokens</code> 控制輸入，但<strong>未控制輸出</strong>。研究任務的 LLM 傾向產出 5,000-15,000 字的長文報告，但知識庫筆記有效閱讀長度通常在 1,500-3,000 字。</p>
+<p><strong>建議</strong>：</p>
+<ol>
+<li><strong>在 prompt 層加入輸出長度指引</strong>（零成本）：</li>
+</ol>
+<p>   - 研究報告：「核心分析 1,500-2,500 字，附錄 500 字以內」</p>
+<p>   - 系統分析：「摘要 300 字 + 行動項 5 條以內」</p>
+<ol>
+<li><strong>在 <code>model-selection.yaml</code> 新增 <code>max_output_tokens</code></strong>：</li>
+</ol>
+<p>   ```yaml</p>
+<p>   output_budgets:</p>
+<p>     research: 4000      # 研究任務輸出上限</p>
+<p>     system: 2000        # 系統維護輸出上限</p>
+<p>     creative: 6000      # 創意任務（遊戲/Podcast）可較高</p>
+<p>     default: 3000</p>
+<p>   ```</p>
+<ol>
+<li><strong>Claude CLI 參數</strong>：<code>claude -p --max-tokens 4000</code>（若 CLI 支援）</li>
+</ol>
+<p><strong>參考</strong>：業界最佳實踐指出，精簡 prompt 指引可節省 30-50% 輸出 token（來源：Elementor Engineers Medium 文章）。</p>
+<h3>策略 3：研究任務去重增強 — 成本感知（預估節省 15-20%）</h3>
+<p><strong>問題</strong>：現有去重機制基於「主題完全相同才冷卻」，但 KB 中 AI 相關筆記已超過 46 篇，同主題不同角度的研究邊際效益遞減。</p>
+<p><strong>建議</strong>：</p>
+<ol>
+<li><strong>成本效益門檻</strong>：在 <code>dedup-policy.yaml</code> 新增：</li>
+</ol>
+<p>   ```yaml</p>
+<p>   cost_aware:</p>
+<p>     daily_research_token_budget: 5000000  # 5M tokens/日</p>
+<p>     per_research_token_estimate: 800000   # 每次研究約 800K tokens</p>
+<p>     max_research_per_day: 6               # 基於預算計算</p>
+<p>     diminishing_return_threshold: 5       # 同 domain 超過 5 篇後減半頻率</p>
+<p>   ```</p>
+<ol>
+<li><strong>動態研究頻率</strong>：當日 token 已超過 <code>daily_research_token_budget</code> 的 70% 時，剩餘研究任務改用 Haiku/OpenRouter free tier（成本降 5-10x）。</li>
+</ol>
+<h3>策略 4：排程密度智能化 — 從固定時刻到自適應（預估節省 10-15%）</h3>
+<p><strong>問題</strong>：目前排程為固定 cron（每小時整點 single + 半點 team），即使 02:00-07:00 幾乎不會有新的 Todoist 任務。</p>
+<p><strong>建議</strong>：</p>
+<ol>
+<li><strong>分時段頻率</strong>：</li>
+</ol>
+<p>   ```yaml</p>
+<p>   scheduling_zones:</p>
+<p>     peak:     # 08:00-23:00：每 30 分鐘一次（維持現狀）</p>
+<p>       interval: 30</p>
+<p>     off_peak:  # 00:00-07:00：每 2 小時一次（減少 75%）</p>
+<p>       interval: 120</p>
+<p>     idle:      # 若連續 3 次 plan_type=idle → 暫停 4 小時</p>
+<p>       backoff: 240</p>
+<p>   ```</p>
+<ol>
+<li><strong>自適應退避</strong>：連續 N 次 idle 後指數退避。參考 Jenkins 的 <code>H</code> 符號散列策略，避免所有任務同時啟動。</li>
+</ol>
+<p><strong>預期效果</strong>：凌晨 6 小時從 12 次降至 3 次，每次節省 ~30K tokens = <strong>270K tokens/日</strong>。</p>
+<h3>策略 5：Prompt 快取最大化 — 共用前言靜態化（預估節省 5-10%）</h3>
+<p><strong>問題</strong>：每次 <code>claude -p</code> 呼叫都重新載入 <code>preamble.md</code>、<code>SKILL_INDEX.md</code>、<code>CLAUDE.md</code> 等共用 context，這些內容在同一天內幾乎不變。</p>
+<p><strong>建議</strong>：</p>
+<ol>
+<li><strong>Anthropic Prompt Caching</strong>：若 Claude API 支援 prompt caching（2026 年已普遍支援），將不變的系統 prompt 標記為 cacheable。官方數據顯示快取命中可減少 75-90% 的 input token 成本。</li>
+</ol>
+<ol>
+<li><strong>共用 context 預編譯</strong>：Phase 0 生成一份 <code>cache/compiled-context.md</code>，合併 preamble + SKILL_INDEX + 當日配置快照，減少每次 Agent 啟動時的重複讀取。</li>
+</ol>
+<ol>
+<li><strong>Codex 端</strong>：利用 Codex 的 cached web search 模式（已部分實施），確保同日重複主題搜尋命中快取。</li>
+</ol>
+<p>---</p>
+<h2>三、多後端成本模型現況與調優</h2>
+<h3>3.1 現有後端配置評估</h3>
+<p>| 後端 | 適用任務 | 優勢 | 待優化 |</p>
+<p>|------|---------|------|--------|</p>
+<p>| claude_sonnet | Phase 1/3、預設 | 工具鏈完整 | Phase 1 idle 判定可提前 |</p>
+<p>| claude_sonnet45 | 系統任務（6 個） | 推理強 | 部分任務（skill_audit）可降級 |</p>
+<p>| claude_haiku | 緊急降級 | 便宜 | 可作為 Phase 1 查詢預設 |</p>
+<p>| codex_exec (gpt-5.4) | 研究任務（11 個） | WebSearch 內建 | 輸出過長，需加 budget |</p>
+<p>| codex_standard | 創意/QA/GitHub | 程式碼強 | 3 個任務全停用(daily_limit=0) |</p>
+<p>| openrouter_free | git_push | 免費 | 可擴展至更多低複雜度任務 |</p>
+<h3>3.2 調優建議</h3>
+<ol>
+<li><strong>Phase 1 預設改用 Haiku</strong>：Phase 1 的本質是「Todoist 查詢 + 路由 + 計分」，邏輯相對固定，Haiku 足以勝任。估計節省 Phase 1 成本 60-70%。</li>
+</ol>
+<ol>
+<li><strong>停用任務清理</strong>：<code>codex_standard</code> 對應的 3 個任務（creative_game/qa_optimize/github_scout）全部 daily_limit=0，可從 <code>task_rules</code> 中移除，減少配置認知負擔。</li>
+</ol>
+<ol>
+<li><strong>OpenRouter 擴展</strong>：<code>log_audit</code>（固定 Bash 序列）和 <code>self_heal</code>（讀狀態 + 簡單修復）的邏輯複雜度低，可從 claude_sonnet45 降級至 openrouter_standard，大幅降低成本。</li>
+</ol>
+<p>---</p>
+<h2>四、實施優先級與預期投資回報</h2>
+<p>| 優先級 | 策略 | 實施複雜度 | 預期節省 | 風險 |</p>
+<p>|--------|------|-----------|---------|------|</p>
+<p>| P0 | 空跑消除（Phase 0.5 預判） | 低（~30 行 PS） | 10-15% | 極低 |</p>
+<p>| P0 | 輸出長度指引（prompt 修改） | 低（模板修改） | 20-30% | 低 |</p>
+<p>| P1 | 排程密度智能化 | 中（PS + YAML） | 10-15% | 低 |</p>
+<p>| P1 | Phase 1 改用 Haiku | 低（YAML 修改） | 5-8% | 需驗證路由準確率 |</p>
+<p>| P2 | 成本感知去重 | 中 | 15-20% | 需調參避免阻斷有價值研究 |</p>
+<p>| P2 | Prompt 快取最大化 | 中（需 API 支援） | 5-10% | 依賴 CLI 功能 |</p>
+<p><strong>綜合預期</strong>：若 P0+P1 全部實施，預估可將日均 Token 消耗從目前的 ~8M 降至 ~4-5M（節省 40-50%），同時維持相同的任務完成率。</p>
+<p>---</p>
+<h2>五、監控與持續改進</h2>
+<h3>5.1 建議新增度量</h3>
+<ol>
+<li><strong>Token 效率比</strong>：<code>有效輸出字元 / 總輸出字元</code>（有效 = 實際寫入 KB 或結果檔案的內容）</li>
+<li><strong>空跑率</strong>：<code>idle 執行次數 / 總排程執行次數</code>（目標 < 20%）</li>
+<li><strong>單次研究成本</strong>：<code>研究任務 tokens / 研究任務次數</code>（目標 < 800K）</li>
+<li><strong>後端使用比例</strong>：各後端佔比趨勢（目標：Claude Opus 佔比逐步降至 < 30%）</li>
+</ol>
+<h3>5.2 告警閾值建議</h3>
+<pre><code>
+# config/token-alerts.yaml（建議新增）
+alerts:
+  daily_warn: 5000000     # 5M tokens/日
+  daily_critical: 10000000 # 10M tokens/日
+  per_run_warn: 500000     # 50 萬 tokens/次
+  idle_rate_warn: 0.3      # 空跑率 &gt; 30%
+</code></pre>
+<p>---</p>
+<h2>六、與既有優化筆記的互補關係</h2>
+<p>本文聚焦「經濟效率」維度，與 KB 中以下筆記互補：</p>
+<ul>
+<li><strong>可觀測性成熟度演進路線圖</strong>（2026-03-03）：提供度量基礎設施，本文的監控建議可整合其指標聚合框架</li>
+<li><strong>跨 Phase 資料契約</strong>（2026-03-07）：Schema 治理確保資料完整性，本文的空跑消除依賴 Phase 1 輸出的 plan_type 欄位</li>
+<li><strong>Skill 生態系統依賴圖治理</strong>（2026-03-09）：Skill 版本管理影響 prompt 快取命中率</li>
+<li><strong>Prompt 模板生態系統治理</strong>（2026-03-08）：模板精簡直接減少 input tokens</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Redis Blog — LLM Token Optimization: Cut Costs & Latency in 2026</li>
+<li>byteiota — LLM Cost Optimization: Stop Overpaying 5-10x in 2026</li>
+<li>Elementor Engineers (Medium) — Token Optimization Strategies for AI Agents</li>
+<li>DEV Community — How to Ensure Your AI Agents Do Not Consume Too Many Tokens</li>
+<li>Factory Documentation — Token Efficiency Strategies</li>
+<li>Stevens Online — The Hidden Economics of AI Agents: Managing Token Costs and Latency Trade-offs</li>
+<li>DataCamp — Top 10 Methods to Reduce LLM Costs</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

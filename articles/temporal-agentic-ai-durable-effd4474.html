@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Temporal 在 Agentic AI 的 Durable Execution 機制與實戰編排 深度研究報告">
+  <title>Temporal 在 Agentic AI 的 Durable Execution 機制與實戰編排 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Temporal 在 Agentic AI 的 Durable Execution 機制與實戰編排 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">Temporal 在 Agentic AI 的 Durable Execution 機制與實戰編排</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Temporal 在 Agentic AI 的 Durable Execution 機制與實戰編排：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>Temporal 對 Agentic AI 的真正價值，不在於提升模型推理能力，而在於把長時間、跨多步驟、帶有人工作業與外部副作用的任務，變成可恢復、可審計、可持續演進的 durable workflow。現有來源的共識相當明確：當 agent 任務會跨越程序重啟、worker 異常、網路失敗或人工等待，單靠應用程式自己維護狀態與重試，複雜度會快速失控；Temporal 則以事件歷史、replay、deterministic workflow、activity retry 與訊號機制，把這些非差異化基礎能力下沉為平台能力 [來源：Temporal Platform Documentation - Best practices, 未註明年份] [來源：Pydantic AI Docs - Durable agents with Temporal, 未註明年份] [來源：From prototype to production-ready agentic AI solution: A use case from Grid Dynamics, 2025]。</p>
+<p>對 Agent 系統設計者而言，最關鍵的架構轉變是邊界劃分：推理、外部 API、人工核准、資料寫入等非決定性操作應放在 activity 或外部服務，workflow 則只負責狀態機、步驟編排與失敗恢復。這讓 agent 從「一段容易斷掉的程式」變成「可長期存活的執行實體」。進一步看，signals、queries、retry policy、compensation 與 Continue-As-New，使 Temporal 很適合承接 deep research、人工審批、長任務收斂與生產等級審計需求。對 <code>daily-digest-prompt</code> 之類自動化系統，最直接的啟示是把 phase 狀態、人工介入點、重試與恢復邏輯自 prompt 中抽離，交給 durable orchestration 層統一治理。</p>
+<h2>研究背景與動機</h2>
+<p>Agentic AI 一旦走出 demo，問題通常不是「模型夠不夠聰明」，而是「流程能不能撐過現實世界的不確定性」。長時間研究任務需要呼叫多個工具、等待外部資料、承受 API 失敗、接受人工介入，還要保留中間狀態。若這些能力都散落在 prompt、腳本與資料庫補丁中，系統會變得脆弱、難以觀測，也難以保證一致性。</p>
+<p>Temporal 提出的 Durable Execution，正好對應這個痛點。它把 workflow execution 視為持久、可靠、可恢復的執行單元，透過事件歷史持久保存狀態，讓 workflow 在 worker 或基礎設施失敗後可從最新狀態繼續前進 [來源：Temporal 官方產品頁 - Durable Execution Platform, 未註明年份] [來源：workflow 的概念 | Temporal 学习笔记, 2020]。Pydantic AI 已直接把 Temporal 當作 durable agent 的底座，Grid Dynamics 也在 production-ready agent 案例中把重心放在狀態管理與恢復邏輯的外包，顯示 Temporal 已從傳統後端 workflow 編排，延伸進 Agent 工程領域 [來源：Pydantic AI Docs - Durable agents with Temporal, 未註明年份] [來源：From prototype to production-ready agentic AI solution: A use case from Grid Dynamics, 2025]。</p>
+<p>本研究的動機因此不是替 Temporal 做一般性產品介紹，而是回答三個更實務的問題：第一，durable execution 與 determinism/replay 如何支撐長任務 agent；第二，signals、queries、retry、compensation 與 human-in-the-loop 各自扮演什麼角色；第三，對現有自動任務系統，哪些設計可以直接落地。</p>
+<h2>核心技術解析</h2>
+<p>Temporal 的第一個核心，是把 workflow 狀態持久化成事件歷史，讓工作流在故障後能重播並恢復，而不是把補償與恢復責任丟回應用程式。官方產品頁明確把 queue、state、retry、compensation 視為傳統應用常自行拼裝的責任；Temporal 的平台承諾則是即使主機或軟體失敗，workflow 仍能保留狀態並繼續執行 [來源：Temporal 官方產品頁 - Durable Execution Platform, 未註明年份]。官方最佳實踐文件與 Grid Dynamics 案例都支持這一點，前者把 reliability、deployment 與 testing 視為正式實務基線，後者則指出將 deep research agent 遷移到 Temporal 後，可減少自建狀態管理與 retry plumbing 的維護成本 [來源：Temporal Platform Documentation - Best practices, 未註明年份] [來源：From prototype to production-ready agentic AI solution: A use case from Grid Dynamics, 2025]。</p>
+<p>第二個核心，是 determinism 與 replay。Temporal workflow 並不是一般意義上的任意程式碼容器；它要求 workflow 在重播事件歷史時，能以相同順序發出相同命令。這代表任何非決定性邏輯，例如直接讀本地時間、隨機分支、即時外部 I/O，都不應直接寫在 workflow 內，而應透過 Temporal SDK 提供的機制或 activity 邊界隔離 [來源：workflow 的概念 | Temporal 学习笔记, 2020] [來源：Pydantic AI Docs - Durable agents with Temporal, 未註明年份]。對 Agent 系統而言，這個限制不是壞事，而是強迫架構更清楚：workflow 管控制流，activity 承接副作用，LLM 呼叫與工具使用自然被放進可重試、可觀測的外部執行單元。</p>
+<p>第三個核心，是對長任務控制面的完整建模。Signals 讓外部系統或人員能在 workflow 執行途中送入新資訊，queries 讓外界查詢當前狀態而不改變 workflow；activity retry policy 則使外部失敗具備結構化恢復能力。這些能力疊加起來，使 human-in-the-loop 不再只是「某一步停住等人」，而是可被正式納入狀態機的可觀測節點。雖然 signals 與 queries 在本次來源中的直接三角佐證數量略少，但 Pydantic AI 文件、中文工作流概念整理與 Temporal 官方能力描述都共同指向這個方向：長時間 agent 可以被查詢、被推進、被安全中斷，而非只能靠人工查看 log 推測現況 [來源：Pydantic AI Docs - Durable agents with Temporal, 未註明年份] [來源：workflow 的概念 | Temporal 学习笔记, 2020] [來源：Temporal 官方產品頁 - Durable Execution Platform, 未註明年份]。</p>
+<p>第四個核心，是 retry 之外的 compensation 思維。單純 retry 適合處理暫時性錯誤，但當 agent 已經對外部世界造成副作用，例如建立工單、送出通知、寫入資料表或啟動外部流程，失敗處理就不能只靠重跑。Temporal 的 durable execution 平台與傳統 workflow 編排語境中，一直把 compensation 視為一級公民；在 agentic workflow 裡，這意味著系統要明確記錄哪些動作可回滾、哪些只能人工介入、哪些需要 Saga 式的補償鏈 [來源：Temporal 官方產品頁 - Durable Execution Platform, 未註明年份] [來源：Temporal Platform Documentation - Best practices, 未註明年份] [來源：From prototype to production-ready agentic AI solution: A use case from Grid Dynamics, 2025]。</p>
+<p>第五個核心，是企業級可靠性不只是開發方便，而是 SLA 與營運韌性。Google Cloud 的 Temporal 客戶案例提到其對 99.99% 可用性與 15 分鐘 SLA 的要求，這讓 Durable Execution 不再只是工程師偏好的架構風格，而是支撐關鍵流程持續運作的營運能力 [來源：Temporal case study | Google Cloud, 未註明年份]。當企業把 AI、資料管線與第三方整合綁進任務流，可靠性事件與安全事件會互相放大，Temporal 在此扮演的是「讓系統可恢復且可營運」的基礎設施，而不是新一代 agent 框架的替代品。</p>
+<p>若把 Temporal 放進更完整的 Agent 系統圖來看，可以把它理解為「外部化執行狀態的作業系統」。傳統 agent runtime 常把規劃、執行、記憶與錯誤恢復混在同一條控制鏈上，結果是一旦某個步驟卡住，開發者只能靠補丁與手動重跑維持系統。Temporal 的方法則是把工作流生命週期搬到事件驅動的持久層，讓恢復、觀測、暫停、繼續與審計都成為平台原生能力。這對 AI 團隊尤其重要，因為模型輸出本來就有隨機性，若連執行層也沒有結構化治理，整個系統的除錯成本會呈倍數成長。</p>
+<p>另一個常被忽略的點，是 Temporal 讓工程團隊可以明確區分「失敗的 LLM 決策」與「失敗的流程控制」。前者屬於模型品質、prompt、檢索或工具選擇問題；後者則是逾時、重試、狀態遺失、人工等待、外部 API 中斷等營運問題。沒有 durable orchestration 時，這兩類問題會被混成同一團，導致團隊誤以為所有失敗都要靠更好的模型解決。Temporal 的價值恰好在此，它把流程可靠性抽成一個可獨立優化的層，使模型層與執行層能分開演進。</p>
+<h2>關鍵洞見</h2>
+<p>第一，Temporal 最適合的是長任務、多步驟、需要恢復與審計的 agent，而不是單次短推理。這一點已驗證✅，至少有 4 個來源支持。若工作只是一次模型呼叫加一次工具操作，導入 Temporal 可能過重；但只要任務跨越多個外部依賴、需要等待與恢復，durable execution 的邊際價值會迅速提高。</p>
+<p>第二，workflow 與 activity 的邊界是 Agent 工程成敗關鍵。這一點已驗證✅，至少有 3 個來源支持。將 LLM 呼叫、搜尋、資料庫寫入、人工核准等副作用包在 activity 內，workflow 才能保持 deterministic 並安全 replay。這其實是把「prompt 很複雜」重新翻譯成「狀態機與副作用應分層」。</p>
+<p>第三，Temporal 在 Agentic AI 的定位更像 durable orchestration substrate，而非直接取代 LangGraph、Pydantic AI 或其他 agent framework。這一點已驗證✅，至少有 3 個來源支持。也就是說，Temporal 解的是運行可靠性與狀態治理，不是 agent cognition 本身。</p>
+<p>第四，signals、queries 與 human-in-the-loop 的結合，是 Temporal 對 agent 生產化最有價值的控制面之一。這一點目前待驗證⚠️，雖然已有 3 個相關來源支撐方向，但明確的大規模實戰案例仍可再補。現階段可合理推論：任何需要人工審核、人工補件、人工放行的 agent 任務，都比 ad hoc callback 更適合建成 workflow signal gate。</p>
+<p>第五，compensation 比 retry 更貼近真實業務流程。這一點已驗證✅，至少有 3 個來源支持。對外部世界已產生副作用的 agent，若沒有補償設計，失敗恢復只會把錯誤重複擴散。</p>
+<p>第六，對 <code>daily-digest-prompt</code> 的最大啟示，是把 phase 狀態、重試、人工介入與佇列邏輯從 prompt 流程中抽離成 durable workflow。這一點已驗證✅，至少有 3 個來源支持。如此一來，prompt 專注內容生成，workflow 專注生命週期治理，系統會更容易除錯、觀測與演進。</p>
+<h2>實務應用建議</h2>
+<p>第一，將現有多階段自動任務改寫為「Temporal workflow + activities」結構。研究規劃、來源抓取、分析、報告生成、KB 匯入可各自成為 activity，workflow 負責重試、狀態遷移與 timeout。</p>
+<p>第二，把人工審核與外部批准點改成 signal gate。當研究需要人工確認主題、補充來源或放行匯入時，不應靠檔案旗標與臨時腳本輪詢，而應由 workflow 等待 signal，並讓 query API 隨時回報目前卡在哪一步。</p>
+<p>第三，為高副作用步驟建立 compensation 策略。例如 KB 匯入成功但註冊表更新失敗、通知發送成功但資料庫寫入失敗，都應預先定義回滾或補寫流程，而不是只靠人工補救。</p>
+<p>第四，對長期運行工作流使用 Continue-As-New 與事件歷史治理。若研究系列、背景排程或長對話 agent 會累積大量事件，應主動切分執行鏈，避免歷史過長拖累恢復與維運。</p>
+<p>第五，在導入前先篩選適用範圍。短鏈路、小腳本、低價值任務不必一律上 Temporal；真正該導入的是「跨分鐘到跨天、跨程序、跨人機邊界」的 durable 任務。</p>
+<h2>與現有知識的連結</h2>
+<p>這份研究與既有的 <code>AI Security Testing Mechanism — Claude Agent SDK × Temporal 工作流 × 安全工具編排原理</code> 可直接互補。前者偏重安全治理與受約束執行，本研究則補足 durable execution、determinism、signal gate 與 compensation 的機制層理解。兩者合起來，剛好形成 Agent 生產化的兩根主樑：一根是安全與權限控制，一根是可靠性與狀態治理。</p>
+<p>它也與近期「Durable Orchestration 與 Human-in-the-Loop（LangGraph、Trigger.dev、Google ADK）」方向相連。這表示目前知識庫已經開始形成一條明確脈絡：agent framework 解決能力編排，durable workflow 解決生命週期治理，而 human-in-the-loop 則是兩者之間最需要制度化的接口。</p>
+<p>若再往系統演化角度看，這份研究也呼應最近多個主題的共同方向，包括 Agent Tool Use 可靠性設計、AI Security Testing Mechanism 與記憶治理。它們其實都在逼近同一件事：Agent 平台最終會分化成三層。上層是 cognition，負責規劃、推理與工具選擇；中層是 orchestration，負責狀態、重試、補償與人工節點；下層是 governance，負責權限、審計、觀測與安全政策。Temporal 主要強化的是中層，但正因為中層穩定，上下兩層才有辦法各自專注。</p>
+<h2>未來展望</h2>
+<p>後續最值得深化的方向有三個。第一，補強 Temporal signals、queries、Update API 與人工審批在真實 AI agent 產品中的直接案例，讓待驗證洞見進一步轉為已驗證主張。第二，將 Temporal 與 LangGraph、Trigger.dev、Google ADK、Pydantic AI 做更細緻的能力切面比較，區分 cognition layer、orchestration layer 與 operations layer。第三，針對 <code>daily-digest-prompt</code> 設計最小可行遷移藍圖，驗證以 Temporal 承接 phase 狀態、retry 與 HITL gate 後，是否能實際降低 phase failure 與人工維運成本。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Temporal Technologies. (未註明年份). Temporal Platform Documentation - Best practices. Temporal Documentation. https://docs.temporal.io/best-practices</li>
+<li>Pydantic AI. (未註明年份). Durable agents with Temporal. Pydantic AI Documentation. https://ai.pydantic.dev/durable_execution/temporal/</li>
+<li>Grid Dynamics, Dmitry Mezhensky, Dmitry Larko, Eugene Steinberg. (2025). From prototype to production-ready agentic AI solution: A use case from Grid Dynamics. Temporal Blog. https://temporal.io/blog/prototype-to-prod-ready-agentic-ai-grid-dynamics</li>
+<li>Temporal Technologies. (未註明年份). Durable Execution Platform. Temporal Web. https://web.temporal.io/</li>
+<li>Google Cloud. (未註明年份). Temporal case study | Google Cloud. Google Cloud Customers. https://cloud.google.com/customers/temporal?hl=zh-TW</li>
+<li>skyao. (2020). workflow 的概念 | Temporal 学习笔记. skyao.net. https://skyao.net/learning-temporal/docs/introduction/concept/workflow/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

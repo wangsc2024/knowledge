@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="端側多模態小模型的離線工具調用與 RAG：從 Gemma 3n、FunctionGemma 到 AI Edge Gallery 的應用架構 深度研究報告">
+  <title>端側多模態小模型的離線工具調用與 RAG：從 Gemma 3n、FunctionGemma 到 AI Edge Gallery 的應用架構 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>端側多模態小模型的離線工具調用與 RAG：從 Gemma 3n、FunctionGemma 到 AI Edge Gallery 的應用架構 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">端側多模態小模型的離線工具調用與 RAG：從 Gemma 3n、FunctionGemma 到 AI Edge Gallery 的應用架構</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>端側多模態小模型的離線工具調用與 RAG：從 Gemma 3n、FunctionGemma 到 AI Edge Gallery 的應用架構深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>2026 年的端側 AI 已從「模型能不能跑起來」轉向「多模態理解、工具調用、RAG 與硬體加速能否組成可部署系統」。本研究交叉比對 Google 官方文件、LiteRT 生態文件與 AI Edge 開源專案後，得到五點結論：Gemma 3n 已具備端側多模態能力；Function calling 仍需由應用層安全執行；FunctionGemma、LiteRT-LM 與 LiteRT 分別對應工具決策、推理編排與硬體 runtime；離線 RAG 的核心價值在私有本地資料檢索；AI Edge Gallery 已展示一條可產品化的本地 AI 路線。對 <code>daily-digest-prompt</code> 類專案，最可行的起點不是完整端側自治 agent，而是離線摘要、文件檢索與白名單工具調用的混合架構。</p>
+<h2>研究背景與動機</h2>
+<p>端側 AI 的吸引力很直接。它把延遲、成本與隱私三件事綁在一起處理。只要模型能在裝置上完成第一輪理解與部分決策，使用者資料就不必每次送回雲端，應用也能在斷網時維持基本能力。過去這件事常卡在兩個瓶頸：模型太大，以及裝置端缺少成熟的編排層。2025 到 2026 的 Google AI Edge 生態顯示，這兩個瓶頸正在被拆開處理。</p>
+<p>Gemma 3n 代表的是端側多模態理解能力的提升。FunctionGemma 代表的是小型、低延遲、可控的工具調用能力。LiteRT-LM 與 LiteRT 代表的是把模型、快取、session 與硬體加速整合為可部署系統的工程層。AI Edge Gallery 則把這些零件做成一個真實可操作的範例應用，讓研究不再停留在 paper demo 或單一 benchmark。</p>
+<p>本研究的動機不是替某個模型做性能宣傳，而是回答一個更實際的問題：若要把端側多模態、離線 RAG 與工具調用能力落地到個人助理、知識檢索或行動工作流，應該如何切分責任、如何避開錯誤期待、又該從哪個最小可行架構開始。</p>
+<h2>核心技術解析</h2>
+<p>Gemma 3n 的第一個關鍵是端側多模態能力已成為產品化前提，而不只是研究附加值。Google 在 2025 年將 Gemma 3n 定位為可在端側處理文字、圖片、影片與音訊輸入的多模態小模型 [來源：On-device small language models with multimodality, RAG, and Function Calling, 2025]。中文官方簡介也把它明確描述為為手機、筆電與平板最佳化，並採用 PLE cache 與 MatFormer 來降低記憶體與運算壓力 [來源：Gemma 3n 模型簡介, 2025]。這表示端側應用的第一層已經不是單純聊天，而是把相簿問答、音訊摘要、視覺理解納入同一模型入口。</p>
+<p>第二個關鍵是 function calling 的責任邊界。Gemma 官方文件一再強調，模型不會自行執行程式碼；它只會輸出符合工具 schema 的呼叫內容，真正執行工具的是應用程式 [來源：Function calling with Gemma, 2025]。這個邊界非常重要，因為它決定了安全性、可觀測性與錯誤恢復都必須放在應用層，而不是寄望模型「自己會小心」。FunctionGemma 的價值正是在此。它是為 agentic tasks 與 tool use 微調的小模型，目標是讓工具選擇與輸出格式更穩定，並支援 local-first deployment [來源：FunctionGemma model overview, 2025]。換句話說，FunctionGemma 比較像本地 API 路由器，而不是全能助理。</p>
+<p>第三個關鍵是 LiteRT-LM 與 LiteRT 的分工。LiteRT GenAI overview 把堆疊清楚拆成三層：上層是模型與生成 API，中間是 LiteRT-LM 的語言模型編排層，下層是 LiteRT runtime 與轉換鏈 [來源：Deploy GenAI Models with LiteRT, 2026]。LiteRT-LM 管的是 session cloning、KV-cache management、prompt caching 與 stateful inference [來源：Deploy GenAI Models with LiteRT, 2026]；LiteRT 則面向 CPU、GPU、NPU 的底層執行與新一代 CompiledModel API [來源：LiteRT: The Universal Framework for On-Device AI, 2026]。這個分工說明，端側 AI 的工程難度已不在單純載入模型，而在於如何把狀態、快取與硬體能力收斂成穩定服務。</p>
+<p>第四個關鍵是離線 RAG 的位置。Google 的 AI Edge 說明把 RAG 描述為可替換資料庫、chunking 與 retrieval function 的模組，而不是某個被綁定的專有服務 [來源：On-device small language models with multimodality, RAG, and Function Calling, 2025]。這種設計很適合個人裝置情境，因為使用者真正需要檢索的內容通常是本地 PDF、筆記、相片描述、工作紀錄或暫存文件，而不是公開網頁。離線 RAG 的價值因此更偏向「私有上下文補全」，而不是「裝置內建搜尋引擎」。</p>
+<p>第五個關鍵是 AI Edge Gallery 所揭露的產品化路線。這個開源專案明確標示自己是 fully offline、private、mobile-device local inference 的範例應用，並展示 Ask Image、Audio Scribe、Prompt Lab、AI Chat 以及 Bring Your Own Model [來源：Google AI Edge Gallery, 2026]。這說明多模態互動、模型切換與本地使用者體驗，已能在同一套應用內協作。它不是單純展示模型會答題，而是展示部署、下載、切換、觀察與互動的整體 UX。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ 已驗證：端側 agent 的合理拆法是「Gemma 3n 做多模態理解、FunctionGemma 做工具決策、LiteRT-LM 做推理編排、LiteRT 做硬體執行」。這一點至少由四個來源共同支持，且彼此角色分工清楚 [來源：FunctionGemma model overview, 2025] [來源：Deploy GenAI Models with LiteRT, 2026] [來源：LiteRT-LM GitHub README, 2026] [來源：On-device small language models with multimodality, RAG, and Function Calling, 2025]。</li>
+</ol>
+<ol>
+<li>✅ 已驗證：function calling 的安全邊界必須落在應用層。模型只負責產生工具意圖，不能把工具執行權直接等同於模型推理輸出 [來源：Function calling with Gemma, 2025] [來源：FunctionGemma model overview, 2025] [來源：LiteRT-LM GitHub README, 2026]。</li>
+</ol>
+<ol>
+<li>✅ 已驗證：離線 RAG 真正適合的不是大型公共知識問答，而是以本地私有資料為主的個人上下文補全。這個結論由 AI Edge 官方 RAG 描述、Gallery 的本地產品樣態與 LiteRT-LM 的狀態/快取能力共同支持 [來源：On-device small language models with multimodality, RAG, and Function Calling, 2025] [來源：Google AI Edge Gallery, 2026] [來源：Deploy GenAI Models with LiteRT, 2026]。</li>
+</ol>
+<ol>
+<li>✅ 已驗證：端側部署的主要瓶頸已移向 NPU 可用性、模型格式與快取策略，而不是單看模型參數量。這由 LiteRT 的 CompiledModel API 方向、跨平台硬體加速敘述與 LiteRT-LM 的快取管理能力共同證成 [來源：LiteRT: The Universal Framework for On-Device AI, 2026] [來源：Deploy GenAI Models with LiteRT, 2026] [來源：LiteRT-LM GitHub README, 2026]。</li>
+</ol>
+<ol>
+<li>✅ 已驗證：AI Edge Gallery 的價值在於它已把端側 AI 的產品必要元件湊齊，包括本地推論、BYOM、多模態介面與模型管理；它更像產品藍圖而非單純 demo [來源：Google AI Edge Gallery, 2026] [來源：On-device small language models with multimodality, RAG, and Function Calling, 2025] [來源：LiteRT-LM GitHub README, 2026]。</li>
+</ol>
+<ol>
+<li>⚠️ 待驗證：對 <code>daily-digest-prompt</code> 類工具，最合理的第一步可能是「本地摘要 + 離線檢索 + 白名單工具調用」的混合式應用，而不是完整端側自治 agent。這個推論目前主要來自 Gallery 的產品形態與 FunctionGemma 的適用邊界，仍需更多實作案例驗證 [來源：Google AI Edge Gallery, 2026] [來源：FunctionGemma model overview, 2025]。</li>
+</ol>
+<h2>實務應用建議</h2>
+<p>第一，先用單一任務面切入，而不是做全能 agent。對個人專案而言，最容易驗證價值的是離線會議音訊摘要、離線筆記檢索、相簿內容問答或裝置設定類白名單工具調用。這些任務都能直接受益於多模態輸入與低延遲。</p>
+<p>第二，把工具層做成明確白名單。FunctionGemma 再適合工具調用，也不代表應讓模型直接決定所有裝置能力。應用端應保留 schema 驗證、參數範圍檢查、執行前確認與審計日誌，這才符合端側 agent 的安全設計。</p>
+<p>第三，離線 RAG 優先接在私有資料來源。若要延伸 <code>daily-digest-prompt</code>，可以先把本地 Markdown、下載文件、工作記錄與個人知識摘要切塊嵌入，在裝置側完成檢索與摘要，必要時再把高成本任務升級到雲端。</p>
+<p>第四，效能優化應先觀察快取與 delegate，而不是先急著換模型。LiteRT-LM 已顯示 session、KV cache 與 prompt cache 是核心能力；若沒有把這層做好，單純更換模型通常換不到穩定體驗。</p>
+<p>第五，產品驗證可直接借鏡 AI Edge Gallery 的能力組合。模型下載、模型切換、BYOM、裝置內推論狀態與任務模板，本身就足以形成一套 MVP 清單。</p>
+<h2>與現有知識的連結</h2>
+<p>這份研究與本專案既有的 AI agent 治理、可觀測性與 RAG 系列研究可以直接銜接。過去的研究多集中在雲端 agent 的 SLO、失準監測、JSONL 到 OTLP 的可觀測性管線，以及知識庫檢索的品質控制。這次的端側研究補上的，是「如果推理與部分決策被推到裝置端，哪些治理邏輯必須一起下放」。</p>
+<p>具體來說，function calling 的責任邊界與先前對工具政策檢查點的研究完全一致；只是執行環境從伺服器轉到裝置。離線 RAG 的定位也和既有知識庫策略互補，因為它要求檢索更靠近使用者本地資料，而非單一中心知識庫。換句話說，這份研究不是替代現有雲端架構，而是給出一個「端雲分層」的新座標系。</p>
+<h2>未來展望</h2>
+<p>未來一年最值得持續觀察的不是單一模型排名，而是三條線是否同步成熟。第一條是跨平台能力是否真正從 Android-first 走向 mobile、desktop、web 一致部署。第二條是 FunctionGemma 類模型能否在更多實務案例中證明其低延遲與穩定工具選擇優勢。第三條是端側 RAG 是否能把本地向量索引、權限控管與多模態上下文管理做成對開發者友善的標準元件。</p>
+<p>若這三條線持續成熟，端側 AI 應用的形態會越來越像「本地先行、雲端補強」：預設在裝置上完成理解、檢索與有限動作，只有高成本推理、同步協作或重型知識更新才升級到雲端。這也是個人助理、行動工作流與隱私敏感應用最可能大規模採用的方向。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Google Developers Blog. (2025). On-device small language models with multimodality, RAG, and Function Calling. Google. https://developers.googleblog.com/google-ai-edge-small-language-models-multimodality-rag-function-calling/</li>
+<li>Google AI for Developers. (2025). Function calling with Gemma. Google. https://ai.google.dev/gemma/docs/capabilities/function-calling</li>
+<li>Google AI for Developers. (2025). FunctionGemma model overview. Google. https://ai.google.dev/gemma/docs/functiongemma</li>
+<li>Google AI for Developers. (2025). Gemma 3n 模型簡介. Google. https://ai.google.dev/gemma/docs/gemma-3n?hl=zh-TW</li>
+<li>Google AI for Developers. (2026). Deploy GenAI Models with LiteRT. Google. https://ai.google.dev/edge/litert/genai/overview</li>
+<li>Google Developers Blog. (2026). LiteRT: The Universal Framework for On-Device AI. Google. https://developers.googleblog.com/en/litert-the-universal-framework-for-on-device-ai/</li>
+<li>Google AI Edge. (2026). Google AI Edge Gallery. GitHub. https://github.com/google-ai-edge/gallery</li>
+<li>Google AI Edge. (2026). LiteRT-LM GitHub README. GitHub. https://github.com/google-ai-edge/LiteRT-LM</li>
+<li>Hugging Face 中文文件. (2026). Gemma3n - Hugging Face 文件. Hugging Face TW. https://huggingface.tw/docs/transformers/model_doc/gemma3n</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="pytest 進階測試模式完整指南 — Fixture 組合、Parametrize 策略、Monkeypatch 最佳實踐與 Hook 測試設計模式（2026）">
+  <title>pytest 進階測試模式完整指南 — Fixture 組合、Parametrize 策略、Monkeypatch 最佳實踐與 Hook 測試設計模式（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>pytest 進階測試模式完整指南 — Fixture 組合、Parametrize 策略、Monkeypatch 最佳實踐與 Hook 測試設計模式（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">pytest</span><span class="tag">測試框架</span><span class="tag">Fixture</span><span class="tag">Parametrize</span><span class="tag">Monkeypatch</span><span class="tag">Hook測試</span><span class="tag">Python</span><span class="tag">TDD</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>pytest 進階測試模式完整指南</h1>
+<h2>技術概述</h2>
+<p>pytest 是 Python 生態系中最廣泛使用的測試框架，其 Fixture 系統、參數化機制和 Monkeypatch 工具構成了高效測試的三大支柱。本文系統性整理 pytest 的 10 大進階測試模式，從 Fixture 工廠到 CLI 工具測試，涵蓋生產級測試套件的完整最佳實踐。特別針對 Hook 系統（如 PreToolUse/PostToolUse stdin/stdout 管線測試）提供實用設計模式。</p>
+<p>---</p>
+<h2>一、Fixture 工廠模式（Factory Fixture）</h2>
+<h3>1.1 基本工廠：返回建構函數而非物件</h3>
+<pre><code>
+import pytest
+
+@pytest.fixture
+def make_customer():
+    """工廠 fixture：返回建構函數，允許測試自訂參數"""
+    def make(
+        first_name: str = "Cosmo",
+        last_name: str = "Kramer",
+        email: str = "test@example.com",
+        **rest
+    ):
+        return Customer(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            **rest
+        )
+    return make
+
+def test_customer_email(make_customer):
+    customer = make_customer(email="custom@test.com")
+    assert customer.email == "custom@test.com"
+</code></pre>
+<p><strong>命名慣例</strong>：使用 <code>make_</code> 前綴（如 <code>make_customer</code>）明確表示這是工廠而非直接物件。</p>
+<h3>1.2 進階工廠：使用 factory_boy 庫</h3>
+<pre><code>
+from factory import Factory, Sequence, LazyAttribute
+
+class UserFactory(Factory):
+    class Meta:
+        model = User
+    
+    username = Sequence(lambda n: f'user{n}')
+    email = LazyAttribute(lambda obj: f'{obj.username}@example.com')
+    active = True
+</code></pre>
+<p><strong>適用場景</strong>：物件有複雜的預設值邏輯、需要序列化 ID、或有延遲計算的屬性。</p>
+<p>---</p>
+<h2>二、Fixture 組合模式（Fixture Composition）</h2>
+<h3>2.1 工廠依賴工廠</h3>
+<pre><code>
+@pytest.fixture
+def make_transaction(make_customer, make_sale):
+    """組合多個工廠 fixture，提供合理預設值"""
+    def make(transaction_id, customer=None, sale=None):
+        if customer is None:
+            customer = make_customer()
+        if sale is None:
+            sale = make_sale()
+        return Transaction(
+            transaction_id=transaction_id,
+            customer=customer,
+            sale=sale,
+        )
+    return make
+</code></pre>
+<p><strong>核心價值</strong>：避免重複建構邏輯，允許測試覆寫任意參數，同時維持合理預設值。</p>
+<h3>2.2 conftest.py 組織策略</h3>
+<pre><code>
+tests/
+├── conftest.py          # 全域 fixture（DB 連線、API mock）
+├── hooks/
+│   ├── conftest.py      # Hook 專用 fixture（stdin/stdout mock）
+│   ├── test_pre_bash_guard.py
+│   └── test_post_tool_logger.py
+└── skills/
+    ├── conftest.py      # Skill 專用 fixture（API response mock）
+    └── test_todoist.py
+</code></pre>
+<p><strong>規則</strong>：</p>
+<ul>
+<li>每層 conftest.py 中的 fixture 對該目錄及子目錄自動可用，無需 import</li>
+<li>較具體的 conftest.py 可覆寫上層同名 fixture</li>
+<li>避免在 conftest.py 中放測試函數（只放 fixture 和 hook）</li>
+</ul>
+<p>---</p>
+<h2>三、Parametrize 參數化策略</h2>
+<h3>3.1 基本參數化</h3>
+<pre><code>
+@pytest.mark.parametrize("test_input,expected", [
+    ("3+5", 8),
+    ("2+4", 6),
+    pytest.param("6*9", 42, marks=pytest.mark.xfail),  # 預期失敗
+])
+def test_eval(test_input, expected):
+    assert eval(test_input) == expected
+</code></pre>
+<h3>3.2 堆疊參數化（笛卡爾積）</h3>
+<pre><code>
+@pytest.mark.parametrize("x", [0, 1])
+@pytest.mark.parametrize("y", [2, 3])
+def test_foo(x, y):
+    pass  # 產生 4 個測試：(0,2), (0,3), (1,2), (1,3)
+</code></pre>
+<p><strong>典型應用</strong>：測試多資料庫引擎 × 多輸入值的矩陣組合。</p>
+<h3>3.3 Fixture 參數化</h3>
+<pre><code>
+@pytest.fixture(params=["sqlite", "postgres", "mysql"])
+def db_engine(request):
+    engine = create_engine(request.param)
+    yield engine
+    engine.dispose()
+
+def test_query(db_engine):  # 自動跑 3 次
+    result = db_engine.execute("SELECT 1")
+    assert result is not None
+</code></pre>
+<h3>3.4 間接參數化（Indirect Parametrize）</h3>
+<pre><code>
+@pytest.fixture
+def numbers(request):
+    return request.param
+
+@pytest.mark.parametrize("numbers", [(2, 3), (5, 7)], indirect=True)
+def test_addition(numbers):
+    num1, num2 = numbers
+    assert add(num1, num2) == num1 + num2
+</code></pre>
+<h3>3.5 自訂 ID 提升可讀性</h3>
+<pre><code>
+@pytest.mark.parametrize("cmd,expected", [
+    pytest.param("rm -rf /", True, id="dangerous-delete"),
+    pytest.param("ls -la", False, id="safe-list"),
+    pytest.param("echo $SECRET", True, id="env-leak"),
+], ids=str)
+def test_bash_guard(cmd, expected):
+    assert is_dangerous(cmd) == expected
+</code></pre>
+<h3>3.6 動態參數化（pytest_generate_tests hook）</h3>
+<pre><code>
+# conftest.py
+def pytest_generate_tests(metafunc):
+    if "rule_name" in metafunc.fixturenames:
+        rules = load_yaml_rules("config/hook-rules.yaml")
+        metafunc.parametrize("rule_name", [r["name"] for r in rules])
+</code></pre>
+<p><strong>應用場景</strong>：從 YAML 配置動態生成測試案例，配置變更自動反映到測試。</p>
+<p>---</p>
+<h2>四、Monkeypatch 最佳實踐</h2>
+<h3>4.1 九大 Monkeypatch 方法</h3>
+<p>| 方法 | 用途 | 範例 |</p>
+<p>|------|------|------|</p>
+<p>| <code>setattr(obj, name, value)</code> | 替換屬性/方法 | mock API 呼叫 |</p>
+<p>| <code>delattr(obj, name)</code> | 刪除屬性 | 測試缺失屬性行為 |</p>
+<p>| <code>setitem(mapping, name, value)</code> | 修改字典值 | mock 配置字典 |</p>
+<p>| <code>delitem(obj, name)</code> | 刪除字典項 | 測試缺失配置 |</p>
+<p>| <code>setenv(name, value)</code> | 設定環境變數 | mock TOKEN/SECRET |</p>
+<p>| <code>delenv(name)</code> | 刪除環境變數 | 測試缺失 env |</p>
+<p>| <code>syspath_prepend(path)</code> | 修改 sys.path | 測試模組載入 |</p>
+<p>| <code>chdir(path)</code> | 切換工作目錄 | 測試路徑邏輯 |</p>
+<p>| <code>context()</code> | 限定 patch 範圍 | 保護 pytest 內部 |</p>
+<h3>4.2 雙向資料綁定模式（Two-Way Data Binding）</h3>
+<pre><code>
+@pytest.fixture
+def mock_send_email(monkeypatch):
+    """透過閉包實現雙向資料流：mock 收集資料 + 測試可讀取"""
+    sent_emails = []
+
+    def _send_email(recipient, subject, body):
+        sent_emails.append((recipient, subject, body))
+        return True
+
+    monkeypatch.setattr("myapp.email.send_email", _send_email)
+    return sent_emails  # 測試可透過此列表驗證呼叫記錄
+
+def test_order_confirmation(mock_send_email):
+    process_order(order_id=123)
+    assert len(mock_send_email) == 1
+    assert mock_send_email[0][1] == "Order Confirmation"
+</code></pre>
+<h3>4.3 狀態切換模式（State Toggle）</h3>
+<pre><code>
+@pytest.fixture
+def mock_api(monkeypatch):
+    """可在測試中動態切換 API 行為"""
+    state = {"should_fail": False, "call_count": 0}
+
+    def _call_api(*args, **kwargs):
+        state["call_count"] += 1
+        if state["should_fail"]:
+            raise ConnectionError("API unreachable")
+        return {"status": "ok"}
+
+    monkeypatch.setattr("myapp.api.call", _call_api)
+    return state
+
+def test_retry_on_failure(mock_api):
+    mock_api["should_fail"] = True
+    with pytest.raises(ConnectionError):
+        call_with_retry(max_retries=3)
+    assert mock_api["call_count"] == 3
+</code></pre>
+<h3>4.4 禁止事項</h3>
+<ul>
+<li><strong>不要 patch 內建函數</strong>（<code>open</code>, <code>compile</code> 等）——可能破壞 pytest 內部</li>
+<li><strong>用 <code>monkeypatch.context()</code> 包裹標準庫 patch</strong>——限定影響範圍</li>
+<li><strong>不要在 monkeypatch 中修改全域可變狀態</strong>——改用工廠模式建立獨立實例</li>
+</ul>
+<p>---</p>
+<h2>五、Hook 測試設計模式（stdin/stdout 管線）</h2>
+<p>本專案的 Claude Code Hooks（pre_bash_guard.py、post_tool_logger.py 等）採用 stdin→處理→stdout 的管線架構，需要特殊的測試模式。</p>
+<h3>5.1 stdin/stdout Mock 模式</h3>
+<pre><code>
+import json
+import sys
+from io import StringIO
+
+@pytest.fixture
+def mock_stdin(monkeypatch):
+    """工廠 fixture：模擬 stdin JSON 輸入"""
+    def _set_input(data: dict):
+        monkeypatch.setattr('sys.stdin', StringIO(json.dumps(data)))
+    return _set_input
+
+@pytest.fixture
+def capture_stdout(monkeypatch):
+    """捕獲 stdout JSON 輸出"""
+    output = StringIO()
+    monkeypatch.setattr('sys.stdout', output)
+    return output
+
+def test_pre_bash_guard_blocks_nul(mock_stdin, capture_stdout):
+    mock_stdin({
+        "tool_name": "Bash",
+        "tool_input": {"command": "echo test &gt; nul"}
+    })
+    from hooks.pre_bash_guard import main
+    main()
+    result = json.loads(capture_stdout.getvalue())
+    assert result["decision"] == "block"
+</code></pre>
+<h3>5.2 YAML 規則驅動測試</h3>
+<pre><code>
+import yaml
+
+@pytest.fixture
+def hook_rules():
+    """載入外部化規則配置"""
+    with open("config/hook-rules.yaml") as f:
+        return yaml.safe_load(f)
+
+def test_all_bash_rules_have_tests(hook_rules):
+    bash_rules = [r for r in hook_rules["bash"] if r.get("enabled", True)]
+    for rule in bash_rules:
+        assert rule["name"], f"Rule missing name: {rule}"
+        assert rule["pattern"], f"Rule {rule['name']} missing pattern"
+</code></pre>
+<h3>5.3 JSONL 日誌驗證模式</h3>
+<pre><code>
+@pytest.fixture
+def log_file(tmp_path):
+    """建立臨時 JSONL 日誌檔"""
+    log_path = tmp_path / "structured" / "tool-usage.jsonl"
+    log_path.parent.mkdir(parents=True)
+    return log_path
+
+def test_post_tool_logger_writes_jsonl(log_file, monkeypatch):
+    monkeypatch.setenv("STRUCTURED_LOG_DIR", str(log_file.parent))
+    # ... 執行 logger ...
+    lines = log_file.read_text().strip().split("\n")
+    for line in lines:
+        record = json.loads(line)
+        assert "ts" in record
+        assert "tool" in record
+        assert "tags" in record
+</code></pre>
+<p>---</p>
+<h2>六、內建 Fixture 速查表</h2>
+<p>| Fixture | 用途 | 典型場景 |</p>
+<p>|---------|------|----------|</p>
+<p>| <code>tmp_path</code> | 臨時目錄（pathlib.Path） | 檔案 I/O 測試 |</p>
+<p>| <code>tmp_path_factory</code> | Session 級臨時目錄 | 共享暫存資源 |</p>
+<p>| <code>capsys</code> | 捕獲 stdout/stderr | CLI 輸出驗證 |</p>
+<p>| <code>capfd</code> | 捕獲檔案描述符層級 | 子程序輸出 |</p>
+<p>| <code>caplog</code> | 捕獲 logging 輸出 | 日誌訊息驗證 |</p>
+<p>| <code>monkeypatch</code> | 安全的 mock/patch | 見第四節 |</p>
+<p>| <code>request</code> | fixture 元資訊 | 參數化、finalizer |</p>
+<p>| <code>pytestconfig</code> | 存取測試配置 | 命令列選項 |</p>
+<p>| <code>recwarn</code> | 捕獲警告 | DeprecationWarning |</p>
+<p>---</p>
+<h2>七、Fixture 作用域（Scope）策略</h2>
+<pre><code>
+@pytest.fixture(scope="session")
+def db_connection():
+    """整個測試 session 只建立一次"""
+    conn = create_connection()
+    yield conn
+    conn.close()
+
+@pytest.fixture(scope="module")
+def api_client(db_connection):
+    """每個測試模組建立一次"""
+    return APIClient(db_connection)
+
+@pytest.fixture  # scope="function"（預設）
+def clean_state(db_connection):
+    """每個測試函數重置狀態"""
+    db_connection.rollback()
+    yield
+    db_connection.rollback()
+</code></pre>
+<p><strong>作用域層級</strong>：session > package > module > class > function</p>
+<p><strong>規則</strong>：高作用域 fixture 不能依賴低作用域 fixture（session 不能用 function 級 fixture）。</p>
+<p>---</p>
+<h2>八、與本專案的關聯</h2>
+<p>本專案（daily-digest-prompt）有 496 個 pytest 測試，覆蓋 7 個 Hook 模組 + 2 個 Skill 模組。以下是直接可應用的模式：</p>
+<h3>8.1 已使用的模式</h3>
+<ul>
+<li><strong>stdin/stdout mock</strong>：所有 Hook 測試使用 <code>StringIO</code> mock stdin 輸入</li>
+<li><strong>monkeypatch.setenv</strong>：環境變數（HOOK_SECURITY_PRESET）測試</li>
+<li><strong>tmp_path</strong>：JSONL 日誌輪替測試</li>
+<li><strong>parametrize</strong>：pre_bash_guard 的 144 個測試案例大量使用參數化</li>
+</ul>
+<h3>8.2 可引入的改進</h3>
+<ol>
+<li><strong>工廠 fixture 統一 Hook 輸入建構</strong>：目前各測試檔獨立建構 stdin JSON，可抽取 <code>make_hook_input</code> 工廠到 <code>tests/hooks/conftest.py</code></li>
+<li><strong>動態參數化從 hook-rules.yaml 生成</strong>：使用 <code>pytest_generate_tests</code> 從 YAML 自動產生規則測試，配置變更即刻反映</li>
+<li><strong>狀態切換模式用於 Circuit Breaker 測試</strong>：取代手動修改 state dict</li>
+<li><strong>caplog 替代部分 stdout 捕獲</strong>：對 logging 模組的輸出驗證更精確</li>
+</ol>
+<h3>8.3 效能優化建議</h3>
+<ul>
+<li>將 YAML 規則載入提升至 <code>scope="session"</code> — 496 個測試只載入一次</li>
+<li>使用 <code>pytest-xdist</code> 並行執行（<code>pytest -n auto</code>）— 預估可將 496 個測試從 ~30 秒降至 ~10 秒</li>
+<li>使用 <code>@pytest.mark.slow</code> 標記長時間測試，CI 可選擇性跳過</li>
+</ul>
+<p>---</p>
+<h2>九、常見陷阱與解法</h2>
+<p>| 陷阱 | 症狀 | 解法 |</p>
+<p>|------|------|------|</p>
+<p>| Fixture 作用域不匹配 | <code>ScopeMismatch</code> 錯誤 | 確保高作用域不依賴低作用域 |</p>
+<p>| Monkeypatch 全域狀態洩漏 | 測試順序依賴 | 使用工廠模式建立獨立實例 |</p>
+<p>| Parametrize 過度組合 | 測試爆炸（千個案例） | 精選代表性案例 + boundary testing |</p>
+<p>| conftest.py 過大 | 難以維護 | 按模組拆分到子目錄 conftest.py |</p>
+<p>| Fixture 清理不完整 | 資源洩漏 | 用 yield + finally 或 addfinalizer |</p>
+<p>| Mock 過度 | 測試脆弱、假綠燈 | 只 mock 外部邊界（API、檔案系統） |</p>
+<p>---</p>
+<h2>十、pytest 插件生態（精選）</h2>
+<p>| 插件 | 用途 | 安裝 |</p>
+<p>|------|------|------|</p>
+<p>| <code>pytest-xdist</code> | 並行測試執行 | <code>pip install pytest-xdist</code> |</p>
+<p>| <code>pytest-cov</code> | 覆蓋率報告 | <code>pip install pytest-cov</code> |</p>
+<p>| <code>pytest-mock</code> | 更簡潔的 mock API | <code>pip install pytest-mock</code> |</p>
+<p>| <code>pytest-timeout</code> | 測試超時保護 | <code>pip install pytest-timeout</code> |</p>
+<p>| <code>pytest-randomly</code> | 隨機執行順序 | <code>pip install pytest-randomly</code> |</p>
+<p>| <code>factory_boy</code> | 物件工廠 | <code>pip install factory-boy</code> |</p>
+<p>| <code>hypothesis</code> | 屬性基測試 | <code>pip install hypothesis</code> |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://www.inspiredpython.com/article/five-advanced-pytest-fixture-patterns">Five Advanced Pytest Fixture Patterns — Inspired Python</a></li>
+<li><a href="https://docs.pytest.org/en/stable/how-to/monkeypatch.html">How to monkeypatch/mock modules and environments — pytest 官方文件</a></li>
+<li><a href="https://docs.pytest.org/en/stable/how-to/parametrize.html">How to parametrize fixtures and test functions — pytest 官方文件</a></li>
+<li><a href="https://www.fiddler.ai/blog/advanced-pytest-patterns-harnessing-the-power-of-parametrization-and-factory-methods">Advanced Pytest Patterns: Parametrization and Factory Methods — Fiddler AI Blog</a></li>
+<li><a href="https://docs.pytest.org/en/stable/how-to/capture-stdout-stderr.html">How to capture stdout/stderr output — pytest 官方文件</a></li>
+<li><a href="https://docs.pytest.org/en/stable/reference/fixtures.html">Fixtures reference — pytest 官方文件</a></li>
+<li><a href="https://python-basics-tutorial.readthedocs.io/en/latest/test/pytest/builtin-fixtures.html">Built-in fixtures — Python Basics</a></li>
+<li><a href="https://deconvoluteai.com/blog/neuralception/python-better-unittest-pytest">Better unit tests with pytest-mock and monkeypatch — Deconvolute Labs</a></li>
+<li><a href="https://python.plainenglish.io/pytest-fixture-factories-the-secret-to-writing-flexible-maintainable-tests-2de79cf4084b">Pytest Fixture Factories — Sharath Chandran</a></li>
+<li><a href="https://oneuptime.com/blog/post/2026-02-02-pytest-fixtures/view">How to Use pytest Fixtures — OneUptime Blog (2026-02-02)</a></li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-27</em></p>
+<p><em>研究動機：本專案有 496 個 pytest 測試（hooks 469 + skills 27），是核心品質保障機制。今日的 skill_audit 和 qa_optimize 任務直接涉及測試，但知識庫尚無 pytest 進階技巧的系統性研究。本文填補 Fixture 工廠、Parametrize 策略、Monkeypatch 最佳實踐和 Hook 測試設計模式的知識缺口。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

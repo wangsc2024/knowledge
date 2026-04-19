@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 系統熵增與複雜度治理優化建議 — 從 19 個自動任務的擴張軌跡反思配置膨脹、認知負荷與結構性簡化路徑（2026-03-01）">
+  <title>Daily-Digest-Prompt 系統熵增與複雜度治理優化建議 — 從 19 個自動任務的擴張軌跡反思配置膨脹、認知負荷與結構性簡化路徑（2026-03-01） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt 系統熵增與複雜度治理優化建議 — 從 19 個自動任務的擴張軌跡反思配置膨脹、認知負荷與結構性簡化路徑（2026-03-01）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">系統熵增</span><span class="tag">複雜度治理</span><span class="tag">配置膨脹</span><span class="tag">認知負荷</span><span class="tag">知識庫</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 系統熵增與複雜度治理優化建議</h1>
+<h1>從 19 個自動任務的擴張軌跡反思配置膨脹、認知負荷與結構性簡化路徑</h1>
+<blockquote>研究日期：2026-03-01</blockquote>
+<blockquote>任務 ID：6g2FfvWmxqhCWx85</blockquote>
+<blockquote>差異化：前期報告覆蓋安全(2/26)、Token 經濟學(2/27)、排程效能(2/28)、Q2 路線圖(3/1 AM)；本文首次從 <strong>系統熵增</strong> 角度分析專案複雜度的結構性問題</blockquote>
+<blockquote>分析基礎：586 行 CLAUDE.md、2224 行配置 YAML、24 個 Skills、120 條研究註冊表、200 筆排程記錄、636 筆 KB</blockquote>
+<p>---</p>
+<h2>一、問題本質：系統熵增的三個維度</h2>
+<h3>1.1 配置膨脹（Config Entropy）</h3>
+<p>| 指標 | 數值 | 風險等級 |</p>
+<p>|------|------|---------|</p>
+<p>| CLAUDE.md 行數 | 586 行 | 🔴 高（LLM Context Window 固定消耗） |</p>
+<p>| config/*.yaml 總行數 | 2,224 行（16 個 YAML） | 🟡 中（按需載入但維護成本高） |</p>
+<p>| SKILL_INDEX.md 行數 | 231 行 | 🟡 中（每次啟動全量載入） |</p>
+<p>| frequency-limits.yaml | 326 行（19 個自動任務定義） | 🟡 中（新增任務需同步 3+ 處） |</p>
+<p>| routing.yaml | 233 行（20 個標籤映射） | 🟡 中 |</p>
+<p><strong>根因</strong>：專案從 2 月 14 日至今 16 天，配置量以每天約 140 行的速度增長。每新增一個功能（Skill/自動任務/路由規則），至少需要同步修改 3-5 個文件（CLAUDE.md + frequency-limits.yaml + routing.yaml + SKILL_INDEX.md + 可能的 prompt 模板）。這是典型的 <strong>散彈式修改（Shotgun Surgery）</strong> 反模式。</p>
+<h3>1.2 認知負荷（Cognitive Load）</h3>
+<p>Agent 每次啟動需要理解的配置上下文：</p>
+<p>| 載入項 | Token 估算 | 必要性 |</p>
+<p>|--------|-----------|--------|</p>
+<p>| CLAUDE.md（系統注入） | ~4,000 tokens | 必要但可精簡 |</p>
+<p>| SKILL_INDEX.md（每次必讀） | ~1,500 tokens | 必要但可分層 |</p>
+<p>| preamble.md（共用前言） | ~200 tokens | 必要 |</p>
+<p>| frequency-limits.yaml | ~2,000 tokens | 僅自動任務需要 |</p>
+<p>| routing.yaml | ~1,500 tokens | 僅 Todoist Agent 需要 |</p>
+<p>| <strong>合計</strong> | <strong>~9,200 tokens</strong> | — |</p>
+<p><strong>問題</strong>：每日摘要 Agent 不需要 routing.yaml，Todoist Agent 不需要 pipeline.yaml，但 CLAUDE.md 把所有資訊都注入了。這相當於每次讀一本 300 頁的手冊，只為了找其中 30 頁的資訊。</p>
+<h3>1.3 研究註冊表膨脹（Registry Bloat）</h3>
+<p>| 指標 | 數值 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| 總條目 | 120 條 | 7 天滾動視窗理論上限 ~70 條（10/天），實際超標 71% |</p>
+<p>| 檔案大小 | 65.2 KB | 每次研究任務全量讀取 |</p>
+<p>| 單日最高 | 37 條（2/27） | 遠超預估的 10 條/天 |</p>
+<p>| task_type 種類 | 14 種 | 去重判定需遍歷所有 |</p>
+<p><strong>根因</strong>：dedup-policy.yaml 設定 retention_days=7，但每天自動任務產出量（~30 條/天）遠超預估。120 條 × 平均 500 chars = 60KB 全量讀取，在 LLM context 中約佔 4,000-5,000 tokens。</p>
+<p>---</p>
+<h2>二、五項結構性優化建議</h2>
+<h3>建議 1：CLAUDE.md 分層瘦身（P0 — 影響每次執行）</h3>
+<p><strong>現狀</strong>：586 行 CLAUDE.md 包含架構說明、目錄樹、流程圖、排程表、ADR 索引等，所有內容每次 session 全量注入。</p>
+<p><strong>建議</strong>：將 CLAUDE.md 拆分為三層：</p>
+<ol>
+<li><strong>L1 核心層（目標 < 150 行）</strong>：僅保留規則、禁令、快速參考表</li>
+<li><strong>L2 參考層（按需讀取）</strong>：架構說明、流程圖移至 docs/architecture.md</li>
+<li><strong>L3 深度層（Skill 觸發）</strong>：ADR 索引、排程表等移至對應 Skill 或配置</li>
+</ol>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>Context Window 每次節省 ~2,500 tokens（從 ~4,000 降至 ~1,500）</li>
+<li>每日 44 次執行 × 2,500 tokens = 每日節省 ~110K tokens</li>
+<li>CLAUDE.md 維護負擔降低 60%</li>
+</ul>
+<p><strong>實施風險</strong>：低。拆分純屬重組織，不影響功能。Agent 需要詳細資訊時按需讀取 L2/L3 文件。</p>
+<h3>建議 2：研究註冊表壓縮視圖（P1 — 影響研究任務品質）</h3>
+<p><strong>現狀</strong>：120 條完整 entry，每條含 date/task_type/topic/kb_note_title/kb_imported/tags[]，全量讀取。</p>
+<p><strong>建議</strong>：實作兩層視圖：</p>
+<ol>
+<li><strong>摘要視圖</strong>（取代全量讀取）：</li>
+</ol>
+<p>`json</p>
+<p>{</p>
+<p>  "summary": {</p>
+<p>    "total": 120,</p>
+<p>    "by_type": {"todoist_research": 35, "shurangama": 11, ...},</p>
+<p>    "recent_3d_topics": ["Implementation Intentions", "Pong v1.2", "Frogger v2.1", ...],</p>
+<p>    "saturated_types": ["todoist_research"]</p>
+<p>  }</p>
+<p>}</p>
+<p>`</p>
+<ol>
+<li><strong>詳細視圖</strong>（僅在去重判定時按 task_type 篩選讀取）</li>
+</ol>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>從 65KB 全量讀取降至 ~2KB 摘要 + 按需 ~5KB 篩選</li>
+<li>Token 消耗從 ~5,000 降至 ~500（常態）+ ~1,000（判定時）</li>
+</ul>
+<p><strong>實施方式</strong>：</p>
+<ul>
+<li>在 research-registry.json 中新增 summary 頂層欄位</li>
+<li>每次寫入 entry 時同步更新 summary</li>
+<li>研究模板改為「先讀 summary → 需要去重時才讀對應 task_type 的 entries」</li>
+</ul>
+<h3>建議 3：自動任務新增流程標準化（P1 — 降低散彈式修改）</h3>
+<p><strong>現狀</strong>：新增一個自動任務需要修改至少 5 個文件：</p>
+<ol>
+<li>config/frequency-limits.yaml（新增任務定義）</li>
+<li>	emplates/auto-tasks/<name>.md（建立模板）</li>
+<li>prompts/team/todoist-auto-<name>.md（建立團隊 prompt）</li>
+<li>CLAUDE.md（更新架構說明和統計數字）</li>
+<li>skills/SKILL_INDEX.md（若涉及新 Skill）</li>
+</ol>
+<p><strong>建議</strong>：建立 <strong>Convention over Configuration</strong> 機制：</p>
+<ol>
+<li><strong>自動發現</strong>：PowerShell 腳本已改為動態掃描（Get-ChildItem todoist-auto-<em>.md），模板也應自動發現 	emplates/auto-tasks/</em>.md</li>
+<li><strong>自動推導</strong>：requency-limits.yaml 的 	asks 段落從模板檔案的 frontmatter 自動生成</li>
+<li><strong>檢查工具</strong>：alidate_config.py 新增「自動任務一致性檢查」— 確認 template、prompt、frequency-limits 三處同步</li>
+</ol>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>新增自動任務從「修改 5 個文件」降為「建立 1 個模板 + 1 個 prompt」</li>
+<li>消除 CLAUDE.md 中手動維護統計數字的負擔</li>
+<li>降低命名不一致導致的靜默失效風險（歷史上已發生 3 次）</li>
+</ul>
+<h3>建議 4：run-fsm.json 生命週期管理（P2 — 預防資料膨脹）</h3>
+<p><strong>現狀</strong>：18 條記錄（10.3KB），2 條仍為 running（含 system-audit 和 todoist），無清理機制。</p>
+<p><strong>問題</strong>：</p>
+<ol>
+<li>unning 狀態的條目永遠不會被清理（若進程異常結束）</li>
+<li>無 max_entries 上限，檔案隨時間線性膨脹</li>
+<li>Agent 每次讀取全量 JSON，浪費 Context Window</li>
+</ol>
+<p><strong>建議</strong>：</p>
+<ol>
+<li>新增 max_entries: 20 上限，超過時移除最舊的已完成條目</li>
+<li>新增 stale_timeout_hours: 2：running 超過 2 小時自動標記為 	imeout</li>
+<li>在 un-*-team.ps1 腳本結尾清理完成條目（僅保留最近 10 條）</li>
+</ol>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>檔案大小穩定在 ~6KB 以下</li>
+<li>消除殭屍 running 狀態</li>
+<li>減少 Agent 讀取的無效資料</li>
+</ul>
+<h3>建議 5：快取命中率歸零的根本修復（P0 — 已識別但未解決）</h3>
+<p><strong>現狀</strong>：連續 6 天 cache_hits = 0，每次都打真實 API。cache-policy.yaml 的 TTL 已調整（todoist 45min, HN 180min），但仍為 0%。</p>
+<p><strong>根因深入分析</strong>：</p>
+<ol>
+<li><strong>團隊模式的孤立進程</strong>：每個 claude -p 是獨立進程，啟動時讀取的 cache/*.json 可能已過期</li>
+<li><strong>寫入-讀取競爭</strong>：Phase 1 的 5 個 Agent 同時啟動，各自讀取同一個快取檔案，但各自的 API 回應不會寫回給其他 Agent</li>
+<li><strong>Todoist 即時性矛盾</strong>：cache-policy.yaml 明確標註「Todoist Agent 不使用快取（需即時資料）」，但 daily-digest 的 fetch-todoist 也不用快取，因為它的 prompt 直接呼叫 API</li>
+</ol>
+<p><strong>建議</strong>：</p>
+<ol>
+<li><strong>Phase 0 預取</strong>：在 un-agent-team.ps1 的 Phase 1 啟動前，用 PowerShell 腳本預取 API 資料並寫入 cache/*.json，Phase 1 Agent 讀取快取而非呼叫 API</li>
+<li><strong>跨 Agent 快取共享</strong>：Phase 1 Agent A 完成 API 呼叫後，除了寫入 results/<em>.json，也更新 cache/</em>.json，後續 Agent 可受益</li>
+<li><strong>每日摘要專用快取策略</strong>：區分「Todoist 任務執行」（需即時）和「每日摘要報告」（可容忍 30 分鐘延遲）</li>
+</ol>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>快取命中率從 0% 提升至 30-50%</li>
+<li>Phase 1 平均耗時從 114s 降至 60-80s</li>
+<li>減少 API quota 消耗</li>
+</ul>
+<p>---</p>
+<h2>三、優先級與實施路線圖</h2>
+<p>| 優先級 | 建議 | 預期效益 | 實施複雜度 | 建議時程 |</p>
+<p>|--------|------|---------|-----------|---------|</p>
+<p>| P0 | CLAUDE.md 分層瘦身 | 每次省 2,500 tokens | 低 | 第 1 週 |</p>
+<p>| P0 | 快取命中率修復 | Phase 1 耗時 -40% | 中 | 第 1-2 週 |</p>
+<p>| P1 | 研究註冊表壓縮 | 研究任務省 4,000 tokens | 低 | 第 1 週 |</p>
+<p>| P1 | 自動任務流程標準化 | 新增任務改 1 檔 vs 5 檔 | 中 | 第 2-3 週 |</p>
+<p>| P2 | run-fsm.json 生命週期 | 消除殭屍狀態 | 低 | 第 1 週 |</p>
+<p>---</p>
+<h2>四、與既有 ADR 的關聯</h2>
+<p>| 本建議 | 關聯 ADR | 說明 |</p>
+<p>|--------|---------|------|</p>
+<p>| CLAUDE.md 瘦身 | ADR-002 文件驅動架構 | 精神一致：薄層調度器原則應延伸到 CLAUDE.md 本身 |</p>
+<p>| 快取修復 | ADR-004 團隊並行優先 | 並行模式的副作用：進程隔離導致快取失效 |</p>
+<p>| 註冊表壓縮 | ADR-007 研究去重三層防護 | 去重機制成功但未考慮 registry 本身的膨脹 |</p>
+<p>| 流程標準化 | ADR-005 Hook 機器強制 | validate_config 可擴展為自動任務一致性檢查 |</p>
+<p>---</p>
+<h2>五、結論：從「加法思維」到「減法思維」</h2>
+<p>專案過去 16 天的成長軌跡是典型的<strong>加法思維</strong>：發現問題 → 新增 Skill → 新增自動任務 → 新增配置。這在初期是正確的策略，但當系統達到 24 個 Skill、19 個自動任務、2,224 行配置後，邊際效益開始遞減，維護成本則加速增長。</p>
+<p><strong>「減法思維」的核心原則</strong>：</p>
+<ol>
+<li><strong>能合併的就合併</strong>：buddhist-research.md 已示範參數化模板共用 3 個任務，tech/ai 研究系列也可考慮類似做法</li>
+<li><strong>能自動推導的就不手動寫</strong>：統計數字、一致性檢查、檔案發現都應自動化</li>
+<li><strong>能按需載入的就不預載</strong>：CLAUDE.md 的架構說明、ADR 索引不需要每次注入</li>
+<li><strong>能壓縮的就不全量載入</strong>：研究註冊表、run-fsm.json 都應有摘要視圖</li>
+</ol>
+<blockquote>最好的程式碼是不需要寫的程式碼。最好的配置是不需要維護的配置。</blockquote>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

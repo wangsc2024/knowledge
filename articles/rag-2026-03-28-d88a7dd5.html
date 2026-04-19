@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-28：Prompt 模板與 Skill 生態系治理 — 49 個 Team Prompt 重複邏輯合併、67 個 Skill 觸發衝突偵測與版本一致性策略">
+  <title>專案RAG優化日報 2026-03-28：Prompt 模板與 Skill 生態系治理 — 49 個 Team Prompt 重複邏輯合併、67 個 Skill 觸發衝突偵測與版本一致性策略 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-28：Prompt 模板與 Skill 生態系治理 — 49 個 Team Prompt 重複邏輯合併、67 個 Skill 觸發衝突偵測與版本一致性策略</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">Prompt治理</span><span class="tag">Skill生態系</span><span class="tag">模板合併</span><span class="tag">觸發衝突</span><span class="tag">版本管理</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-28</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-03-28</h1>
+<p><strong>Prompt 模板與 Skill 生態系治理 — 49 個 Team Prompt 重複邏輯合併、67 個 Skill 觸發衝突偵測與版本一致性策略</strong></p>
+<p><em>研究日期</em>：2026-03-28</p>
+<p><em>任務 ID</em>：6g2FfvWmxqhCWx85</p>
+<p><em>標籤</em>：專案優化、深度思維、知識庫、Prompt治理、Skill生態系</p>
+<p><em>適用對象</em>：daily-digest-prompt 專案</p>
+<p><em>方法</em>：專案靜態分析（子 Agent 掃描 50 個 Prompt + 67 個 Skill）+ 外部研究（4 來源）</p>
+<p>---</p>
+<h2>一、執行摘要（300 字）</h2>
+<p>本次對 daily-digest-prompt 專案進行 Prompt 模板與 Skill 生態系的可維護性治理分析。專案現有 50 個 Prompt 模板（prompts/team/）和 67 個 Skill（skills/），隨規模成長出現三大結構性問題：（1）Prompt 重複邏輯濃度過高 — fetch 家族 4 個模板共享 100% 相同的快取檢查與降級流程、8 個研究模板重複「佔坑 JSON + 去重查詢 + 連續記憶」三段式；（2）Skill 觸發關鍵字衝突 — 「研究」一詞可命中 web-research 與 kb-research-strategist 兩個 Skill，缺乏優先級仲裁；（3）配置隱性耦合 — preamble.md 隱性依賴 5 個 YAML 檔案，dependencies.yaml 被 9 個 Skill 引用卻無端點一致性驗證。</p>
+<p>結合 Gravitee「AI Agent Sprawl 治理框架」[Gravitee, 2026]、TrueFoundry「AI Agent Registry 最佳實踐」[TrueFoundry, 2026]、Vellum「Context Engineering 多 Agent 系統」[Vellum, 2026]、ClawPort「Agent Sprawl 結構化管理」[ClawPort, 2026] 等業界最新研究，提出 12 項優化方案（P0×3、P1×4、P2×5），預期可減少 40% 模板維護負擔、消除觸發衝突、建立配置依賴可視化。</p>
+<p>---</p>
+<h2>二、現況診斷：三大結構性問題</h2>
+<h3>2.1 Prompt 模板重複邏輯（P0 — 維護成本）</h3>
+<p>#### 發現 1：Fetch 家族 100% 結構重複</p>
+<p>fetch-todoist.md、fetch-news.md、fetch-gmail.md、fetch-hackernews.md 四個模板共享完全相同的三段式流程：</p>
+<pre><code>
+步驟 1：讀取對應 SKILL.md
+步驟 2：讀取 cache/status.json（PS 預計算）
+步驟 3：API 呼叫或快取降級
+步驟 4：寫結果 JSON
+</code></pre>
+<p>差異僅在步驟 1 的 Skill 名稱和步驟 3 的 API 端點。每次修改快取邏輯需同步更新 4 個檔案，歷史上已發生過不同步事故。</p>
+<p>#### 發現 2：研究模板重複「三段式」</p>
+<p>8 個研究自動任務（ai_deep_research、tech_research、ai_github_research 等）重複以下段落：</p>
+<ul>
+<li>「佔坑 JSON」（<code>status: "running"</code>）：~15 行</li>
+<li>「知識庫去重查詢」（hybrid search + 字串比對）：~40 行</li>
+<li>「連續記憶讀取/寫入」（context/continuity/）：~30 行</li>
+</ul>
+<p>合計每個模板約 85 行為「儀式性重複」。8 個模板 × 85 行 = 680 行冗餘，佔研究模板總行數的 35%。</p>
+<p>#### 發現 3：preamble.md 的「隱性繼承」</p>
+<p>所有 50 個 Prompt 都引用 <code>templates/shared/preamble.md</code>，但 preamble 內部引用 5 個外部檔案（memory-policy.yaml、routing.yaml 等），形成二級隱性依賴。Prompt 作者無法從模板自身看到完整依賴鏈。</p>
+<h3>2.2 Skill 觸發關鍵字衝突（P1 — 路由準確性）</h3>
+<p>#### 發現 4：3 組觸發詞重疊</p>
+<p>| Skill A | Skill B | 重疊觸發詞 | 衝突場景 |</p>
+<p>|---------|---------|-----------|----------|</p>
+<p>| web-research v1.1.1 | kb-research-strategist v1.2.0 | 「研究」 | 任務含「研究」時無法確定走哪個 Skill |</p>
+<p>| todoist v2.1.0 | task-manager v1.0.0 | 「任務」「待辦」 | 任務管理語境下兩者競爭 |</p>
+<p>| system-audit v1.1.0 | system-insight v1.0.0 | 「系統」「健康」 | 系統診斷時路由模糊 |</p>
+<p>#### 發現 5：缺乏優先級仲裁機制</p>
+<p>routing.yaml 定義了 <code>task_type_labels</code> 路由，但僅針對模板選擇，不涉及 Skill 選擇。當多個 Skill 觸發詞匹配時，依賴 LLM 自行判斷 — 這在自動任務中是不可控的。</p>
+<p>業界對照：Claude Agent Skills 平台採用 <strong>四層優先級</strong>（Enterprise > Personal > Project > Plugin）[AgentSkills.so, 2026]。本專案缺乏類似機制。</p>
+<h3>2.3 配置隱性耦合與版本碎片化（P2 — 技術債）</h3>
+<p>#### 發現 6：dependencies.yaml 成為「隱性樞紐」</p>
+<p>dependencies.yaml 被 9 個 SKILL.md 的 <code>depends-on</code> 欄位引用，但：</p>
+<ul>
+<li>無自動驗證機制檢查端點 URL 是否可達</li>
+<li>修改 base_url 後，依賴它的 Skill 不會收到通知</li>
+<li>check-health.ps1 不檢查 dependencies.yaml 一致性</li>
+</ul>
+<p>#### 發現 7：版本號分布不均勻</p>
+<p>67 個 Skill 中，47 個停留在 v1.0.x，僅 4 個達到 v2.x。skills/CLAUDE.md 定義了版本更新規則（minor/patch），但 validate_config.py 不驗證版本號合規性。結果：多數 Skill 在歷經多次修改後版本號未遞增，失去變更追蹤能力。</p>
+<p>---</p>
+<h2>三、業界最佳實踐對照（三角佐證）</h2>
+<h3>3.1 AI Agent Sprawl 治理</h3>
+<blockquote>「72% 的組織已使用 Agentic AI 系統，但缺乏集中治理導致能見度喪失、效能低下與安全缺口。」[Gravitee, 2026]</blockquote>
+<p>建議：建立<strong>集中式目錄</strong>（single catalog）整合所有 Agent/Skill/Tool，配合<strong>成本控制</strong>和<strong>品質評分</strong>[Gravitee, 2026]。</p>
+<h3>3.2 Agent Registry 最佳實踐</h3>
+<blockquote>「Agent Registry 作為集中式 'phone book'，透過標準化 Agent Card（名稱、版本、端點、技能聲明）實現發現與復用。」[TrueFoundry, 2026]</blockquote>
+<p>關鍵建議：</p>
+<ol>
+<li>啟用語義搜尋索引 — 能力導向的發現（非名稱匹配）</li>
+<li>健康心跳機制 — 自動標記過期 Agent</li>
+<li>治理先行 — 從第一天就整合存取控制</li>
+</ol>
+<h3>3.3 Prompt 版本控制與模組化</h3>
+<blockquote>「Prompt 必須版本化，不僅是追蹤變更，更是在修改導致行為漂移時能回滾。」[Vellum, 2026]</blockquote>
+<blockquote>「關鍵洞察是將關注點分離應用於 Agent 而非僅程式碼 — 同時寫程式碼、管理記憶、審查 PR 的 Agent 會產生衝突優先級。」[ClawPort, 2026]</blockquote>
+<h3>3.4 本專案對照評估</h3>
+<p>| 維度 | 業界標準 | 本專案現況 | 差距 |</p>
+<p>|------|---------|-----------|------|</p>
+<p>| 集中目錄 | Agent Registry + 語義搜尋 | SKILL_INDEX.md（純文字索引） | 無自動發現、無衝突偵測 |</p>
+<p>| Prompt 版本化 | Git + 語義版本 + 回滾 | Git 追蹤但無語義版本 | 缺乏版本號強制 |</p>
+<p>| 模板模組化 | 參數化基礎模板 + 策略注入 | preamble.md 共用但模板層仍重複 | fetch/研究家族可合併 |</p>
+<p>| 觸發路由 | 優先級仲裁 + 衝突偵測 | routing.yaml 僅路由模板 | Skill 路由缺乏優先級 |</p>
+<p>| 配置依賴管理 | 依賴圖 + 自動驗證 | 隱性引用無驗證 | 需建立依賴可視化 |</p>
+<p>---</p>
+<h2>四、12 項優化方案</h2>
+<h3>P0 — 立即可做（減少 40% 維護負擔）</h3>
+<p><strong>P0-A：提取 Fetch 通用模板</strong></p>
+<ul>
+<li>建立 <code>templates/shared/fetch-generic.md</code>，參數化 <code>{skill_name}</code>、<code>{cache_key}</code>、<code>{api_endpoint}</code></li>
+<li>4 個 fetch-* 模板改為引用通用模板 + 傳入參數</li>
+<li>預期效果：4 個模板各減少 60% 行數，快取邏輯單點維護</li>
+</ul>
+<p><strong>P0-B：提取研究去重通用模板</strong></p>
+<ul>
+<li>建立 <code>templates/shared/research-dedup-block.md</code>，包含佔坑 JSON + 去重查詢 + 連續記憶三段</li>
+<li>8 個研究模板改為「Read 通用模板 → 執行」</li>
+<li>預期效果：消除 680 行冗餘，去重邏輯單點維護</li>
+</ul>
+<p><strong>P0-C：preamble.md 依賴清單顯式化</strong></p>
+<ul>
+<li>preamble.md 頂部新增「## 依賴檔案清單」，列出所有引用的 YAML</li>
+<li>Prompt 作者可一眼看到完整依賴鏈</li>
+</ul>
+<h3>P1 — 短期（消除路由衝突）</h3>
+<p><strong>P1-A：Skill 觸發優先級機制</strong></p>
+<ul>
+<li>routing.yaml 新增 <code>skill_priority</code> 段落：</li>
+<pre><code>
+skill_priority:
+  研究: [kb-research-strategist, web-research, deep-research]
+  任務: [todoist, task-manager]
+  系統: [system-insight, system-audit]
+</code></pre>
+<li>同一觸發詞命中多個 Skill 時，依陣列順序選擇第一個</li>
+</ul>
+<p><strong>P1-B：觸發詞衝突自動偵測</strong></p>
+<ul>
+<li>validate_config.py 新增 <code>--check-skill-triggers</code></li>
+<li>掃描所有 SKILL.md 的 triggers 欄位，報告重疊關鍵字</li>
+<li>納入 check-health.ps1 健康度檢查</li>
+</ul>
+<p><strong>P1-C：Skill 版本號強制驗證</strong></p>
+<ul>
+<li>validate_config.py 新增版本號檢查：git diff 偵測 SKILL.md 內容變更但版本號未遞增</li>
+<li>pre-commit hook 攔截違規</li>
+</ul>
+<p><strong>P1-D：dependencies.yaml 端點健康檢查</strong></p>
+<ul>
+<li>check-health.ps1 新增 [依賴端點] 區塊</li>
+<li>遍歷 dependencies.yaml 所有 base_url，curl 檢查可達性</li>
+</ul>
+<h3>P2 — 中期（建立長期治理基礎）</h3>
+<p><strong>P2-A：配置依賴圖可視化</strong></p>
+<ul>
+<li>generate-arch-diagrams.ps1 新增「配置依賴」Mermaid 圖</li>
+<li>自動掃描 YAML 間的 <code>depends-on</code> 和檔案引用</li>
+</ul>
+<p><strong>P2-B：Skill 使用頻率追蹤</strong></p>
+<ul>
+<li>post_tool_logger.py 的結構化日誌中記錄 Skill 呼叫次數</li>
+<li>月報統計：找出零使用 Skill 建議合併或下架</li>
+</ul>
+<p><strong>P2-C：Prompt 模板語義版本化</strong></p>
+<ul>
+<li>每個 prompts/team/*.md 頂部新增 version 欄位</li>
+<li>搭配 git hook 強制版本遞增</li>
+</ul>
+<p><strong>P2-D：研究模板參數化重構</strong></p>
+<ul>
+<li>現有 8 個研究模板統一為 <code>templates/auto-tasks/research-generic.md</code></li>
+<li>透過 <code>{research_level}</code>（Quick/Standard/Deep）和 <code>{domain}</code> 參數區分</li>
+</ul>
+<p><strong>P2-E：Skill 生命週期管理</strong></p>
+<ul>
+<li>SKILL_INDEX.md 新增 <code>status</code> 欄位（active/deprecated/experimental）</li>
+<li>超過 90 天未使用的 Skill 自動標記為 deprecated</li>
+</ul>
+<p>---</p>
+<h2>五、實施優先級與預期效益</h2>
+<p>| 方案 | 優先級 | 預期效益 | 預估工時 |</p>
+<p>|------|--------|---------|----------|</p>
+<p>| P0-A Fetch 通用模板 | 立即 | 快取邏輯單點維護 | 1h |</p>
+<p>| P0-B 研究去重通用模板 | 立即 | 消除 680 行冗餘 | 1.5h |</p>
+<p>| P0-C preamble 依賴顯式化 | 立即 | 依賴鏈透明化 | 0.5h |</p>
+<p>| P1-A Skill 觸發優先級 | 短期 | 消除路由歧義 | 1h |</p>
+<p>| P1-B 觸發詞衝突偵測 | 短期 | 自動化衝突發現 | 2h |</p>
+<p>| P1-C 版本號強制驗證 | 短期 | 變更可追蹤 | 1.5h |</p>
+<p>| P1-D 端點健康檢查 | 短期 | 配置一致性保障 | 1h |</p>
+<p>| P2-A~E 中期方案 | 中期 | 長期治理基礎 | 各 2-3h |</p>
+<p><strong>總預期效果</strong>：</p>
+<ul>
+<li>Prompt 模板總行數減少 ~35%</li>
+<li>Skill 觸發衝突歸零</li>
+<li>配置變更後自動驗證覆蓋率從 40% 提升至 80%</li>
+</ul>
+<p>---</p>
+<h2>六、知識缺口與未來方向</h2>
+<ol>
+<li><strong>Prompt 效能基準線缺失</strong>：目前無法量化哪些 Prompt 消耗最多 Token — 需整合 post_tool_logger 的 token 統計</li>
+<li><strong>跨 Skill 工作流驗證</strong>：Skill 鏈式組合（如 todoist → knowledge-query → ntfy-notify）的端到端測試尚未建立</li>
+<li><strong>自動化 Skill 發現</strong>：當前依賴人工維護 SKILL_INDEX.md，未來可考慮基於 SKILL.md frontmatter 的自動生成</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li>[1] Gravitee. (2026). AI Agent Sprawl: What It Is and How to Gain Control Over It. Gravitee.io. https://www.gravitee.io/blog/ai-agent-sprawl-what-it-is-and-how-to-gain-control-over-it (retrieved 2026-03-28)</li>
+<li>[2] TrueFoundry. (2026). What is AI Agent Registry - A Complete Guide. TrueFoundry. https://www.truefoundry.com/blog/ai-agent-registry (retrieved 2026-03-28)</li>
+<li>[3] Vellum. (2026). How to Build Multi Agent AI Systems With Context Engineering. Vellum.ai. https://vellum.ai/blog/multi-agent-systems-building-with-context-engineering (retrieved 2026-03-28)</li>
+<li>[4] ClawPort. (2026). Taming Agent Sprawl: How to Structure AI Agent Teams That Actually Ship. ClawPort.dev. https://www.clawport.dev/blog/taming-agent-sprawl (retrieved 2026-03-28)</li>
+<li>[5] Grith. (2026). We Audited 2,857 Agent Skills. 12% Were Malicious. Grith.ai. https://grith.ai/blog/agent-skills-supply-chain (retrieved 2026-03-28)</li>
+<li>[6] AgentSkills.so. (2026). Knowledge Base Manager - Agent Skill. https://agentskills.so/zh/skills/daffy0208-ai-dev-standards-knowledge-base-manager (retrieved 2026-03-28)</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

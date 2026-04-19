@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout：Agent 安全 / Tool Boundary / Sandbox（2026-03-27)">
+  <title>GitHub Scout：Agent 安全 / Tool Boundary / Sandbox（2026-03-27) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout：Agent 安全 / Tool Boundary / Sandbox（2026-03-27)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">github_scout</span><span class="tag">Agent安全</span><span class="tag">ToolBoundary</span><span class="tag">Guardrails</span><span class="tag">Sandbox</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Agent 安全 / Tool Boundary / Sandbox</h1>
+<ul>
+<li>研究時間：2026-03-27T10:41:14+08:00</li>
+<li>Trace ID：github-scout-20260327-agent-security</li>
+<li>主題：Agent 安全 / Tool Boundary / Sandbox（NeMo Guardrails、Qwen-Agent、agent-infra sandbox）</li>
+</ul>
+<h2>專案觀測摘要</h2>
+<h3>NVIDIA/NeMo-Guardrails</h3>
+<ul>
+<li>Repo：https://github.com/NVIDIA/NeMo-Guardrails</li>
+<li>Stars：5.5k</li>
+<li>最近更新：2025-12-03（GitHub Releases v0.19.0）</li>
+<li>相關性：高</li>
+<li>guardrail_surface：輸入、對話、檢索、輸出 rails 完整，是最適合作為 guardrail surface 對照基線的專案。</li>
+<li>tool_boundary：把工具調用約束留在 rails 與 config 層，適合借鏡到本專案的研究審查格式。</li>
+<li>operator_override：允許依 rails 配置調整，但官方持續提醒 beta / production 風險。</li>
+</ul>
+<h3>QwenLM/Qwen-Agent</h3>
+<ul>
+<li>Repo：https://github.com/QwenLM/Qwen-Agent</li>
+<li>Stars：15.8k</li>
+<li>最近更新：2025-09-23（README News 最近一筆）</li>
+<li>相關性：高</li>
+<li>guardrail_surface：能力面強，護欄不是第一級抽象。</li>
+<li>tool_boundary：MCP、Code Interpreter、RAG 都容易放大工具邊界問題。</li>
+<li>operator_override：部署者可透過 extras 與運行配置決定是否啟用高權限能力。</li>
+</ul>
+<h3>agent-infra/sandbox</h3>
+<ul>
+<li>Repo：https://github.com/agent-infra/sandbox</li>
+<li>Stars：約 1.5k</li>
+<li>最近更新：2025-11-28（GitHub 搜尋快照）</li>
+<li>相關性：高</li>
+<li>guardrail_surface：偏執行環境隔離，而非內容審查。</li>
+<li>tool_boundary：Browser、Shell、File、MCP、VSCode Server 全被放進單一 sandbox，對工具邊界最直接。</li>
+<li>operator_override：可用環境變數停用高資源或高暴露面服務。</li>
+</ul>
+<h2>改進提案</h2>
+<h3>P0：Agent 安全主題覆寫與工具邊界審查常態化</h3>
+<ul>
+<li>來源：NVIDIA/NeMo-Guardrails</li>
+<li>目標檔案：<code>config/github-scout-review-policy.yaml</code>、<code>skills/github-scout/SKILL.md</code>、<code>templates/auto-tasks/github-scout.md</code>、<code>prompts/team/todoist-auto-github_scout.md</code></li>
+<li>方向：把 Agent 安全 / Tool Use / Guardrails / Sandbox 升為固定研究主題，並要求逐案補 <code>guardrail_surface</code>、<code>tool_boundary</code>、<code>operator_override</code>，同時在 review notes 明寫工具邊界/護欄影響與 rollback/降級方式。</li>
+</ul>
+<h3>P1：Execution Contract Guardrail Gate / Sandbox Gate</h3>
+<ul>
+<li>來源：agent-infra/sandbox</li>
+<li>目標檔案：<code>config/autonomous-harness.yaml</code>、hook / 恢復協調層（高風險）</li>
+<li>方向：把 sandbox / guardrail gate 真正接到執行層，讓 guarded operation 可待審、可降級、可回滾。</li>
+</ul>
+<h2>審查結論</h2>
+<h3>P0 審查</h3>
+<ul>
+<li>可行性：9/10</li>
+<li>穩定性：9/10</li>
+<li>審查輪數：2</li>
+<li>結論：通過並已落實。</li>
+<li>原因：只改 config / skill / template / prompt 契約層，不碰 runtime guard。</li>
+<li>主要風險：增加研究輸出負擔。</li>
+<li>工具邊界/護欄影響：僅提升研究與審查粒度，不直接改工具調用。</li>
+<li>rollback / 降級：移除 topic override 與新增條文即可。</li>
+</ul>
+<h3>P1 審查</h3>
+<ul>
+<li>可行性：6/10</li>
+<li>穩定性：6/10</li>
+<li>審查輪數：2</li>
+<li>結論：不自動落實，降級為 plan_ready。</li>
+<li>原因：會碰核心攔截 hooks 與 execution contract，高風險。</li>
+<li>主要風險：錯誤放行、錯誤回滾、hook 與 sandbox 邊界脫鉤。</li>
+<li>工具邊界/護欄影響：直接影響 bash/write guard 與 operator override。</li>
+<li>rollback / 降級：本輪僅輸出計畫檔，不改 runtime。</li>
+</ul>
+<h2>已落實項目</h2>
+<ol>
+<li>在 <code>config/github-scout-review-policy.yaml</code> 新增安全主題覆寫規則。</li>
+<li>在 <code>skills/github-scout/SKILL.md</code> 新增 Agent 安全 / Sandbox 搜尋主題與安全觀測欄位。</li>
+<li>在 <code>templates/auto-tasks/github-scout.md</code> 與 <code>prompts/team/todoist-auto-github_scout.md</code> 固化工具邊界 / 護欄影響 / 降級方式要求。</li>
+</ol>
+<h2>待人工審核項目</h2>
+<ol>
+<li><code>docs/plans/github-scout-20260327-agent-security-guardrail-gates.md</code>：是否把 sandbox / guardrail gate 接到 execution contract 與高風險 hook 流程。</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

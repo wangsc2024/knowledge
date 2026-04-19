@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Open-SWE — LangChain 開源非同步 Coding Agent 框架深度洞察：Manager-Planner-Programmer 三層編排、沙箱隔離執行與七大可借鏡技術項目（8.3K Stars, 2026-03）">
+  <title>Open-SWE — LangChain 開源非同步 Coding Agent 框架深度洞察：Manager-Planner-Programmer 三層編排、沙箱隔離執行與七大可借鏡技術項目（8.3K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Open-SWE — LangChain 開源非同步 Coding Agent 框架深度洞察：Manager-Planner-Programmer 三層編排、沙箱隔離執行與七大可借鏡技術項目（8.3K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">Open-SWE</span><span class="tag">LangChain</span><span class="tag">Coding Agent</span><span class="tag">Deep Agents</span><span class="tag">LangGraph</span><span class="tag">沙箱隔離</span><span class="tag">Middleware</span><span class="tag">Agent框架</span><span class="tag">知識庫</span><span class="tag">研究</span><span class="tag">深度思維</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Open-SWE — LangChain 開源非同步 Coding Agent 框架深度洞察</h1>
+<p><strong>研究日期</strong>：2026-03-25</p>
+<p><strong>GitHub</strong>：langchain-ai/open-swe（8.3K Stars, 983 Forks, MIT License）</p>
+<p><strong>發布日期</strong>：2026-03-17</p>
+<p><strong>核心定位</strong>：企業級內部 Coding Agent 框架，從 Stripe（Minions）、Ramp（Inspect）、Coinbase（Cloudbot）三家頂尖工程團隊的實戰模式中提煉通用架構</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p>Open-SWE 是 LangChain 基於 Deep Agents + LangGraph 打造的開源非同步 Coding Agent 框架。它不是一個 IDE 插件或 CLI 工具，而是一個<strong>雲端原生的長時間任務執行平台</strong>，可以從 Slack、Linear、GitHub 觸發，在隔離沙箱中自主完成程式碼變更並開 PR。</p>
+<p>核心理念：<strong>像真正的隊友一樣工作</strong> — 早上指派一批任務，下午收到一組 PR。</p>
+<p>---</p>
+<h2>二、技術架構：七大支柱</h2>
+<h3>2.1 Agent Harness（組合式架構）</h3>
+<ul>
+<li><strong>設計哲學</strong>：Compose over Fork — 基於 Deep Agents 組合而非分叉現有方案</li>
+<li><strong>優勢</strong>：保留上游升級路徑，同時允許組織客製化編排、工具與中介軟體</li>
+<li><strong>對比</strong>：Stripe 選擇 Fork（Goose）、Coinbase 從零建構、Ramp 同樣採用 Compose（OpenCode）</li>
+</ul>
+<h3>2.2 三層 Agent 管線（核心編排）</h3>
+<pre><code>
+Manager → Planner → Programmer（含 Reviewer 子 Agent）
+</code></pre>
+<p>| Agent | 職責 | 關鍵行為 |</p>
+<p>|-------|------|----------|</p>
+<p>| <strong>Manager</strong> | 任務分派與狀態管理 | 接收 Slack/Linear/GitHub 觸發，路由到正確 repo |</p>
+<p>| <strong>Planner</strong> | 程式碼庫分析與計畫制定 | 搜尋檔案、理解架構、生成逐步執行計畫 |</p>
+<p>| <strong>Programmer</strong> | 程式碼撰寫與自我審查 | 編碼、測試、lint、開 PR；內含 Reviewer 子 Agent |</p>
+<p><strong>Human-in-the-Loop</strong>：Planner 生成計畫後會<strong>中斷等待</strong>，讓開發者 accept/edit/delete/revise。</p>
+<h3>2.3 沙箱隔離執行</h3>
+<ul>
+<li>每個任務在獨立雲端 Linux 環境中執行</li>
+<li><strong>可插拔提供者</strong>：Modal、Daytona、Runloop、LangSmith</li>
+<li><strong>持久化</strong>：同一 thread 的後續訊息重用同一沙箱</li>
+<li><strong>自動重建</strong>：沙箱不可達時自動重新建立</li>
+<li><strong>並行執行</strong>：多任務各有獨立沙箱，無需排隊</li>
+</ul>
+<h3>2.4 精選工具集（~15 個）</h3>
+<p>設計原則：<strong>「較小、精選的工具集更易測試、維護和推理」</strong></p>
+<p>| 工具 | 功能 |</p>
+<p>|------|------|</p>
+<p>| <code>execute</code> | 沙箱內 Shell 命令 |</p>
+<p>| <code>fetch_url</code> | 網頁轉 Markdown |</p>
+<p>| <code>http_request</code> | API 呼叫（GET/POST 等）|</p>
+<p>| <code>commit_and_open_pr</code> | Git commit + 開 Draft PR |</p>
+<p>| <code>linear_comment</code> | Linear 工單更新 |</p>
+<p>| <code>slack_thread_reply</code> | Slack 執行緒回覆 |</p>
+<p>| Deep Agents 內建 | <code>read_file</code>、<code>write_file</code>、<code>edit_file</code>、<code>ls</code>、<code>glob</code>、<code>grep</code>、<code>write_todos</code>、<code>task</code>（子 Agent 生成）|</p>
+<h3>2.5 Context Engineering（上下文工程）</h3>
+<p>雙層資訊注入策略：</p>
+<ol>
+<li><strong>AGENTS.md</strong>：倉庫根目錄檔案，編碼規範、測試要求、架構決策注入系統 prompt</li>
+<li><strong>任務上下文</strong>：完整 Linear issue 或 Slack thread 歷史<strong>預先組裝</strong>，減少工具呼叫開銷</li>
+</ol>
+<blockquote>這與本專案 CLAUDE.md 的角色完全一致 — 用靜態文件引導 Agent 行為。</blockquote>
+<h3>2.6 確定性中介軟體（Middleware）</h3>
+<p>三個 Hook 在 Agent 迴圈的特定點注入確定性邏輯：</p>
+<p>| Middleware | 功能 |</p>
+<p>|-----------|------|</p>
+<p>| <code>check_message_queue_before_model</code> | 在下次模型呼叫前注入後續訊息 |</p>
+<p>| <code>open_pr_if_needed</code> | 安全網：Agent 遺漏開 PR 時自動補上 |</p>
+<p>| <code>ToolErrorMiddleware</code> | 優雅錯誤處理 |</p>
+<h3>2.7 多觸發介面</h3>
+<ul>
+<li><strong>Slack</strong>：<code>@openswe</code> + <code>repo:owner/name</code> 語法，thread 內狀態更新</li>
+<li><strong>Linear</strong>：在 issue 評論 <code>@openswe</code>，👀 反應確認</li>
+<li><strong>GitHub</strong>：在 Agent PR 上 tag <code>@openswe</code> 處理 review feedback</li>
+<li><strong>確定性 Thread ID</strong> 路由後續訊息到對應的執行中 Agent</li>
+</ul>
+<p>---</p>
+<h2>三、企業級架構模式比較</h2>
+<p>| 維度 | Open-SWE | Stripe Minions | Ramp Inspect | Coinbase Cloudbot |</p>
+<p>|------|----------|----------------|--------------|-------------------|</p>
+<p>| 架構 | Compose（Deep Agents）| Fork（Goose）| Compose（OpenCode）| 從零建構 |</p>
+<p>| 沙箱 | 可插拔多選 | AWS EC2 | Modal | 自建 |</p>
+<p>| 工具數 | ~15 精選 | ~500 精選 | OpenCode SDK | MCPs + Skills |</p>
+<p>| 上下文 | AGENTS.md + threads | Rule files | 內建 | Linear-first |</p>
+<p>| 編排 | 子 Agent + Middleware | Blueprints | Sessions | 三模式 |</p>
+<p>---</p>
+<h2>四、七大可借鏡技術項目</h2>
+<h3>4.1 Compose over Fork 架構策略</h3>
+<p><strong>洞察</strong>：Open-SWE 不分叉 Deep Agents，而是在其上組合。這保留了上游升級能力，同時允許高度客製化。</p>
+<p><strong>借鏡</strong>：daily-digest-prompt 的 Skill-First 策略本質上就是 Compose 模式 — 用 SKILL.md 組合行為而非硬編碼。可進一步強化 Skill 的可插拔性，讓每個 Skill 像 Open-SWE 的工具一樣獨立替換。</p>
+<h3>4.2 確定性 Middleware 安全網</h3>
+<p><strong>洞察</strong>：<code>open_pr_if_needed</code> 是關鍵設計 — 不信任 LLM 一定會執行關鍵步驟，用確定性邏輯作為兜底。</p>
+<p><strong>借鏡</strong>：本專案的 Hook 系統（pre_bash_guard、pre_write_guard）已實現類似機制。可參考 Open-SWE 的 <code>check_message_queue_before_model</code> 模式，在 Agent 迴圈中注入即時指令（如排程優先級變更）。</p>
+<h3>4.3 精選工具集哲學</h3>
+<p><strong>洞察</strong>：Stripe 有 ~500 工具，Open-SWE 刻意精簡到 ~15 個。理由：「較小的工具集更易測試、維護和推理」。</p>
+<p><strong>借鏡</strong>：本專案有 28 個 Skills，可評估是否有合併或精簡空間。Open-SWE 的經驗證明，精選工具 + 良好的組合能力 > 大量特化工具。</p>
+<h3>4.4 AGENTS.md 上下文工程</h3>
+<p><strong>洞察</strong>：用倉庫根目錄的靜態文件注入編碼規範、架構決策到系統 prompt，讓每次執行都遵循團隊約定。</p>
+<p><strong>借鏡</strong>：本專案的 CLAUDE.md 已實現此模式。Open-SWE 的做法驗證了「文件驅動 Agent 行為」的正確性（ADR-002）。可參考其分層設計：全域 AGENTS.md + 目錄層級覆寫。</p>
+<h3>4.5 持久化沙箱與 Thread 路由</h3>
+<p><strong>洞察</strong>：同一 thread 的後續訊息重用同一沙箱，且用確定性 Thread ID 路由。這讓多輪對話保持狀態連貫。</p>
+<p><strong>借鏡</strong>：本專案的 Todoist Team 模式可參考此設計 — 讓同一任務的多階段執行共享狀態（目前透過 results/*.json 傳遞，可考慮更緊密的狀態綁定）。</p>
+<h3>4.6 子 Agent 隔離與 Task 工具</h3>
+<p><strong>洞察</strong>：Deep Agents 的 <code>task</code> 工具原生支援生成子 Agent，每個子 Agent 有獨立的 middleware stack、todo list 和檔案操作。</p>
+<p><strong>借鏡</strong>：本專案的 Agent Team 策略已有類似概念（subagent_type 參數）。Open-SWE 的「每個子 Agent 有獨立 middleware」設計值得參考 — 目前本專案的 Hook 是全域的，可考慮 per-agent Hook 配置。</p>
+<h3>4.7 Human-in-the-Loop 中斷模式</h3>
+<p><strong>洞察</strong>：Planner 生成計畫後主動中斷，等待人類審核後才交給 Programmer 執行。這在自動化與控制之間取得平衡。</p>
+<p><strong>借鏡</strong>：本專案的自動任務目前是全自動執行。對於高風險操作（如系統配置變更），可參考 Open-SWE 的中斷模式，加入人工確認關卡。</p>
+<p>---</p>
+<h2>五、技術洞察總結</h2>
+<h3>核心設計原則</h3>
+<ol>
+<li><strong>Compose > Fork > Build</strong>：在成熟框架上組合，保留升級路徑</li>
+<li><strong>精選 > 堆疊</strong>：15 個精選工具 vs 500 個工具海</li>
+<li><strong>確定性兜底</strong>：Middleware 確保關鍵步驟不被 LLM 遺漏</li>
+<li><strong>文件即配置</strong>：AGENTS.md 讓 Agent 行為可版本控制</li>
+<li><strong>沙箱即信任邊界</strong>：每任務隔離，錯誤爆炸半徑可控</li>
+</ol>
+<h3>與 daily-digest-prompt 的架構同構性</h3>
+<p>| Open-SWE 概念 | daily-digest-prompt 對應 |</p>
+<p>|---------------|-------------------------|</p>
+<p>| AGENTS.md | CLAUDE.md + SKILL.md |</p>
+<p>| Middleware Hooks | pre_bash_guard / pre_write_guard |</p>
+<p>| <code>task</code> 子 Agent | Agent Team（subagent_type）|</p>
+<p>| 精選 ~15 工具 | 28 Skills（可評估精簡）|</p>
+<p>| 沙箱隔離 | Phase 0/1/2 階段隔離 |</p>
+<p>| Thread 路由 | results/*.json 檔案傳遞 |</p>
+<p>| Human-in-the-Loop | 目前無（可新增高風險確認）|</p>
+<p>---</p>
+<h2>六、來源</h2>
+<ul>
+<li>LangChain 官方部落格：Open SWE — An Open-Source Framework for Internal Coding Agents</li>
+<li>GitHub：langchain-ai/open-swe（MIT License）</li>
+<li>LangChain 介紹文：Introducing Open SWE — An Open-Source Asynchronous Coding Agent</li>
+<li>byteiota 教學：Open SWE Tutorial — Build AI Coding Agents (2026)</li>
+<li>AIToolly 報導：Open-SWE: LangChain's New Open-Source Coding Agent</li>
+</ul>
+<p>---</p>
+<p><em>本洞察報告由 daily-digest-prompt 研究 Agent 自動生成，基於 WebSearch + WebFetch 多來源交叉驗證。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="uv — Astral 的 Rust 驅動 Python 套件管理器完整指南：效能基準、核心命令、pyproject.toml 配置與 daily-digest-prompt 專案實踐（2026）">
+  <title>uv — Astral 的 Rust 驅動 Python 套件管理器完整指南：效能基準、核心命令、pyproject.toml 配置與 daily-digest-prompt 專案實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>uv — Astral 的 Rust 驅動 Python 套件管理器完整指南：效能基準、核心命令、pyproject.toml 配置與 daily-digest-prompt 專案實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">uv</span><span class="tag">Python套件管理</span><span class="tag">Astral</span><span class="tag">Rust</span><span class="tag">pyproject.toml</span><span class="tag">效能基準</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>uv — Rust 驅動的 Python 套件管理器完整指南（2026）</h1>
+<h2>技術概述</h2>
+<p>uv 是 Astral（Ruff 背後的公司）用 Rust 開發的全方位 Python 套件管理器，一個工具取代 pip、pip-tools、pipx、poetry、pyenv、virtualenv 的功能。2026 年初 PyPI 月下載量已突破 7,500 萬次，超越 Poetry 的 6,600 萬次，成為 Python 生態系的事實標準。其核心優勢在於 Rust 實作帶來的 10-100 倍效能提升，以及統一管理 Python 版本、虛擬環境、依賴解析、鎖檔生成的一站式體驗。</p>
+<p>---</p>
+<h2>核心概念與原理</h2>
+<h3>架構設計</h3>
+<p>uv 的效能優勢源於兩個層面：</p>
+<ol>
+<li><strong>Rust 原生實作</strong>：避免 Python 直譯器的啟動開銷與 GIL 限制，所有依賴解析、下載、安裝都在 Rust 層完成</li>
+<li><strong>並行下載與快取策略</strong>：多執行緒並行下載套件，搭配全域快取（<code>~/.cache/uv/</code>）實現極速重複安裝</li>
+<li><strong>跨平台鎖檔格式</strong>：<code>uv.lock</code> 記錄所有平台的解析結果，一次解析、處處安裝</li>
+</ol>
+<h3>兩檔案系統</h3>
+<p>| 檔案 | 角色 | 類比 |</p>
+<p>|------|------|------|</p>
+<p>| <code>pyproject.toml</code> | 宣告依賴（最低版本約束） | 如 requirements.in |</p>
+<p>| <code>uv.lock</code> | 完整解析結果（精確版本） | 如 requirements.txt |</p>
+<p><code>uv.lock</code> 是跨平台的——即使你在 Linux 上鎖定，Windows 特有的依賴（如 <code>tzdata</code>）也會被記錄，確保可重現性。</p>
+<p>---</p>
+<h2>效能基準（2026 實測）</h2>
+<p>| 操作 | uv | Poetry | pip-tools | Conda |</p>
+<p>|------|------|--------|-----------|-------|</p>
+<p>| 冷啟動安裝（從 lockfile） | ~3 秒 | ~11 秒 | ~33 秒 | ~120 秒 |</p>
+<p>| 鎖檔生成（冷快取） | ~8 秒 | ~22 秒 | ~35 秒 | N/A |</p>
+<p>| 新增單一套件 | <1 秒 | ~3 秒 | ~6 秒 | ~10 秒 |</p>
+<p>| 暖快取安裝 | ~1 秒 | ~30 秒 | ~30 秒 | ~60 秒 |</p>
+<p>| CI/CD 冷快取 | ~8 秒 | ~90 秒 | ~45 秒 | ~120 秒 |</p>
+<blockquote>基準資料來源：Python Package Manager Shootout（使用 Sentry 依賴清單，GitHub Actions 每 6 小時自動執行）</blockquote>
+<p>---</p>
+<h2>核心命令速查</h2>
+<h3>專案管理</h3>
+<pre><code>
+# 初始化專案
+uv init myproject
+
+# 新增依賴
+uv add requests pandas
+uv add --dev pytest ruff        # 開發依賴
+uv add --group gmail google-auth # 可選依賴群組
+
+# 移除依賴
+uv remove pandas
+
+# 鎖定依賴版本
+uv lock
+
+# 同步環境（安裝 lockfile 中的所有依賴）
+uv sync
+uv sync --no-group dev           # 僅安裝生產依賴
+uv sync --frozen                 # CI 用：嚴格依照 lockfile，不更新
+
+# 執行腳本（自動同步環境）
+uv run python script.py
+uv run pytest tests/
+</code></pre>
+<h3>Python 版本管理</h3>
+<pre><code>
+# 安裝特定 Python 版本
+uv python install 3.12
+uv python install 3.9 3.10 3.11  # 同時安裝多版本
+
+# 列出可用版本
+uv python list
+
+# 釘選專案 Python 版本
+uv python pin 3.12
+</code></pre>
+<h3>工具管理（取代 pipx）</h3>
+<pre><code>
+# 一次性執行（不安裝）
+uvx ruff check .
+uvx black --check .
+
+# 全域安裝工具
+uv tool install ruff
+uv tool list
+</code></pre>
+<h3>pip 相容介面（漸進遷移用）</h3>
+<pre><code>
+# 直接取代 pip（10-100x 加速）
+uv pip install -r requirements.txt
+uv pip compile requirements.in -o requirements.txt
+uv pip sync requirements.txt
+
+# 建立虛擬環境
+uv venv .venv --python 3.12
+</code></pre>
+<p>---</p>
+<h2>pyproject.toml 配置最佳實踐</h2>
+<h3>應用程式專案（如 daily-digest-prompt）</h3>
+<pre><code>
+[project]
+name = "daily-digest-prompt"
+version = "0.1.0"
+description = "Automated daily digest system"
+requires-python = "&gt;=3.9"
+dependencies = [
+    "requests&gt;=2.28.0",
+    "pyyaml&gt;=6.0",
+    "schedule&gt;=1.2.0",
+]
+
+# PEP 735 新語法（推薦，uv 原生支援）
+[dependency-groups]
+dev = [
+    "pytest&gt;=7.0.0",
+    "pytest-cov&gt;=4.0.0",
+    "ruff&gt;=0.1.0",
+]
+gmail = [
+    "google-auth-oauthlib&gt;=1.0.0",
+    "google-api-python-client&gt;=2.80.0",
+]
+
+# 舊語法（仍支援，向後相容）
+# [project.optional-dependencies]
+# dev = ["pytest&gt;=7.0.0"]
+</code></pre>
+<h3>套件庫專案</h3>
+<pre><code>
+[build-system]
+requires = ["setuptools&gt;=78.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+myapp = "module:main"
+</code></pre>
+<p>---</p>
+<h2>最佳實踐與常見陷阱</h2>
+<h3>最佳實踐</h3>
+<ol>
+<li><strong>務必將 <code>uv.lock</code> 加入版本控制</strong>：這是可重現性的關鍵，等同於 npm 的 <code>package-lock.json</code></li>
+<li><strong>CI 中使用 <code>--frozen</code> 旗標</strong>：<code>uv sync --frozen</code> 確保完全依照 lockfile 安裝，不會意外更新版本</li>
+<li><strong>用 <code>uv run</code> 取代手動啟動 venv</strong>：<code>uv run python script.py</code> 自動確保環境同步，無需 <code>source .venv/bin/activate</code></li>
+<li><strong>善用 dependency-groups 分離關注點</strong>：將 dev、test、docs、gmail 等依賴分群管理</li>
+<li><strong>定期執行 <code>uv lock --upgrade</code></strong>：安全地升級所有依賴到最新相容版本</li>
+<li><strong>快取管理</strong>：<code>uv cache prune</code> 清理未使用的快取，避免磁碟膨脹</li>
+</ol>
+<h3>常見陷阱</h3>
+<ol>
+<li><strong>Windows 路徑問題</strong>：<code>uv run --project D:/path</code> 需要正斜線，反斜線可能導致路徑解析失敗</li>
+<li><strong><code>--no-editable</code> 容易遺忘</strong>：生產部署時應使用 <code>uv sync --no-editable</code>，避免依賴原始碼路徑</li>
+<li><strong>混用 pip 與 uv</strong>：在 uv 管理的環境中直接用 pip 安裝會繞過鎖檔，導致環境漂移</li>
+<li><strong>optional-dependencies vs dependency-groups 混淆</strong>：<code>[project.optional-dependencies]</code> 是 PyPI 發布用的，<code>[dependency-groups]</code>（PEP 735）是本地開發用的。應用程式專案建議用後者</li>
+<li><strong>忘記 <code>requires-python</code> 約束</strong>：不設定會導致 uv 選擇最新 Python 版本，可能與專案不相容</li>
+</ol>
+<p>---</p>
+<h2>與本專案的關聯（daily-digest-prompt）</h2>
+<h3>現行使用模式</h3>
+<p>本專案在以下場景強制使用 uv：</p>
+<ol>
+<li><strong>Hooks 執行</strong>：所有 Python hooks（pre_bash_guard、pre_write_guard、cjk_guard 等）都透過 <code>uv run --project D:/Source/daily-digest-prompt python</code> 執行，確保依賴隔離</li>
+<li><strong>測試執行</strong>：<code>uv run pytest tests/</code> 執行 556 個測試</li>
+<li><strong>工具腳本</strong>：<code>uv run python tools/md_to_docx.py</code> 等工具一律透過 uv</li>
+<li><strong>依賴管理</strong>：<code>pyproject.toml</code> 定義 4 個核心依賴 + dev/gmail 可選群組</li>
+</ol>
+<h3>潛在優化方向</h3>
+<ol>
+<li><strong>遷移至 <code>[dependency-groups]</code></strong>：目前使用舊版 <code>[project.optional-dependencies]</code>，建議遷移到 PEP 735 的 <code>[dependency-groups]</code> 語法</li>
+<li><strong>新增 <code>uv.lock</code></strong>：目前專案未提交 lockfile，建議執行 <code>uv lock</code> 並提交 <code>uv.lock</code></li>
+<li><strong>CI 整合</strong>：若未來加入 GitHub Actions，使用 <code>uv sync --frozen</code> 確保可重現性</li>
+<li><strong>升級 <code>requires-python</code></strong>：目前設定 <code>>=3.9</code>，考慮升級至 <code>>=3.11</code> 以利用較新的語言特性（如 tomllib 標準庫）</li>
+</ol>
+<h3>與 Hooks 系統的整合要點</h3>
+<pre><code>
+# .claude/settings.json 中的 hook 命令格式
+"uv run --project D:/Source/daily-digest-prompt python D:/Source/daily-digest-prompt/hooks/pre_bash_guard.py"
+</code></pre>
+<p><code>--project</code> 旗標確保 uv 使用專案的 <code>pyproject.toml</code> 解析依賴，即使 CWD 不在專案目錄內（解決 hook CWD 漂移問題）。</p>
+<p>---</p>
+<h2>2026 生態系工具選擇建議</h2>
+<p>| 場景 | 推薦工具 | 理由 |</p>
+<p>|------|---------|------|</p>
+<p>| 新專案（應用程式） | <strong>uv</strong> | 單一工具取代整個工具鏈 |</p>
+<p>| 資料科學/ML | Conda/Mamba | CUDA、MKL 等二進位依賴相容性 |</p>
+<p>| 套件庫發布 | Poetry 或 uv | Poetry 發布流程較成熟，uv 正在追趕 |</p>
+<p>| 舊專案維護 | 維持現有工具 | 僅在重構時遷移 |</p>
+<p>| 快速腳本 | pip 或 uv | 最小開銷 |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://docs.astral.sh/uv/">uv 官方文件</a></li>
+<li><a href="https://github.com/astral-sh/uv">uv GitHub 倉庫（58K+ Stars）</a></li>
+<li><a href="https://scopir.com/posts/best-python-package-managers-2026/">Best Python Package Managers in 2026 — Scopir</a></li>
+<li><a href="https://realpython.com/python-uv/">Managing Python Projects With uv — Real Python</a></li>
+<li><a href="https://www.saaspegasus.com/guides/uv-deep-dive/">uv: An In-Depth Guide — SaaS Pegasus</a></li>
+<li><a href="https://cuttlesoft.com/blog/2026/01/27/python-dependency-management-in-2026/">Python Dependency Management in 2026 — Cuttlesoft</a></li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-07</em></p>
+<p><em>研究動機：daily-digest-prompt 專案強制使用 uv 作為 Python 工具鏈（所有 hooks、測試、工具腳本均透過 <code>uv run</code> 執行），但知識庫尚無此技術的系統性研究。本文整理 uv 的架構原理、效能基準、核心命令與專案應用最佳實踐。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

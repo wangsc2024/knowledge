@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="查詢日誌驅動的混合檢索權重校準：RRF、離線評測與 rerank 開關策略">
+  <title>查詢日誌驅動的混合檢索權重校準：RRF、離線評測與 rerank 開關策略 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>查詢日誌驅動的混合檢索權重校準：RRF、離線評測與 rerank 開關策略</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Hybrid Search</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>查詢日誌驅動的混合檢索權重校準：RRF、離線評測與 rerank 開關策略</h1>
+<p>研究日期：2026-03-30  </p>
+<p>研究類型：技術研究</p>
+<p>今日任務涉及技術：RAG、知識庫、混合檢索、查詢日誌分析、Todoist 自動化。  </p>
+<p>本次研究主題：查詢日誌驅動的混合檢索權重校準（因今日已完成任務無明確技術主題，依連續記憶建議方向深化 hybrid-search-rag 系列的 optimization 階段）。</p>
+<h2>技術概述</h2>
+<p>混合檢索的核心不是單純把 BM25 和向量搜尋放在一起，而是建立一條可持續優化的排序管線。官方文件一致指出，混合檢索通常以平行執行的全文搜尋與向量搜尋為起點，再用 RRF 或其他融合策略產生單一排序結果 [來源：Hybrid search using vectors and full text in Azure AI Search, 2026] [來源：Hybrid search, Weaviate Documentation, 2026]。真正影響長期品質的，不是第一次把 hybrid query 跑通，而是能否用查詢日誌、評測指標與可觀測性工具持續校準權重、候選集大小與 rerank 觸發條件。對 <code>daily-digest-prompt</code> 來說，這意味著把 KB 查重從「有沒有結果」升級成「哪種融合設定最能把真正相關的舊筆記排到前面」。</p>
+<h2>核心主張與三角佐證</h2>
+<ol>
+<li>已驗證✅：混合檢索的穩定基線是平行執行 lexical 與 vector 檢索，再做融合，而不是直接比較兩邊原始分數 [來源：Hybrid search using vectors and full text in Azure AI Search, 2026] [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026] [來源：Hybrid search, Weaviate Documentation, 2026]。</li>
+<li>已驗證✅：RRF 適合作為預設基線，因為它依賴排名而非原始分數尺度；但若系統已能穩定保留可比較的分數訊號，保留分數細節的融合方式可能更適合做精調 [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026] [來源：Hybrid search, Weaviate Documentation, 2026] [來源：Score ranker processor, OpenSearch Documentation, 2026]。</li>
+<li>已驗證✅：rerank 應放在最後一層，只處理小型 top-K 候選集；若候選集太小會漏召回，太大則成本高且延遲上升 [來源：Semantic reranking, Elastic Docs, 2026] [來源：Semantic ranking in Azure AI Search, 2025/2026] [來源：Create a Hybrid Query - Azure AI Search, 2026]。</li>
+<li>已驗證✅：權重校準不能只看單筆查詢，應建立代表性查詢集與 relevance judgments，並用 MRR、NDCG、Recall@K 等離線指標持續驗證 [來源：Ranking evaluation, Elasticsearch Reference, 2026] [來源：Ranking evaluation, OpenSearch Documentation, 2026] [來源：Evaluation Metrics for Search and Recommendation Systems, Weaviate, 2024/2026]。</li>
+</ol>
+<h2>核心概念與原理</h2>
+<p>Azure AI Search 說明混合檢索會在單一請求內同時執行全文與向量查詢，最後以 RRF 合併 [來源：Hybrid search using vectors and full text in Azure AI Search, 2026]。RRF 的好處在於不用直接對齊 BM25、HNSW、cosine similarity 這些不同尺度的分數，而是把每個結果集的排名轉成 <code>1 / (rank + k)</code> 再求和 [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026]。這也是它適合作為本專案預設基線的原因：當 KB 筆記來源、切 chunk 方法、向量模型與文字分析器仍在變動時，排名融合通常比分數融合更穩。</p>
+<p>但 RRF 不是最終答案。Weaviate 在混合檢索文件中把 <code>relativeScoreFusion</code> 和 <code>rankedFusion</code> 並列說明，並指出前者保留較多原始分數細節，後者只保留名次，因此當系統已能信任原始分數分布時，<code>relativeScoreFusion</code> 更適合捕捉「第一名明顯領先第二名」這類訊號 [來源：Hybrid search, Weaviate Documentation, 2026]。這提供一個重要推論：本專案可以把 RRF 視為 cold start 的預設方案，但在累積查詢日誌後，應評估是否針對特定查詢類型切換到加權融合或調整子查詢權重。這裡的「查詢類型」可先簡化成兩類：精確詞查重與語義擴展查找。前者通常應提高 keyword 佔比，後者再提高 vector 佔比。這一點亦可由 OpenSearch 的 <code>score-ranker-processor</code> 支援 <code>rank_constant</code> 與 <code>weights</code> 看出，主流搜尋引擎已把 RRF 參數化視為正常的調優手段 [來源：Score ranker processor, OpenSearch Documentation, 2026]。</p>
+<p>可觀測性是第二個關鍵。Azure 提供 <code>debug</code> 參數拆出 subscores，用來觀察 vector weighting 與 minimum threshold 是否合理 [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026]；Weaviate 則支援 <code>explainScore</code> 直接回看 hybrid 排名解釋 [來源：Hybrid search, Weaviate Documentation, 2026]。對 <code>daily-digest-prompt</code> 而言，這代表 KB 查重 API 不該只記錄最終 <code>score</code>，還應在實驗期額外保存：query 類型、keyword 子查詢 top-k、vector 子查詢 top-k、是否 rerank、最終命中筆記 ID、人工判斷是否真的重複。這些欄位之後才能轉成評測資料。</p>
+<p>第三個原理是 rerank 僅能精修召回，不應用來補救差的 first-stage retrieval。Elastic 明確指出 semantic reranking 適合放在 small top-k result set 的最後一步 [來源：Semantic reranking, Elastic Docs, 2026]。Azure 也說 semantic ranker 只處理前 50 筆，而且是從 BM25 或 RRF 結果繼續 rerank，不會回頭重跑整個 corpus [來源：Semantic ranking in Azure AI Search, 2025/2026]。因此，本專案若未來引入 reranker，優先調整的仍應是 <code>k</code>、text recall size、alpha/weights 與去重閾值，而不是期待 reranker 自動救回已被第一階段漏掉的筆記。</p>
+<h2>最佳實踐與常見陷阱</h2>
+<p>最佳實踐是先做離線評測，再做線上切換。Elasticsearch 與 OpenSearch 都有 <code>_rank_eval</code> 類 API，需要一組典型查詢與人工標註的相關文件分數 [來源：Ranking evaluation, Elasticsearch Reference, 2026] [來源：Ranking evaluation, OpenSearch Documentation, 2026]。Weaviate 的評測文件則指出，NDCG@K 適合衡量排序品質，MRR@K 適合衡量第一個相關結果是否夠靠前 [來源：Evaluation Metrics for Search and Recommendation Systems, Weaviate, 2024/2026]。對本專案建議如下：</p>
+<ul>
+<li><code>dedup</code> 類查詢：主看 MRR@5 與 Precision@3，因為目標是把真正重複筆記排到最前面。</li>
+<li><code>retrieve</code> 類查詢：主看 NDCG@10 與 Recall@20，因為需要兼顧排序與覆蓋率。</li>
+<li><code>import precheck</code> 類查詢：額外記錄 false positive rate，避免把可匯入的新筆記誤判成重複。</li>
+</ul>
+<p>常見陷阱有四個。第一，直接比較 BM25 分數與向量分數，忽略量尺不同 [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026]。第二，只看單次查詢表現，沒有代表性查詢集與 judgments [來源：Ranking evaluation, Elasticsearch Reference, 2026]。第三，把 rerank 套在過大的候選集，導致延遲與成本膨脹 [來源：Semantic reranking, Elastic Docs, 2026]。第四，缺少可觀測欄位，事後無法回推是哪個子查詢把結果推上來 [來源：Hybrid search, Weaviate Documentation, 2026] [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026]。</p>
+<h2>與本專案的關聯</h2>
+<p><code>daily-digest-prompt</code> 已有 KB 去重、匯入驗證與 research registry。下一步不是再加一層抽象，而是把 query log 轉成可評測的資料集。實作上可先在本機 KB 查詢包裝層記錄：</p>
+<ol>
+<li>查詢文字與任務類型（<code>dedup</code>、<code>retrieve</code>、<code>import</code>）。</li>
+<li>keyword/vector 各自 top-k 命中。</li>
+<li>最終融合分數、是否 rerank、命中的 noteId。</li>
+<li>人工結果標記：<code>duplicate</code>、<code>related_not_duplicate</code>、<code>missed_expected_note</code>。</li>
+</ol>
+<p>有了這些欄位，就能每週從日誌抽樣建立 judgments，跑一次離線 rank evaluation，觀察調整 <code>alpha</code>、vector weight、<code>rank_constant</code>、rerank 開關之後，MRR 與 NDCG 是否真的改善。這會比單靠主觀感受去調參數可靠得多。</p>
+<h2>程式碼範例</h2>
+<pre><code>
+from collections import defaultdict
+
+def classify_query(query: str) -&gt; str:
+    exact_markers = [".md", "SKILL", "Todoist", "API", "JSON", "PowerShell"]
+    return "dedup" if any(x.lower() in query.lower() for x in exact_markers) else "retrieve"
+
+def choose_hybrid_policy(query: str) -&gt; dict:
+    kind = classify_query(query)
+    if kind == "dedup":
+        return {
+            "fusion": "rrf",
+            "vector_weight": 0.7,
+            "text_topk": 20,
+            "vector_topk": 20,
+            "rerank": False,
+        }
+    return {
+        "fusion": "rrf",
+        "vector_weight": 1.2,
+        "text_topk": 50,
+        "vector_topk": 50,
+        "rerank": True,
+        "rerank_topk": 30,
+    }
+
+def log_eval_row(query, policy, result_ids, label):
+    return {
+        "query": query,
+        "task_kind": classify_query(query),
+        "fusion": policy["fusion"],
+        "vector_weight": policy["vector_weight"],
+        "rerank": policy["rerank"],
+        "result_ids": result_ids,
+        "label": label,
+    }
+</code></pre>
+<p>這段範例刻意把策略拆成「查詢分類 → 融合政策 → 評測日誌」，方便後續用離線評測批次比較不同設定。</p>
+<h2>完整參考來源書目</h2>
+<ul>
+<li>Microsoft. (2026). <em>Hybrid search using vectors and full text in Azure AI Search</em>. https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview</li>
+<li>Microsoft. (2026). <em>Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF)</em>. https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking</li>
+<li>Microsoft. (2026). <em>Create a Hybrid Query - Azure AI Search</em>. https://learn.microsoft.com/en-us/azure/search/hybrid-search-how-to-query</li>
+<li>Microsoft. (2025/2026). <em>Semantic ranking in Azure AI Search</em>. https://learn.microsoft.com/en-us/azure/search/semantic-search-overview</li>
+<li>Weaviate. (2026). <em>Hybrid search</em>. https://docs.weaviate.io/weaviate/concepts/search/hybrid-search</li>
+<li>Weaviate. (2026). <em>Hybrid search</em>. https://docs.weaviate.io/weaviate/search/hybrid</li>
+<li>Weaviate. (2024/2026). <em>Evaluation Metrics for Search and Recommendation Systems</em>. https://weaviate.io/blog/retrieval-evaluation-metrics</li>
+<li>Elastic. (2026). <em>Ranking evaluation</em>. https://www.elastic.co/docs/reference/elasticsearch/rest-apis/search-rank-eval</li>
+<li>Elastic. (2026). <em>Semantic reranking</em>. https://www.elastic.co/docs/solutions/search/ranking/semantic-reranking</li>
+<li>OpenSearch Project. (2026). <em>Ranking evaluation</em>. https://docs.opensearch.org/latest/api-reference/search-apis/rank-eval/</li>
+<li>OpenSearch Project. (2026). <em>Score ranker processor</em>. https://docs.opensearch.org/latest/search-plugins/search-pipelines/score-ranker-processor/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code Plugin 開發工具鏈與 7 組件架構模型 -- 從 Hookify 自動化規則到 Plugin-Dev 8 階段建構工作流與 14 個官方 Plugin 設計模式深度解析（2026-03）">
+  <title>Claude Code Plugin 開發工具鏈與 7 組件架構模型 -- 從 Hookify 自動化規則到 Plugin-Dev 8 階段建構工作流與 14 個官方 Plugin 設計模式深度解析（2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code Plugin 開發工具鏈與 7 組件架構模型 -- 從 Hookify 自動化規則到 Plugin-Dev 8 階段建構工作流與 14 個官方 Plugin 設計模式深度解析（2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">Plugin 系統</span><span class="tag">Hookify</span><span class="tag">Plugin-Dev</span><span class="tag">Feature-Dev</span><span class="tag">Hook</span><span class="tag">Agent</span><span class="tag">Skill</span><span class="tag">設計模式</span><span class="tag">技術研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code Plugin 開發工具鏈與 7 組件架構模型</h1>
+<h2>主題概述</h2>
+<p>Claude Code 的 Plugin 系統在 2026 年初已從單純的 Slash Command 擴充演進為完整的 7 組件架構模型。每個 Plugin 可包含 Commands、Agents、Skills、Hooks、MCP Servers、Settings 和 Manifest 七大組件，透過 <code>.claude-plugin/plugin.json</code> 統一宣告。官方開源了 14 個 Plugin，涵蓋從安全治理（security-guidance）到全流程功能開發（feature-dev）的完整光譜。本文深入解析 Plugin 系統的架構設計、開發工具鏈、自動化規則引擎，以及從 14 個官方 Plugin 中萃取的設計模式。</p>
+<p>---</p>
+<h2>一、Plugin 7 組件架構模型</h2>
+<h3>1.1 標準目錄結構</h3>
+<pre><code>
+plugin-name/
+  .claude-plugin/
+    plugin.json          # Plugin 宣告清單（名稱、版本、描述、組件列表）
+  commands/              # Slash Commands（Markdown 格式，YAML frontmatter）
+  agents/                # 自治 Agent 定義（Markdown + YAML frontmatter）
+  skills/                # Agent Skills（SKILL.md + 漸進式資源揭露）
+  hooks/                 # 事件處理器（Shell/Python 腳本或 Prompt-based）
+  .mcp.json              # MCP 伺服器配置（stdio/SSE/HTTP/WebSocket）
+  README.md              # Plugin 文件
+</code></pre>
+<h3>1.2 七大組件職責</h3>
+<p>| 組件 | 格式 | 載入時機 | 職責 |</p>
+<p>|------|------|---------|------|</p>
+<p>| <strong>Commands</strong> | Markdown + YAML frontmatter | 使用者鍵入 <code>/</code> 觸發 | 封裝可重複工作流（如 <code>/commit</code>、<code>/code-review</code>） |</p>
+<p>| <strong>Agents</strong> | Markdown + YAML frontmatter | 由 Command 或 Claude 自動啟動 | 自治執行專門任務（探索、架構、審查） |</p>
+<p>| <strong>Skills</strong> | SKILL.md + resources/ | 觸發關鍵字匹配時載入 | 領域知識與指引（漸進式揭露：metadata → SKILL.md → references） |</p>
+<p>| <strong>Hooks</strong> | Shell 腳本或 Prompt-based | 事件驅動（PreToolUse、PostToolUse、Stop 等） | 策略強制、驗證、自動化 |</p>
+<p>| <strong>MCP Servers</strong> | .mcp.json（JSON） | 啟動時連線 | 外部服務整合（資料庫、API、第三方工具） |</p>
+<p>| <strong>Settings</strong> | .claude/plugin-name.local.md | 會話開始時讀取 | 每專案配置（YAML frontmatter + Markdown body） |</p>
+<p>| <strong>Manifest</strong> | plugin.json | 安裝/掃描時解析 | 元資料宣告（名稱、版本、相容性、組件清單） |</p>
+<h3>1.3 漸進式揭露三層機制</h3>
+<p>Plugin 的 Skill 組件採用三層揭露策略以控制 Token 消耗：</p>
+<ol>
+<li><strong>Metadata 層</strong>（永遠載入）：Skill 名稱、觸發關鍵字、簡短描述（< 100 tokens）</li>
+<li><strong>Core SKILL.md 層</strong>（觸發時載入）：核心 API 參考（約 1,500-2,000 字）</li>
+<li><strong>References/Examples 層</strong>（按需載入）：詳細指南、模式、可運行程式碼</li>
+</ol>
+<p>這種設計使 Plugin 系統的 Token 消耗控制在可管理範圍內，即使安裝多個 Plugin 也不會撐爆 context window。</p>
+<p>---</p>
+<h2>二、14 個官方 Plugin 深度分析</h2>
+<h3>2.1 官方 Plugin 全覽</h3>
+<p>| Plugin | 組件組合 | 核心價值 |</p>
+<p>|--------|---------|--------|</p>
+<p>| <strong>agent-sdk-dev</strong> | Command + Agents(2) | Agent SDK 專案建構與驗證 |</p>
+<p>| <strong>claude-opus-4-5-migration</strong> | Skill | 模型遷移自動化 |</p>
+<p>| <strong>code-review</strong> | Command + Agents(5) | 五路並行 PR 審查（信心分數過濾） |</p>
+<p>| <strong>commit-commands</strong> | Commands(3) | Git 工作流自動化 |</p>
+<p>| <strong>explanatory-output-style</strong> | Hook(SessionStart) | 教育性解說模式 |</p>
+<p>| <strong>feature-dev</strong> | Command + Agents(3) | 7 階段結構化功能開發 |</p>
+<p>| <strong>frontend-design</strong> | Skill | 前端設計指引（反 AI 通用美學） |</p>
+<p>| <strong>hookify</strong> | Commands(4) + Agent + Skill | 自動化規則引擎 |</p>
+<p>| <strong>learning-output-style</strong> | Hook(SessionStart) | 互動學習模式 |</p>
+<p>| <strong>plugin-dev</strong> | Command + Agents(3) + Skills(7) | Plugin 開發完整工具鏈 |</p>
+<p>| <strong>pr-review-toolkit</strong> | Command + Agents(6) | 多面向 PR 審查 |</p>
+<p>| <strong>ralph-wiggum</strong> | Commands(2) + Hook(Stop) | 自指涉迭代迴圈 |</p>
+<p>| <strong>security-guidance</strong> | Hook(PreToolUse) | 9 種安全模式監控 |</p>
+<p>| <strong>plugin-dev</strong> | Command + Agents(3) + Skills(7) | 最完整的 Plugin 開發工具鏈 |</p>
+<h3>2.2 四種架構模式</h3>
+<p>從 14 個官方 Plugin 中，可以歸納出四種設計模式：</p>
+<p><strong>模式 A：多 Agent 扇出（Fan-out）</strong></p>
+<ul>
+<li>代表：code-review（5 Agent）、pr-review-toolkit（6 Agent）、feature-dev（3 Agent）</li>
+<li>模式：1 個 Command 同時啟動 N 個專門 Agent 並行工作</li>
+<li>特點：每個 Agent 聚焦單一面向，結果由 Command 彙整</li>
+<li>code-review 的 5 路 Agent：CLAUDE.md 合規、Bug 偵測、歷史脈絡、PR 歷史、程式碼評論</li>
+</ul>
+<p><strong>模式 B：事件驅動策略（Event-driven Policy）</strong></p>
+<ul>
+<li>代表：security-guidance、hookify、explanatory-output-style</li>
+<li>模式：Hook 監聽特定事件，執行策略邏輯</li>
+<li>security-guidance 監控 9 種安全模式：命令注入、XSS、eval、危險 HTML、pickle 反序列化、os.system</li>
+</ul>
+<p><strong>模式 C：結構化工作流（Structured Workflow）</strong></p>
+<ul>
+<li>代表：feature-dev（7 階段）、plugin-dev（8 階段）</li>
+<li>模式：線性但可互動的多階段流程，每階段可暫停等待使用者輸入</li>
+<li>feature-dev 7 階段：Discovery → Codebase Exploration → Clarifying Questions → Architecture Design → Implementation → Quality Review → Completion</li>
+</ul>
+<p><strong>模式 D：自指涉迴圈（Self-referential Loop）</strong></p>
+<ul>
+<li>代表：ralph-wiggum</li>
+<li>模式：Stop Hook 攔截退出，持續迭代直到任務完成</li>
+<li>實現 Agent 的持續自主改進能力</li>
+</ul>
+<p>---</p>
+<h2>三、Hookify：自動化規則引擎</h2>
+<h3>3.1 核心創新</h3>
+<p>Hookify 是最具創新性的官方 Plugin，它將 Hook 規則的建立從「手動編輯 JSON」簡化為「自然語言描述」：</p>
+<pre><code>
+/hookify Don't use console.log in TypeScript files
+</code></pre>
+<p>這會自動產生 <code>.claude/hookify.warn-debug-code.local.md</code> 規則檔案。</p>
+<h3>3.2 規則格式</h3>
+<pre><code>
+---
+name: block-dangerous-rm
+enabled: true
+event: bash
+pattern: rm\s+-rf
+action: block
+---
+
+⚠️ **Dangerous rm command detected!**
+</code></pre>
+<h3>3.3 規則能力矩陣</h3>
+<p>| 面向 | 支援 |</p>
+<p>|------|------|</p>
+<p>| 事件類型 | bash、file、stop、prompt、all |</p>
+<p>| 動作 | warn（警告但允許）、block（阻止執行） |</p>
+<p>| 模式匹配 | Python regex 語法 |</p>
+<p>| 多條件 | conditions 陣列（AND 邏輯）|</p>
+<p>| 對話分析 | <code>/hookify</code>（無參數）自動分析近期對話找出問題模式 |</p>
+<p>| 即時生效 | 無需重啟，下次工具呼叫立即生效 |</p>
+<h3>3.4 與 Hook 原生 API 的差異</h3>
+<p>Hookify 建立在 Claude Code Hook 原生事件系統之上（PreToolUse、PostToolUse、Stop、SessionStart 等 17 個事件），但提供了更高層的抽象：</p>
+<ul>
+<li>原生 Hook：寫 Shell/Python 腳本 + 手動編輯 settings.json</li>
+<li>Hookify：自然語言描述 → 自動生成 Markdown 規則檔 → Regex 匹配引擎</li>
+</ul>
+<p>---</p>
+<h2>四、Plugin-Dev：8 階段建構工作流</h2>
+<h3>4.1 開發工具鏈架構</h3>
+<p>Plugin-Dev 是官方提供的「建構 Plugin 的 Plugin」，包含 7 個專門 Skill：</p>
+<ol>
+<li><strong>Hook Development</strong> -- Hook API 與事件驅動自動化</li>
+<li><strong>MCP Integration</strong> -- Model Context Protocol 伺服器整合</li>
+<li><strong>Plugin Structure</strong> -- 目錄組織與 plugin.json 配置</li>
+<li><strong>Plugin Settings</strong> -- .claude/plugin-name.local.md 配置模式</li>
+<li><strong>Command Development</strong> -- Slash Command 建構與 frontmatter</li>
+<li><strong>Agent Development</strong> -- 自治 Agent 建構與 AI 輔助生成</li>
+<li><strong>Skill Development</strong> -- Skill 建構與漸進式揭露設計</li>
+</ol>
+<h3>4.2 `/plugin-dev:create-plugin` 8 階段流程</h3>
+<p>| 階段 | 名稱 | 動作 |</p>
+<p>|------|------|------|</p>
+<p>| 1 | Discovery | 理解 Plugin 目的與需求 |</p>
+<p>| 2 | Component Planning | 決定需要哪些組件 |</p>
+<p>| 3 | Detailed Design | 規格化每個組件，解決模糊點 |</p>
+<p>| 4 | Structure Creation | 建立目錄結構與 Manifest |</p>
+<p>| 5 | Component Implementation | 使用 AI 輔助 Agent 實作各組件 |</p>
+<p>| 6 | Validation | 執行 plugin-validator 與各組件檢查 |</p>
+<p>| 7 | Testing | 在 Claude Code 中驗證功能 |</p>
+<p>| 8 | Documentation | 完成 README 與發佈準備 |</p>
+<h3>4.3 AI 輔助 Agent 生成</h3>
+<p>Plugin-Dev 內建 <code>agent-creator</code> Agent，能根據描述自動生成 Agent 定義：</p>
+<ul>
+<li>分析需求 → 產生 YAML frontmatter（name、description、model、allowed-tools）</li>
+<li>自動寫入系統 prompt（含 <code><example></code> 區塊用於可靠觸發）</li>
+<li><code>validate-agent.sh</code> 驗證產出格式正確性</li>
+</ul>
+<p>---</p>
+<h2>五、Feature-Dev：7 階段功能開發典範</h2>
+<h3>5.1 核心理念</h3>
+<p>Feature-Dev Plugin 體現了「理解優先、實作其次」的開發哲學：</p>
+<ol>
+<li><strong>Discovery</strong>：釐清需求與限制</li>
+<li><strong>Codebase Exploration</strong>：2-3 個 <code>code-explorer</code> Agent 並行探索程式碼</li>
+<li><strong>Clarifying Questions</strong>：識別所有模糊點並等待使用者回答</li>
+<li><strong>Architecture Design</strong>：2-3 個 <code>code-architect</code> Agent 設計不同方案</li>
+<li><strong>Implementation</strong>：經使用者批准後才開始實作</li>
+<li><strong>Quality Review</strong>：3 個 <code>code-reviewer</code> Agent 並行審查（簡潔性、正確性、慣例）</li>
+<li><strong>Completion</strong>：收尾與文件</li>
+</ol>
+<h3>5.2 多 Agent 協作模式</h3>
+<p>Feature-Dev 展示了 Claude Code 的核心並行能力：</p>
+<ul>
+<li>Phase 2：同時啟動 2-3 個探索 Agent（各探索不同面向）</li>
+<li>Phase 4：同時啟動 2-3 個架構 Agent（各提出不同方案）</li>
+<li>Phase 6：同時啟動 3 個審查 Agent（各審查不同面向）</li>
+</ul>
+<p>---</p>
+<h2>六、最新版本更新亮點（v2.1.47 -- v2.1.63）</h2>
+<h3>6.1 Plugin 系統增強</h3>
+<p>| 版本 | 更新 |</p>
+<p>|------|------|</p>
+<p>| v2.1.63 | 新增 <code>/simplify</code> 和 <code>/batch</code> 內建指令；HTTP Hooks 支援（POST JSON → URL） |</p>
+<p>| v2.1.51 | Plugin 商城 Git timeout 從 30s 提升至 120s；支援自訂 npm registry 安裝 Plugin |</p>
+<p>| v2.1.50 | Agent 定義支援 <code>isolation: worktree</code>（宣告式工作樹隔離）；Plugin 可附帶 <code>settings.json</code> |</p>
+<p>| v2.1.49 | <code>--worktree</code> 啟動旗標；Agent 定義支援 <code>background: true</code>；Plugin 可附帶設定檔 |</p>
+<p>| v2.1.47 | <code>ConfigChange</code> Hook 事件（企業安全審計）；Managed Settings 支援 Windows Registry |</p>
+<h3>6.2 記憶體優化</h3>
+<p>v2.1.47 至 v2.1.63 之間大量記憶體洩漏修復，包括：</p>
+<ul>
+<li>Agent Teams 完成的 Teammate 任務未回收</li>
+<li>MCP Server 快取重連時未清理</li>
+<li>長時間 Session 的 Git Root 偵測快取無限增長</li>
+<li>Tree-sitter Parser WASM 記憶體無法收縮</li>
+<li>JSON 解析快取無限增長</li>
+</ul>
+<h3>6.3 HTTP Hooks（v2.1.63 新功能）</h3>
+<p>新增 HTTP Hooks 機制，可將 Hook 事件以 JSON POST 發送到 URL 並接收 JSON 回應，替代傳統的 Shell 命令執行方式。這使得 Hook 邏輯可以託管在遠端服務，適合企業級集中式策略管理。</p>
+<p>---</p>
+<h2>七、對本專案（Daily-Digest-Prompt）的啟示</h2>
+<h3>7.1 可借鑑的設計模式</h3>
+<ol>
+<li><strong>Hookify 的 Markdown 規則格式</strong>：可考慮將 <code>config/hook-rules.yaml</code> 遷移為 Hookify 風格的 <code>.local.md</code> 規則檔案，利用 Regex 匹配引擎</li>
+<li><strong>Feature-Dev 的多 Agent 扇出</strong>：已在 <code>run-agent-team.ps1</code> 的 Phase 1 五路並行中實踐</li>
+<li><strong>Plugin-Dev 的漸進式揭露</strong>：可強化 SKILL_INDEX.md 的三層揭露（目前僅有索引和 SKILL.md 兩層）</li>
+<li><strong>HTTP Hooks</strong>：可將 ntfy 告警從 <code>on_stop_alert.py</code> 腳本遷移為 HTTP Hook 直接 POST</li>
+</ol>
+<h3>7.2 遷移建議</h3>
+<ul>
+<li>短期：將 security-guidance 的 9 種安全模式與本專案的 <code>pre_bash_guard.py</code> 13 條規則對齊</li>
+<li>中期：評估將本專案的 24 個 Skill 封裝為 Claude Code Plugin 格式</li>
+<li>長期：利用 Plugin 商城分發本專案的 Skill 生態</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/plugins/README.md">Claude Code GitHub - plugins/README.md</a> -- 14 個官方 Plugin 總覽</li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/plugins/plugin-dev/README.md">Claude Code GitHub - plugins/plugin-dev/README.md</a> -- Plugin 開發工具鏈 7 Skill + 8 階段</li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/plugins/hookify/README.md">Claude Code GitHub - plugins/hookify/README.md</a> -- Hookify 自動化規則引擎</li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/plugins/feature-dev/README.md">Claude Code GitHub - plugins/feature-dev/README.md</a> -- Feature-Dev 7 階段工作流</li>
+<li><a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">Claude Code GitHub - CHANGELOG.md</a> -- v2.1.47-2.1.63 更新紀錄</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-01</em></p>
+<p><em>研究者：Claude Code Agent（todoist_research 自動任務）</em></p>
+<p><em>研究動機：知識庫已有 10 篇 Claude Code 研究（通用更新、Agent SDK、MCP、Hooks、Plugin 生態系統、Worktree、CI/CD、Agent Teams），但缺乏 Plugin 內部組件架構、開發工具鏈和官方 Plugin 設計模式的深度分析。本文填補 7 組件模型、Hookify 規則引擎、Plugin-Dev 8 階段工作流三個方向的知識缺口。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

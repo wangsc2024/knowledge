@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 跨 Phase 資料契約與防禦性編排模式優化建議 — 結果檔案 Schema 治理、命名一致性修復與中間驗證閘門設計（2026-03-07）">
+  <title>Daily-Digest-Prompt 跨 Phase 資料契約與防禦性編排模式優化建議 — 結果檔案 Schema 治理、命名一致性修復與中間驗證閘門設計（2026-03-07） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt 跨 Phase 資料契約與防禦性編排模式優化建議 — 結果檔案 Schema 治理、命名一致性修復與中間驗證閘門設計（2026-03-07）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">資料契約</span><span class="tag">Schema治理</span><span class="tag">防禦性編排</span><span class="tag">結果檔案</span><span class="tag">Phase間驗證</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-07</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 跨 Phase 資料契約與防禦性編排模式優化建議</h1>
+<p><strong>結果檔案 Schema 治理、命名一致性修復與中間驗證閘門設計</strong></p>
+<p><em>研究日期：2026-03-07</em></p>
+<p><em>類型：專案優化 / 深度思維 / 知識庫</em></p>
+<p><em>適用對象：daily-digest-prompt 專案</em></p>
+<p>---</p>
+<h2>一、概述</h2>
+<p>本文運用知識庫中既有的 FSM 設計模式、品質閘門、YAML 配置驅動架構、PowerShell 並行程式設計等研究成果，針對 daily-digest-prompt 專案的<strong>跨 Phase 資料契約</strong>進行深度檢視。重點分析 Phase 間結果檔案的 Schema 治理現況，識別出命名不一致、欄位定義分歧、中間驗證缺失等系統性問題，並提出具體的防禦性編排改善方案。</p>
+<p><strong>核心問題</strong>：專案歷史上至少出現 3 次「結果檔案缺失」的根因修復（2026-02-18 檔案命名修正、2026-02-24 動態掃描修復、hyphen→underscore 正規化修復），這些問題表面上是個案 bug，實質上反映了<strong>跨 Phase 資料契約缺乏形式化定義與強制驗證</strong>的系統性缺陷。</p>
+<p>---</p>
+<h2>二、現況診斷：五大結構性問題</h2>
+<h3>2.1 自動任務結果檔案命名不一致（嚴重度：HIGH）</h3>
+<p>15 個自動任務中，僅 2 個（<code>tech_research</code>、<code>chatroom_optimize</code>）的結果檔案命名與 YAML key 完全一致。其餘 13 個存在 hyphen/underscore 混用：</p>
+<p>| YAML Key | Prompt 指定的輸出檔名 | 預期格式 | 差異 |</p>
+<p>|----------|---------------------|---------|------|</p>
+<p>| <code>ai_deep_research</code> | <code>todoist-auto-ai-deep-research.json</code> | <code>todoist-auto-ai_deep_research.json</code> | hyphen |</p>
+<p>| <code>ai_github_research</code> | <code>todoist-auto-ai-github.json</code> | <code>todoist-auto-ai_github_research.json</code> | 截斷+hyphen |</p>
+<p>| <code>log_audit</code> | <code>todoist-auto-logaudit.json</code> | <code>todoist-auto-log_audit.json</code> | 無分隔符 |</p>
+<p>| <code>git_push</code> | <code>todoist-auto-gitpush.json</code> | <code>todoist-auto-git_push.json</code> | 無分隔符 |</p>
+<p>| <code>creative_game_optimize</code> | <code>todoist-auto-creative-game.json</code> | <code>todoist-auto-creative_game_optimize.json</code> | 完全不同 |</p>
+<p>| <code>self_heal</code> | <code>todoist-auto-self-heal.json</code> | <code>todoist-auto-self_heal.json</code> | hyphen |</p>
+<p>| <code>system_insight</code> | <code>todoist-auto-system-insight.json</code> | <code>todoist-auto-system_insight.json</code> | hyphen |</p>
+<p>| <code>github_scout</code> | <code>todoist-auto-github-scout.json</code> | <code>todoist-auto-github_scout.json</code> | hyphen |</p>
+<p><strong>影響</strong>：PowerShell 編排腳本的 <code>$keyAliases</code> 表（15+ 條映射）本質上是在 patch 這個命名混亂。每次新增自動任務，都必須手動維護別名表，否則 Phase 3 找不到結果檔案。</p>
+<h3>2.2 結果 JSON 欄位定義分歧（嚴重度：HIGH）</h3>
+<p>Phase 3（todoist-assemble.md）期望所有自動任務結果包含 <code>type</code> 欄位以匹配 frequency-limits.yaml 的 counter_field，但實際上：</p>
+<p>| 任務類型 | 使用欄位 | Phase 3 期望 |</p>
+<p>|---------|---------|------------|</p>
+<p>| 研究類（shurangama 等） | <code>type</code> | <code>type</code> 正確 |</p>
+<p>| system_insight | <code>task_key</code> | <code>type</code> 不符 |</p>
+<p>| self_heal | <code>task_key</code> | <code>type</code> 不符 |</p>
+<p>| git_push | <code>knowledge_sync</code> | <code>type</code> 不符 |</p>
+<p><strong>後果</strong>：Phase 3 讀取 <code>type</code> 欄位失敗 → 無法正確更新頻率計數器 → round-robin 公平性受損。</p>
+<h3>2.3 Phase 2→3 缺乏中間驗證閘門（嚴重度：MEDIUM-HIGH）</h3>
+<p>目前 Phase 2 完成後直接啟動 Phase 3，沒有中間步驟驗證結果檔案是否存在且格式正確。結果檔案缺失只在 Phase 3 組裝時才被發現。</p>
+<p>理想流程應為：Phase 2 完成 → 驗證閘門（檔案存在 + JSON 可解析 + 必要欄位存在）→ Phase 3 啟動。</p>
+<p><strong>知識庫關聯</strong>：已有「自動化品質閘門」筆記提出 Ratchet 模式，可直接應用於 Phase 間驗證。</p>
+<h3>2.4 結果 JSON 無 Schema 驗證（嚴重度：MEDIUM）</h3>
+<p><code>hooks/validate_config.py</code> 已對 7 個 YAML 配置做 Schema 驗證，但結果 JSON 完全無驗證。<code>config/schemas/</code> 目錄存在，但不含任何 <code>result-*.schema.json</code>。</p>
+<p>配置檔案（靜態、低頻變更）有完整驗證，而結果檔案（動態、每次執行都生成）反而無驗證 — 這是「燈下黑」現象。</p>
+<h3>2.5 DONE_CERT 軟性解析（嚴重度：LOW-MEDIUM）</h3>
+<p>Phase 2 Agent 輸出的 <code>===DONE_CERT_BEGIN=== JSON ===DONE_CERT_END===</code> 標記被 Phase 3 讀取，但無 JSON 格式驗證、無必要欄位檢查，Agent 超時可能導致截斷的 DONE_CERT。</p>
+<p>---</p>
+<h2>三、優化建議：四層防禦性架構</h2>
+<h3>3.1 第一層：命名契約標準化（P0 — 立即修復）</h3>
+<p><strong>原則</strong>：結果檔案名稱必須與 <code>frequency-limits.yaml</code> 的 key 完全一致（底線格式）。</p>
+<p><strong>具體動作</strong>：</p>
+<ol>
+<li>遍歷所有 15 個 <code>prompts/team/todoist-auto-*.md</code>，將輸出檔名統一為 <code>results/todoist-auto-{yaml_key}.json</code></li>
+<li>在 <code>specs/interface-spec/phase-results.md</code> 新增「結果檔案命名規則」段落</li>
+<li>刪除 <code>$keyAliases</code> 別名表（根因消除後不再需要 patch）</li>
+<li>新增 <code>validate_config.py --check-result-names</code> 子命令，比對 prompt 中的輸出路徑與 YAML key</li>
+</ol>
+<p><strong>預期效果</strong>：消除 13 個命名不一致問題，防止未來新增自動任務時重複犯錯。</p>
+<h3>3.2 第二層：結果 JSON Schema 標準化（P0 — 與命名一起修復）</h3>
+<p><strong>定義通用基礎 Schema</strong>（所有自動任務必須包含）：</p>
+<pre><code>
+{
+  "required": ["agent", "status", "type", "content", "summary"],
+  "properties": {
+    "agent": { "type": "string" },
+    "status": { "enum": ["success", "partial", "failed"] },
+    "type": { "type": "string", "description": "必須與 frequency-limits.yaml key 一致" },
+    "content": { "type": "string" },
+    "summary": { "type": "string" },
+    "error": { "type": ["string", "null"] },
+    "duration_seconds": { "type": "number" },
+    "done_cert": { "type": "object" }
+  }
+}
+</code></pre>
+<p><strong>動作</strong>：將 Schema 存為 <code>config/schemas/auto-task-result.schema.json</code>，更新所有 prompt 統一使用 <code>type</code> 欄位。</p>
+<h3>3.3 第三層：Phase 間驗證閘門（P1 — 短期內實施）</h3>
+<p>在 <code>run-todoist-agent-team.ps1</code> 的 Phase 2→3 之間插入 <code>Test-PhaseResults</code> 驗證函數：</p>
+<ul>
+<li>讀取 todoist-plan.json 取得預期的結果檔案列表</li>
+<li>逐一檢查檔案存在性、JSON 可解析性、必要欄位（<code>type</code>, <code>status</code>）</li>
+<li>所有通過 → Phase 3 正常啟動</li>
+<li>部分缺失但 >=50% 存在 → Phase 3 啟動，通知標記降級</li>
+<li>全部缺失 → 跳過 Phase 3，直接發送告警</li>
+</ul>
+<p><strong>借鏡品質閘門 Ratchet 模式</strong>：設定基線成功率並逐步提升。</p>
+<h3>3.4 第四層：契約文件化與自動驗證（P2 — 中期實施）</h3>
+<p>強化 <code>specs/interface-spec/phase-results.md</code>：</p>
+<ol>
+<li>為每個 Phase 的輸入/輸出加上「契約版本號」</li>
+<li>加入 breaking change 管理：修改結果 Schema 時必須同步更新消費端</li>
+<li>新增 <code>validate_config.py --check-contracts</code> 自動化契約一致性檢查</li>
+</ol>
+<p>---</p>
+<h2>四、知識庫交叉引用</h2>
+<p>本建議參考了以下既有知識庫研究：</p>
+<ol>
+<li><strong>有限狀態機（FSM）設計模式指南</strong>：Phase 間轉換本質上是狀態機，驗證閘門等同於 guard condition</li>
+<li><strong>自動化品質閘門完整指南</strong>：Ratchet 漸進式改善模式可應用於結果檔案品質基線</li>
+<li><strong>YAML 配置驅動架構指南</strong>：Configuration as Code 原則 — Schema 驗證閘門應覆蓋所有機器生成的資料</li>
+<li><strong>PowerShell 7 並行程式設計指南</strong>：並行任務中的錯誤處理應在 ScriptBlock 內部處理，回傳狀態物件</li>
+<li><strong>Daily-Digest-Prompt 可觀測性成熟度演進路線圖</strong>：跨 Phase 因果關聯是可觀測性 Level 2 的核心能力</li>
+<li><strong>系統成熟度評估與 Phase 3 演進路線圖</strong>：自適應 Agent 需要穩固的資料契約作為基礎</li>
+</ol>
+<p>---</p>
+<h2>五、實施優先級與預期效果</h2>
+<p>| 優先級 | 項目 | 工作量 | 預期效果 |</p>
+<p>|--------|------|--------|--------|</p>
+<p>| P0 | 統一 15 個 prompt 的結果檔案命名 | 2 小時 | 消除 13 個命名不一致，刪除 keyAliases patch |</p>
+<p>| P0 | 統一結果 JSON 的 <code>type</code> 欄位 | 1 小時 | 修復 Phase 3 頻率計數器更新失敗 |</p>
+<p>| P1 | Phase 2→3 驗證閘門函數 | 3 小時 | 提前偵測結果缺失，避免 Phase 3 白跑 |</p>
+<p>| P1 | auto-task-result.schema.json | 1 小時 | 形式化契約，新增任務時有規範可循 |</p>
+<p>| P2 | validate_config.py --check-contracts | 4 小時 | 自動化契約一致性檢查，防止未來回歸 |</p>
+<p>| P2 | phase-results.md 契約版本化 | 2 小時 | Breaking change 可追蹤 |</p>
+<p><strong>總預期效果</strong>：消除歷史上反覆出現的「結果檔案缺失」類 bug；新增自動任務的入門門檻從「需要手動維護 3+ 處映射」降為「遵循 Schema 模板即可」；Phase 3 組裝成功率預估從 ~85% 提升至 ~98%。</p>
+<p>---</p>
+<h2>六、深度思維反思</h2>
+<h3>6.1 為何這個問題長期未被根治？</h3>
+<p>根本原因是<strong>漸進式有機成長</strong>的副作用。專案從最初 3 個自動任務成長到 19 個，每次新增都是解決當下需求，沒有回頭統一契約。<code>$keyAliases</code> 別名表就是典型的「每次 patch 一個映射」的累積結果。</p>
+<p>這與知識庫中「熵增與複雜度治理」的研究一致 — 系統不主動治理就會自然走向熵增。P0-A（CLAUDE.md 精簡）和 P1-B（自動任務一致性驗證）已解決了配置層的熵增，但<strong>資料契約層</strong>的熵增仍在持續。</p>
+<h3>6.2 防禦性編排 vs. 防禦性程式設計</h3>
+<p>傳統防禦性程式設計著重「輸入驗證」，但在 LLM Agent 編排系統中，更重要的是<strong>輸出契約驗證</strong> — 因為 Agent 的輸出不可完全預測。Phase 間驗證閘門本質上是在 LLM 產出物上建立「型別檢查」機制，這與 TypeScript 對 JavaScript 的關係異曲同工。</p>
+<h3>6.3 契約驅動開發（Contract-Driven Development）的適用性</h3>
+<p>本建議的核心理念是將「隱式契約」（散落在 prompt 中的格式期望）轉化為「顯式契約」（Schema 定義 + 自動驗證）。這與 API 設計中的 OpenAPI/Swagger 規範、微服務中的 Consumer-Driven Contract Testing 思路一致，但應用場景從服務間通訊轉移到 Agent Phase 間通訊。</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>專案內部：<code>run-todoist-agent-team.ps1</code>（PowerShell 編排腳本）</li>
+<li>專案內部：<code>prompts/team/todoist-auto-*.md</code>（15 個自動任務 prompt）</li>
+<li>專案內部：<code>prompts/team/todoist-assemble.md</code>（Phase 3 組裝 prompt）</li>
+<li>專案內部：<code>specs/interface-spec/phase-results.md</code>（結果檔案 Schema 規格書）</li>
+<li>專案內部：<code>config/frequency-limits.yaml</code>（頻率限制配置）</li>
+<li>知識庫：有限狀態機（FSM）設計模式完整指南（2026）</li>
+<li>知識庫：自動化品質閘門完整指南 — Ratchet 漸進式改善模式</li>
+<li>知識庫：YAML 配置驅動架構完整指南（2026）</li>
+<li>知識庫：PowerShell 7 並行程式設計完整指南（2026）</li>
+<li>知識庫：Daily-Digest-Prompt 可觀測性成熟度演進路線圖（2026-03）</li>
+<li>知識庫：Daily-Digest-Prompt 系統成熟度評估與 Phase 3 演進路線圖（2026-03-06）</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-07</em></p>
+<p><em>任務 ID：6g2FfvWmxqhCWx85</em></p>
+<p><em>研究類型：專案優化 / 深度思維 / 知識庫</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

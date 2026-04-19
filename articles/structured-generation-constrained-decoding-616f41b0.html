@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Structured Generation（結構化生成）完整指南 — 從 Constrained Decoding、Outlines、Instructor 到 Pydantic AI 的 LLM 受限解碼技術與可靠結構化輸出工程實踐（2026）">
+  <title>Structured Generation（結構化生成）完整指南 — 從 Constrained Decoding、Outlines、Instructor 到 Pydantic AI 的 LLM 受限解碼技術與可靠結構化輸出工程實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Structured Generation（結構化生成）完整指南 — 從 Constrained Decoding、Outlines、Instructor 到 Pydantic AI 的 LLM 受限解碼技術與可靠結構化輸出工程實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">Structured Generation</span><span class="tag">Constrained Decoding</span><span class="tag">LLM</span><span class="tag">Outlines</span><span class="tag">Instructor</span><span class="tag">Pydantic AI</span><span class="tag">JSON Schema</span><span class="tag">結構化輸出</span><span class="tag">技術研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Structured Generation（結構化生成）完整指南</h1>
+<h2>從 Constrained Decoding、Outlines、Instructor 到 Pydantic AI 的 LLM 受限解碼技術與可靠結構化輸出工程實踐（2026）</h2>
+<p>---</p>
+<h2>一、主題概述</h2>
+<p>Structured Generation（結構化生成）是 2026 年 LLM 工程化最關鍵的技術之一，解決了「如何讓語言模型可靠地產出符合 schema 的結構化資料」這個核心問題。從早期的 prompt engineering 到 2026 年的 constrained decoding，結構化輸出經歷了四個演進階段，最終實現了 100% schema 合規的生產級解決方案。</p>
+<p>本研究涵蓋三大面向：</p>
+<ol>
+<li><strong>底層機制</strong>：Constrained Decoding 的 token masking、FSM 編譯、grammar-guided generation</li>
+<li><strong>工具生態</strong>：Outlines、Instructor、Pydantic AI、XGrammar、llguidance 五大框架</li>
+<li><strong>工程實踐</strong>：各 LLM 供應商（OpenAI、Anthropic、Google）的實作對比與生產最佳實踐</li>
+</ol>
+<p>---</p>
+<h2>二、演進四階段</h2>
+<h3>Phase 1：Prompt Engineering（2022-2023）</h3>
+<ul>
+<li><strong>方法</strong>：在 prompt 中要求模型「回傳 JSON 格式」</li>
+<li><strong>成功率</strong>：80-95%</li>
+<li><strong>問題</strong>：無格式保證、靜默失敗、邊界條件易出錯</li>
+</ul>
+<h3>Phase 2：Function Calling / Tool Use（2023-2024）</h3>
+<ul>
+<li><strong>方法</strong>：透過 API 的 function/tool 定義提供 JSON Schema</li>
+<li><strong>成功率</strong>：95-99%</li>
+<li><strong>代表</strong>：OpenAI Function Calling、Anthropic Tool Use</li>
+<li><strong>問題</strong>：Schema 僅作為提示（hint），非硬約束；可能在有效型別內產生無效值</li>
+</ul>
+<h3>Phase 3：Native Structured Output（2024-2025）</h3>
+<ul>
+<li><strong>方法</strong>：在 token 生成層面強制 schema 合規</li>
+<li><strong>成功率</strong>：100%（受限解碼保證）</li>
+<li><strong>代表</strong>：OpenAI response_format、Gemini response_schema</li>
+<li><strong>技術</strong>：Finite State Machine (FSM) + Token Masking</li>
+</ul>
+<h3>Phase 4：高效能受限解碼引擎（2025-2026）</h3>
+<ul>
+<li><strong>方法</strong>：開源引擎實現近零額外開銷的受限解碼</li>
+<li><strong>代表</strong>：XGrammar、llguidance、Outlines v2</li>
+<li><strong>突破</strong>：O(1) 有效 token 查詢、預編譯 grammar、批次解碼支援</li>
+</ul>
+<p>---</p>
+<h2>三、核心技術：Constrained Decoding（受限解碼）</h2>
+<h3>3.1 基本原理</h3>
+<p>Constrained Decoding 在模型的 logit 輸出與 sampling 步驟之間插入一個 logit processor，追蹤目標 grammar（JSON Schema、regex、CFG）中的當前位置，將無效 token 的 logit 設為負無窮大（遮罩），確保只有合法 token 被採樣。</p>
+<h3>3.2 數學公式</h3>
+<pre><code>
+P_constrained(x_t) = P(x_t) / sum(P(x))  if x_t in V_valid
+                   = 0                     otherwise
+</code></pre>
+<p><strong>關鍵性質</strong>：有效 token 間的相對機率比保持不變。例如逗號和右大括號的 3:1 機率比在遮罩後仍為 3:1，不改變模型的「偏好」。</p>
+<h3>3.3 Grammar 編譯流程</h3>
+<ol>
+<li><strong>JSON Schema -> Context-Free Grammar (CFG)</strong>：將 schema 的 type/properties/required 等轉換為 production rules</li>
+<li><strong>CFG -> Finite State Machine (FSM)</strong>：編譯為狀態轉移圖，狀態轉移預計算</li>
+<li><strong>FSM -> Token Mask Index</strong>：每個狀態對應一組有效 token ID 的 bitmask</li>
+</ol>
+<h3>3.4 效能特性</h3>
+<p>| 實作方式 | 每步查詢複雜度 | 額外延遲 |</p>
+<p>|---------|--------------|----------|</p>
+<p>| 暴力 grammar 檢查 | O(n) | 2-5x |</p>
+<p>| FSM 預編譯 | O(1) | 近零（<5%） |</p>
+<p>| Outlines index | O(1) | 低（schema 編譯一次性開銷） |</p>
+<p>---</p>
+<h2>四、工具生態系統</h2>
+<h3>4.1 Outlines（Python，開源）</h3>
+<p><strong>定位</strong>：最成熟的開源結構化生成框架</p>
+<p><strong>核心功能</strong>：</p>
+<ul>
+<li>將 JSON Schema 編譯為 index 結構，實現 O(1) 有效 token 查詢</li>
+<li>支援 regex、JSON Schema、CFG 三種約束格式</li>
+<li>與 vLLM、Transformers、llama.cpp 整合</li>
+</ul>
+<p><strong>程式碼範例</strong>：</p>
+<pre><code>
+import outlines
+
+model = outlines.models.transformers("mistralai/Mistral-7B")
+
+# Regex 約束
+generator = outlines.generate.regex(model, r"([Yy]es|[Nn]o)")
+result = generator("Is the sky blue? ")
+
+# JSON Schema 約束
+from pydantic import BaseModel
+class Sentiment(BaseModel):
+    label: str
+    score: float
+
+generator = outlines.generate.json(model, Sentiment)
+result = generator("Analyze: 'Great product!'")
+</code></pre>
+<h3>4.2 Instructor（Python/TypeScript，開源）</h3>
+<p><strong>定位</strong>：高階 SDK 補丁，將 Pydantic 模型直接作為 response_model</p>
+<p><strong>支援供應商</strong>：OpenAI、Anthropic、Google、Mistral、Ollama</p>
+<p><strong>核心機制</strong>：</p>
+<ol>
+<li>序列化 Pydantic model 為 JSON Schema</li>
+<li>傳遞給 LLM API（structured output 或 tool use）</li>
+<li>反序列化回應並驗證</li>
+<li>驗證失敗時自動 re-prompting（含錯誤訊息）</li>
+</ol>
+<h3>4.3 Pydantic AI（Python，Pydantic 官方）</h3>
+<p><strong>三種輸出模式</strong>：</p>
+<p>| 模式 | 機制 | Schema 合規 |</p>
+<p>|------|------|----------|</p>
+<p>| Tool Output | 透過 tool call 回傳 | 99%+ |</p>
+<p>| Native Output | 模型原生 JSON Schema 約束 | 100% |</p>
+<p>| Prompted Output | Schema 注入 prompt + 嘗試解析 | 80-95% |</p>
+<p><strong>2026 基準</strong>：Pydantic 驗證速度比 JSON Schema 快 3.5 倍（高吞吐場景）</p>
+<h3>4.4 XGrammar 與 llguidance（引擎級）</h3>
+<p><strong>XGrammar</strong>（2025-2026）：</p>
+<ul>
+<li>高效能受限解碼引擎</li>
+<li>實現近零額外開銷</li>
+<li>批次解碼支援</li>
+<li>整合於 vLLM、TensorRT-LLM</li>
+</ul>
+<p><strong>llguidance</strong>（Microsoft）：</p>
+<ul>
+<li>結合 grammar 約束與語義引導</li>
+<li>支援更複雜的約束類型（跨欄位依賴、條件 schema）</li>
+</ul>
+<h3>4.5 vLLM 整合</h3>
+<p>vLLM 原生支援 structured output，透過 guided_decoding_backend 參數選擇引擎：</p>
+<pre><code>
+from vllm import LLM, SamplingParams
+
+llm = LLM(model="mistralai/Mistral-7B", guided_decoding_backend="outlines")
+params = SamplingParams(
+    guided_json={"type": "object", "properties": {"name": {"type": "string"}}}
+)
+outputs = llm.generate(["Extract name:"], params)
+</code></pre>
+<p>---</p>
+<h2>五、主要 LLM 供應商對比（2026）</h2>
+<p>| 特性 | OpenAI | Anthropic (Claude) | Google Gemini |</p>
+<p>|------|--------|-------------------|---------------|</p>
+<p>| 受限解碼 | 原生 | 部分（Tool Use） | 原生 |</p>
+<p>| 100% Schema 合規 | Yes | 99%+（需驗證層） | Yes |</p>
+<p>| 串流支援 | Yes | Yes | Yes |</p>
+<p>| Pydantic 原生 | Yes（.parse()） | 手動轉換 | 手動轉換 |</p>
+<p>| Zod 原生 | Yes（helper） | 手動 | 手動 |</p>
+<p>| 巢狀深度限制 | 5 層 | 無限制 | 無限制 |</p>
+<p>| 遞迴 Schema | 有限 | Yes | 有限 |</p>
+<h3>各供應商實作模式</h3>
+<p><strong>OpenAI</strong>：client.beta.chat.completions.parse(response_format=MyModel)</p>
+<p><strong>Anthropic</strong>：tool_choice={type: tool, name: extract} + Pydantic 驗證</p>
+<p><strong>Gemini</strong>：generation_config=GenerationConfig(response_schema=MyModel)</p>
+<p>---</p>
+<h2>六、生產最佳實踐</h2>
+<h3>6.1 Validation Sandwich 模式（必備）</h3>
+<p>永遠不要直接信任 LLM 輸出，即使使用了 structured output：</p>
+<pre><code>
+[Schema 約束（結構正確性）]
+    |
+[Pydantic/Zod 驗證（型別安全性）]
+    |
+[業務邏輯驗證（語義正確性）]
+</code></pre>
+<h3>6.2 Schema 設計原則</h3>
+<ol>
+<li><strong>使用 Enum 取代自由字串</strong>：分類欄位必須用 enum（避免幻覺值）</li>
+<li><strong>設定 min/max 約束</strong>：字串長度、數字範圍、陣列大小</li>
+<li><strong>避免過深巢狀</strong>：OpenAI 限制 5 層，過深影響生成品質</li>
+<li><strong>明確 required 欄位</strong>：減少 null 值出現</li>
+<li><strong>添加 description</strong>：幫助模型理解欄位語義</li>
+</ol>
+<h3>6.3 錯誤處理策略</h3>
+<pre><code>
+def structured_extract(prompt, schema, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            result = llm.parse(prompt, response_format=schema)
+            schema.model_validate(result)  # 二次驗證
+            validate_business_rules(result)  # 業務規則
+            return result
+        except ValidationError as e:
+            prompt = f"{prompt}\n\n前次回應有誤：{e}\n請修正。"
+    raise StructuredOutputError("Max retries exceeded")
+</code></pre>
+<h3>6.4 反模式（Anti-Patterns）</h3>
+<p>| 反模式 | 問題 | 正確做法 |</p>
+<p>|--------|------|----------|</p>
+<p>| 用 regex 解析 JSON | 脆弱、無法處理巢狀 | 使用 structured output API |</p>
+<p>| 信任 LLM 輸出不驗證 | 邊界條件失敗 | Validation Sandwich |</p>
+<p>| Schema 過度複雜 | 生成品質下降 | 拆分為多次呼叫 |</p>
+<p>| 忽略 enum 約束 | 幻覺分類值 | categorical -> enum |</p>
+<p>| 用 string 替代具體型別 | 型別不安全 | 使用 int/float/bool/enum |</p>
+<p>---</p>
+<h2>七、約束格式選擇指南</h2>
+<p>| 約束格式 | 適用場景 | 複雜度 | 保證程度 |</p>
+<p>|---------|---------|--------|----------|</p>
+<p>| Regular Expression | 簡單格式（日期、email、ID） | 低 | 100% |</p>
+<p>| JSON Schema | 結構化資料萃取 | 中 | 100% |</p>
+<p>| Context-Free Grammar | 程式碼生成、SQL | 高 | 100% |</p>
+<p>| Choice List | 分類、選擇 | 極低 | 100% |</p>
+<p>---</p>
+<h2>八、對 Daily-Digest-Prompt 專案的啟示</h2>
+<p>本專案大量使用 JSON 結果檔案（results/todoist-result-*.json）進行跨 Phase 資料傳遞。目前依賴 LLM 自律產出正確 JSON，可考慮：</p>
+<ol>
+<li><strong>結果 Schema 標準化</strong>：定義 Pydantic model 作為 Phase 間契約</li>
+<li><strong>驗證閘門</strong>：Phase 2 -> Phase 3 間加入 schema 驗證</li>
+<li><strong>Instructor 整合</strong>：若遷移至 SDK 呼叫，可用 Instructor 確保結構化輸出</li>
+<li><strong>Outlines 本地部署</strong>：搭配 vLLM 部署本地模型時，內建結構化輸出</li>
+</ol>
+<p>---</p>
+<h2>九、參考來源</h2>
+<ol>
+<li>Michael Brenndoerfer, Constrained Decoding: Grammar-Guided Generation for Structured LLM Output (mbrenndoerfer.com)</li>
+<li>Let's Data Science, How Structured Outputs and Constrained Decoding Work (letsdatascience.com)</li>
+<li>DEV Community, LLM Structured Output in 2026: Stop Parsing JSON with Regex and Do It Right (dev.to)</li>
+<li>Zilliz Blog, Producing Structured Outputs from LLMs with Constrained Sampling (zilliz.com)</li>
+<li>vLLM Documentation, Structured Outputs (docs.vllm.ai)</li>
+<li>NVIDIA NIM Documentation, Structured Generation with NVIDIA NIM for LLMs (docs.nvidia.com)</li>
+<li>Pydantic AI Documentation, Output (ai.pydantic.dev)</li>
+<li>Pydantic, How to Use Pydantic for LLMs (pydantic.dev)</li>
+<li>DasRoot.net, Structured Output Validation with Pydantic vs JSON Schema (dasroot.net, 2026-02)</li>
+<li>Fireworks AI, Why do all LLMs need structured output modes? (fireworks.ai)</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-09</em></p>
+<p><em>研究者：AI 技術研究助手</em></p>
+<p><em>任務類型：todoist_research（AI 最新技術研究）</em></p>
+<p><em>Todoist Task ID：6fxjQwrJmWX663q5</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

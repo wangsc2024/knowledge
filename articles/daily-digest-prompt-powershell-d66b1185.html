@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt PowerShell 編排層架構債務與模組化治理 — 38 腳本清點、500 行重複函式萃取、巨型腳本拆解與單模式遺孤處理策略（2026-03-14）">
+  <title>Daily-Digest-Prompt PowerShell 編排層架構債務與模組化治理 — 38 腳本清點、500 行重複函式萃取、巨型腳本拆解與單模式遺孤處理策略（2026-03-14） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt PowerShell 編排層架構債務與模組化治理 — 38 腳本清點、500 行重複函式萃取、巨型腳本拆解與單模式遺孤處理策略（2026-03-14）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">PowerShell</span><span class="tag">模組化</span><span class="tag">技術債</span><span class="tag">DRY</span><span class="tag">重構</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-14</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt PowerShell 編排層架構債務與模組化治理</h1>
+<p><strong>38 腳本清點、500 行重複函式萃取、巨型腳本拆解與單模式遺孤處理策略</strong></p>
+<p><em>研究日期：2026-03-14</em></p>
+<p><em>類型：專案優化 / 深度思維 / 知識庫</em></p>
+<p><em>適用對象：daily-digest-prompt 專案</em></p>
+<p><em>方法：RAG 知識庫交叉比對 + 子 Agent 靜態分析 + Web 最佳實踐研究</em></p>
+<p>---</p>
+<h2>一、問題本質：PowerShell 是專案的隱形骨架</h2>
+<h3>1.1 現況概覽</h3>
+<p>daily-digest-prompt 專案的 Python hooks（529 測試）、Skill 生態（34 個）、YAML 配置（25 個）都已有完善治理。但作為<strong>編排層骨架</strong>的 PowerShell 腳本長期缺乏結構化管理：</p>
+<p>| 指標 | 數值 | 風險等級 |</p>
+<p>|------|------|----------|</p>
+<p>| 根目錄 .ps1 檔案數 | 35 個 | 高（無清單管理） |</p>
+<p>| 總行數 | ~10,000 行 | 中（最大單檔 1,731 行） |</p>
+<p>| 共用模組 (.psm1) | <strong>0 個</strong> | <strong>極高（零模組化）</strong> |</p>
+<p>| 函式重複定義次數 | 5 函式 × 2-7 份 | <strong>極高（500+ 行重複）</strong> |</p>
+<p>| 單模式遺孤腳本 | 3 個 | 中（維護成本） |</p>
+<h3>1.2 為何此前未被關注</h3>
+<p>既有 KB 研究聚焦在 Python hooks、YAML 配置、JSON 狀態檔、Skill 依賴圖、Token 效率、可觀測性等面向。PowerShell 作為「膠水層」被視為理所當然，但實際上承擔了：</p>
+<ul>
+<li><strong>狀態機控制</strong>（Set-FsmState，100+ 行/份 × 3 份）</li>
+<li><strong>遙測追蹤</strong>（Write-Span，36 行/份 × 3 份）</li>
+<li><strong>故障統計</strong>（Update-FailureStats，複雜 JSON 操作）</li>
+<li><strong>排程編排</strong>（Phase 0→1→2→3 全流程）</li>
+</ul>
+<p>---</p>
+<h2>二、五大架構債務深度分析</h2>
+<h3>2.1 債務一：DRY 違反 — 500+ 行重複函式（CRITICAL）</h3>
+<p>子 Agent 靜態分析發現以下函式在多個腳本中<strong>完全或近似重複定義</strong>：</p>
+<p>| 函式名 | 出現腳本數 | 每份行數 | 總重複行數 | 風險 |</p>
+<p>|--------|-----------|---------|-----------|------|</p>
+<p>| Set-FsmState | 3 | 100+ | <strong>300+</strong> | Bug 修正需改 3 處 |</p>
+<p>| Update-State | 5 | 40-50 | <strong>200+</strong> | JSON 持久化邏輯 5 份 |</p>
+<p>| Write-Log | 7+ | 4-6 | 28+ | 日誌格式不一致風險 |</p>
+<p>| Write-Span | 3 | 36 | 72 | 遙測格式漂移 |</p>
+<p>| Remove-StderrIfBenign | 3 | 22 | 44 | 過濾規則分歧 |</p>
+<p><strong>真實風險案例</strong>：2026-02-24 FSM 殭屍偵測修復需同時修改 run-todoist-agent-team.ps1 和 run-agent-team.ps1 的 Set-FsmState，若漏改一處即產生行為不一致。</p>
+<p><strong>業界最佳實踐對照</strong>：</p>
+<ul>
+<li>Microsoft PowerShell Style Guide 建議「頻繁複製貼上的函式應萃取為模組」</li>
+<li>PowerShell Practice and Style Guide 指出「可重用工具應具備高復用性，僅透過參數接受輸入」</li>
+</ul>
+<h3>2.2 債務二：零模組化 — 無 .psm1、無 lib/ 目錄</h3>
+<p><strong>現況</strong>：35 個根目錄腳本中，僅有 1 個 dot-source 引用（test-precheck.ps1 引用 circuit-breaker-utils.ps1），其餘完全獨立、自成一體。</p>
+<p><strong>影響</strong>：</p>
+<ol>
+<li><strong>測試困難</strong>：無法對共用函式進行單元測試（Pester），因為函式散落在各腳本中</li>
+<li><strong>版本漂移</strong>：同名函式在不同腳本中逐漸產生微妙差異（參數名、錯誤處理、日誌格式）</li>
+<li><strong>認知負擔</strong>：新維護者需逐一閱讀腳本才能理解「Set-FsmState 到底定義在哪」</li>
+</ol>
+<p><strong>建議架構</strong>：</p>
+<pre><code>
+lib/
+  DailyDigest.psm1          # 主模組（Export-ModuleMember 控制）
+  DailyDigest.psd1          # 模組清單（版本、依賴）
+  Public/
+    Set-FsmState.ps1        # 狀態機控制
+    Update-State.ps1        # JSON 持久化
+    Write-Span.ps1          # 遙測追蹤
+  Private/
+    Write-Log.ps1           # 內部日誌
+    Remove-StderrIfBenign.ps1  # 過濾工具
+</code></pre>
+<p>各腳本頂部改為：</p>
+<pre><code>
+Import-Module "$PSScriptRoot/lib/DailyDigest.psm1" -Force
+</code></pre>
+<p><strong>預估收益</strong>：減少 500+ 行重複、統一日誌格式、啟用 Pester 模組測試。</p>
+<h3>2.3 債務三：巨型腳本 — 1,727 行的 run-todoist-agent-team.ps1</h3>
+<p><strong>分析</strong>：</p>
+<ul>
+<li>13 個函式定義（~700 行純函式）</li>
+<li>~600 行樣板/重複程式碼</li>
+<li>~400 行主流程邏輯</li>
+<li>職責混合：FSM 管理 + 失敗統計 + 告警推送 + YAML 解析 + 多後端作業啟動</li>
+</ul>
+<p><strong>拆解建議</strong>：</p>
+<p>| 責任區塊 | 目標位置 | 行數 |</p>
+<p>|----------|---------|------|</p>
+<p>| FSM + 狀態管理 | lib/Public/Set-FsmState.ps1 | ~120 |</p>
+<p>| 失敗統計 + 告警 | lib/Public/Update-FailureStats.ps1 | ~80 |</p>
+<p>| 遙測 Span | lib/Public/Write-Span.ps1 | ~40 |</p>
+<p>| YAML 解析 | lib/Private/ConvertFrom-YamlViapy.ps1 | ~30 |</p>
+<p>| 多後端作業 | lib/Public/Start-AgentJob.ps1 | ~60 |</p>
+<p>| <strong>主流程</strong> | run-todoist-agent-team.ps1（精簡版） | <strong>~400</strong> |</p>
+<p>精簡後主腳本從 1,727 行降至 ~400 行，專注於 Phase 編排邏輯。</p>
+<h3>2.4 債務四：單模式遺孤腳本</h3>
+<p>以下腳本有 Team 模式等價物，但仍保留在專案中：</p>
+<p>| 單模式腳本 | Team 等價物 | 行數 | 建議 |</p>
+<p>|-----------|------------|------|------|</p>
+<p>| run-agent.ps1 | run-agent-team.ps1 | 180 | 標記 deprecated 或刪除 |</p>
+<p>| run-todoist-agent.ps1 | run-todoist-agent-team.ps1 | 199 | HEARTBEAT.md 仍引用，保留但精簡 |</p>
+<p>| run-system-audit.ps1 | run-system-audit-team.ps1 | 174 | 標記 deprecated |</p>
+<p><strong>注意</strong>：run-todoist-agent.ps1 在 HEARTBEAT.md 排程中仍被「每小時整點」觸發，不可貿然刪除。建議改為 thin wrapper 呼叫 team 腳本的子集功能。</p>
+<h3>2.5 債務五：腳本清單缺失</h3>
+<p>35 個根目錄腳本無統一清單（manifest），導致：</p>
+<ul>
+<li>無法快速判斷哪些是「生產用」、「開發工具」、「已棄用」</li>
+<li>check-health.ps1 無法驗證「是否有腳本被意外刪除」</li>
+</ul>
+<p><strong>建議</strong>：建立 docs/SCRIPTS_MANIFEST.md，列出每個腳本的類型（生產/工具/遺孤）、狀態（Active/Deprecated）、排程觸發時機、一句話說明。</p>
+<p>---</p>
+<h2>三、實施優先級與路線圖</h2>
+<h3>3.1 優先級矩陣</h3>
+<p>| 優先級 | 項目 | 影響 | 工作量 | ROI |</p>
+<p>|--------|------|------|--------|-----|</p>
+<p>| <strong>P0</strong> | 萃取 5 函式到 lib/ 模組 | 消除 500 行重複 | 4h | <strong>極高</strong> |</p>
+<p>| <strong>P1</strong> | 精簡 run-todoist-agent-team.ps1 | 降至 400 行 | 2h | 高 |</p>
+<p>| <strong>P2</strong> | 建立 SCRIPTS_MANIFEST.md | 可維護性提升 | 0.5h | 中 |</p>
+<p>| <strong>P3</strong> | 處理單模式遺孤 | 減少困惑 | 1h | 中 |</p>
+<p>| <strong>P4</strong> | 新增 Pester 模組測試 | 防回歸 | 3h | 高（長期） |</p>
+<h3>3.2 漸進式遷移策略（非 Big Bang）</h3>
+<p>根據技術債管理最佳實踐（vFunction, Atlassian），採用<strong>增量現代化</strong>方式：</p>
+<p><strong>Step 1（P0）</strong>：建立 lib/DailyDigest.psm1，先萃取 Write-Log 和 Remove-StderrIfBenign（最小風險）</p>
+<p><strong>Step 2（P0）</strong>：萃取 Set-FsmState（最高價值），三個腳本改為 Import-Module</p>
+<p><strong>Step 3（P1）</strong>：重構 run-todoist-agent-team.ps1，將函式外移後驗證 Phase 0-3 完整流程</p>
+<p><strong>Step 4（P2-P3）</strong>：建立清單 + 標記遺孤</p>
+<p><strong>Step 5（P4）</strong>：為 lib/ 中 5 個公開函式編寫 Pester 測試</p>
+<p>每步完成後執行完整測試套件（912+ tests）確認無回歸。</p>
+<p>---</p>
+<h2>四、風險評估與緩解</h2>
+<p>| 風險 | 機率 | 影響 | 緩解 |</p>
+<p>|------|------|------|------|</p>
+<p>| Import-Module 路徑在排程器中不正確 | 中 | 全面故障 | 使用 $PSScriptRoot 相對路徑 |</p>
+<p>| 函式簽名微妙差異導致回歸 | 中 | 部分故障 | 萃取前先做 diff 對齊 |</p>
+<p>| Pester 測試環境配置困難 | 低 | 延遲 | 先用 -WhatIf 乾跑驗證 |</p>
+<p>| 排程器引用舊腳本路徑 | 低 | 部分故障 | setup-scheduler.ps1 同步更新 |</p>
+<p>---</p>
+<h2>五、與既有 KB 研究的交叉引用</h2>
+<p>| 既有研究 | 本研究補充 |</p>
+<p>|---------|----------|</p>
+<p>| 狀態檔案生命週期治理（03-11） | Set-FsmState 重複是狀態管理風險的上游根因 |</p>
+<p>| 跨 Phase 資料契約（03-07） | Phase 間結果檔案的 Schema 由 PS 腳本產生，模組化可統一格式 |</p>
+<p>| 執行可靠性危機（03-13） | Phase 2 卡死問題的除錯需跨 3 份 Set-FsmState 檢查 |</p>
+<p>| Token 消耗效率（03-10） | PS 腳本的 prompt 載入邏輯若統一，可減少重複 token 消耗 |</p>
+<p>| Skill 依賴圖治理（03-09） | Skills 的 PS 編排入口點分散在多個腳本中，需清單化 |</p>
+<p>---</p>
+<h2>六、量化預期收益</h2>
+<p>| 指標 | 現況 | 目標 | 改善幅度 |</p>
+<p>|------|------|------|----------|</p>
+<p>| 重複程式碼行數 | 500+ | ~50（import 語句） | <strong>-90%</strong> |</p>
+<p>| 最大腳本行數 | 1,727 | ~400 | <strong>-77%</strong> |</p>
+<p>| Bug 修正觸及點 | 3-7 處/函式 | 1 處 | <strong>-67~86%</strong> |</p>
+<p>| 新手理解時間（估） | 2h+（逐一閱讀） | 30min（讀模組+清單） | <strong>-75%</strong> |</p>
+<p>| Pester 可測函式 | 0 | 5+ | 從無到有 |</p>
+<p>---</p>
+<h2>七、結論</h2>
+<p>PowerShell 編排層是 daily-digest-prompt 專案的「隱形骨架」，支撐著 Phase 編排、狀態機、遙測、告警等核心功能。目前的零模組化狀態導致 500+ 行重複程式碼、3× 維護成本、零單元測試覆蓋。建議以 P0 優先級萃取 5 個共用函式到 lib/DailyDigest.psm1，採用漸進式遷移避免 Big Bang 風險，預期可削減 90% 重複並將最大腳本從 1,727 行降至 400 行。</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>How to Master PowerShell Scripting with Modularization — Inedo Blog</li>
+<li>Building Reusable Tools — PowerShell Practice and Style Guide</li>
+<li>PowerShell Script Module Design Philosophy — Mike F Robbins</li>
+<li>How to Reduce Technical Debt — vFunction</li>
+<li>What is Tech Debt? — Atlassian</li>
+<li>daily-digest-prompt 專案靜態分析（子 Agent 掃描 35 個 .ps1 檔案）</li>
+<li>KB 交叉比對：5 篇既有專案優化研究（03-07/03-09/03-10/03-11/03-13）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

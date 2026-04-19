@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Chat 對話系統規劃報告：具備 Function Calling 與工具調用能力的完整方案（v1.1）">
+  <title>Chat 對話系統規劃報告：具備 Function Calling 與工具調用能力的完整方案（v1.1） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Chat 對話系統規劃報告：具備 Function Calling 與工具調用能力的完整方案（v1.1）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Chat系統</span><span class="tag">Function Calling</span><span class="tag">FastAPI</span><span class="tag">React</span><span class="tag">系統設計</span><span class="tag">規劃報告</span><span class="tag">工具調用</span><span class="tag">SSE</span><span class="tag">LLM</span><span class="tag">知識庫</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Chat 對話系統規劃報告 v1.1</h1>
+<blockquote>日期：2026-03-17 | 狀態：規劃中（待確認後實作）</blockquote>
+<h2>核心目標</h2>
+<p>在現有 my-gun-relay（Gun.js + SEA E2E 加密）基礎上，建構具備 Function Calling（工具調用）能力的 Chat 對話系統。使用者透過自然語言與 LLM 對話，LLM 自主決定呼叫後端工具並整合結果回覆。</p>
+<h2>設計原則</h2>
+<ul>
+<li><strong>漸進式升級</strong>：在現有 Gun.js 基礎上疊加，不重寫</li>
+<li><strong>Skill-First</strong>：工具系統復用 daily-digest-prompt 的 Skills 生態</li>
+<li><strong>SSE + WebSocket 混合</strong>：LLM Streaming 用 SSE，即時聊天用 WebSocket</li>
+<li><strong>Human-in-the-Loop</strong>：敏感工具呼叫需使用者確認</li>
+<li><strong>本地優先</strong>：所有元件本地部署</li>
+</ul>
+<h2>技術棧</h2>
+<p>| 層級 | 技術 |</p>
+<p>|------|------|</p>
+<p>| 後端 | FastAPI (Python, uv) |</p>
+<p>| 前端 | React + Vite + TypeScript + Tailwind CSS |</p>
+<p>| LLM | Groq llama-3.3-70b（主）+ Claude（備） |</p>
+<p>| Streaming | SSE (Server-Sent Events) |</p>
+<p>| 資料庫 | SQLite (aiosqlite) |</p>
+<p>| 即時聊天 | 保留 Gun.js WebSocket |</p>
+<h2>API 架構</h2>
+<h3>核心端點</h3>
+<ul>
+<li><code>POST /api/chat</code> — SSE Streaming 對話（支援 tool_call 事件）</li>
+<li><code>GET /api/conversations</code> — 列出對話</li>
+<li><code>GET /api/conversations/{id}</code> — 完整歷史</li>
+<li><code>GET /api/tools</code> — 列出工具</li>
+<li><code>POST /api/chat/confirm</code> — Human-in-the-Loop 確認</li>
+</ul>
+<h3>SSE 事件類型</h3>
+<p>conversation_created → message_saved → thinking → tool_call → tool_result → token (逐字) → usage → done</p>
+<h2>Function Calling 工具系統</h2>
+<h3>工具定義格式（相容 OpenAI）</h3>
+<p>每個工具含：name, description, parameters (JSON Schema), requires_confirmation, category, timeout_seconds</p>
+<h3>內建工具（第一階段 9 個）</h3>
+<p>| 工具 | 分類 | 確認 |</p>
+<p>|------|------|------|</p>
+<p>| knowledge_query | query | 否 |</p>
+<p>| knowledge_import | action | 是 |</p>
+<p>| todoist_list_tasks | query | 否 |</p>
+<p>| todoist_create_task | action | 是 |</p>
+<p>| todoist_complete_task | action | 是 |</p>
+<p>| pingtung_news | query | 否 |</p>
+<p>| web_search | query | 否 |</p>
+<p>| get_current_time | system | 否 |</p>
+<p>| calculate | system | 否 |</p>
+<h3>工具執行流程</h3>
+<p>使用者訊息 → LLM 推理 → tool_calls? → 解析並行呼叫 → 確認機制 → 執行 → 結果回傳 LLM → 再次推理（遞迴上限 5 次）→ 最終 SSE Streaming 回覆</p>
+<h3>工具註冊機制（Plugin 式）</h3>
+<p>ToolRegistry 類別支援動態註冊與發現，list_tools() 輸出 OpenAI 格式供 LLM 使用，execute() 含超時控制。</p>
+<h2>前端介面</h2>
+<ul>
+<li><strong>佈局</strong>：Sidebar（對話列表）+ Main Area（訊息流 + 輸入框）</li>
+<li><strong>訊息類型</strong>：使用者、助手、工具呼叫卡片（可摺疊）、確認請求、錯誤、系統</li>
+<li><strong>風格</strong>：Glassmorphism（Deep navy + Indigo + Emerald），延續現有 index.html</li>
+<li><strong>響應式</strong>：768px 斷點</li>
+</ul>
+<h2>LLM 整合</h2>
+<ul>
+<li><strong>雙模型路由</strong>：一般用 Groq，複雜推理用 Claude</li>
+<li><strong>上下文管理</strong>：滑動窗口 50 條 + 摘要壓縮（超 30 條自動摘要舊訊息）</li>
+<li><strong>標題自動生成</strong>：Groq 8B 快速生成 ≤20 字標題</li>
+</ul>
+<h2>資料模型（SQLite）</h2>
+<p>3 張表：conversations、messages（含 tool_calls/tool_call_id/tool_name）、tool_executions（執行日誌）</p>
+<h2>安全設計</h2>
+<ul>
+<li>Prompt Injection：工具輸入驗證 + 結果截斷 + System Prompt 強化</li>
+<li>工具濫用：requires_confirmation + 頻率限制 + 最大迭代上限</li>
+<li>XSS：DOMPurify</li>
+<li>認證：Bearer Token + sessionStorage + CORS localhost</li>
+<li>SSRF：工具 URL 白名單</li>
+</ul>
+<h2>實作階段</h2>
+<ul>
+<li><strong>Phase 1 MVP（2-3天）</strong>：FastAPI + SQLite + 2 工具 + 極簡 React</li>
+<li><strong>Phase 2 核心（2-3天）</strong>：多對話 + 完整工具集 + 確認機制 + 雙模型</li>
+<li><strong>Phase 3 優化（1-2天）</strong>：自動標題 + 搜尋 + 工具管理 + Token 統計</li>
+<li><strong>Phase 4 進階（可選）</strong>：Gun.js 橋接 + MCP + 自訂工具 + 語音</li>
+</ul>
+<h2>Token 成本</h2>
+<p>日常以 Groq 免費額度為主，月成本約 $15（僅複雜推理 fallback Claude）。</p>
+<h2>補充設計</h2>
+<ul>
+<li><strong>錯誤碼</strong>：11 個標準化錯誤碼（400-503）</li>
+<li><strong>可觀測性</strong>：JSONL 結構化日誌 + 健康檢查端點含依賴狀態</li>
+<li><strong>快取</strong>：知識庫搜尋 TTLCache 5 分鐘</li>
+<li><strong>Gun.js 橋接</strong>：FastAPI 輪詢 Bot API pending 任務，不動加密通道</li>
+</ul>
+<h2>完整規劃文件</h2>
+<p>詳見 <code>docs/plans/chat-system-plan.md</code>（919 行完整版）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

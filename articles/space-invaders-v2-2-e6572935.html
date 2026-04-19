@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Space Invaders v2.2 優化心得：CRT 復古濾鏡與動態背景音樂系統實作">
+  <title>Space Invaders v2.2 優化心得：CRT 復古濾鏡與動態背景音樂系統實作 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Space Invaders v2.2 優化心得：CRT 復古濾鏡與動態背景音樂系統實作</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">遊戲</span><span class="tag">復古遊戲</span><span class="tag">Space Invaders</span><span class="tag">CRT濾鏡</span><span class="tag">動態音樂</span><span class="tag">Web Audio API</span><span class="tag">Canvas效能</span><span class="tag">遊戲開發</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Space Invaders v2.2 優化心得：CRT 復古濾鏡與動態背景音樂系統</h1>
+<h2>優化概述</h2>
+<p>在 v2.1（道具系統）基礎上，加入兩大復古體驗增強功能：</p>
+<ol>
+<li><strong>CRT 復古濾鏡</strong>：掃描線、暗角、螢幕微閃爍、偶發干擾線</li>
+<li><strong>動態背景音樂</strong>：8-bit 合成 BGM，節拍隨遊戲進程動態加速</li>
+</ol>
+<h2>CRT 濾鏡實作要點</h2>
+<h3>效能優化策略</h3>
+<ul>
+<li><strong>預渲染離屏 Canvas</strong>：掃描線和暗角漸層只在首次呼叫時繪製到 offscreen canvas，之後每幀用 <code>drawImage</code> 疊加</li>
+<li><strong>避免 <code>getImageData/putImageData</code></strong>：原始方案每幀讀寫像素資料會嚴重拖累 FPS，改用純繪製疊加</li>
+<li><strong>效能影響</strong>：從 ~15ms/幀（像素操作方案）降到 <1ms/幀（預渲染疊加方案）</li>
+</ul>
+<h3>四層效果組成</h3>
+<ol>
+<li><strong>掃描線</strong>：每 3px 一條 1px 半透明黑線（opacity 0.08），預渲染到 offscreen canvas</li>
+<li><strong>暗角（Vignette）</strong>：徑向漸層，中心透明到邊緣 0.35 透明度黑色</li>
+<li><strong>螢幕微閃爍</strong>：淡綠色 rgba 疊加，sin 函數產生微弱脈衝（模擬 CRT 磷光閃爍）</li>
+<li><strong>干擾線（Glitch Band）</strong>：低機率（sin > 0.97）出現水平白色條紋</li>
+</ol>
+<h3>使用者控制</h3>
+<ul>
+<li>按 <strong>C 鍵</strong> 切換 CRT 開關</li>
+<li>偏好設定持久化到 <code>localStorage('si_crt')</code></li>
+<li>HUD 顯示 CRT ON/OFF 狀態</li>
+</ul>
+<h2>動態背景音樂系統</h2>
+<h3>架構設計</h3>
+<ul>
+<li>使用 <code>setTimeout</code> 排程每個音符（非 <code>setInterval</code>，允許動態調整間隔）</li>
+<li>C 小調五聲音階（pentatonic scale）確保和諧</li>
+<li>三軌混音：低音 bass（三角波）、旋律 melody（方波）、高音重音 accent（正弦波）</li>
+</ul>
+<h3>節拍模式</h3>
+<ul>
+<li><code>BASS_PATTERN</code>：8 拍循環，每拍一個 bass note</li>
+<li><code>MELODY_PATTERN</code>：16 拍循環，含休止符（-1），旋律每隔一拍出現</li>
+<li>每 8 拍的第一拍加入高音重音</li>
+</ul>
+<h3>動態節拍（核心創意）</h3>
+<ul>
+<li>節拍速度與存活外星人比例掛鉤</li>
+<li>公式：<code>tempo = max(120, 120 + 180 * aliveRatio)</code> ms/beat</li>
+<li>全員存活：300ms/beat（輕鬆）→ 少數存活：120ms/beat（緊張）</li>
+<li>完美呼應經典 Space Invaders 的逼近感</li>
+</ul>
+<h3>狀態機整合</h3>
+<ul>
+<li>READY→PLAYING：啟動 BGM</li>
+<li>PLAYING→PAUSED：停止 BGM</li>
+<li>PAUSED→PLAYING：重啟 BGM</li>
+<li>GAME_OVER / LEVEL_CLEAR：停止 BGM</li>
+</ul>
+<h2>學到的教訓</h2>
+<ol>
+<li><strong>Canvas 像素操作很貴</strong>：<code>getImageData</code> + <code>putImageData</code> 每幀 ~15ms，offscreen canvas 疊加 <1ms</li>
+<li><strong>setTimeout vs setInterval for BGM</strong>：setTimeout 允許動態改變間隔，配合 tempo 變化更靈活</li>
+<li><strong>Web Audio 音量控制</strong>：BGM 音量要比音效低很多（0.025-0.04 vs 0.06-0.12），避免遮蓋遊戲音效</li>
+<li><strong>localStorage 持久化 CRT 偏好</strong>：玩家不必每次重開都手動切換</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

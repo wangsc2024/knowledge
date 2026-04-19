@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout：Agent 安全 / Tool Boundary / Sandbox 控制面觀測 - 2026-03-29">
+  <title>GitHub Scout：Agent 安全 / Tool Boundary / Sandbox 控制面觀測 - 2026-03-29 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout：Agent 安全 / Tool Boundary / Sandbox 控制面觀測 - 2026-03-29</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent安全</span><span class="tag">Sandbox</span><span class="tag">Guardrails</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Agent 安全 / Tool Boundary / Sandbox 控制面觀測</h1>
+<h2>專案觀測摘要</h2>
+<h3>openai/openai-agents-python</h3>
+<ul>
+<li>URL: https://github.com/openai/openai-agents-python</li>
+<li>stars: 20.4k（2026-03-29 觀測）</li>
+<li>最近更新: 2026-03-26（v0.13.2 release）</li>
+<li>相關性: 高。把 guardrails、human in the loop、tracing 與 handoff 內建成 agent workflow 的一級抽象。</li>
+<li>guardrail_surface: 涵蓋 agent 規劃、tools、input/output guardrails 與 tracing。</li>
+<li>tool_boundary: 以 SDK 抽象包裝 tools 與 handoff，邊界清楚落在 framework runtime。</li>
+<li>operator_override: 覆寫入口是 human in the loop 機制；預設模式偏 review-only；降級可回到純設定式 guardrails。</li>
+<li>evidence_snapshot: repo_observed_at=2026-03-29, source_type=repo_page, freshness_note=stars 與 latest release 皆取自 repo page。</li>
+</ul>
+<h3>guardrails-ai/guardrails</h3>
+<ul>
+<li>URL: https://github.com/guardrails-ai/guardrails</li>
+<li>stars: 6.6k（2026-03-29 觀測）</li>
+<li>最近更新: 2026-03-16（v0.9.2 release）</li>
+<li>相關性: 高。把 input/output guards 與 validators 做成獨立護欄層。</li>
+<li>guardrail_surface: 聚焦輸入、輸出與 validator 組合。</li>
+<li>tool_boundary: 以 guard/validator 形式夾在應用與模型之間。</li>
+<li>operator_override: 覆寫入口是 guardrails configure / server config；預設模式偏 allow + validate；降級可退回 warning-only 或單一 validator。</li>
+<li>evidence_snapshot: repo_observed_at=2026-03-29, source_type=repo_page, freshness_note=stars 與 latest release 皆取自 repo page。</li>
+</ul>
+<h3>kubernetes-sigs/agent-sandbox</h3>
+<ul>
+<li>URL: https://github.com/kubernetes-sigs/agent-sandbox</li>
+<li>stars: 1.6k（2026-03-29 觀測）</li>
+<li>最近更新: 2026-03-14（v0.2.1 release）</li>
+<li>相關性: 高。把 sandbox、warm pool 與 runtime isolation 提升成宣告式控制面。</li>
+<li>guardrail_surface: 重點在執行層隔離與 runtime lifecycle。</li>
+<li>tool_boundary: 邊界落在 sandbox CRD、controller 與 runtime environment。</li>
+<li>operator_override: 覆寫入口是 Kubernetes 資源與 controller 操作；預設模式偏 declarative control；降級可回到單純研究/審查記錄，不接執行層。</li>
+<li>evidence_snapshot: repo_observed_at=2026-03-29, source_type=repo_page, freshness_note=stars 與 latest release 皆取自 repo page。</li>
+</ul>
+<h2>改進提案</h2>
+<h3>P0 已落實：operator_override 固定觀測要點</h3>
+<ul>
+<li>來源專案: openai/openai-agents-python, guardrails-ai/guardrails, kubernetes-sigs/agent-sandbox</li>
+<li>改進內容: 將安全主題下的 operator_override 從自由文字收斂為固定觀測要點，至少包含覆寫入口、預設模式（allow/deny/review-only）與 rollback/降級方式。</li>
+<li>落點檔案:</li>
+</ul>
+<p>  - config/github-scout-review-policy.yaml</p>
+<p>  - templates/auto-tasks/github-scout.md</p>
+<p>  - prompts/team/todoist-auto-github_scout.md</p>
+<h3>P1 待審：Sandbox / Guardrail Control Plane Taxonomy</h3>
+<ul>
+<li>來源專案: kubernetes-sigs/agent-sandbox</li>
+<li>改進內容: 為 orchestration plane / guardrail plane / sandbox plane 建立統一 taxonomy 與 feature flag rollout。</li>
+<li>計畫檔案: docs/plans/github-scout-20260329-sandbox-control-plane-taxonomy.md</li>
+</ul>
+<h2>審查結論</h2>
+<ul>
+<li>P0 審查分數: feasibility 9 / stability 8</li>
+<li>P0 審查說明: 只修改研究契約層，不碰核心 hooks、scheduler-state 或 run 腳本；rollback 為還原 config/template/prompt 備份。工具邊界/護欄影響僅限研究欄位更具體，不改實際攔截策略。</li>
+<li>P1 審查分數: feasibility 6 / stability 6</li>
+<li>P1 審查說明: 若直接接入執行層，會影響 sandbox 與護欄決策路徑，因此僅輸出計畫並保留人工審核。降級方式為維持 review-only 流程。</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li>已把 operator_override 的固定觀測要點寫入 review policy、auto-task template 與 team prompt。</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>是否要把 control plane taxonomy 進一步接入非攔截類 hooks 或 execution contract 層。</li>
+</ul>
+<h2>來源</h2>
+<ul>
+<li>https://github.com/openai/openai-agents-python</li>
+<li>https://github.com/guardrails-ai/guardrails</li>
+<li>https://github.com/kubernetes-sigs/agent-sandbox</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

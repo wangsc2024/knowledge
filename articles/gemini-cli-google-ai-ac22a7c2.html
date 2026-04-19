@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gemini CLI — Google 開源終端 AI Agent（99K+ Stars）架構深度洞察：GEMINI.md 階層上下文、MCP 工具沙箱與環境消毒機制對 Daily-Digest-Prompt 的七大借鏡啟示（2026-03）">
+  <title>Gemini CLI — Google 開源終端 AI Agent（99K+ Stars）架構深度洞察：GEMINI.md 階層上下文、MCP 工具沙箱與環境消毒機制對 Daily-Digest-Prompt 的七大借鏡啟示（2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Gemini CLI — Google 開源終端 AI Agent（99K+ Stars）架構深度洞察：GEMINI.md 階層上下文、MCP 工具沙箱與環境消毒機制對 Daily-Digest-Prompt 的七大借鏡啟示（2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">Gemini CLI</span><span class="tag">Google</span><span class="tag">開源</span><span class="tag">AI Agent</span><span class="tag">MCP</span><span class="tag">CLI</span><span class="tag">沙箱</span><span class="tag">安全</span><span class="tag">架構設計</span><span class="tag">工具存取控制</span><span class="tag">環境消毒</span><span class="tag">對話檢查點</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Gemini CLI — Google 開源終端 AI Agent 架構深度洞察</h1>
+<h2>概述</h2>
+<p>Gemini CLI 是 Google 於 2025 年開源的終端 AI Agent，以 Apache 2.0 授權發布於 GitHub（google-gemini/gemini-cli），截至 2026 年 3 月累積 <strong>99.6K Stars</strong>。它將 Gemini 模型直接帶入終端環境，定位為開發者 CLI-first AI 助手，支援程式碼理解、檔案操作、Shell 命令執行與 MCP 擴展，免費帳戶每日可用 1,000 次請求、每分鐘 60 次，搭載 Gemini 3 的 1M token 上下文視窗。</p>
+<p>技術棧為 TypeScript + Node.js，透過 npm 發布（<code>@google/gemini-cli</code>），使用 esbuild 打包。</p>
+<h2>核心架構亮點</h2>
+<h3>1. GEMINI.md 階層上下文發現機制</h3>
+<p>Gemini CLI 使用 <code>GEMINI.md</code> 作為專案層級的指令上下文檔案（類似本專案的 <code>CLAUDE.md</code>），但其設計有一個關鍵創新：<strong>自動向上遍歷目錄發現</strong>。系統從當前工作目錄開始，沿父目錄向上搜尋 <code>GEMINI.md</code>，直到遇到邊界標記（如 <code>.git</code>），所有找到的檔案按層級合併為最終上下文。</p>
+<ul>
+<li>支援自訂檔名（<code>context.fileName</code> 可設為字串或陣列）</li>
+<li>支援 <code>includeDirectories</code> 跨多個工作區</li>
+<li>這意味著組織層級可以有全域 <code>GEMINI.md</code>，專案層級有另一份，二者自動疊加</li>
+</ul>
+<p><strong>借鏡啟示</strong>：本專案目前 <code>CLAUDE.md</code> 僅有專案根目錄和全域兩層，可考慮支援子目錄級別的覆寫（如 <code>prompts/CLAUDE.md</code>、<code>hooks/CLAUDE.md</code>），已部分實現但缺乏自動合併語義。</p>
+<h3>2. 六層配置級聯（Configuration Cascade）</h3>
+<p>配置優先級從低到高：</p>
+<ol>
+<li>系統預設值</li>
+<li>使用者設定（<code>~/.gemini/settings.json</code>）</li>
+<li>專案設定</li>
+<li>系統覆寫（<code>/etc/gemini-cli/settings.json</code>）</li>
+<li>環境變數</li>
+<li>CLI 參數</li>
+</ol>
+<p><code>settings.json</code> 按功能分區：<code>general</code>（vim 模式、檢查點）、<code>ui</code>（主題）、<code>model</code>（模型選擇、壓縮閾值）、<code>tools</code>（沙箱、Shell）、<code>context</code>（檔案發現）、<code>security</code>（環境變數遮蔽）、<code>experimental</code>（預覽功能）。</p>
+<p><strong>借鏡啟示</strong>：本專案用 YAML 分散配置（cache-policy.yaml、routing.yaml 等），但缺乏統一的級聯優先級模型。Gemini CLI 的六層模型提供了明確的覆寫語義。</p>
+<h3>3. MCP 工具整合與安全沙箱</h3>
+<p>#### MCP 配置</p>
+<p>在 <code>settings.json</code> 的 <code>mcpServers</code> 區塊配置，支援三種傳輸：</p>
+<ul>
+<li><code>command</code>（stdio）</li>
+<li><code>url</code>（SSE）</li>
+<li><code>httpUrl</code>（HTTP 串流）</li>
+</ul>
+<p>工具發現流程：</p>
+<ol>
+<li>遍歷已配置的伺服器建立連線</li>
+<li>呼叫每個伺服器的工具列表端點</li>
+<li>用 <code>includeTools</code>/<code>excludeTools</code> 過濾</li>
+<li>消毒工具名稱以確保 API 相容性</li>
+<li>以命名空間前綴註冊（<code>mcp_serverName_toolName</code>）</li>
+</ol>
+<p>#### 環境消毒（Environment Sanitization）</p>
+<p>這是 Gemini CLI 最值得借鏡的安全設計：</p>
+<ul>
+<li>產生 MCP 伺服器程序時，<strong>自動遮蔽敏感環境變數</strong></li>
+<li>匹配模式：<code><em>TOKEN</em></code>、<code><em>SECRET</em></code>、<code><em>PASSWORD</em></code>、<code><em>KEY</em></code>、<code><em>AUTH</em></code>、<code><em>CREDENTIAL</em></code></li>
+<li>核心 key 如 <code>GEMINI_API_KEY</code>、<code>GOOGLE_API_KEY</code> 一律遮蔽</li>
+<li>使用者若在伺服器 <code>env</code> 區塊明確聲明變數，視為「知情同意」</li>
+</ul>
+<p><strong>借鏡啟示</strong>：本專案的 <code>pre_read_guard.py</code> 和 <code>pre_bash_guard.py</code> 已有敏感路徑攔截，但缺乏子程序級別的環境變數消毒機制。Gemini CLI 的 pattern-based redaction 可強化 Hook 系統。</p>
+<h3>4. 工具存取控制（Restrictive-by-Default）</h3>
+<p>合併策略遵循「限制優先」原則：</p>
+<ul>
+<li><code>excludeTools</code> <strong>永遠優先於</strong> <code>includeTools</code></li>
+<li>Extension 提供的工具清單與使用者清單做<strong>交集</strong>（intersect）</li>
+<li>排除清單做<strong>聯集</strong>（union）</li>
+<li>使用者對任何 Extension 工具保有<strong>否決權</strong></li>
+</ul>
+<p>另有 <code>tools.allowed</code> 命名模式可跳過確認（如 <code>run_shell_command(git)</code>），以及 <code>tools.core</code> 限制內建工具的白名單。</p>
+<p><strong>借鏡啟示</strong>：本專案的 Hook 系統（pre_bash_guard）是黑名單模式（攔截危險指令），可考慮增加白名單交集語義，讓新增工具預設被封鎖直到明確允許。</p>
+<h3>5. 沙箱執行環境</h3>
+<p><code>tools.sandbox</code> 支援多種後端：</p>
+<ul>
+<li><code>docker</code>、<code>podman</code>、<code>lxc</code></li>
+<li><code>windows-native</code>（原生 Windows 沙箱）</li>
+<li>macOS Seatbelt profiles（permissive-open、restrictive-open、strict-open、strict-proxied、自訂）</li>
+<li><code>tools.sandboxAllowedPaths</code> 路徑白名單</li>
+<li><code>tools.sandboxNetworkAccess</code> 網路權限控制</li>
+</ul>
+<p><strong>借鏡啟示</strong>：本專案在 Windows 環境運行，目前無沙箱。Gemini CLI 的 <code>windows-native</code> 沙箱值得評估，可保護 Agent 執行 Shell 命令時的檔案系統安全。</p>
+<h3>6. 對話檢查點（Checkpointing）</h3>
+<p>Gemini CLI 支援儲存和恢復複雜對話 session，讓使用者可以：</p>
+<ul>
+<li>暫停長時間互動</li>
+<li>保留完整上下文後恢復</li>
+<li>在 CI/CD 管線中實現跨步驟的 Agent 狀態傳遞</li>
+</ul>
+<p><strong>借鏡啟示</strong>：本專案的跨次記憶（<code>context/continuity/</code>）是手動摘要式的，缺乏原生的對話狀態快照。Checkpointing 可為 Team 模式的多階段任務提供更精確的狀態傳遞。</p>
+<h3>7. 三階段發布節奏（Nightly → Preview → Stable）</h3>
+<ul>
+<li>Nightly：每日構建，最新功能</li>
+<li>Preview：每週二 UTC 23:59 發布</li>
+<li>Stable：每週 UTC 20:00 發布</li>
+</ul>
+<p>搭配 GitHub Actions 整合，可作為 PR 審查和 Issue 分類的自動化代理（免費）。</p>
+<p><strong>借鏡啟示</strong>：本專案的 auto-task 系統可參考此三階段模型，將實驗性自動任務與穩定任務分開管理。</p>
+<h2>與 Claude Code CLI 的關鍵差異</h2>
+<p>| 維度 | Gemini CLI | Claude Code CLI |</p>
+<p>|------|-----------|----------------|</p>
+<p>| 上下文檔 | GEMINI.md（階層合併） | CLAUDE.md（專案+全域兩層） |</p>
+<p>| 沙箱 | 多後端（Docker/Podman/Native） | 無原生沙箱 |</p>
+<p>| MCP 安全 | 環境消毒 + 工具白/黑名單交集 | Hook 黑名單攔截 |</p>
+<p>| 檢查點 | 原生 session 快照 | 無（靠 continuity JSON） |</p>
+<p>| 配置 | 六層級聯 JSON | YAML 分散 + CLAUDE.md |</p>
+<p>| 免費額度 | 1000 次/日 | 依 API 計費 |</p>
+<p>| 授權 | Apache 2.0 | 商業 |</p>
+<h2>對 Daily-Digest-Prompt 的七大借鏡啟示</h2>
+<ol>
+<li><strong>階層上下文合併</strong>：子目錄 CLAUDE.md 自動疊加至專案 CLAUDE.md，減少重複指令</li>
+<li><strong>環境變數消毒</strong>：在 Hook 層加入 pattern-based 敏感變數遮蔽，防止子 Agent 洩露 API Key</li>
+<li><strong>工具白名單交集</strong>：新增工具預設封鎖，需明確允許才可使用</li>
+<li><strong>Windows 原生沙箱</strong>：評估 <code>windows-native</code> 沙箱為 Bash 工具添加隔離層</li>
+<li><strong>對話檢查點</strong>：為 Team 模式的跨階段 Agent 引入狀態快照機制</li>
+<li><strong>六層配置級聯</strong>：統一配置優先級模型，解決目前 YAML 分散管理的認知負擔</li>
+<li><strong>三階段發布模型</strong>：將實驗性自動任務（如 creative-game-optimize）與核心任務分離管理</li>
+</ol>
+<h2>來源與參考</h2>
+<ul>
+<li><a href="https://github.com/google-gemini/gemini-cli">GitHub 倉庫</a>（99.6K Stars, Apache 2.0）</li>
+<li><a href="https://geminicli.com/docs/tools/mcp-server/">官方文件 — MCP 配置</a></li>
+<li><a href="https://geminicli.com/docs/reference/configuration/">官方文件 — 配置參考</a></li>
+<li><a href="https://blog.google/technology/developers/introducing-gemini-cli-github-actions/">Google 開發者部落格 — Gemini CLI GitHub Actions</a></li>
+<li><a href="https://google-gemini.github.io/gemini-cli/docs/cli/enterprise.html">Gemini CLI 企業功能</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

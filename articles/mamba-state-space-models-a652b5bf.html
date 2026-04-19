@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mamba 與 State Space Models（SSM）— 後 Transformer 時代的線性複雜度序列建模架構：Selective SSM、Hardware-Aware Parallel Scan、State Space Duality 與混合架構實踐（2026）">
+  <title>Mamba 與 State Space Models（SSM）— 後 Transformer 時代的線性複雜度序列建模架構：Selective SSM、Hardware-Aware Parallel Scan、State Space Duality 與混合架構實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Mamba 與 State Space Models（SSM）— 後 Transformer 時代的線性複雜度序列建模架構：Selective SSM、Hardware-Aware Parallel Scan、State Space Duality 與混合架構實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">Mamba</span><span class="tag">State Space Models</span><span class="tag">SSM</span><span class="tag">Transformer替代</span><span class="tag">Selective SSM</span><span class="tag">HiPPO</span><span class="tag">Jamba</span><span class="tag">混合架構</span><span class="tag">線性複雜度</span><span class="tag">序列建模</span><span class="tag">深度研究</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Mamba 與 State Space Models（SSM）深度研究</h1>
+<p><strong>後 Transformer 時代的線性複雜度序列建模架構</strong></p>
+<p>---</p>
+<h2>一、概述</h2>
+<p>Mamba 是由 Tri Dao（Princeton）和 Albert Gu（CMU）於 2023 年提出的神經網路架構，建構於 State Space Models（SSM）之上，被譽為「第一個在自回歸大語言模型領域能與 Transformer 競爭的替代架構」。其核心突破在於以 O(L) 線性時間複雜度取代 Transformer Attention 的 O(L²) 二次複雜度，同時保持甚至超越同等參數規模 Transformer 的效能表現。</p>
+<p>截至 2026 年 3 月，Mamba 架構已從學術研究走向生產部署，包括 Mistral 的 Codestral Mamba、AI21 的 Jamba 系列、IBM 的 Granite 4.0 等，混合 Transformer-Mamba 架構更成為新一代 LLM 設計的主流趨勢。</p>
+<p>---</p>
+<h2>二、數學基礎</h2>
+<h3>2.1 連續時間 SSM</h3>
+<p>SSM 使用兩個核心方程描述動態系統：</p>
+<ul>
+<li><strong>狀態方程</strong>：<code>h'(t) = A·h(t) + B·x(t)</code> — 基於輸入 x(t) 和矩陣 A、B 更新隱藏狀態 h(t)</li>
+<li><strong>輸出方程</strong>：<code>y(t) = C·h(t) + D·x(t)</code> — 從狀態透過矩陣 C、D 推導輸出 y(t)</li>
+</ul>
+<h3>2.2 離散化（Zero-Order Hold）</h3>
+<p>為了處理離散序列（如文字 token），需要將連續 SSM 離散化：</p>
+<ul>
+<li>輸入值在下一個離散信號到達前保持不變</li>
+<li>引入可學習的<strong>步長（Δ）</strong>控制輸入解析度</li>
+<li>將函數對函數映射轉換為序列對序列映射（x_k → y_k）</li>
+</ul>
+<h3>2.3 HiPPO 初始化</h3>
+<p>HiPPO（High-order Polynomial Projection Operators）用於初始化矩陣 A：</p>
+<ul>
+<li>將所有輸入信號壓縮為係數向量</li>
+<li>利用 Legendre 多項式追蹤歷史信號</li>
+<li>強調近期 token 同時衰減較舊資訊</li>
+<li>使 SSM 能維持長序列的上下文依賴</li>
+</ul>
+<p>---</p>
+<h2>三、Selective SSM（S6）— Mamba 的核心創新</h2>
+<h3>3.1 線性時不變性的問題</h3>
+<p>傳統 SSM 存在根本限制：矩陣 A、B、C 對所有輸入保持不變（Linear Time Invariance），無法進行「內容感知推理」。在選擇性複製（selective copying）和歸納頭（induction heads）等合成任務上表現不佳。</p>
+<h3>3.2 輸入依賴參數</h3>
+<p>Mamba 的突破性解決方案：讓 B、C 和 Δ 變為 input-dependent：</p>
+<ul>
+<li><strong>矩陣 B 和 C</strong> 根據每個 token 的內容動態生成 → 選擇性壓縮資訊</li>
+<li><strong>步長 Δ</strong>：較小值忽略特定詞彙；較大值優先當前輸入而非上下文</li>
+<li>等效於讓 SSM 具備類似 Attention 的「內容感知」能力，但保持 O(L) 複雜度</li>
+</ul>
+<h3>3.3 Mamba Block 結構</h3>
+<ol>
+<li><strong>線性投影</strong>：擴展輸入嵌入維度</li>
+<li><strong>1D 卷積層</strong>：捕捉局部模式（防止 token 獨立處理）</li>
+<li><strong>Selective SSM</strong>：遞迴離散化 + HiPPO 初始化 + 選擇性掃描</li>
+<li><strong>門控機制</strong>：SSM 輸出與門控路徑的逐元素乘法</li>
+<li><strong>殘差連接</strong>：保留原始輸入</li>
+</ol>
+<p>---</p>
+<h2>四、Hardware-Aware Parallel Scan</h2>
+<h3>4.1 選擇性掃描演算法</h3>
+<p>利用乘法和加法的<strong>結合律（associative property）</strong>將序列分解為可並行計算的部分，迭代組合部分結果，在保持遞迴結構的同時支援 GPU 並行執行。</p>
+<h3>4.2 核心融合與 SRAM/DRAM 優化</h3>
+<p>靈感來自 Tri Dao 的 FlashAttention：</p>
+<ul>
+<li>將離散化、選擇性掃描和 C 乘法融合為<strong>單一 GPU 核心</strong></li>
+<li>中間結果不寫回慢速 DRAM，全在 SRAM 中完成</li>
+<li>反向傳播時重新計算中間狀態（而非儲存），更高效</li>
+</ul>
+<h3>4.3 訓練 vs 推理模式</h3>
+<ul>
+<li><strong>訓練</strong>：使用可並行化的卷積表示</li>
+<li><strong>推理</strong>：使用高效的遞迴表示</li>
+<li>這種雙模式設計是 Mamba 同時兼顧訓練效率和推理速度的關鍵</li>
+</ul>
+<p>---</p>
+<h2>五、Mamba-2 與 State Space Duality（SSD）</h2>
+<p>Mamba-2（2024 年 5 月）帶來重大理論突破：</p>
+<h3>5.1 State Space Duality</h3>
+<p>證明 SSM 和 Attention 屬於<strong>同一數學家族</strong>，這意味著：</p>
+<ul>
+<li>SSM 可以用 Attention 的語言描述，反之亦然</li>
+<li>為混合架構提供了理論基礎</li>
+<li>開啟了跨架構知識遷移的可能性</li>
+</ul>
+<h3>5.2 架構改進</h3>
+<p>| 改進項目 | 說明 |</p>
+<p>|---------|------|</p>
+<p>| <strong>簡化實作</strong> | Selective SSM 僅需約 25 行程式碼 |</p>
+<p>| <strong>並行參數生成</strong> | B 和 C 透過複製而非專用線性層產生 |</p>
+<p>| <strong>更大隱藏維度</strong> | 支援更具表達力的模型 |</p>
+<p>| <strong>Multi-Head 變體</strong> | 類似 Transformer 的多頭注意力機制 |</p>
+<p>| <strong>速度提升</strong> | 比原版 Mamba 快 2-8 倍 |</p>
+<p>---</p>
+<h2>六、效能比較：Mamba vs Transformer</h2>
+<h3>6.1 計算複雜度</h3>
+<p>| 指標 | Transformer | Mamba |</p>
+<p>|------|-------------|-------|</p>
+<p>| 序列長度複雜度 | O(L²) | O(L) |</p>
+<p>| 推理 FLOPs（2.8B 參數） | 基準 | 約 0.67x（少 33%） |</p>
+<p>| 推理吞吐量 | 基準 | 最高 5x 提升 |</p>
+<p>| 記憶體使用 | 隨序列長度二次增長 | 線性增長 |</p>
+<p>| 可處理序列長度 | 受限（通常 128K-1M） | 理論上無限 |</p>
+<h3>6.2 基準測試表現</h3>
+<p>在同等參數規模下，Mamba 在標準語言模型基準測試（MMLU、HellaSwag 等）上匹配或超越 Transformer 模型，在長上下文評估中優勢更為明顯。</p>
+<p>---</p>
+<h2>七、混合架構：Transformer + Mamba</h2>
+<h3>7.1 Jamba（AI21 Labs）</h3>
+<p><strong>全球首個生產級 Mamba 混合模型</strong>：</p>
+<ul>
+<li><strong>架構</strong>：Attention 與 Mamba 層以 1:7 比率交替，每兩個 block 加入 MoE 層</li>
+<li><strong>參數</strong>：398B 總參數 / 94B 活躍參數</li>
+<li><strong>上下文</strong>：支援 256K token</li>
+<li><strong>效能</strong>：長上下文吞吐量是 Mixtral 8x7B 的 3 倍</li>
+<li><strong>NVIDIA RULER</strong> 長上下文基準測試達到頂級表現</li>
+</ul>
+<h3>7.2 其他混合實現</h3>
+<p>| 模型 | 架構特點 |</p>
+<p>|------|----------|</p>
+<p>| <strong>Codestral Mamba</strong>（Mistral AI） | 純 Mamba 程式碼模型 |</p>
+<p>| <strong>Granite 4.0</strong>（IBM） | 混合 SSM + Attention |</p>
+<p>| <strong>TransMamba</strong> | Transformer Encoder + Mamba Decoder |</p>
+<h3>7.3 混合架構的設計原理</h3>
+<p>為什麼不完全替換 Transformer？</p>
+<ol>
+<li><strong>Attention 擅長精確回溯</strong>：需要精確引用先前內容時（如 in-context learning），Attention 仍有優勢</li>
+<li><strong>SSM 擅長高效壓縮</strong>：處理長序列時的全局上下文壓縮，SSM 更高效</li>
+<li><strong>互補組合</strong>：少量 Attention 層（1/8）處理精確引用，大量 SSM 層處理高效推理</li>
+</ol>
+<p>---</p>
+<h2>八、應用領域</h2>
+<p>Mamba/SSM 的應用已超越 NLP：</p>
+<p>| 領域 | 應用 |</p>
+<p>|------|------|</p>
+<p>| <strong>自然語言處理</strong> | 語言建模、程式碼生成、長文件理解 |</p>
+<p>| <strong>基因組學</strong> | DNA 序列建模（百萬級 token 長度） |</p>
+<p>| <strong>語音生成</strong> | 音頻序列處理 |</p>
+<p>| <strong>電腦視覺</strong> | Vision Mamba（ViM）影像分類 |</p>
+<p>| <strong>金融</strong> | 高頻交易市場微結構建模 |</p>
+<p>| <strong>科學計算</strong> | PDE（偏微分方程）求解 |</p>
+<p>---</p>
+<h2>九、局限性與挑戰</h2>
+<ol>
+<li><strong>生態系統成熟度</strong>：Transformer 有十年的優化歷史和工具鏈，Mamba 仍在追趕</li>
+<li><strong>訓練方式差異</strong>：input-dependent 參數使得無法使用卷積捷徑，需要不同的訓練方法</li>
+<li><strong>精確回溯能力</strong>：純 SSM 在需要精確引用先前 token 的任務上仍不如 Attention</li>
+<li><strong>硬體生態</strong>：當前 GPU 和 TPU 主要針對 Transformer 優化，SSM 的硬體協同設計仍在發展中</li>
+<li><strong>In-Context Learning</strong>：純 Mamba 在少樣本學習任務上可能不如 Transformer</li>
+</ol>
+<p>---</p>
+<h2>十、2026 展望與趨勢</h2>
+<h3>10.1 混合架構成為主流</h3>
+<p>2026 年的趨勢清晰指向「混合架構」而非「替換 Transformer」：</p>
+<ul>
+<li>AI21 的 Jamba 系列已驗證大規模混合部署的可行性</li>
+<li>IBM Granite 4.0 採用混合設計</li>
+<li>學術界（TransMamba）持續探索最佳混合比例</li>
+</ul>
+<h3>10.2 關鍵研究方向</h3>
+<ul>
+<li><strong>最佳 Attention:SSM 比例</strong>：目前 1:7（Jamba）是否為最優？</li>
+<li><strong>硬體協同設計</strong>：針對 SSM 優化的專用加速器</li>
+<li><strong>跨架構知識蒸餾</strong>：利用 SSD 理論在 Transformer 和 SSM 間遷移知識</li>
+<li><strong>長序列推理</strong>：百萬 token 級別的實際應用場景</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Tri Dao & Albert Gu, "Mamba: Linear-Time Sequence Modeling with Selective State Spaces" (2023)</li>
+<li>Tri Dao & Albert Gu, "Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality" (Mamba-2, 2024)</li>
+<li>AI21 Labs, "Jamba: A Hybrid Transformer-Mamba Language Model" (ICLR 2025)</li>
+<li>IBM, "What Is A Mamba Model?" (2026)</li>
+<li>Maarten Grootendorst, "A Visual Guide to Mamba and State Space Models" (2024)</li>
+<li>Mamba-360 Survey: State Space Models as Transformer Alternative (ScienceDirect, 2025)</li>
+<li>State Space Models for Market Microstructure (Jonathan Kinlay, 2026-03)</li>
+<li>Hugging Face Blog, "AI Trends 2026: Test-Time Reasoning and Reflective Agents"</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

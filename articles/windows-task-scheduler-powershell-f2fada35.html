@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Windows Task Scheduler 進階自動化完整指南 — PowerShell ScheduledTasks 模組、CIM 事件觸發、XML 任務定義與生產級監控診斷最佳實踐（2026）">
+  <title>Windows Task Scheduler 進階自動化完整指南 — PowerShell ScheduledTasks 模組、CIM 事件觸發、XML 任務定義與生產級監控診斷最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Windows Task Scheduler 進階自動化完整指南 — PowerShell ScheduledTasks 模組、CIM 事件觸發、XML 任務定義與生產級監控診斷最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Windows Task Scheduler</span><span class="tag">PowerShell</span><span class="tag">排程自動化</span><span class="tag">CIM</span><span class="tag">XML</span><span class="tag">監控診斷</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Windows Task Scheduler 進階自動化完整指南</h1>
+<blockquote>從 PowerShell ScheduledTasks 模組、CIM 事件觸發、XML 任務定義到生產級監控診斷的最佳實踐</blockquote>
+<h2>技術概述</h2>
+<p>Windows Task Scheduler 是 Windows 作業系統內建的任務排程引擎，支援時間型觸發（daily/weekly/monthly）、事件型觸發（Event Log、系統啟動、使用者登入）及條件型執行（閒置、電源、網路）。PowerShell 7 的 <code>ScheduledTasks</code> 模組提供 19 個 Cmdlet，涵蓋任務的完整生命週期（建立、註冊、監控、匯出、刪除）。對於進階場景（如 Event Trigger），需搭配 CIM 類別或 XML 任務定義檔突破 Cmdlet 限制。在生產環境中，搭配診斷腳本與事件日誌分析可建立完整的排程健康監控體系。</p>
+<p>---</p>
+<h2>一、ScheduledTasks 模組核心 Cmdlet</h2>
+<h3>1.1 完整 Cmdlet 清單（19 個）</h3>
+<p>| Cmdlet | 功能 |</p>
+<p>|--------|------|</p>
+<p>| <code>Register-ScheduledTask</code> | 註冊新任務 |</p>
+<p>| <code>Unregister-ScheduledTask</code> | 移除任務 |</p>
+<p>| <code>Set-ScheduledTask</code> | 修改既有任務 |</p>
+<p>| <code>Get-ScheduledTask</code> | 查詢任務定義 |</p>
+<p>| <code>Get-ScheduledTaskInfo</code> | 取得執行時資訊（上次結果、下次執行時間） |</p>
+<p>| <code>Enable-ScheduledTask</code> / <code>Disable-ScheduledTask</code> | 啟用/停用任務 |</p>
+<p>| <code>Start-ScheduledTask</code> / <code>Stop-ScheduledTask</code> | 手動啟動/停止任務 |</p>
+<p>| <code>Export-ScheduledTask</code> | 匯出 XML 定義字串 |</p>
+<p>| <code>New-ScheduledTask</code> | 建立任務實例（未註冊） |</p>
+<p>| <code>New-ScheduledTaskAction</code> | 定義執行動作 |</p>
+<p>| <code>New-ScheduledTaskTrigger</code> | 定義觸發器 |</p>
+<p>| <code>New-ScheduledTaskSettingsSet</code> | 定義任務設定 |</p>
+<p>| <code>New-ScheduledTaskPrincipal</code> | 定義安全主體 |</p>
+<p>| <code>Register-ClusteredScheduledTask</code> | 叢集排程註冊 |</p>
+<p>| <code>Set-ClusteredScheduledTask</code> | 叢集排程修改 |</p>
+<p>| <code>Get-ClusteredScheduledTask</code> | 叢集排程查詢 |</p>
+<p>| <code>Unregister-ClusteredScheduledTask</code> | 叢集排程移除 |</p>
+<h3>1.2 標準任務建立模式</h3>
+<pre><code>
+# 四步建立法：Action → Trigger → Settings → Register
+$action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
+  -Argument '-ExecutionPolicy Bypass -File C:\Scripts\daily-task.ps1'
+
+$trigger = New-ScheduledTaskTrigger -Daily -At '08:00AM'
+
+$principal = New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\SYSTEM' `
+  -LogonType ServiceAccount
+
+$settings = New-ScheduledTaskSettingsSet `
+  -AllowStartIfOnBatteries `
+  -DontStopIfGoingOnBatteries `
+  -StartWhenAvailable `
+  -RestartCount 3 `
+  -RestartInterval (New-TimeSpan -Minutes 1)
+
+Register-ScheduledTask -TaskName 'DailyDigest' `
+  -TaskPath '\ClaudeAgent\' `
+  -Action $action -Trigger $trigger `
+  -Principal $principal -Settings $settings
+</code></pre>
+<h3>1.3 觸發器類型速查</h3>
+<p>| 觸發類型 | Cmdlet 參數 | 備註 |</p>
+<p>|----------|------------|------|</p>
+<p>| 每日 | <code>-Daily -At '08:00'</code> | 可加 <code>-DaysInterval 2</code> 隔日 |</p>
+<p>| 每週 | <code>-Weekly -DaysOfWeek Monday,Wednesday -At '09:00'</code> | 支援多天 |</p>
+<p>| 系統啟動 | <code>-AtStartup</code> | 開機後執行 |</p>
+<p>| 使用者登入 | <code>-AtLogon</code> | 可指定 <code>-User</code> |</p>
+<p>| 一次性 | <code>-Once -At '2026-03-01 10:00'</code> | 搭配 <code>-RepetitionInterval</code> 可重複 |</p>
+<p>| <strong>事件觸發</strong> | <strong>不支援</strong> — 需用 CIM 類別 | 見下節 |</p>
+<p>---</p>
+<h2>二、CIM 類別突破 — 事件觸發器</h2>
+<h3>2.1 問題</h3>
+<p><code>New-ScheduledTaskTrigger</code> <strong>不支援</strong> <code>-OnEvent</code> 參數，無法直接建立事件觸發任務。</p>
+<h3>2.2 CIM 解法</h3>
+<pre><code>
+# 取得 CIM 觸發器類別
+$CIMTriggerClass = Get-CimClass `
+  -ClassName MSFT_TaskEventTrigger `
+  -Namespace Root/Microsoft/Windows/TaskScheduler
+
+# 建立觸發器實例（ClientOnly = 不提交到 WMI）
+$trigger = $CIMTriggerClass | New-CimInstance -ClientOnly
+$trigger.Enabled = $true
+
+# 設定事件訂閱（XPath 篩選）
+$trigger.Subscription = @'
+&lt;QueryList&gt;
+  &lt;Query Id="0" Path="Application"&gt;
+    &lt;Select Path="Application"&gt;
+      *[System[Provider[@Name='MyApp'] and EventID=1001]]
+    &lt;/Select&gt;
+  &lt;/Query&gt;
+&lt;/QueryList&gt;
+'@
+
+# 組合並註冊任務
+$action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
+  -Argument '-File C:\Scripts\event-handler.ps1'
+$principal = New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\SYSTEM' `
+  -LogonType ServiceAccount
+$settings = New-ScheduledTaskSettingsSet
+
+Register-ScheduledTask -TaskName 'EventResponder' `
+  -TaskPath '\EventTasks\' `
+  -Action $action -Principal $principal `
+  -Settings $settings -Trigger $trigger
+</code></pre>
+<h3>2.3 事件訂閱 XPath 語法</h3>
+<p>| 場景 | XPath 範例 |</p>
+<p>|------|----------|</p>
+<p>| 特定 EventID | <code>*[System[EventID=1001]]</code> |</p>
+<p>| 特定來源 | <code>*[System[Provider[@Name='MyProvider']]]</code> |</p>
+<p>| 組合條件 | <code>*[System[Provider[@Name='MyApp'] and EventID=1001 and Level=2]]</code> |</p>
+<p>| TaskScheduler 自身 | <code>*[System[Provider[@Name='Microsoft-Windows-TaskScheduler'] and EventID=101]]</code> |</p>
+<p>---</p>
+<h2>三、XML 任務定義</h2>
+<h3>3.1 XML Schema 結構</h3>
+<pre><code>
+&lt;?xml version="1.0" encoding="UTF-16"?&gt;
+&lt;Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"&gt;
+  &lt;RegistrationInfo&gt;
+    &lt;Date&gt;2026-02-27T08:00:00+08:00&lt;/Date&gt;
+    &lt;Author&gt;DailyDigest&lt;/Author&gt;
+    &lt;Description&gt;每日摘要排程&lt;/Description&gt;
+  &lt;/RegistrationInfo&gt;
+  &lt;Triggers&gt;
+    &lt;CalendarTrigger&gt;
+      &lt;StartBoundary&gt;2026-02-27T08:00:00+08:00&lt;/StartBoundary&gt;
+      &lt;ScheduleByDay&gt;&lt;DaysInterval&gt;1&lt;/DaysInterval&gt;&lt;/ScheduleByDay&gt;
+    &lt;/CalendarTrigger&gt;
+  &lt;/Triggers&gt;
+  &lt;Principals&gt;
+    &lt;Principal id="Author"&gt;
+      &lt;UserId&gt;S-1-5-18&lt;/UserId&gt;
+      &lt;RunLevel&gt;HighestAvailable&lt;/RunLevel&gt;
+    &lt;/Principal&gt;
+  &lt;/Principals&gt;
+  &lt;Settings&gt;
+    &lt;MultipleInstancesPolicy&gt;IgnoreNew&lt;/MultipleInstancesPolicy&gt;
+    &lt;DisallowStartIfOnBatteries&gt;false&lt;/DisallowStartIfOnBatteries&gt;
+    &lt;StopIfGoingOnBatteries&gt;false&lt;/StopIfGoingOnBatteries&gt;
+    &lt;StartWhenAvailable&gt;true&lt;/StartWhenAvailable&gt;
+    &lt;RunOnlyIfNetworkAvailable&gt;false&lt;/RunOnlyIfNetworkAvailable&gt;
+    &lt;ExecutionTimeLimit&gt;PT1H&lt;/ExecutionTimeLimit&gt;
+    &lt;RestartOnFailure&gt;
+      &lt;Interval&gt;PT1M&lt;/Interval&gt;
+      &lt;Count&gt;3&lt;/Count&gt;
+    &lt;/RestartOnFailure&gt;
+  &lt;/Settings&gt;
+  &lt;Actions Context="Author"&gt;
+    &lt;Exec&gt;
+      &lt;Command&gt;pwsh.exe&lt;/Command&gt;
+      &lt;Arguments&gt;-ExecutionPolicy Bypass -File C:\Scripts\task.ps1&lt;/Arguments&gt;
+      &lt;WorkingDirectory&gt;C:\Scripts&lt;/WorkingDirectory&gt;
+    &lt;/Exec&gt;
+  &lt;/Actions&gt;
+&lt;/Task&gt;
+</code></pre>
+<h3>3.2 匯出/匯入流程</h3>
+<pre><code>
+# 匯出既有任務為 XML
+Export-ScheduledTask -TaskName 'DailyDigest' | Out-File task-def.xml
+
+# 從 XML 匯入（PowerShell）
+Register-ScheduledTask -TaskName 'DailyDigest-Clone' `
+  -Xml (Get-Content task-def.xml -Raw)
+
+# 從 XML 匯入（schtasks 命令列）
+schtasks /create /tn "DailyDigest-Clone" /xml "task-def.xml" /ru SYSTEM
+</code></pre>
+<h3>3.3 XML vs PowerShell Cmdlet 比較</h3>
+<p>| 維度 | XML 定義 | PowerShell Cmdlet |</p>
+<p>|------|---------|------------------|</p>
+<p>| 事件觸發 | 完全支援 | 不支援（需 CIM） |</p>
+<p>| 跨機器部署 | 匯出匯入即可 | 需重寫腳本 |</p>
+<p>| 版本控制 | Git 友善 | 需另存腳本 |</p>
+<p>| 可讀性 | 冗長但完整 | 簡潔但隱藏設定 |</p>
+<p>| 進階設定 | 全部暴露 | 部分不支援 |</p>
+<p>---</p>
+<h2>四、生產級設定最佳實踐</h2>
+<h3>4.1 失敗重試配置</h3>
+<pre><code>
+$settings = New-ScheduledTaskSettingsSet `
+  -RestartCount 3 `                    # 最多重試 3 次
+  -RestartInterval (New-TimeSpan -Minutes 2)  # 每次間隔 2 分鐘
+  -ExecutionTimeLimit (New-TimeSpan -Hours 1) # 最長執行 1 小時
+  -StartWhenAvailable                  # 錯過排程時補執行
+  -MultipleInstances IgnoreNew         # 防止並行執行
+</code></pre>
+<h3>4.2 安全性最佳實踐</h3>
+<p>| 實踐 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>最小權限原則</strong> | 使用 Managed Service Account (gMSA) 而非 SYSTEM |</p>
+<p>| <strong>腳本簽章</strong> | 生產環境用 <code>AllSigned</code> 執行策略 |</p>
+<p>| <strong>路徑保護</strong> | 腳本目錄限制 ACL，僅允許 SYSTEM 和管理員 |</p>
+<p>| <strong>避免密碼暴露</strong> | 用 <code>-LogonType ServiceAccount</code> 或 gMSA 免密碼 |</p>
+<p>| <strong>審計追蹤</strong> | 啟用 TaskScheduler Operational Log |</p>
+<h3>4.3 常見陷阱</h3>
+<p>| 陷阱 | 症狀 | 解法 |</p>
+<p>|------|------|------|</p>
+<p>| <code>-ExecutionPolicy Bypass</code> 濫用 | 安全風險 | 改用 <code>RemoteSigned</code> + 腳本簽章 |</p>
+<p>| 忘記 <code>-WorkingDirectory</code> | 相對路徑失效 | Action 加 <code>WorkingDirectory</code> |</p>
+<p>| 密碼過期 | 任務靜默失敗 | 改用 gMSA 或 SYSTEM |</p>
+<p>| <code>StopIfGoingOnBatteries</code> 預設開啟 | 筆電斷電停止任務 | 明確設為 <code>$false</code> |</p>
+<p>| <code>ExecutionTimeLimit</code> 預設 72 小時 | 長任務被殺 | 設為 <code>PT0S</code> 取消限制或合理值 |</p>
+<p>| 互動式登入依賴 | 無人登入時不執行 | 改用 <code>ServiceAccount</code> LogonType |</p>
+<p>---</p>
+<h2>五、生產級監控與診斷</h2>
+<h3>5.1 事件日誌監控</h3>
+<p>TaskScheduler 事件記錄在：</p>
+<p><code>Applications and Services Logs > Microsoft > Windows > TaskScheduler > Operational</code></p>
+<p>| EventID | 意義 |</p>
+<p>|---------|------|</p>
+<p>| 100 | 任務啟動 |</p>
+<p>| 101 | 任務啟動失敗 |</p>
+<p>| 102 | 任務完成 |</p>
+<p>| 103 | 動作啟動失敗 |</p>
+<p>| 106 | 任務註冊（使用者或更新） |</p>
+<p>| 110 | 任務觸發 |</p>
+<p>| 111 | 任務終止 |</p>
+<p>| 129 | 建立程序失敗 |</p>
+<p>| 201 | 動作完成 |</p>
+<p>| 202 | 動作完成（失敗） |</p>
+<p>| 413 | 服務啟動時載入任務失敗 |</p>
+<h3>5.2 PowerShell 診斷腳本</h3>
+<pre><code>
+# 取得所有排程任務健康摘要
+function Get-TaskSchedulerHealth {
+    $tasks = Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' }
+    $results = foreach ($task in $tasks) {
+        $info = Get-ScheduledTaskInfo -TaskName $task.TaskName -TaskPath $task.TaskPath
+        [PSCustomObject]@{
+            Name         = $task.TaskName
+            Path         = $task.TaskPath
+            State        = $task.State
+            LastResult   = '0x{0:X}' -f $info.LastTaskResult
+            LastRun      = $info.LastRunTime
+            NextRun      = $info.NextRunTime
+            MissedRuns   = $info.NumberOfMissedRuns
+            IsHealthy    = ($info.LastTaskResult -eq 0)
+        }
+    }
+    $results | Sort-Object IsHealthy, LastRun
+}
+
+# 偵測失敗任務
+$failed = Get-TaskSchedulerHealth | Where-Object { -not $_.IsHealthy }
+if ($failed) {
+    Write-Warning "以下 $($failed.Count) 個任務執行失敗："
+    $failed | Format-Table Name, LastResult, LastRun -AutoSize
+}
+</code></pre>
+<h3>5.3 JAMS 診斷工具功能</h3>
+<p>生產環境的進階診斷工具（如 JAMS）提供：</p>
+<ul>
+<li><strong>Exit Code 分析</strong>：將 30+ 種失敗碼對應到根因（憑證損壞、並行衝突、存取拒絕、逾時）</li>
+<li><strong>可靠性指標</strong>：成功率、連續失敗次數、錯過執行追蹤</li>
+<li><strong>配置風險偵測</strong>：停用重試、無限逾時、互動登入依賴、Queue New Instance 策略</li>
+<li><strong>效能追蹤</strong>：平均/最大執行時間、高頻排程偵測、超時任務識別</li>
+<li><strong>風險等級</strong>：Critical/High/Medium/Low/Minimal 五級</li>
+<li><strong>報告格式</strong>：CSV + 互動式 HTML Dashboard</li>
+</ul>
+<h3>5.4 自建監控整合</h3>
+<pre><code>
+# 整合 ntfy 告警的排程監控
+function Watch-ScheduledTasks {
+    param([string]$NtfyTopic = 'my-alerts')
+    
+    $failed = Get-ScheduledTask | ForEach-Object {
+        $info = Get-ScheduledTaskInfo -TaskName $_.TaskName -TaskPath $_.TaskPath -ErrorAction SilentlyContinue
+        if ($info -and $info.LastTaskResult -ne 0) {
+            [PSCustomObject]@{
+                Name = $_.TaskName
+                Result = '0x{0:X}' -f $info.LastTaskResult
+                LastRun = $info.LastRunTime
+            }
+        }
+    }
+    
+    if ($failed) {
+        $body = ($failed | ForEach-Object { "$($_.Name): $($_.Result)" }) -join "`n"
+        Invoke-RestMethod -Uri "https://ntfy.sh/$NtfyTopic" `
+          -Method Post -Body $body `
+          -Headers @{ Title = 'Task Scheduler Alert'; Priority = '4' }
+    }
+}
+</code></pre>
+<p>---</p>
+<h2>六、與 daily-digest-prompt 專案的關聯</h2>
+<h3>6.1 目前架構</h3>
+<p>本專案使用 <code>setup-scheduler.ps1</code> 從 <code>HEARTBEAT.md</code> 批次建立 6 個排程任務，每日合計 44 次執行：</p>
+<ul>
+<li>系統審查（00:40）、每日摘要（08:00/11:15/21:15）</li>
+<li>Todoist 單一模式（每小時整點 02-23）</li>
+<li>Todoist 團隊模式（每小時半點 02-23）</li>
+</ul>
+<h3>6.2 可改進方向</h3>
+<p>| 面向 | 目前做法 | 進階做法 |</p>
+<p>|------|---------|----------|</p>
+<p>| 任務建立 | <code>schtasks</code> 命令列 | 改用 <code>Register-ScheduledTask</code> + XML 定義檔（版本控制友善） |</p>
+<p>| 失敗重試 | PS 腳本內 retry | 加上 <code>-RestartCount 3 -RestartInterval PT2M</code>（OS 層級重試） |</p>
+<p>| 健康監控 | <code>check-health.ps1</code> 讀取日誌 | 加入 <code>Get-ScheduledTaskInfo</code> 的 <code>NumberOfMissedRuns</code> 檢查 |</p>
+<p>| 事件觸發 | 無 | 可建立事件觸發任務（如 Agent 失敗時自動啟動 self-heal） |</p>
+<p>| 部署 | <code>setup-scheduler.ps1</code> 命令式 | 匯出 XML 後用 <code>Register-ScheduledTask -Xml</code> 宣告式部署 |</p>
+<p>| 並行控制 | PS 腳本內鎖定 | 加上 <code>-MultipleInstances IgnoreNew</code> 防止重複執行 |</p>
+<h3>6.3 事件觸發應用場景</h3>
+<pre><code>
+# 範例：Agent 失敗時觸發 self-heal
+$CIMTriggerClass = Get-CimClass `
+  -ClassName MSFT_TaskEventTrigger `
+  -Namespace Root/Microsoft/Windows/TaskScheduler
+$trigger = $CIMTriggerClass | New-CimInstance -ClientOnly
+$trigger.Enabled = $true
+$trigger.Subscription = @'
+&lt;QueryList&gt;
+  &lt;Query Id="0" Path="Application"&gt;
+    &lt;Select Path="Application"&gt;
+      *[System[Provider[@Name='ClaudeAgent'] and Level=2]]
+    &lt;/Select&gt;
+  &lt;/Query&gt;
+&lt;/QueryList&gt;
+'@
+# 結合 self-heal 腳本自動修復
+</code></pre>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/">Microsoft ScheduledTasks Module 官方文件</a></li>
+<li><a href="https://netwrix.com/en/resources/blog/how-to-automate-powershell-scripts-with-task-scheduler/">Netwrix: PowerShell + Task Scheduler 自動化指南</a></li>
+<li><a href="https://xplantefeve.io/posts/SchdTskOnEvent">Building XP: CIM 事件觸發器建立教學</a></li>
+<li><a href="https://www.jamsscheduler.com/resources/windows-task-scheduler-diagnostics-script/">JAMS: Task Scheduler 診斷腳本</a></li>
+<li><a href="https://learn.microsoft.com/en-us/windows/win32/taskschd/daily-trigger-example--xml-">Microsoft Learn: XML 任務定義範例</a></li>
+<li><a href="https://www.dynatrace.com/hub/detail/windows-scheduled-tasks/">Dynatrace: Windows 排程任務監控</a></li>
+<li><a href="https://newrelic.com/blog/how-to-relic/boost-system-reliability-monitor-your-windows-task-scheduler-with-new-relic">New Relic: Task Scheduler 可靠性監控</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

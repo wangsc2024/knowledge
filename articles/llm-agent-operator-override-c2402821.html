@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LLM Agent operator override：雙人覆核、理由碼與審計軌跡的工程化 深度研究報告">
+  <title>LLM Agent operator override：雙人覆核、理由碼與審計軌跡的工程化 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LLM Agent operator override：雙人覆核、理由碼與審計軌跡的工程化 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">LLM Agent operator override</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LLM Agent operator override：雙人覆核、理由碼與審計軌跡的工程化</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>本報告彙整 NIST AI RMF、OWASP LLM Top 10、LangGraph interrupts、MCP 架構，以及本儲存庫內之 Operator Override Registry 計畫與 <code>github-scout-review-policy</code>，探討在 LLM Agent 生產系統中，<strong>人類監督如何必須落在可暫停、可恢復的執行路徑上</strong>，而非僅對模型輸出事後審閱。威脅模型核心包含過度代理、工具／外掛邊界遭繞過，以及敏感資料經工具鏈外洩；對應控制則強調四眼原則、可機讀理由碼、與 <code>run_id</code>／<code>trace_id</code> 綁定的審計軌跡。工程上，LangGraph 的 interrupt／resume 與 MCP Host 側最小權限，提供將「核准 payload」寫回狀態的著力點；本 repo 則提出集中式 registry 承載 <code>override_id</code>、<code>scope</code>、<code>default_mode</code> 與 rollback 參照，使 daily-digest 類多 Phase PowerShell JSON handoff 能以最小切片納入治理。分歧面在於集中式 registry 與分散 policy-as-code 的成本，以及 break-glass 即時性與雙人延遲的張力，需以補簽與加強日誌制度化。讀者讀畢應能設計一組可審計、可回放、且與現有 harness 元資料對齊的 operator override 事件模型。</p>
+<h2>研究背景與動機</h2>
+<p>生成式 AI 進入工具呼叫與多步編排之後，<strong>單一提示詞已無法表徵實際風險</strong>：模型可能發起高權限 MCP 呼叫、寫入版本庫，或經由插件擴張行動空間。國際框架（NIST AI RMF）與應用層指引（OWASP LLM Top 10）均要求治理、映射、度量與管理閉環，並點名人類監督與實質介入 [來源：NIST AI Risk Management Framework（AI RMF）, 2023]。在此前提下，<strong>operator override</strong> 不再是「關掉安全開關」的口語，而必須是可版本化、可回放、可問責的結構化事件；否則無法滿足內外部稽核，也無法在事故後還原「當時哪一組 policy 生效」。</p>
+<h2>核心技術解析</h2>
+<p><strong>（一）威脅模型與工具邊界</strong>  </p>
+<p>OWASP 將過度代理、不安全外掛／工具設計與敏感資料外洩列為高頻風險；威脅建模需涵蓋供應鏈、提示注入與工具濫用 [來源：OWASP Top 10 for Large Language Model Applications, 2023]。据三角佐證，<strong>工具邊界與 Host 信任根</strong> 亦為 MCP 架構文件重點：override 若擴張可用工具，必須同步留下可觀測證據，避免 silent escalation [來源：Model Context Protocol — Architecture, 2024]。</p>
+<p><strong>（二）執行期人機協同（HIL）</strong>  </p>
+<p>LangGraph 的 interrupts 允許在節點邊界暫停，待核准後再恢復，並與 checkpoint 搭配支援重播 [來源：LangGraph：Interrupts（Human-in-the-loop）, 2024]。這與「只在最後審稿」不同：<strong>核准發生在狀態轉移</strong>，理由碼與核准者可作為 resume payload 的一部分寫回——滿足「可機讀」與「與圖狀態一致」兩項審計需求。</p>
+<p><strong>（三）可機讀治理欄位與本儲存庫對齊</strong>  </p>
+<p>本 repo 計畫書主張集中式 Operator Override Registry，承載 <code>override_id</code>、<code>scope</code>、<code>effective_from</code>、<code>rollback_ref</code>，並從 <code>trace_id</code> 映射當次生效集合 [來源：GitHub Scout 高風險計畫：集中式 Operator Override Registry（本儲存庫計畫書）, 2026]。<code>github-scout-review-policy</code> 則要求 <code>operator_override</code> 具 <code>override_entry</code>、<code>default_mode</code>、<code>rollback_strategy</code>，並與 <code>execution_contract</code> 的 <code>human_review_required</code>、<code>run_metadata</code> 對齊 [來源：github_scout 審查政策（operator_override 結構化欄位）, 2026]。NIST.SP.1270 對 TEVV 與文件義務的論述，可類比為「多角色覆核與第三方可讀性」的制度包裝 [來源：NIST.SP.1270 — Towards a Standard for Identifying and Managing Bias in AI, 2020]。</p>
+<h2>關鍵洞見（含三角佐證狀態 ✅／⚠️）</h2>
+<ul>
+<li><strong>核准須內建於可暫停編排路徑</strong>（已驗證✅）：NIST、OWASP、LangGraph、MCP 四方在「監督落在執行路徑」上形成共識，而非僅輸出層審查。  </li>
+<li><strong>工具邊界與過度代理為 override 威脅核心</strong>（已驗證✅）：覆寫預設不得弱化最低基線，且須可追蹤 [來源：OWASP；MCP；本 repo policy]。  </li>
+<li><strong>審計軌跡最小欄位：誰、何時、範圍、模式、理由碼、run／trace、rollback</strong>（已驗證✅）：與 registry 計畫及 LangGraph payload 模型一致。  </li>
+<li><strong>集中式 registry 與分散 policy-as-code 的取捨</strong>（分歧）：一方利於跨 run 版本化審計，一方常僅在 Git／CI 層管理，執行期關聯較弱。  </li>
+<li><strong>TEVV 制度化類比雙人簽核</strong>（待驗證⚠️）：文獻支持利害關係人與 TEVV，但與「雙票電子簽核」的一一對應仍需組織內制度落地。  </li>
+<li><strong>跨模型差分與 registry 版本結合</strong>（待驗證⚠️）：屬與前序 continuity 主題的延伸假設，尚待實作驗證。</li>
+</ul>
+<h2>實務應用建議（3-5 點）</h2>
+<ol>
+<li>在 <strong>PowerShell 多 Phase JSON handoff</strong> 中，為每個 Phase 輸出帶上 <code>task_key</code>、<code>phase</code>、<code>run_id</code> 與當次生效之 <code>override_id</code> 列表，與 <code>post_tool_logger</code>／<code>scheduler-state</code> 並陳。  </li>
+<li><strong>理由碼</strong> 採「限定枚舉＋自由文字附註」，枚舉供儀表板聚合，文字承載情境；與 LangGraph interrupt resume 結構對齊。  </li>
+<li>MCP Host 側若因 override 擴張工具允許列表，應記錄<strong>擴張前後指紋</strong>與工單編號，降低 confused deputy 與 silent escalation。  </li>
+<li>將 <strong>registry dry-run／review-only</strong> 預設與自動審查分數閘門並用，降低誤放行。  </li>
+<li>對 <strong>break-glass</strong> 預先定義「先放行、後補簽」與 ticket 自動開立，並加強該時段之日誌留存與抽樣審計。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本研究與知識庫中 <strong>多 Agent 委派式核准</strong>、<strong>高風險工具授權模擬</strong>、<strong>動態信任衰減與跨模型差分核准</strong> 等主題銜接：共通主軸為「核准內建於狀態機＋可追溯 trace」。daily-digest 管線已具 JSON 交接與 Hook 日誌，適合作為最小治理切片落地點。</p>
+<h2>未來展望</h2>
+<p>後續可將 Operator Override Registry 與 <strong>autonomous-harness</strong> 的 <code>human_review_gates</code>／<code>guarded_operations</code> 建立 metadata 索引（計畫書已提示），並對 <strong>跨模型回放</strong> 下核准差異做版本化標記；另需實證評估四眼延遲對 SLO 的影響與 break-glass 比例。</p>
+<h2>完整書目</h2>
+<ol>
+<li>National Institute of Standards and Technology. (2023). <em>AI Risk Management Framework (AI RMF)</em>. https://www.nist.gov/itl/ai-risk-management-framework  </li>
+<li>OWASP Foundation. (2023). <em>OWASP Top 10 for Large Language Model Applications</em>. https://owasp.org/www-project-top-10-for-large-language-model-applications/  </li>
+<li>LangChain. (2024). <em>LangGraph: Interrupts (Human-in-the-loop)</em>. https://docs.langchain.com/oss/python/langgraph/interrupts  </li>
+<li>Model Context Protocol. (2024). <em>Architecture</em>. https://modelcontextprotocol.io/docs/concepts/architecture  </li>
+<li>National Institute of Standards and Technology. (2020). <em>NIST.SP.1270 — Towards a Standard for Identifying and Managing Bias in AI</em> (PDF). https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.1270.pdf  </li>
+<li>daily-digest-prompt 儲存庫. (2026). <em>GitHub Scout 高風險計畫：集中式 Operator Override Registry</em>. <code>docs/plans/github-scout-20260330-operator-override-registry.md</code>  </li>
+<li>daily-digest-prompt 儲存庫. (2026). <em>github_scout 審查政策（operator_override 結構化欄位）</em>. <code>config/github-scout-review-policy.yaml</code></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

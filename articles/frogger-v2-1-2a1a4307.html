@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Frogger v2.1 優化心得：道具系統實作（護盾、時間延長、雙倍分數、速移）">
+  <title>Frogger v2.1 優化心得：道具系統實作（護盾、時間延長、雙倍分數、速移） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Frogger v2.1 優化心得：道具系統實作（護盾、時間延長、雙倍分數、速移）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">Frogger</span><span class="tag">道具系統</span><span class="tag">Power-Up</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">遊戲開發</span><span class="tag">碰撞偵測</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Frogger v2.1 道具系統實作心得</h1>
+<h2>優化概要</h2>
+<p>從 v2.0 升級到 v2.1，新增完整的道具系統（Power-Up System），為經典 Frogger 增添策略深度。</p>
+<h2>四種道具設計</h2>
+<h3>1. 護盾（Shield）</h3>
+<ul>
+<li>效果：一次性免疫死亡（撞車或落水）</li>
+<li>實作重點：落水時需自動傳送回安全區（row 6），否則青蛙會卡在水裡</li>
+<li>視覺：青蛙周圍藍色發光環，使用 <code>globalAlpha</code> 做呼吸效果</li>
+</ul>
+<h3>2. 時間延長（Time+10）</h3>
+<ul>
+<li>效果：增加 10 秒倒數時間</li>
+<li>設計決策：設定上限 <code>TIME_LIMIT + 10</code>，避免囤積過多時間</li>
+<li>即時生效，無持續時間</li>
+</ul>
+<h3>3. 雙倍分數（Double Score）</h3>
+<ul>
+<li>效果：15 秒內所有分數 x2</li>
+<li>影響範圍：移動前進分數 + 到家分數 + 時間獎勵 + Combo 獎勵</li>
+<li>HUD 顯示剩餘秒數</li>
+</ul>
+<h3>4. 速移（Speed）</h3>
+<ul>
+<li>效果：10 秒內移動冷卻減半（120ms → 60ms）</li>
+<li>實作：動態計算 cooldown，不修改常數</li>
+</ul>
+<h2>道具生成策略</h2>
+<ul>
+<li>在安全區（row 6, 12）生成，避免道具被車輛或木頭遮擋</li>
+<li>每 5-8 秒隨機生成，最多同時存在 2 個</li>
+<li>道具存在 8 秒後消失，最後 2 秒閃爍提示</li>
+<li>新關卡時重置所有道具和效果</li>
+</ul>
+<h2>碰撞檢測</h2>
+<ul>
+<li>使用 Grid-based 精確匹配（col/row 完全相同才觸發）</li>
+<li>比 AABB 更適合 Frogger 的格子移動模式</li>
+<li>只在青蛙靜止時檢測，避免穿越判定</li>
+</ul>
+<h2>視覺設計</h2>
+<ul>
+<li>菱形底座（旋轉 45 度的方形）+ 圖示符號</li>
+<li>浮動動畫（bobbing，sin 波）增添生動感</li>
+<li>蒐集時粒子效果 + 浮動文字回饋</li>
+<li>即將消失時閃爍預警</li>
+</ul>
+<h2>音效設計</h2>
+<ul>
+<li>蒐集音效：三音上行（700→900→1100 Hz，sine 波）</li>
+<li>護盾擋住：低沉→中等雙音（250→400 Hz，triangle 波）</li>
+</ul>
+<h2>新增成就</h2>
+<ul>
+<li>蒐集達人：一場蒐集 5 個道具</li>
+<li>道具大師：一場蒐集 10 個道具</li>
+</ul>
+<h2>設計教訓</h2>
+<ol>
+<li><strong>護盾落水處理</strong>：初版忘記處理「護盾擋住落水」的情況，青蛙會卡在水面。解法：自動傳送回安全區</li>
+<li><strong>效果計時器歸零</strong>：新關卡必須 <code>resetPowerUps()</code>，否則上一關的雙倍/速移效果會殘留</li>
+<li><strong>分數公式分離</strong>：<code>totalPoints</code> 用 <code>let</code> 而非 <code>const</code>，方便後續乘以倍率</li>
+<li><strong>陣列 vs 物件池</strong>：道具數量少（最多 2 個），直接用陣列 + splice 比物件池更簡潔</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

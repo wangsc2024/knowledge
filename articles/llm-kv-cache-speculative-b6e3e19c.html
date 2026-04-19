@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LLM 推論加速前沿技術全景 — KV Cache 五代演進、Speculative Decoding（EAGLE-3/P-EAGLE）與 TurboQuant 模型壓縮">
+  <title>LLM 推論加速前沿技術全景 — KV Cache 五代演進、Speculative Decoding（EAGLE-3/P-EAGLE）與 TurboQuant 模型壓縮 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>LLM 推論加速前沿技術全景 — KV Cache 五代演進、Speculative Decoding（EAGLE-3/P-EAGLE）與 TurboQuant 模型壓縮</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">LLM</span><span class="tag">推論優化</span><span class="tag">KV Cache</span><span class="tag">Speculative Decoding</span><span class="tag">EAGLE</span><span class="tag">TurboQuant</span><span class="tag">量化</span><span class="tag">模型壓縮</span><span class="tag">研究</span><span class="tag">知識庫</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LLM 推論加速前沿技術全景</h1>
+<h2>概述</h2>
+<p>2025–2026 年，大型語言模型（LLM）的推論效率優化已成為產業核心戰場。隨著模型規模持續擴大與長上下文（100 萬+ tokens）需求普及，三大技術路線正在重塑推論基礎設施：<strong>KV Cache 管理演進</strong>、<strong>Speculative Decoding 推測解碼</strong>、以及<strong>後訓練壓縮（Post-Training Quantization）</strong>。本文整合最新研究成果，提供完整技術全景。</p>
+<p>---</p>
+<h2>一、KV Cache 五代演進（Modular 分類框架）</h2>
+<p>KV Cache 從簡單的注意力狀態快取，演進為現代 AI 推論中最複雜的子系統之一。</p>
+<h3>Era 0：Pre-GenAI（<2017）</h3>
+<p>深度學習依賴無狀態前饋架構（ResNet、YOLO），無需持久推論狀態，KV Cache 概念尚未出現。</p>
+<h3>Era 1：連續 KV Cache（2017）</h3>
+<p>原始 Transformer 架構引入 KV 快取，系統為每個請求預分配 <code>2 × num_layers × num_heads × head_dim × max_seq_len</code> 的連續張量。</p>
+<ul>
+<li><strong>優勢</strong>：實作簡單</li>
+<li><strong>缺陷</strong>：記憶體隨 <code>max_seq_len × batch_size</code> 激增，變長請求造成嚴重碎片化</li>
+</ul>
+<h3>Era 2：PagedAttention（2023）</h3>
+<p>vLLM 引入 PagedAttention，借鑑作業系統分頁技術，將 KV 分為固定大小的區塊動態分配。</p>
+<ul>
+<li>大幅提升記憶體利用率，支援數百/數千並行請求</li>
+<li>高效前綴快取（prefix caching）支援多輪對話</li>
+<li>成為 TensorRT-LLM、SGLang 等引擎的產業標準</li>
+</ul>
+<h3>Era 3：異質 KV Cache（2024）</h3>
+<p>多模態與混合模型需要多種不同的快取類型：</p>
+<ul>
+<li><strong>推測解碼</strong>：草稿模型與目標模型需獨立快取</li>
+<li><strong>視覺編碼器</strong>：VLM 中快取可復用的影像嵌入</li>
+<li><strong>量化 KV Cache</strong>：FP8 搭配逐張量縮放因子</li>
+<li><strong>滑動窗口注意力</strong>：追蹤窗口邊界內的 tokens</li>
+<li><strong>Mamba/SSM</strong>：對演進中的狀態向量做 checkpoint</li>
+<li><strong>混合架構</strong>：結合多種注意力類型（Gemma2、Jamba、Minimax）</li>
+</ul>
+<h3>Era 4：分散式 KV Cache（2025+）</h3>
+<ul>
+<li><strong>解耦推論</strong>：分離 prefill/decode 部署，高效 KV 傳輸</li>
+<li><strong>KV 感知負載平衡</strong>：將請求路由到持有相關快取的實例</li>
+<li><strong>階層式快取</strong>：冷頁面溢出到 CPU/SSD，熱頁面保留在 GPU 記憶體</li>
+</ul>
+<h3>Era 5：統一混合 KV Cache（2025+）</h3>
+<ul>
+<li>vLLM/Jenga：使用巨頁（huge pages）統一不同 KV 格式</li>
+<li>SGLang：利用 CUDA 虛擬記憶體 API 動態重新映射裝置記憶體</li>
+</ul>
+<p>---</p>
+<h2>二、KV Cache 優化五大策略</h2>
+<p>根據 2026 年 3 月最新綜述（arXiv 2603.20397），KV Cache 優化可分為五大類：</p>
+<h3>1. 快取淘汰（Cache Eviction）</h3>
+<p>| 方法 | 核心技術 | 效果 |</p>
+<p>|------|---------|------|</p>
+<p>| H2O | 累積注意力分數識別「重擊 token」 | 5-10× 記憶體縮減，29× 吞吐量 |</p>
+<p>| SnapKV | 觀察窗口投票機制 + 1D pooling | 保留關鍵 token 及周圍上下文 |</p>
+<p>| Ada-KV | 逐頭自適應預算分配 | 動態調整每個注意力頭的保留量 |</p>
+<h3>2. 快取壓縮（Cache Compression）</h3>
+<p>| 方法 | 核心技術 | 效果 |</p>
+<p>|------|---------|------|</p>
+<p>| KIVI | 逐通道量化（keys）+ 逐 token 量化（values） | 2.6× 峰值記憶體縮減 |</p>
+<p>| PALU | SVD 低秩投影分解 | 高效矩陣重建 |</p>
+<p>| KVQuant | pre-RoPE 量化 + 非均勻量化 + 離群值保留 | 支援 1000 萬上下文長度 |</p>
+<h3>3. 混合記憶體方案（Hybrid Memory）</h3>
+<p>| 方法 | 核心技術 | 效果 |</p>
+<p>|------|---------|------|</p>
+<p>| PagedAttention | 固定區塊 + copy-on-write | 無損，2-4× 吞吐量 |</p>
+<p>| InfiniGen | 部分查詢近似預取 CPU→GPU | 關鍵 KV 對預取 |</p>
+<p>| LayerKV | 選擇性層級卸載到 CPU | TTFT 改善 69× |</p>
+<h3>4. 新型注意力機制</h3>
+<p>| 方法 | 複雜度 | 特點 |</p>
+<p>|------|--------|------|</p>
+<p>| 線性注意力 | O(N) | 核函數特徵映射 |</p>
+<p>| 對數線性注意力 | O(N log N) | 階層式桶（Fenwick 樹） |</p>
+<p>| KIMI Linear | O(N) | 動態門控 + 3:1 混合，1M 上下文 6× 吞吐量 |</p>
+<h3>5. 組合方法</h3>
+<p>| 方法 | 策略 | 效果 |</p>
+<p>|------|------|------|</p>
+<p>| FlexGen | GPU/CPU/磁碟三級線性規劃 | 10× 記憶體縮減，40-100× 吞吐量 |</p>
+<p>| ShadowKV | 低秩 key 壓縮 + value 卸載 | 6× GPU 記憶體縮減 |</p>
+<p>| TailorKV | 逐層策略：注意力分散層用量化，集中層用稀疏 | 73.8% GPU 縮減，8-18× 吞吐量 |</p>
+<p>---</p>
+<h2>三、Speculative Decoding 推測解碼（EAGLE 系列）</h2>
+<p>推測解碼透過小型「草稿模型」平行生成多個候選 token，再由大模型一次性驗證，將序列步驟數減少 2-6 倍。</p>
+<h3>EAGLE-3（2025 Q4 – 2026）</h3>
+<ul>
+<li><strong>原理</strong>：輕量自迴歸預測頭附加於目標模型內部層，復用目標模型自身表徵</li>
+<li><strong>加速</strong>：相比普通自迴歸生成 <strong>3.0-6.5×</strong>，較 EAGLE-2 再提升 20-40%</li>
+<li><strong>優勢</strong>：無需獨立草稿模型，記憶體效率優於 Medusa</li>
+</ul>
+<h3>P-EAGLE（2026，AWS 提出）</h3>
+<ul>
+<li><strong>創新</strong>：單次前向傳遞生成所有 K 個草稿 token（移除逐步生成瓶頸）</li>
+<li><strong>效果</strong>：在 NVIDIA B200 上較 EAGLE-3 再加速 <strong>1.69×</strong></li>
+<li><strong>接受長度提升</strong>：K=7 時，HumanEval 上 P-EAGLE 較 EAGLE-3 提升 30%（3.94 vs 3.03）</li>
+</ul>
+<h3>EAGLE vs Medusa 比較</h3>
+<p>| 維度 | EAGLE-3 | Medusa |</p>
+<p>|------|---------|--------|</p>
+<p>| 架構 | 復用目標模型表徵 | 獨立預測頭 |</p>
+<p>| 記憶體 | 更高效（無需第二個模型） | 需額外記憶體 |</p>
+<p>| 接受率 | 較高（多數任務） | 較低 |</p>
+<p>| 訓練 | 需目標模型特徵蒸餾 | 單 GPU 自蒸餾 |</p>
+<p>| 最佳場景 | 通用（α=0.6-0.8 時 2-3× 加速） | 簡單架構需求 |</p>
+<h3>實務效能指引</h3>
+<ul>
+<li>可預測的補全（程式碼、結構化資料）：α=0.75-0.85，加速最明顯</li>
+<li>創意寫作等低可預測性任務：α 較低，加速有限</li>
+<li>與 KV Cache 互補：KV Cache 減少每 token 計算量，推測解碼減少序列步驟數</li>
+</ul>
+<p>---</p>
+<h2>四、TurboQuant — Google 的後訓練壓縮突破</h2>
+<h3>核心技術（ICLR 2026 正式發表）</h3>
+<p>TurboQuant 結合兩項互補技術，實現極端壓縮且零精度損失：</p>
+<ol>
+<li><strong>PolarQuant</strong>：將資料轉換為極座標表示（「往 37 度方向走 5 英里」而非分別儲存 x/y 分量），消除傳統壓縮的額外開銷</li>
+<li><strong>QJL（Quantized Johnson-Lindenstrauss）</strong>：1-bit 誤差校正器，以零額外記憶體開銷捕捉壓縮殘差</li>
+</ol>
+<h3>效能數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| KV Cache 記憶體壓縮 | <strong>6×</strong> |</p>
+<p>| 位寬 | 32-bit → 低至 <strong>3-bit</strong> |</p>
+<p>| 精度損失 | <strong>零</strong>（無可測量退化） |</p>
+<p>| 注意力計算加速 | H100 上 <strong>8×</strong> |</p>
+<p>| 需要重新訓練 | <strong>否</strong>（後處理即可） |</p>
+<h3>測試模型</h3>
+<ul>
+<li>已驗證：Gemma、Mistral、Llama 3.1（8B 參數）</li>
+<li>更大模型的可擴展性尚待驗證</li>
+</ul>
+<h3>生態系統</h3>
+<ul>
+<li>Google 僅發表論文，未開源官方實作</li>
+<li>社群已建立 PyTorch、MLX、C/CUDA 實作</li>
+<li>可與現有 GGUF 量化、基礎 KV Cache 量化（q4_0、q8_0）互補</li>
+</ul>
+<p>---</p>
+<h2>五、技術路線交叉分析</h2>
+<h3>三大路線互補關係</h3>
+<pre><code>
+KV Cache 優化 ←→ Speculative Decoding ←→ 模型壓縮
+（減少每 token 記憶體）  （減少序列步驟）     （減少位元寬度）
+</code></pre>
+<h3>選型指南</h3>
+<p>| 場景 | 推薦技術 | 理由 |</p>
+<p>|------|---------|------|</p>
+<p>| 長上下文單請求（100K+） | 淘汰/壓縮（H2O、KVQuant） | 記憶體為瓶頸 |</p>
+<p>| 高吞吐量服務 | 混合記憶體（PagedAttention + LayerKV） | 並行度為瓶頸 |</p>
+<p>| 延遲敏感（即時對話） | Speculative Decoding（EAGLE-3） | 減少序列步驟 |</p>
+<p>| 邊緣/消費級硬體 | TurboQuant + 小模型 | 記憶體受限 |</p>
+<p>| 精度關鍵任務 | PagedAttention（無損） | 零精度退化 |</p>
+<h3>2026 年趨勢總結</h3>
+<ol>
+<li><strong>認知密度優先</strong>：業界從增加參數量轉向提升單位計算的推理品質</li>
+<li><strong>軟硬體協同</strong>：NVIDIA B200 硬體原生支援 FP4 KV Cache</li>
+<li><strong>統一快取管理</strong>：多模態、多架構模型需要統一的 KV 管理框架</li>
+<li><strong>開源加速</strong>：vLLM、SGLang、TensorRT-LLM 持續整合最新研究</li>
+<li><strong>組合式優化</strong>：最佳實踐是組合多種技術（如 TailorKV 的逐層策略）</li>
+</ol>
+<p>---</p>
+<h2>來源</h2>
+<ol>
+<li>Modular Blog — The Five Eras of KVCache（2025）</li>
+<li>arXiv 2603.20397 — KV Cache Optimization Strategies for Scalable and Efficient LLM Inference（2026.03）</li>
+<li>Stark Insider — Google's TurboQuant: The Unsexy AI Breakthrough Worth Watching（2026.03）</li>
+<li>EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test（arXiv 2503.01840）</li>
+<li>AWS Blog — P-EAGLE: Faster LLM inference with Parallel Speculative Decoding in vLLM（2026）</li>
+<li>NVIDIA Blog — Introduction to Speculative Decoding for Reducing Latency in AI Inference</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-29</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「研究 1 項 AI 最新技術」。KB 去重檢查後確認 LLM 推論加速（KV Cache 演進、Speculative Decoding、TurboQuant）方向尚未涵蓋。</em></p>
+<p><em>標籤：AI, LLM, 推論優化, KV Cache, Speculative Decoding, EAGLE, TurboQuant, 量化, 模型壓縮</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

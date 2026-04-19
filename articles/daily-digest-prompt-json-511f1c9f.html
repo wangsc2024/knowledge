@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 狀態檔案生命週期治理與配置交叉完整性 — 七類 JSON 狀態膨脹分析、跨 YAML 引用驗證缺口與快取命中率錯位修正策略（2026-03-11）">
+  <title>Daily-Digest-Prompt 狀態檔案生命週期治理與配置交叉完整性 — 七類 JSON 狀態膨脹分析、跨 YAML 引用驗證缺口與快取命中率錯位修正策略（2026-03-11） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt 狀態檔案生命週期治理與配置交叉完整性 — 七類 JSON 狀態膨脹分析、跨 YAML 引用驗證缺口與快取命中率錯位修正策略（2026-03-11）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">狀態管理</span><span class="tag">配置治理</span><span class="tag">快取策略</span><span class="tag">daily-digest-prompt</span><span class="tag">2026-03-11</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 狀態檔案生命週期治理與配置交叉完整性</h1>
+<p><strong>七類 JSON 狀態膨脹分析、跨 YAML 引用驗證缺口與快取命中率錯位修正策略</strong></p>
+<p><em>研究日期：2026-03-11</em></p>
+<p><em>類型：專案優化 / 深度思維 / 知識庫</em></p>
+<p><em>適用對象：daily-digest-prompt 專案</em></p>
+<p>---</p>
+<h2>一、核心問題診斷</h2>
+<p>本次優化聚焦三個既有研究尚未深入的系統性問題：</p>
+<p>| 問題維度 | 嚴重度 | 現況指標 | 目標指標 |</p>
+<p>|----------|--------|----------|----------|</p>
+<p>| 狀態檔案無界增長 | 🔴 高 | research-registry 101 entries (~56KB) | ≤30 entries (<15KB) |</p>
+<p>| 配置交叉引用無驗證 | 🟡 中 | 0 項跨檔完整性檢查 | 覆蓋 3 組關鍵引用 |</p>
+<p>| 快取命中率錯位 | 🔴 高 | 13.92% (目標 40%) | ≥35% |</p>
+<p>| 自動任務公平性偏斜 | 🟡 中 | σ/μ = 3.16 (目標 0.5) | ≤1.0 |</p>
+<p>| 平均 I/O 過大 | 🔴 高 | 43KB/次 (目標 5KB) | ≤10KB |</p>
+<p>---</p>
+<h2>二、狀態檔案生命週期分析</h2>
+<h3>2.1 七類 JSON 狀態檔現況</h3>
+<p>| 檔案 | 用途 | 寫入者 | 清理機制 | 問題 |</p>
+<p>|------|------|--------|----------|------|</p>
+<p>| <code>context/research-registry.json</code> | 研究去重 | Agent | 7 天 retention（宣告但未強制） | <strong>101 entries, 56KB, 持續膨脹</strong> |</p>
+<p>| <code>state/run-fsm.json</code> | FSM 執行狀態 | PS 腳本 | max_entries=20（已實作） | 正常 |</p>
+<p>| <code>state/token-usage.json</code> | Token 消耗 | PS 腳本 | 7 天滾動 | 正常 |</p>
+<p>| <code>state/failure-stats.json</code> | 失敗統計 | PS 腳本 | 無 TTL | <strong>累積增長，無自動清理</strong> |</p>
+<p>| <code>context/behavior-patterns.json</code> | 行為模式 | 未實作 | N/A | <strong>空檔案，功能從未啟用</strong> |</p>
+<p>| <code>state/config-metrics.json</code> | 配置度量 | analyze-config.ps1 | 30 天歷史 | 正常 |</p>
+<p>| <code>context/research-series.json</code> | 長期系列追蹤 | Agent | 永久保留（設計如此） | 正常 |</p>
+<h3>2.2 根因分析</h3>
+<p>research-registry.json 的 <code>retention_days: 7</code> 定義在 <code>dedup-policy.yaml</code>，但清理邏輯散佈在各 prompt 模板的「寫入後」步驟中。問題在於：</p>
+<ol>
+<li><strong>清理依賴 Agent 自律</strong>：每次研究任務結束時，prompt 要求「移除超過 7 天的舊 entry」，但 LLM 可能跳過</li>
+<li><strong>無機器強制層</strong>：不像 Hook 有 Python 攔截，registry 清理完全靠 prompt 指令</li>
+<li><strong>summary 欄位未同步</strong>：目前 summary 為空 <code>{}</code>，失去快速預檢功能，每次都要遍歷全部 entries</li>
+</ol>
+<h3>2.3 建議修正</h3>
+<p><strong>P0-A：registry 清理機器化</strong></p>
+<pre><code>
+新增 tools/cleanup-registry.py：
+  - 讀取 dedup-policy.yaml 的 retention_days
+  - 自動刪除超過 7 天的 entries
+  - 重新計算 summary 欄位（total, by_type, recent_3d_topics）
+  - 由 Phase 0（run-agent-team.ps1、run-todoist-agent-team.ps1）呼叫
+  - 預期效果：registry 穩定在 30 entries 以內
+</code></pre>
+<p><strong>P0-B：failure-stats.json 加入 TTL</strong></p>
+<pre><code>
+state/failure-stats.json 加入 30 天滾動清理：
+  - 在 check-health.ps1 或 Phase 0 執行
+  - 保留最近 30 天記錄，超過的自動移除
+  - 預期效果：檔案大小穩定
+</code></pre>
+<p><strong>P1-A：behavior-patterns.json 決策</strong></p>
+<pre><code>
+二擇一：
+  選項 A（啟用）：在 post_tool_logger.py 新增模式偵測，每 session 結束時寫入
+  選項 B（移除）：刪除空檔案，從 system-insight 移除相關指標
+  建議：選項 B（YAGNI 原則，目前無具體使用場景）
+</code></pre>
+<p>---</p>
+<h2>三、配置交叉完整性驗證</h2>
+<h3>3.1 三組關鍵跨檔引用（目前無驗證）</h3>
+<p>| 來源檔 | 引用目標 | 引用類型 | 風險 |</p>
+<p>|--------|----------|----------|------|</p>
+<p>| <code>frequency-limits.yaml</code> 的 <code>template</code> 欄位 | <code>templates/auto-tasks/*.md</code> | 檔案路徑 | 模板不存在→靜默失敗 |</p>
+<p>| <code>routing.yaml</code> 的 skill 名稱 | <code>skills/SKILL_INDEX.md</code> 的 Skill 列表 | 名稱比對 | Skill 改名→路由斷裂 |</p>
+<p>| <code>prompts/team/todoist-auto-<em>.md</code> 的輸出檔名 | Phase 3 assemble 預期的 <code>results/todoist-auto-</em>.json</code> | 命名規範 | 命名不一致→Phase 3 找不到結果 |</p>
+<h3>3.2 歷史教訓</h3>
+<p>本專案已三次因跨檔引用不一致導致生產故障：</p>
+<ol>
+<li><strong>2026-02-24</strong>：prompt 重命名但 <code>$dedicatedPrompts</code> hardcoded 未更新</li>
+<li><strong>2026-02-18</strong>：3 個 auto-task prompt 輸出檔名用舊規範（缺 <code>auto-</code> 前綴）</li>
+<li><strong>routing.yaml 標籤覆寫</strong>：<code>Claude Code</code>/<code>GitHub</code> 被 code-task 優先級搶贏 research-task</li>
+</ol>
+<h3>3.3 建議修正</h3>
+<p><strong>P0-C：擴展 validate_config.py 新增 3 項跨檔檢查</strong></p>
+<pre><code>
+# 新增驗證項目：
+1. template_path_check：
+   - 遍歷 frequency-limits.yaml 每個 task 的 template 欄位
+   - 檢查對應 templates/auto-tasks/{template}.md 是否存在
+   - 失敗→報告缺失模板
+
+2. skill_name_check：
+   - 解析 routing.yaml 的所有 skill 引用
+   - 比對 skills/SKILL_INDEX.md 的 Skill 列表
+   - 失敗→報告未註冊 Skill
+
+3. prompt_output_check：
+   - 掃描 prompts/team/todoist-auto-*.md 的輸出檔名定義
+   - 驗證命名規範一致性（auto- 前綴）
+   - 失敗→報告不一致的檔案
+</code></pre>
+<p><strong>預期效果</strong>：未來配置修改後，pre-commit hook 自動捕捉跨檔引用斷裂，避免生產故障。</p>
+<p>---</p>
+<h2>四、快取命中率錯位修正</h2>
+<h3>4.1 現況分析</h3>
+<p>| API | TTL | 排程頻率 | 理論命中率 | 實際命中率 |</p>
+<p>|-----|-----|----------|-----------|------------|</p>
+<p>| Todoist | 45 min | 每 30 min | ~50% | 偏低 |</p>
+<p>| Pingtung News | 360 min | 每 8h (3次/日) | ~62% | 偏低 |</p>
+<p>| HackerNews | 180 min | 每 8h (3次/日) | ~37% | 偏低 |</p>
+<p>| Knowledge | 60 min | 每次研究 | ~15% | 極低 |</p>
+<p>| Gmail | 360 min | 按需 | N/A | N/A |</p>
+<p>聚合命中率 13.92% 的主因：</p>
+<ol>
+<li><strong>Todoist 雙軌排程</strong>：整點（single）+ 半點（team），但兩軌各自維護快取，互不共享</li>
+<li><strong>Knowledge API 頻繁呼叫</strong>：每個自動任務都做 hybrid search 去重 + 匯入，TTL 60 min 不夠覆蓋密集研究期</li>
+<li><strong>Phase 0 快取預計算</strong>只寫 <code>cache/status.json</code>，但各 Agent 不一定讀取</li>
+</ol>
+<h3>4.2 建議修正</h3>
+<p><strong>P1-B：快取共享機制</strong></p>
+<pre><code>
+1. Todoist 快取統一：
+   - single 模式和 team 模式共用同一份 cache/todoist.json
+   - Phase 0 預取寫入，Phase 1 直接讀取
+   - 預期命中率提升至 ~65%
+
+2. Knowledge API TTL 延長：
+   - 去重查詢結果快取至 cache/kb-dedup-{topic_hash}.json
+   - TTL 延長至 120 min（研究任務間隔通常 &gt; 30 min）
+   - 預期命中率提升至 ~30%
+
+3. 快取狀態標籤強制：
+   - 在 post_tool_logger.py 加入快取命中/未命中標籤
+   - 每日 check-health.ps1 報告分 API 命中率
+   - 為 TTL 調優提供數據支撐
+</code></pre>
+<p>---</p>
+<h2>五、自動任務公平性修正</h2>
+<h3>5.1 偏斜根因</h3>
+<p>21 個自動任務的 daily_limit 分配不均：</p>
+<ul>
+<li>佛學研究 4 個任務 × 3 次/日 = 12 次（佔 27%）</li>
+<li>AI/技術研究 6 個任務 × 合計 17 次/日 = 17 次（佔 38%）</li>
+<li>系統維護 3 個任務 × 合計 5 次/日 = 5 次（佔 11%）</li>
+<li>其他 8 個任務共 11 次/日 = 11 次（佔 24%）</li>
+</ul>
+<p>暫停任務（creative_game_optimize=0, qa_optimize=0, unsloth=0）拉大標準差。</p>
+<h3>5.2 建議修正</h3>
+<p><strong>P2-A：正式移除或歸檔暫停任務</strong></p>
+<pre><code>
+1. daily_limit=0 的任務從 round-robin 池移除（不參與計算）
+2. 在 frequency-limits.yaml 加入 status: active/paused/archived 欄位
+3. round-robin 只考慮 status=active 的任務
+4. 預期公平性 σ/μ 從 3.16 降至 ~1.2
+</code></pre>
+<p><strong>P2-B：I/O 優化</strong></p>
+<pre><code>
+1. research-registry.json 讀取改用 summary-only 模式（已設計但 summary 為空）
+   → P0-A 修復後 summary 恢復，I/O 從 56KB 降至 &lt;1KB
+2. 大型 prompt 檔案拆分：preamble.md (24 行) 已精簡，但 quality-gate 等可進一步壓縮
+3. Glob/Read 加 limit 參數：research-registry 讀取時用 offset+limit
+</code></pre>
+<p>---</p>
+<h2>六、實施優先級與預期效益</h2>
+<p>| 優先級 | 項目 | 預估工時 | 預期效益 |</p>
+<p>|--------|------|----------|----------|</p>
+<p>| <strong>P0-A</strong> | Registry 清理機器化 | 2h | I/O 降 80%，summary 恢復 |</p>
+<p>| <strong>P0-B</strong> | failure-stats TTL | 1h | 狀態檔穩定 |</p>
+<p>| <strong>P0-C</strong> | 跨檔引用驗證 | 3h | 消除配置斷裂風險 |</p>
+<p>| <strong>P1-A</strong> | behavior-patterns 決策 | 0.5h | 消除空檔案困惑 |</p>
+<p>| <strong>P1-B</strong> | 快取共享機制 | 4h | 命中率 14%→35%+ |</p>
+<p>| <strong>P2-A</strong> | 暫停任務歸檔 | 2h | 公平性 3.16→1.2 |</p>
+<p>| <strong>P2-B</strong> | I/O 優化 | 3h | 43KB→10KB/次 |</p>
+<p><strong>合計預估</strong>：15.5 工時，分 3 週迭代完成。</p>
+<p>---</p>
+<h2>七、與既有優化研究的互補關係</h2>
+<p>| 既有研究 | 本次研究互補點 |</p>
+<p>|----------|----------------|</p>
+<p>| 可觀測性路線圖（03-03） | 本次提供快取命中率的具體修正策略 |</p>
+<p>| Skill 依賴圖治理（03-09） | 本次補充配置層的跨檔引用驗證 |</p>
+<p>| 模板生態系統治理（03-08） | 本次補充 prompt 輸出檔名一致性檢查 |</p>
+<p>| Token 效率最佳化（03-10） | 本次從 I/O 層面補充 registry 膨脹問題 |</p>
+<p>| 安全強化日報（03-10） | 本次聚焦功能性而非安全性 |</p>
+<p>---</p>
+<h2>八、風險與限制</h2>
+<ol>
+<li><strong>Registry 清理可能影響去重準確度</strong>：7 天 window 縮短可能漏掉跨週重複，但 KB hybrid search 作為第二層防護可彌補</li>
+<li><strong>快取共享需要鎖定機制</strong>：Todoist 雙軌共用快取可能出現競態條件，建議用檔案鎖（PowerShell <code>[System.IO.File]::Open</code> 排他鎖）</li>
+<li><strong>跨檔驗證新增維護成本</strong>：validate_config.py 測試案例需從 37 增至 ~50，但一次性投入後長期受益</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

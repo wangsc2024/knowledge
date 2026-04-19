@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge: 自動任務公平性診斷工作流">
+  <title>workflow-forge: 自動任務公平性診斷工作流 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge: 自動任務公平性診斷工作流</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">任務公平性</span><span class="tag">系統診斷</span><span class="tag">OODA閉環</span><span class="tag">自動化運維</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge: 自動任務公平性診斷工作流</h1>
+<p><strong>產出日期</strong>: 2026-04-08  </p>
+<p><strong>產物</strong>: <code>workflows/auto-task-fairness-diagnostic.yaml</code>  </p>
+<p><strong>優先級</strong>: P0（評分 95 分）</p>
+<h2>缺口分析</h2>
+<h3>根因</h3>
+<ul>
+<li><strong>EMERGENCY Alert</strong>: <code>auto_task_fairness=3.177</code>（超標 6.3x，閾值 0.5）</li>
+<li><strong>35/39 任務未執行</strong>：今日未執行比例 89.7%</li>
+<li><strong>系統性瓶頸</strong>: <code>next_execution_order=15</code>，輪轉容量嚴重不足</li>
+</ul>
+<h3>來源</h3>
+<ul>
+<li><code>context/system-insight.json</code> EMERGENCY alert</li>
+<li><code>improvement-backlog.json</code> 自動生成建議</li>
+</ul>
+<h2>產出工作流規格</h2>
+<h3>診斷步驟（6 步驟）</h3>
+<ol>
+<li><strong>收集執行統計</strong>: 讀取 <code>auto-tasks-today.json</code>，計算 zero_count_rate、rotation_progress</li>
+<li><strong>容量分析</strong>: 計算 <code>daily_capacity = 48 × max_auto_per_run</code>，評估 capacity_utilization</li>
+<li><strong>輪轉檢查</strong>: 確認 next_execution_order 是否正常推進</li>
+<li><strong>execution_order 分佈檢查</strong>: 檢查是否集中在低序號（前 25% 區間 >50% 任務）</li>
+<li><strong>瓶頸識別</strong>: 分類為 high_zero_rate、capacity_shortage、slow_rotation、execution_order_skew</li>
+<li><strong>根因分類與建議</strong>: 產出 4 種根因與對應建議</li>
+</ol>
+<h3>根因與建議</h3>
+<p>| 根因 | 條件 | 建議 | 配置變更 |</p>
+<p>|------|------|------|----------|</p>
+<p>| max_auto_per_run 過低 | capacity_utilization >0.9 AND zero_count_rate >0.5 | 提高 max_auto_per_run.team_mode 從 3 增至 5-7 | max_auto_per_run.team_mode |</p>
+<p>| 觸發頻率不足 | capacity_utilization <0.7 BUT zero_count_rate >0.4 | 增加排程頻率（30 分 → 20 分） | HEARTBEAT.md cron |</p>
+<p>| execution_order 分佈不均 | execution_order_skew=true AND slow_rotation=true | 重新分配 order（1-39 均勻間隔） | frequency-limits.yaml tasks.*.execution_order |</p>
+<p>| round_robin 策略失效 | stalled_rotation=true | 檢查 PS1 腳本邏輯 | run-todoist-agent-team.ps1 程式碼 |</p>
+<h3>整合點</h3>
+<ul>
+<li><strong>觸發者</strong>: system-insight 自動任務（fairness_metric > 1.5 時）</li>
+<li><strong>消費者</strong>: arch-evolution（讀取診斷報告，決定是否實施配置變更）</li>
+<li><strong>手動執行</strong>: <code>tools/diagnose_auto_task_fairness.ps1</code></li>
+</ul>
+<h2>預期效果</h2>
+<ul>
+<li><strong>立即</strong>: 所有任務公平性問題有明確診斷流程</li>
+<li><strong>中期</strong>: fairness_metric 從 3.177 → <0.5，zero_count_rate 從 89.7% → <10%</li>
+<li><strong>長期</strong>: 所有 39 個任務公平執行，capacity_utilization 保持 0.6-0.8</li>
+</ul>
+<h2>技術細節</h2>
+<h3>容量計算公式</h3>
+<pre><code>
+daily_capacity = team_mode_runs_per_day × max_auto_per_run.team_mode
+team_mode_runs_per_day = 48（每小時整點及半點）
+capacity_utilization = total_active_tasks / daily_capacity
+</code></pre>
+<h3>閾值定義</h3>
+<ul>
+<li><code>fairness_metric</code>: target=0.3, warning=1.5, emergency=2.0</li>
+<li><code>zero_count_rate</code>: target=0.1, warning=0.3, emergency=0.5</li>
+<li><code>capacity_utilization</code>: target=0.6, warning=0.8, critical=1.0</li>
+</ul>
+<h2>相關檔案</h2>
+<ul>
+<li>工作流定義: <code>workflows/auto-task-fairness-diagnostic.yaml</code></li>
+<li>診斷報告輸出: <code>state/auto-task-fairness-diagnostic.json</code></li>
+<li>索引登記: <code>workflows/index.yaml</code> (wf-20260408-auto-task-fairness)</li>
+<li>註冊表: <code>context/workflow-forge-registry.json</code></li>
+<li>配置來源: <code>config/frequency-limits.yaml</code>, <code>context/auto-tasks-today.json</code></li>
+</ul>
+<h2>關鍵洞察</h2>
+<ol>
+<li><strong>容量不足是根本原因</strong>: 目前 max_auto_per_run=3，每日最多 144 次執行（48×3），但 39 個活躍任務需要至少 39 次才能完成一輪，導致輪轉速度慢</li>
+<li><strong>round_robin 策略依賴 execution_order</strong>: 分佈不均（集中在 1-15）會導致高序號任務永遠輪不到</li>
+<li><strong>診斷工作流是決策基礎</strong>: arch-evolution 可依此報告自動產出 ADR 並實施配置變更</li>
+</ol>
+<h2>標籤</h2>
+<p>#workflow-forge #流程標準化 #任務公平性 #系統診斷 #OODA閉環 #自動化運維</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

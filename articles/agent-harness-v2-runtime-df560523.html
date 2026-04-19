@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent Harness 自主管理機制 v2 — runtime policy、自治閘門與 auto-task 降載整合">
+  <title>Agent Harness 自主管理機制 v2 — runtime policy、自治閘門與 auto-task 降載整合 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent Harness 自主管理機制 v2 — runtime policy、自治閘門與 auto-task 降載整合</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">agent-harness</span><span class="tag">autonomous-management</span><span class="tag">daily-digest</span><span class="tag">runtime-policy</span><span class="tag">control-plane</span><span class="tag">research</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent Harness 自主管理機制 v2</h1>
+<p>日期：2026-03-20</p>
+<h2>本輪完成</h2>
+<ul>
+<li>將 <code>tools/autonomous_harness.py</code> 從單純 dry-run supervisor 擴充為真正的自治控制面。</li>
+<li>新增 fairness、token budget、scheduler heartbeat 三類 gate。</li>
+<li>新增 <code>state/autonomous-runtime.json</code>，輸出 <code>normal / degraded / recovery</code> 模式與對應執行政策。</li>
+<li><code>run-todoist-agent-team.ps1</code> 在 Phase 2 前讀取 runtime policy，會依模式降低 auto-task 平行度，並過濾重型/研究型任務。</li>
+</ul>
+<h2>控制迴路</h2>
+<ol>
+<li>Observe：讀取 <code>run-fsm</code>、<code>scheduler-state</code>、<code>failed-auto-tasks</code>、<code>api-health</code>、<code>auto-task-fairness-hint</code>、<code>token-budget-state</code>、<code>scheduler-heartbeat</code></li>
+<li>Evaluate：判斷 stale run、重複失敗、open circuit、任務飢餓、token 告警、heartbeat stale</li>
+<li>Gate：推導 <code>normal / degraded / recovery</code></li>
+<li>Act：輸出 <code>autonomous-harness-plan.json</code>、<code>autonomous-recovery-queue.json</code>、<code>autonomous-runtime.json</code></li>
+<li>Adapt：排程層根據 runtime policy 自動降載與限制重型任務</li>
+</ol>
+<h2>關鍵設計</h2>
+<ul>
+<li><code>rebalance_tasks</code>：當飢餓任務超過閾值時觸發，優先降低平行度並補跑低頻任務。</li>
+<li><code>scale_down_workload</code>：當 token budget 當日已告警時觸發，禁止高成本工作負載。</li>
+<li><code>scheduler-heartbeat</code> gate：heartbeat 遺失或逾時時進入 recovery 模式。</li>
+<li>recovery queue 去重：避免相同 pending action 持續重複入列。</li>
+</ul>
+<h2>已知限制</h2>
+<ul>
+<li><code>agent -p</code> 本機仍回 <code>[internal]</code>，Cursor CLI 無法作為本輪可用執行後端。</li>
+<li>pytest 受本機 ACL 影響，session cleanup 被暫存目錄權限阻斷；需在可寫暫存環境重跑。</li>
+<li>目前只有 <code>run-todoist-agent-team.ps1</code> 已讀取 runtime policy，<code>run-agent-team.ps1</code> 尚未接上。</li>
+</ul>
+<h2>外部研究依據</h2>
+<ul>
+<li>LangGraph durable execution / checkpointing</li>
+<li>OpenAI Agents tracing / guardrails</li>
+<li>AutoGen observability</li>
+<li>Kubernetes controller / reconciliation pattern</li>
+<li>Temporal durable workflow / failure recovery</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

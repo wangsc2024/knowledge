@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code Multi-Agent Teams 架構深度研究 -- 原生團隊協作、SendMessage 協定、tmux 隔離執行與企業級多 Agent 編排模式（2026-03）">
+  <title>Claude Code Multi-Agent Teams 架構深度研究 -- 原生團隊協作、SendMessage 協定、tmux 隔離執行與企業級多 Agent 編排模式（2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code Multi-Agent Teams 架構深度研究 -- 原生團隊協作、SendMessage 協定、tmux 隔離執行與企業級多 Agent 編排模式（2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">Agent Teams</span><span class="tag">Multi-Agent</span><span class="tag">SendMessage</span><span class="tag">tmux</span><span class="tag">oh-my-claudecode</span><span class="tag">Hooks</span><span class="tag">Worktree</span><span class="tag">企業編排</span><span class="tag">研究</span><span class="tag">知識庫</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code Multi-Agent Teams 架構深度研究</h1>
+<h2>一、概述</h2>
+<p>Claude Code 自 v2.1.32（2026-01 前後）起推出「Agent Teams」研究預覽功能，標誌著從單一 Agent 執行模式正式邁入多 Agent 協作時代。此功能允許多個 Claude Code Agent 實例在同一專案中並行協作，透過結構化的訊息傳遞協定（SendMessage）實現任務分配、狀態同步與結果組裝。截至 v2.1.63（2026-02-28），Agent Teams 已經歷多輪穩定性與記憶體管理優化，成為企業級 AI 輔助開發的核心架構基礎。</p>
+<h2>二、核心架構元件</h2>
+<h3>2.1 啟用方式與前置條件</h3>
+<p>Agent Teams 目前仍為實驗性功能（research preview），需要透過環境變數啟用：</p>
+<pre><code>
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+</code></pre>
+<p>此設定置於 <code>~/.claude/settings.json</code> 中。啟用後，Claude Code 會在 tmux session 中衍生（spawn）多個 Agent 實例作為隊友（teammates），各自擁有獨立的 context window 與工具權限。</p>
+<h3>2.2 SendMessage 通訊協定</h3>
+<p>Agent Teams 的核心通訊機制是 <code>SendMessage</code> 工具，支援以下訊息類型：</p>
+<ul>
+<li><strong>message</strong>：點對點直接訊息，指定 recipient（隊友名稱），附帶 summary 作為 UI 預覽</li>
+<li><strong>broadcast</strong>：廣播訊息，同時發送給所有隊友（成本高，每個隊友一份獨立投遞）</li>
+<li><strong>shutdown_request / shutdown_response</strong>：優雅關閉協定，隊友可 approve 或 reject</li>
+<li><strong>plan_approval_request / plan_approval_response</strong>：計畫審批機制，支援 plan_mode_required 的隊友</li>
+</ul>
+<p>關鍵設計原則：隊友的純文字輸出不可見於 Team Lead 或其他隊友，所有跨 Agent 通訊必須透過 SendMessage 工具。這確保了訊息的可追蹤性與結構化。</p>
+<h3>2.3 tmux 隔離執行</h3>
+<p>Agent Teams 的實體隔離層建立在 tmux 之上：</p>
+<ul>
+<li>每個隊友在獨立的 tmux pane 中運行</li>
+<li>環境變數（API provider credentials）會自動傳播到 tmux 衍生的子進程</li>
+<li>v2.1.45 修復了 Bedrock、Vertex、Foundry 等第三方 API provider 在 tmux 環境中的傳播問題</li>
+<li>隊友之間透過 tmux 的 IPC 機制交換結構化訊息</li>
+</ul>
+<h3>2.4 Agent 定義與自訂</h3>
+<p>Agent 定義檔案位於 <code>.claude/agents/*.md</code>，支援以下 frontmatter 欄位：</p>
+<ul>
+<li><strong>model</strong>：指定此 Agent 使用的模型（v2.1.47 修復了自訂 model 欄位在 team spawn 時被忽略的問題）</li>
+<li><strong>isolation: worktree</strong>：宣告式 Git Worktree 隔離（v2.1.50 新增），Agent 在獨立工作樹中操作</li>
+<li><strong>background: true</strong>：始終作為背景任務執行（v2.1.49 新增）</li>
+<li><strong>memory</strong>：持久化記憶，支援 user、project、local 三種作用域（v2.1.33 新增）</li>
+<li><strong>tools</strong>：限制可用工具清單，支援 <code>Task(agent_type)</code> 語法限制子 Agent 生成（v2.1.33 新增）</li>
+</ul>
+<p><code>claude agents</code> 命令可列出所有已設定的 Agent（v2.1.50 新增 CLI 命令）。</p>
+<h2>三、Hook 事件與多 Agent 生命週期</h2>
+<h3>3.1 多 Agent 專用 Hook 事件</h3>
+<p>Claude Code Hooks 系統為 Agent Teams 提供了完整的生命週期監控：</p>
+<ul>
+<li><strong>TeammateIdle</strong>（v2.1.33 新增）：隊友閒置時觸發，可用 exit 2 阻止閒置並提供回饋</li>
+<li><strong>TaskCompleted</strong>（v2.1.33 新增）：任務完成前品質閘門，exit 2 可阻止標記完成</li>
+<li><strong>SubagentStart / SubagentStop</strong>：子 Agent 生命週期開始/結束事件</li>
+<li><strong>WorktreeCreate / WorktreeRemove</strong>（v2.1.50 新增）：工作樹建立/移除事件</li>
+<li><strong>ConfigChange</strong>（v2.1.49 新增）：設定檔變更審計事件</li>
+</ul>
+<h3>3.2 HTTP Hooks（v2.1.63 新增）</h3>
+<p>除了傳統的 shell command hooks，v2.1.63 新增了 HTTP hooks，可將 JSON POST 到指定 URL 並接收 JSON 回應，適合與外部微服務整合的多 Agent 場景。</p>
+<h2>四、記憶體管理與長時間運行優化</h2>
+<p>多 Agent 場景的最大挑戰是記憶體膨脹。Claude Code 團隊在近期版本中進行了大量優化：</p>
+<h3>v2.1.63 關鍵修復</h3>
+<ul>
+<li>修復長時間運行的隊友即使在 conversation compaction 後仍保留所有訊息於 AppState 的記憶體洩漏</li>
+<li>改善多 Agent session 中的記憶體使用，釋放已完成子 Agent 的任務狀態</li>
+</ul>
+<h3>v2.1.50 關鍵修復</h3>
+<ul>
+<li>修復 Agent Teams 中已完成隊友任務未被垃圾回收的記憶體洩漏</li>
+<li>修復已完成任務狀態物件未從 AppState 移除的問題</li>
+<li>改善長 session 中的記憶體使用：清除大型工具結果、caps file history snapshots、釋放 LSP 診斷資料</li>
+</ul>
+<h3>v2.1.49 關鍵修復</h3>
+<ul>
+<li>改善多 Agent session 中子 Agent 的記憶體使用，壓縮期間剝離重型 progress message payloads</li>
+<li>修復 Yoga WASM 線性記憶體無限成長的問題</li>
+<li>修復 tree-sitter parser 的 WASM 記憶體成長，定期重置</li>
+</ul>
+<h2>五、社群生態系統：oh-my-claudecode</h2>
+<p>社群專案 oh-my-claudecode（8,064 Stars）提供了 Agent Teams 之上的高階編排層：</p>
+<h3>5.1 Team 模式管線</h3>
+<p>Team 是 OMC v4.1.7+ 的標準編排介面，以分階段管線執行：</p>
+<p>team-plan -> team-prd -> team-exec -> team-verify -> team-fix (loop)</p>
+<ul>
+<li>team-plan：需求分析與任務規劃</li>
+<li>team-prd：產品需求文件生成</li>
+<li>team-exec：N 個並行 Agent 執行任務</li>
+<li>team-verify：自動驗證結果</li>
+<li>team-fix：修復未通過驗證的項目（迴圈直至通過）</li>
+</ul>
+<h3>5.2 跨模型編排</h3>
+<p>OMC v4.4.0+ 支援在 tmux 中混合使用不同 CLI 工具：</p>
+<ul>
+<li><code>/omc-teams N:codex</code>：N 個 OpenAI Codex CLI panes</li>
+<li><code>/omc-teams N:gemini</code>：N 個 Google Gemini CLI panes</li>
+<li><code>/omc-teams N:claude</code>：N 個 Claude CLI panes</li>
+<li><code>/ccg</code>：三模型並行（Codex 分析 + Gemini 設計 + Claude 合成）</li>
+</ul>
+<h3>5.3 32 個專業化 Agent</h3>
+<p>OMC 內建 32 個專業化 Agent（架構、研究、設計、測試、資料科學等），配合智慧模型路由（Haiku 處理簡單任務、Opus 處理複雜推理）。</p>
+<h2>六、企業級實踐模式</h2>
+<h3>6.1 PowerShell 外部編排模式</h3>
+<p>本專案（daily-digest-prompt）採用 PowerShell 7 的 Start-Job 並行啟動多個 claude -p 實例，實現外部編排的 Agent Teams：</p>
+<ul>
+<li>Phase 1：5 路並行擷取（Todoist + 新聞 + HN + Gmail + 安全審查）</li>
+<li>Phase 2：單一組裝 Agent 讀取 results/*.json 合成最終輸出</li>
+<li>Phase 3（Todoist 模式）：組裝結果 + 關閉任務 + 推播通知</li>
+</ul>
+<p>此模式不依賴 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS，透過檔案系統（results/*.json）實現 Agent 間的資料交換，適合需要精確控制並行度與 timeout 的生產環境。</p>
+<h3>6.2 原生 Agent Teams vs 外部編排比較</h3>
+<p>| 維度 | 原生 Agent Teams | 外部編排（PowerShell） |</p>
+<p>|------|-----------------|---------------------|</p>
+<p>| 通訊方式 | SendMessage 工具 | 檔案系統 |</p>
+<p>| 隔離層 | tmux panes | Start-Job 背景作業 |</p>
+<p>| 任務分配 | LLM 自主決策 | 腳本預定義 |</p>
+<p>| 記憶體管理 | 內建 GC 與 compaction | 各進程獨立 |</p>
+<p>| 錯誤處理 | TeammateIdle / TaskCompleted hooks | Phase timeout + 重試 |</p>
+<p>| 適用場景 | 互動式開發、複雜推理 | 排程任務、批次處理 |</p>
+<h3>6.3 安全治理</h3>
+<p>多 Agent 場景的安全考量：</p>
+<ul>
+<li>Hook 強制層：所有 Agent 實例共享 .claude/settings.json 的 Hook 規則</li>
+<li>Sandbox 模式：v2.1.38 阻止寫入 .claude/skills 目錄</li>
+<li>managed settings：v2.1.33 修復 disableAllHooks 設定必須尊重 managed settings 階層</li>
+<li>Worktree 隔離：每個 Agent 可在獨立 Git 工作樹中操作，避免並發修改衝突</li>
+</ul>
+<h2>七、最新進展與展望（2026 Q1）</h2>
+<h3>7.1 v2.1.63（2026-02-28）亮點</h3>
+<ul>
+<li>HTTP Hooks 支援（JSON POST/Response）</li>
+<li>claude.ai MCP connectors 可在 Claude Code 中使用</li>
+<li>跨 Git Worktree 共享 Project configs 與 auto memory</li>
+<li>大量記憶體洩漏修復（隊友 AppState、MCP server fetch cache、JSON parsing cache 等）</li>
+</ul>
+<h3>7.2 發展趨勢</h3>
+<ol>
+<li>從實驗性到穩定：Agent Teams 仍需 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1，預計後續版本將正式 GA</li>
+<li>跨模型協作：oh-my-claudecode 已展示 Claude + Codex + Gemini 三模型協作的可行性</li>
+<li>記憶體效率持續改進：每個版本都帶來新的記憶體洩漏修復，表明長時間多 Agent session 是核心優化方向</li>
+<li>Hook 生態完善：TeammateIdle、TaskCompleted 等事件讓外部系統可精細控制 Agent 生命週期</li>
+<li>Worktree 隔離成熟：從 v2.1.49 的 --worktree flag 到 v2.1.50 的宣告式 isolation: worktree，隔離機制日趨完善</li>
+</ol>
+<h2>八、來源</h2>
+<ol>
+<li>Claude Code 官方 GitHub (https://github.com/anthropics/claude-code) -- CHANGELOG.md（v2.1.32 至 v2.1.63）</li>
+<li>Claude Code npm releases (https://www.npmjs.com/package/@anthropic-ai/claude-code) -- 版本發布紀錄</li>
+<li>oh-my-claudecode (https://github.com/Yeachan-Heo/oh-my-claudecode)（8,064 Stars）-- 社群多 Agent 編排框架</li>
+<li>awesome-claude-agents (https://github.com/vijaythecoder/awesome-claude-agents)（3,953 Stars）-- 子 Agent 開發團隊模式</li>
+<li>Claude-Code-Workflow (https://github.com/catlog22/Claude-Code-Workflow)（1,389 Stars）-- JSON 驅動多 Agent 開發框架</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-03</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>任務類型：todoist_research（Claude Code 最新技術）</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

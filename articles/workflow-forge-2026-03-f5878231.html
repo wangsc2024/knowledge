@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge 2026-03-31：快取 TTL 調整驗證工作流">
+  <title>workflow-forge 2026-03-31：快取 TTL 調整驗證工作流 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge 2026-03-31：快取 TTL 調整驗證工作流</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">快取優化</span><span class="tag">TTL調整</span><span class="tag">系統優化</span><span class="tag">工作流定義</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge 產出報告（2026-03-31）</h1>
+<h2>缺口識別</h2>
+<p><strong>缺口 ID</strong>: cache_hit_ratio_low</p>
+<p><strong>描述</strong>: 快取命中率 26.3%，低於 40% 門檻。需要驗證 TTL 調整後的效果，確保 adaptive_ttl 規則落實。</p>
+<p><strong>來源</strong>: context/system-insight.json</p>
+<p><strong>優先級</strong>: P0</p>
+<p><strong>評分</strong>:</p>
+<ul>
+<li>影響範圍：25 分（影響所有 API 呼叫的 5 個來源：todoist/news/hackernews/knowledge/gmail）</li>
+<li>可執行性：30 分（僅需新增 YAML workflow，不需改 PowerShell 核心邏輯）</li>
+<li>信號強度：20 分（來自 system-insight warning）</li>
+<li><strong>總分</strong>：75 分</li>
+</ul>
+<h2>產出物</h2>
+<p><strong>類型</strong>: workflow_yaml</p>
+<p><strong>路徑</strong>: workflows/cache-ttl-adjustment-validation-workflow.yaml</p>
+<p><strong>標題</strong>: 快取 TTL 調整驗證工作流</p>
+<p><strong>版本</strong>: 1.0.0</p>
+<h2>工作流結構</h2>
+<h3>前置條件（3 項）</h3>
+<ol>
+<li>cache-policy.yaml 檔案存在</li>
+<li>cache-policy.yaml 已修改（git diff 非空）</li>
+<li>context/cache-baseline.json 存在（記錄調整前的基準線）</li>
+</ol>
+<h3>驗證步驟（6 步驟）</h3>
+<ol>
+<li><strong>baseline_capture</strong>: 捕捉基準線（記錄 TTL 調整前的命中率、API 呼叫次數、stale 次數）</li>
+<li><strong>ttl_adjustment</strong>: TTL 調整（依據 cache-policy.yaml 的 adaptive_ttl 規則調整 TTL）</li>
+<li><strong>observation_period</strong>: 觀測期（執行 3-7 天，收集新的命中率數據）</li>
+<li><strong>hit_rate_comparison</strong>: 命中率比對（對比調整前後的 hit_rate、stale_rate、miss_rate）</li>
+<li><strong>per_source_validation</strong>: 各來源驗證（檢查 todoist/news/hackernews/knowledge/gmail 各自的命中率）</li>
+<li><strong>report_generation</strong>: 產出驗證報告（彙整驗證結果並產出 Markdown 報告）</li>
+</ol>
+<h3>成功條件</h3>
+<ul>
+<li><strong>絕對達標</strong>: hit_rate >= 40%（目標值，來自 cache-policy.yaml hit_rate_targets.overall）</li>
+<li><strong>相對提升</strong>: hit_rate 相對提升 >= 20%（容許基準線低於 40% 但有顯著改善）</li>
+</ul>
+<h3>回退條件</h3>
+<ul>
+<li>hit_rate 下降 > 10%（命中率惡化超過 10%）</li>
+<li>stale_rate > 90%（過期快取比例過高）</li>
+<li>miss_rate > 30%（未命中比例過高）</li>
+</ul>
+<h3>回退程序</h3>
+<ol>
+<li><code>git checkout HEAD~1 -- config/cache-policy.yaml</code>（回退至上一版本）</li>
+<li>記錄回退原因至 <code>context/cache-ttl-rollback-history.json</code></li>
+<li>發送 ntfy 通知（priority=4）</li>
+</ol>
+<h2>整合點</h2>
+<h3>對齊檔案</h3>
+<ul>
+<li><code>config/cache-policy.yaml</code>（TTL 來源與 adaptive_ttl 規則）</li>
+<li><code>config/benchmark.yaml</code>（hit_rate_targets 定義）</li>
+<li><code>logs/structured/post_tool_logger.jsonl</code>（命中率數據來源）</li>
+</ul>
+<h3>新建檔案</h3>
+<ul>
+<li><code>context/cache-baseline.json</code>（基準線記錄）</li>
+<li><code>context/cache-comparison-report.json</code>（驗證結果）</li>
+<li><code>context/cache-ttl-rollback-history.json</code>（回退歷史）</li>
+<li><code>docs/cache-ttl-validation-report-YYYYMMDD.md</code>（人類可讀報告）</li>
+</ul>
+<h2>預期成果</h2>
+<h3>即時影響</h3>
+<p>所有開發者有明確的 TTL 調整驗證流程（基準線捕捉→調整→觀測→驗證→回退）</p>
+<h3>中期影響</h3>
+<p>TTL 調整後命中率達標（≥40%）或相對提升 ≥20%，避免盲目調整導致命中率下降</p>
+<h3>長期影響</h3>
+<p>快取命中率穩定在 40% 以上，cache-read/api-call 比例改善 50%+，降低外部 API 呼叫頻率</p>
+<h2>驗證結果</h2>
+<ul>
+<li>✅ YAML 可解析（yaml.safe_load 通過）</li>
+<li>✅ 前置條件定義完整（3 項）</li>
+<li>✅ 驗證步驟完整（6 步驟）</li>
+<li>✅ 回退程序定義清晰</li>
+</ul>
+<h2>索引更新</h2>
+<p>已在 <code>workflows/index.yaml</code> 開頭插入新 entry：</p>
+<ul>
+<li><strong>id</strong>: wf-20260331-cache-ttl-validation</li>
+<li><strong>task_types</strong>: ["all"]</li>
+<li><strong>priority</strong>: P0</li>
+<li><strong>read_when</strong>: modifying_cache_policy_or_reviewing_cache_performance</li>
+</ul>
+<h2>註冊表更新</h2>
+<p>已在 <code>context/workflow-forge-registry.json</code> 開頭插入新條目，記錄產物路徑、缺口類型、評分細節、預期成果等資訊。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

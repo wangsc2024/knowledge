@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Todoist API v1 整合實務指南（PowerShell、分頁、Webhook 與 MCP）">
+  <title>Todoist API v1 整合實務指南（PowerShell、分頁、Webhook 與 MCP） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Todoist API v1 整合實務指南（PowerShell、分頁、Webhook 與 MCP）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Todoist API v1</span><span class="tag">daily-digest</span><span class="tag">PowerShell</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Todoist API v1 整合實務指南（PowerShell、分頁、Webhook 與 MCP）</h1>
+<h2>技術概述</h2>
+<p>Todoist 在 2026 年的主軸不是再維護舊版 REST v1，而是以新的 <code>Todoist API v1</code> 統一先前的 Sync API v9 與 REST API v2。對 <code>daily-digest-prompt</code> 這類需要穩定擷取「今日已完成任務」的自動化系統，最重要的不是只會呼叫 <code>tasks</code>，而是理解哪個端點負責歷史資料、哪個機制負責增量同步，以及 webhook 與 MCP 各自適合做什麼。官方文件也顯示 Todoist 已把 AI 整合推到第一線，提供官方託管的 MCP 與 <code>todoist-ai</code> 工具庫；但對批次、可重跑、可驗證的排程工作而言，HTTP API 仍然是最可控的資料平面。</p>
+<h2>核心概念與原理</h2>
+<h3>1. API v1 是「統一層」，不是舊 REST v1 的延伸</h3>
+<p>新 API v1 把 Sync API v9 與 REST API v2 合併，統一錯誤格式、物件命名與端點路徑，並明確要求使用 <code>api.todoist.com</code> 與全小寫 endpoint。這點對既有整合很重要，因為舊資料模型中的 <code>items</code>、<code>notes</code> 已對應到新的 <code>tasks</code>、<code>comments</code>。如果專案裡還混用舊命名，後續維護會很痛。</p>
+<h3>2. 抓「已完成任務」應優先用 completed 系列端點</h3>
+<p>如果需求是像本任務一樣分析今日已完成任務，最直接的是 <code>GET /api/v1/tasks/completed/by_completion_date</code>。官方文件指出它以完成時間區間查詢，單次預設 50 筆，並透過 <code>next_cursor</code> 做 cursor pagination。這比先抓 active tasks 再自行比對狀態可靠，因為完成後任務會移入歷史。</p>
+<h3>3. Sync API 仍有價值，但定位不同</h3>
+<p>Sync 端點仍保留，且官方文件明說它是例外區塊，保留部分 legacy naming。它適合做全量/增量同步、快取初始化與批次 command；但若只是查某天完成紀錄，直接用 completed endpoint 成本更低。換言之：<code>completed/by_completion_date</code> 解決查詢，<code>/sync</code> 解決狀態鏡像。</p>
+<h3>4. Webhook 是觸發器，不是權威資料源</h3>
+<p>Todoist 提供 <code>item:completed</code> 等 webhook 事件，但 webhook 的正確用途是「收到事件後喚醒流程」，不是直接把 payload 當唯一真相。較穩妥的作法是：Webhook 只負責通知，真正的資料仍回頭呼叫 API v1 查詢完成任務，這樣才能處理重送、漏事件與排程補跑。</p>
+<h3>5. MCP/AI 工具是控制平面，不取代 ETL</h3>
+<p>官方文件顯示 Todoist 已提供託管 MCP，且舊 <code>todoist-mcp</code> 倉庫已轉移到 <code>todoist-ai</code>。這很適合讓 Claude、Cursor、ChatGPT 直接操作 Todoist；但在 <code>daily-digest-prompt</code>，MCP 更適合作為互動查詢或人工介面，正式排程仍應維持 HTTP API，因為比較容易做重試、日誌、驗證與限流控制。</p>
+<h2>最佳實踐與常見陷阱</h2>
+<h3>最佳實踐</h3>
+<ul>
+<li>以 <code>tasks/completed/by_completion_date</code> 當作每日已完成任務的主來源，並持久化最後查詢區間與 <code>next_cursor</code>。</li>
+<li>對寫入型操作帶 <code>X-Request-Id</code>，把重試設計成冪等流程，避免重複建立任務。</li>
+<li>把 webhook 視為「增量提示」，收到 <code>item:completed</code> 後再回查 API，確認最終資料。</li>
+<li>如果未來要讓 AI 助手直接讀寫 Todoist，優先接官方 <code>todoist-ai</code> 或託管 MCP；排程批次工作則繼續走 HTTP API。</li>
+<li>在 PowerShell 中固定封裝 <code>Authorization: Bearer ...</code>、錯誤解析、cursor 分頁與 429/backoff 處理，避免每支腳本各自拼裝。</li>
+</ul>
+<h3>常見陷阱</h3>
+<ul>
+<li>把舊 REST API v1 誤認為現行主版本。官方舊頁面已標示 deprecated，真正該用的是新的 <code>Todoist API v1</code>。</li>
+<li>用 active tasks 端點推測完成狀態，會漏掉已移入歷史的任務。</li>
+<li>忽略 opaque string ID。API v1 已把 ID 視為不透明字串，不能再假設是數字。</li>
+<li>把 webhook payload 直接落庫當真相，會讓補償與重播很難做。</li>
+<li>把 MCP 當成背景批次管線；MCP 比較像 agent 介面層，不是穩定 ETL 替代品。</li>
+</ul>
+<h2>與本專案的關聯</h2>
+<p><code>daily-digest-prompt</code> 目前要分析「今日 Todoist 已完成任務所需的技術」，其第一步其實就是先把 completed tasks 的抓取方式做對。建議專案採兩層設計：</p>
+<ol>
+<li>資料平面：PowerShell 直接呼叫 <code>GET /api/v1/tasks/completed/by_completion_date</code>，按日期區間抓取今日完成任務，處理 cursor 與重試。</li>
+<li>控制平面：若未來要讓 Claude Code 或其他 AI 助手主動查任務、補任務、做互動式回顧，再接官方 MCP / <code>@doist/todoist-ai</code>。</li>
+</ol>
+<p>這樣可避免把互動式 AI 協定混進每日排程主流程，也能讓結果 JSON、registry 與 KB 匯入維持可重現。</p>
+<h2>程式碼範例</h2>
+<pre><code>
+function Get-TodoistCompletedTasks {
+    param(
+        [Parameter(Mandatory)] [string]$ApiToken,
+        [Parameter(Mandatory)] [datetime]$Since,
+        [Parameter(Mandatory)] [datetime]$Until
+    )
+
+    $headers = @{ Authorization = "Bearer $ApiToken" }
+    $baseUrl = 'https://api.todoist.com/api/v1/tasks/completed/by_completion_date'
+    $cursor = $null
+    $items = @()
+
+    do {
+        $query = @{
+            since = $Since.ToUniversalTime().ToString('o')
+            until = $Until.ToUniversalTime().ToString('o')
+            limit = 200
+        }
+        if ($cursor) { $query.cursor = $cursor }
+
+        $uri = $baseUrl + '?' + (($query.GetEnumerator() | ForEach-Object {
+            '{0}={1}' -f [uri]::EscapeDataString($_.Key), [uri]::EscapeDataString([string]$_.Value)
+        }) -join '&amp;')
+
+        $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers
+        $items += $response.items
+        $cursor = $response.next_cursor
+    } while ($cursor)
+
+    return $items
+}
+
+$todayStart = [datetime]::Parse('2026-03-11T00:00:00+08:00')
+$todayEnd = [datetime]::Parse('2026-03-12T00:00:00+08:00').AddSeconds(-1)
+$done = Get-TodoistCompletedTasks -ApiToken $env:TODOIST_API_TOKEN -Since $todayStart -Until $todayEnd
+$done | Select-Object id, content, completed_at, project_id
+</code></pre>
+<h2>參考來源</h2>
+<ul>
+<li>Todoist API v1（統一 API、migrate、completed tasks、webhooks、MCP）：https://developer.todoist.com/api/v1/</li>
+<li>Sync API v9 參考文件（partial/full sync 限制與 legacy sync 行為）：https://developer.todoist.com/sync/v9/</li>
+<li>官方 TypeScript client（custom fetch、遷移與重試邏輯保留）：https://github.com/Doist/todoist-api-typescript</li>
+<li>官方 Todoist AI / MCP SDK（MCP server 與 AI agent 整合方向）：https://github.com/Doist/todoist-ai</li>
+<li>舊 REST API v1 已棄用頁面（避免誤用舊版）：https://developer.todoist.com/rest/v1/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

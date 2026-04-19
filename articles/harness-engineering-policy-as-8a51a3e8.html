@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 約束驗證自動化 — Policy-as-Code、Guardrails AI 與 Agent 安全護欄的工程化實踐">
+  <title>Harness Engineering 約束驗證自動化 — Policy-as-Code、Guardrails AI 與 Agent 安全護欄的工程化實踐 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 約束驗證自動化 — Policy-as-Code、Guardrails AI 與 Agent 安全護欄的工程化實踐</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">Policy-as-Code</span><span class="tag">Guardrails AI</span><span class="tag">NeMo Guardrails</span><span class="tag">OPA</span><span class="tag">Cedar</span><span class="tag">約束驗證</span><span class="tag">Agent安全</span><span class="tag">研究</span><span class="tag">知識庫</span><span class="tag">深度思維</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 約束驗證自動化</h1>
+<blockquote>研究日期：2026-04-07</blockquote>
+<blockquote>研究角度：約束如何自動化驗證、Policy Engine 整合與生產環境護欄工程化</blockquote>
+<blockquote>與既有筆記互補：「回饋迴路與補償面」聚焦事後修復，本文聚焦事前約束執行與驗證</blockquote>
+<p>---</p>
+<h2>一、Policy-as-Code 在 Agent 約束管理中的應用</h2>
+<h3>1.1 為何需要 Policy-as-Code</h3>
+<p>2026 年統計顯示，81% 的 AI Agent 已進入生產運行，但僅 14.4% 取得完整安全審批，88% 的組織曾發生 AI Agent 安全事件。這個落差凸顯出：<strong>約束不能靠 Prompt 自律，必須有機器強制的驗證層</strong>。</p>
+<p>Policy-as-Code 將治理規則從自然語言轉化為可執行、可版本化、可測試的程式碼，確保每一次 Agent 操作都經過自動化驗證。</p>
+<h3>1.2 OPA vs Cedar：兩大 Policy Engine 比較</h3>
+<p>| 維度 | OPA (Open Policy Agent) | Cedar (AWS) |</p>
+<p>|------|------------------------|-------------|</p>
+<p>| 語言 | Rego（邏輯式） | Cedar（宣告式） |</p>
+<p>| 效能 | 毫秒級 | 亞毫秒級（Rust 實作，40-60x 快於 Rego） |</p>
+<p>| 驗證 | 單元測試 + 整合測試 | <strong>形式化驗證</strong>（數學證明合規性） |</p>
+<p>| 適用場景 | Kubernetes 准入控制、API 閘道 | 細粒度授權、合規自動化 |</p>
+<p>| Agent 整合 | MCP Gateway + OPA 架構成熟 | EU AI Act 合規自動化首選 |</p>
+<p><strong>關鍵洞見</strong>：Cedar 的形式化驗證能力（Automated Reasoning）允許企業向審計方<strong>數學證明</strong>合規性，這是 OPA 無法達到的保證等級。</p>
+<h3>1.3 MCP + OPA 閘道架構</h3>
+<p>來自 InfoQ 的生產案例展示了一個完整的 Agent 約束閘道：</p>
+<pre><code>
+Agent 請求 → MCP 路由（工具發現）→ OPA 授權（政策驗證）→ 佇列 → 隔離執行 → 可觀測性
+</code></pre>
+<p><strong>核心設計原則</strong>：</p>
+<ul>
+<li>Agent 被視為<strong>不受信任的請求者</strong>，每次操作都必須通過閘道驗證</li>
+<li>MCP 負責「哪些工具存在」（discovery），OPA 負責「誰在什麼條件下可用哪些工具」（authorization）</li>
+<li>分離關注點：政策變更無需重新訓練 Agent</li>
+</ul>
+<p><strong>OPA 同時強制多重防護</strong>：</p>
+<ol>
+<li>RBAC：<code>sre-bot</code> 有完整存取權；<code>deploy-bot</code> 限制為非生產環境</li>
+<li>完整性：計畫雜湊必須匹配已註冊的產出物</li>
+<li>安全性：以 <code>-destroy.plan</code> 結尾的計畫被阻擋</li>
+<li>變更管理：部署僅允許在週一至週五 09:00-17:00 UTC</li>
+</ol>
+<p><strong>SLO 目標</strong>：</p>
+<ul>
+<li>政策決策：< 100ms</li>
+<li>Runner 啟動：< 2s（dev）/ < 5s（staging）</li>
+<li>被拒絕操作：≤ 2%</li>
+<li>沙箱清理：< 30s</li>
+</ul>
+<p>---</p>
+<h2>二、LLM Guardrails 工程化：NeMo Guardrails 與 Guardrails AI</h2>
+<h3>2.1 五類護欄（Rails）</h3>
+<p>NVIDIA NeMo Guardrails 定義了五類護欄：</p>
+<ol>
+<li><strong>Input Rails</strong>：輸入驗證（注入偵測、PII 過濾）</li>
+<li><strong>Dialog Rails</strong>：對話流程控制（主題引導、禁止話題）</li>
+<li><strong>Retrieval Rails</strong>：RAG 檢索結果過濾</li>
+<li><strong>Output Rails</strong>：輸出內容審核（事實查核、毒性評分）</li>
+<li><strong>Execution Rails</strong>：工具調用約束（最小權限、參數驗證）</li>
+</ol>
+<h3>2.2 NeMo vs Guardrails AI 選擇指南</h3>
+<p>| 需求 | 推薦框架 |</p>
+<p>|------|----------|</p>
+<p>| 對話流程控制、主題引導 | NeMo Guardrails（Colang 語言） |</p>
+<p>| 可組合的輸出驗證 | Guardrails AI（Hub 生態） |</p>
+<p>| 結構化資料抽取驗證 | Guardrails AI |</p>
+<p>| 快速覆蓋 80% 常見需求 | NeMo Guardrails（配置驅動） |</p>
+<p>| 兩者結合 | NeMo 處理對話層 + Guardrails AI 處理 I/O 驗證 |</p>
+<h3>2.3 生產環境四層防禦架構</h3>
+<pre><code>
+Layer 1（輸入）→ Layer 2（模型）→ Layer 3（輸出）→ Layer 4（監控）
+</code></pre>
+<ul>
+<li><strong>Layer 1</strong>：Regex 注入偵測 + PII 偵測（Microsoft Presidio）+ Schema 驗證 + 長度檢查</li>
+<li><strong>Layer 2</strong>：安全導向 System Prompt + 保守 Temperature 設定</li>
+<li><strong>Layer 3</strong>：毒性評分 + PII 遮蔽 + 事實查核斷言 + 自訂領域驗證器</li>
+<li><strong>Layer 4</strong>：即時指標追蹤 + 自動斷路器 + 人工審查佇列</li>
+</ul>
+<p>每層增加 10-50ms 延遲，累計約 100ms，對聊天應用可接受。</p>
+<p><strong>生產案例</strong>：10 萬次請求中攔截 847 個惡意輸入、標記 89 個問題輸出，達成 95% 安全覆蓋率。誤報率從 12% 調降至 3%。</p>
+<p>---</p>
+<h2>三、約束驗證自動化模式</h2>
+<h3>3.1 混合驗證策略</h3>
+<p>Harness Engineering 的核心是<strong>確定性工具 + AI 驅動驗證</strong>的混合：</p>
+<ul>
+<li>確定性層：Linter、型別檢查、Schema 驗證、單元測試</li>
+<li>AI 層：Agent 互審（Agent reviews Agent's output）、LLM-based 語義檢查</li>
+<li>迴路：失敗原因回饋給模型重試（closed-loop verification）</li>
+</ul>
+<p><strong>LangChain Deep Agents 案例</strong>：透過系統性失敗追蹤，GPT-5.2-Codex 分數從 52.8% 提升至 66.5%，方法是「追蹤失敗 → 聚類錯誤模式 → 將修正回饋至 Harness」，無需模型重訓。</p>
+<h3>3.2 一次性修復轉化為永久約束</h3>
+<blockquote>「Turn one-off fixes into reusable constraints (e.g., new lint rules or sub-agents).」</blockquote>
+<p>這是 Harness Engineering 的核心原則：每次生產失敗不只是修復問題，而是<strong>將修復轉化為新的約束規則</strong>，形成增強迴路。</p>
+<h3>3.3 短暫執行器（Ephemeral Runners）模式</h3>
+<p>隔離執行是約束驗證的物理保障：</p>
+<ol>
+<li>產生唯一命名空間（run-UUID）</li>
+<li>在隔離環境中執行基礎設施變更</li>
+<li><strong>無論成敗，一律銷毀命名空間</strong></li>
+</ol>
+<p>此模式限制爆炸半徑，防止憑證洩漏或孤立資源。</p>
+<h3>3.4 斷路器監控</h3>
+<ul>
+<li><strong>封鎖率告警</strong>：被封鎖請求超過 5% 時觸發</li>
+<li><strong>警告率告警</strong>：警告超過 15% 時標記</li>
+<li><strong>時間窗口指標</strong>：15 分鐘滑動視窗計算比率</li>
+<li><strong>嚴重性路由</strong>：分數 ≥ 0.8 自動排入人工審查佇列</li>
+</ul>
+<p>---</p>
+<h2>四、對本專案 Harness 框架的映射與優化建議</h2>
+<h3>4.1 現有架構對應</h3>
+<p>| 本專案元件 | 業界對應 | 成熟度 |</p>
+<p>|-----------|---------|--------|</p>
+<p>| B0-E risk_tiers | OPA RBAC 政策 | ★★★ 已建立 |</p>
+<p>| B1-A constraint_evolve | Policy-as-Code 演化 | ★★★ 已建立 |</p>
+<p>| B2-A quality_gate deterministic | NeMo Input/Output Rails | ★★★ 已建立 |</p>
+<p>| B2-C validate_llm | AI 驗證層 | ★★☆ 旗標控制中 |</p>
+<p>| B4-A harness_gap_tracker | 一次性修復→永久約束 | ★★★ 已建立 |</p>
+<p>| hooks/pre_bash_guard | Input Rails（指令層） | ★★★ 已建立 |</p>
+<p>| hooks/pre_write_guard | Output Rails（檔案層） | ★★★ 已建立 |</p>
+<h3>4.2 可借鑑的優化方向</h3>
+<ol>
+<li><strong>形式化驗證探索</strong>：Cedar 的 Automated Reasoning 理念可啟發 <code>constraint_evolve.py</code> 在約束提案階段加入更嚴格的邏輯驗證（非僅人工審查）</li>
+<li><strong>SLO 化護欄指標</strong>：將 Hook 攔截率、品質門檻通過率設為可追蹤 SLO（如政策決策 < 100ms、封鎖率 ≤ 2%）</li>
+<li><strong>短暫執行器模式</strong>：Phase 2 自動任務可考慮更強的隔離（目前依賴 Hook 攔截，可加入命名空間式隔離）</li>
+<li><strong>誤報率追蹤</strong>：Hook 系統已有日誌，可新增誤報率指標（false positive rate），持續調降至 < 5%</li>
+<li><strong>MCP + Policy 分離</strong>：目前 Skill 路由與約束驗證耦合在 routing.yaml，可考慮分離為獨立 policy layer</li>
+</ol>
+<p>---</p>
+<h2>五、關鍵結論</h2>
+<ol>
+<li><strong>約束必須機器強制</strong>：81% Agent 已投產但僅 14.4% 有完整安全審批 — Prompt 自律不夠</li>
+<li><strong>混合驗證是最佳實踐</strong>：確定性規則 + AI 語義檢查，兩者缺一不可</li>
+<li><strong>Cedar > OPA 在合規場景</strong>：形式化驗證提供數學等級保證</li>
+<li><strong>四層防禦是生產標準</strong>：Input → Model → Output → Monitoring</li>
+<li><strong>每次失敗都是約束來源</strong>：Gap Loop → 永久規則的閉環是 Harness 的核心價值</li>
+<li><strong>護欄效能可量化</strong>：95% 安全覆蓋率、誤報率 3%、封鎖率 ≤ 2% 是可達標的 SLO</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>agent-engineering.dev — Harness Engineering in 2026: The Discipline That Makes AI Agents Production-Ready</li>
+<li>InfoQ — Building a Least-Privilege AI Agent Gateway for Infrastructure Automation with MCP, OPA, and Ephemeral Runners</li>
+<li>Iterathon — AI Guardrails Production Implementation Guide 2026</li>
+<li>NVIDIA NeMo Guardrails — Open-source toolkit for programmable guardrails</li>
+<li>Guardrails AI — Programmatic framework for LLM output validation</li>
+<li>Spacelift — Top 12 Policy as Code Tools in 2026</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

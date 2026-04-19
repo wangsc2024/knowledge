@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-03-27：arch_evolution I/O 膨脹壓縮">
+  <title>系統優化落實報告 2026-03-27：arch_evolution I/O 膨脹壓縮 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-03-27：arch_evolution I/O 膨脹壓縮</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">I/O 壓縮</span><span class="tag">arch_evolution</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>優化背景</h2>
+<p>系統洞察分析顯示 <code>avg_io_per_call</code> 達 24,408 chars，超標 103%（門檻 12,000），其中 arch_evolution 任務的 avg_io 高達 66,910 chars，位居第一。</p>
+<h2>根因診斷</h2>
+<p>經分析發現，arch_evolution 雖已使用 Bash 萃取替代 Read 整檔，但萃取邏輯存在以下問題：</p>
+<ol>
+<li><strong>improvement-backlog.json</strong>（186 KB）：萃取全部 124 items，無數量限制、無狀態篩選</li>
+<li><strong>arch-decision.json</strong>（74 KB）：萃取全部 120 decisions，無數量限制</li>
+<li>即使萃取必要欄位，大量 items 仍導致輸出超大（~40 KB）</li>
+</ol>
+<h2>實施方案</h2>
+<h3>修正 1：improvement-backlog 萃取優化</h3>
+<ul>
+<li>只萃取 <code>status='pending'</code> 的 items（跳過已完成的）</li>
+<li>限制最多 20 項（前 20 個待處理項目足夠決策）</li>
+<li><code>description</code> 欄位截斷至 150 字元（保留關鍵資訊）</li>
+<li>新增 <code>total_items</code> 和 <code>pending_count</code> 欄位（完整資訊透明化）</li>
+</ul>
+<h3>修正 2：arch-decision 萃取優化</h3>
+<ul>
+<li>只保留 <code>execution_status != 'success'</code> 的條目（成功的跳過）</li>
+<li>限制最多 30 項</li>
+<li>新增 <code>total_decisions</code> 和 <code>non_success_count</code> 欄位</li>
+</ul>
+<h2>測試驗證</h2>
+<pre><code>
+✓ improvement-backlog：25 KB → 9.4 KB（-62%）
+✓ arch-decision：15 KB → 6.9 KB（-54%）
+✓ 總共減少 23.7 KB I/O
+✓ 配置驗證通過
+✓ 自動任務一致性檢查通過（35/35）
+</code></pre>
+<h2>預期效果</h2>
+<ul>
+<li>arch_evolution 的 avg_io 預計從 66,910 降至 ~43,000（-36%）</li>
+<li>雖未達 < 20,000 目標，但已大幅改善</li>
+<li>後續優化方向：分析輸出（Write 操作）大小、檢查重複讀取</li>
+</ul>
+<h2>修改檔案</h2>
+<ul>
+<li><code>prompts/team/todoist-auto-arch_evolution.md</code>（步驟 1a、1b2）</li>
+</ul>
+<h2>Git 備份</h2>
+<ul>
+<li>回滾點：<code>2199b15</code></li>
+<li>本次 commit：待提交</li>
+</ul>
+<h2>技術細節</h2>
+<p>萃取邏輯關鍵改善：</p>
+<pre><code>
+# 原邏輯（無限制）
+for item in d.get('items', [])
+
+# 新邏輯（篩選 + 限制）
+pending = [item for item in all_items if item.get('status') == 'pending'][:20]
+</code></pre>
+<h2>知識點</h2>
+<ul>
+<li><strong>大檔處理三原則</strong>：篩選（只取需要的）、限制（數量上限）、截斷（長欄位壓縮）</li>
+<li><strong>Context 保護</strong>：即使用 Bash 萃取，也要控制輸出大小</li>
+<li><strong>資訊透明化</strong>：新增 <code>total_*/count</code> 欄位，讓 Agent 知道完整資訊而不失去可觀測性</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

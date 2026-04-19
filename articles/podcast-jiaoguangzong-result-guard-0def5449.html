@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="podcast_jiaoguangzong result_guard partial_success 根因分析與修復方案">
+  <title>podcast_jiaoguangzong result_guard partial_success 根因分析與修復方案 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>podcast_jiaoguangzong result_guard partial_success 根因分析與修復方案</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">cursor_cli</span><span class="tag">result_guard</span><span class="tag">podcast</span><span class="tag">根因分析</span><span class="tag">Windows</span><span class="tag">race_condition</span><span class="tag">修復方案</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>podcast_jiaoguangzong result_guard partial_success 根因分析</h1>
+<h2>問題摘要</h2>
+<p>podcast_jiaoguangzong 任務連續 2 次出現 partial_success：CLI exit 0、MP3 產出正常，但 result_guard 標記異常。</p>
+<p>結果檔 <code>result_guard_zh</code>: "無法從 stdout 修復；結果檔未通過守衛（守衛回傳成功但結果檔空白）"</p>
+<h2>根因追蹤（完整路徑）</h2>
+<h3>執行路徑</h3>
+<pre><code>
+Start-CursorCliJob (PS1 line 1648)
+  ├─ 1. Write-ResultJsonAtomic: fail-safe in_progress (line 1692)
+  ├─ 2. agent -p --model composer-2 --trust --force (line 1698)
+  │     └─ 347 秒：TTS + concat + R2 upload + ntfy 200
+  ├─ 3. Wait-ResultFileStable: 最多 12s (line 1712)
+  ├─ 4. Settle loop: 20 次 × 200ms = 4s (line 1715-1732)
+  ├─ 5. Pre-guard read: 讀取結果檔 (line 1736-1836)
+  │     └─ 失敗 → 落入 catch → 繼續到 guard
+  ├─ 6. Wait-ResultFileStable: 最多 8s (line 1840)
+  ├─ 7. cursor_cli_result_guard.py: exit 0 (line 1851)
+  ├─ 8. Post-guard read: Get-Content 25×150ms + .NET 20×200ms (line 1856-1878)
+  │     └─ 全部讀到空值！
+  ├─ 9. Fallback read: 25×200ms 找 status=success (line 2034-2055)
+  │     └─ 全部失敗
+  └─ 10. 寫入降級結果 partial_success (line 2058-2075)
+</code></pre>
+<h3>根因 1：Windows 檔案 I/O 競爭條件（主因）</h3>
+<p>Python <code>write_json_atomic</code> 使用 <code>os.replace()</code> → Windows <code>MoveFileExW(MOVEFILE_REPLACE_EXISTING)</code>。</p>
+<p>PS1 使用 <code>Get-Content -Raw</code> 和 <code>.NET ReadAllText</code> 讀取。</p>
+<p>在以下情境下，os.replace() 完成但 PS1 讀到空值：</p>
+<ul>
+<li>Windows Defender Real-time Protection 掃描新建檔案，持有讀鎖</li>
+<li>NTFS journal 刷新延遲</li>
+<li>防毒軟體的 mini-filter driver 攔截 MoveFileEx 操作</li>
+</ul>
+<h3>根因 2：Guard 與 PS1 使用不同 I/O 路徑</h3>
+<ul>
+<li>Guard (Python): open() → CreateFileW + ReadFile</li>
+<li>PS1: Get-Content -Raw → .NET StreamReader</li>
+<li>PS1 fallback: File.ReadAllText → .NET FileStream</li>
+</ul>
+<p>Python open() 在 MoveFileEx 後可立即讀取，但 PS1 .NET I/O 經過額外 OS cache layer，可能看到 stale 狀態。</p>
+<h3>根因 3：Agent 結果檔可能未被覆寫為 success</h3>
+<p>Cursor agent (agent -p --model composer-2) 的 Write tool 可能只寫了 step 2.5 的 in_progress，context 耗盡未執行 step 9。stdout 中聲稱寫入 status: success 可能是 LLM 幻覺。</p>
+<h2>修復方案</h2>
+<h3>方案 A：Guard 輸出 JSON 到 stdout（推薦）</h3>
+<p>修改 cursor_cli_result_guard.py：驗證/修復成功時，將結果 JSON 印到 stdout。PS1 優先解析 guard stdout，不依賴重新讀取磁碟。消除 Python/PS1 I/O 不對稱問題。</p>
+<h3>方案 B：Post-guard 使用 Python 讀取</h3>
+<p>在 PS1 post-guard read 失敗後，用 uv run python -c 讀取作為 fallback。</p>
+<h3>方案 C：增加延遲 + 延長重試間隔（最小改動）</h3>
+<p>在 post-guard read 前加 1 秒延遲，重試間隔從 150ms/200ms 增至 500ms。</p>
+<h2>推薦實施順序</h2>
+<ol>
+<li>方案 A（P0）：根本解決</li>
+<li>方案 C（P1）：短期緩解</li>
+<li>長期：Windows Defender 排除 results/ 目錄</li>
+</ol>
+<h2>影響範圍</h2>
+<ul>
+<li>所有 cursor_cli 後端任務都可能受影響</li>
+<li>podcast_create 不受影響（直接 Python 寫入，不經 agent Write tool）</li>
+</ul>
+<h2>相關檔案</h2>
+<ul>
+<li>tools/cursor_cli_result_guard.py（553 行）</li>
+<li>run-todoist-agent-team.ps1 Start-CursorCliJob（line 1648-2082）</li>
+<li>tools/lib/atomic_io.py（Python 原子寫入）</li>
+<li>tools/ps/atomic-result-json.ps1（PS1 原子寫入 + Wait-ResultFileStable）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

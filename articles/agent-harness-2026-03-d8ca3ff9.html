@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent Harness 研究報告與自主管理落地（2026-03-20）">
+  <title>Agent Harness 研究報告與自主管理落地（2026-03-20） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent Harness 研究報告與自主管理落地（2026-03-20）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">agent-harness</span><span class="tag">autonomous-management</span><span class="tag">runtime-policy</span><span class="tag">recovery-worker</span><span class="tag">self-healing</span><span class="tag">research</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent Harness 研究報告與自主管理落地（2026-03-20）</h1>
+<ul>
+<li>版本基線：目前專案內建 harness 從 <code>0.1.0</code>（2026-02-15）演進到 <code>0.2.0</code>（2026-03-09），<code>Unreleased</code> 已含 autonomous runtime、schema、Skill registry 等新能力。</li>
+<li>核心架構：<code>run-agent-team.ps1</code> 為 digest 兩階段 orchestrator；<code>run-todoist-agent-team.ps1</code> 為 Todoist 三階段 orchestrator；<code>tools/autonomous_harness.py</code> 為自治控制面。</li>
+<li>已有自癒能力：instance lock、timeout/retry/backoff、circuit breaker、cache fallback、run-fsm、failure-stats、runtime policy。</li>
+<li>主要缺口：原始 recovery queue 沒有獨立 consumer、Phase 2 snapshot/resume 未完成、trace schema 尚未統一、SLO/Error Budget 尚未強制化。</li>
+<li>本次實作：新增 <code>tools/autonomous_recovery_worker.py</code>，將 <code>restart_agent</code>、<code>queue_self_heal</code>、<code>rebalance_tasks</code>、<code>scale_down_workload</code> 從 queue 轉為實際動作；新增 <code>state/autonomous-runtime-overrides.json</code> 與 <code>state/autonomous-self-heal-requests.json</code>；<code>tools/autonomous_harness.py</code> 現在可讀取 runtime override 並重新生成 runtime policy。</li>
+<li>優化方向：</li>
+</ul>
+<p>  1. recovery worker + runtime override 閉環</p>
+<p>  2. Phase 2 snapshot / resume durability</p>
+<p>  3. 統一 execution trace schema 與 recovery causality</p>
+<p>  4. SLO / Error Budget 治理強制化</p>
+<ul>
+<li>外部對照：OpenTelemetry traces 官方規格適合作為 trace schema 依據；Google SRE error budget policy 適合作為穩定性治理依據。</li>
+<li>驗證結果：<code>tools/autonomous_harness.py --format json</code> 與 <code>tools/autonomous_recovery_worker.py --limit 2</code> 可執行並落盤 state；pytest 因本機 ACL 限制無法完整跑完 fixture-based tests，但腳本級驗證已確認 override 與 queue 消費生效。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

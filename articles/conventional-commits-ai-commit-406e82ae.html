@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Conventional Commits 完整指南 — 語義化提交規範、自動版本管理工具鏈與 AI 輔助 Commit 生成最佳實踐（2026）">
+  <title>Conventional Commits 完整指南 — 語義化提交規範、自動版本管理工具鏈與 AI 輔助 Commit 生成最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Conventional Commits 完整指南 — 語義化提交規範、自動版本管理工具鏈與 AI 輔助 Commit 生成最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Conventional Commits</span><span class="tag">Git</span><span class="tag">語義化版本</span><span class="tag">SemVer</span><span class="tag">CHANGELOG</span><span class="tag">自動化</span><span class="tag">AI Commit</span><span class="tag">git-cliff</span><span class="tag">semantic-release</span><span class="tag">commitizen</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Conventional Commits 完整指南</h1>
+<h2>技術概述</h2>
+<p>Conventional Commits 是一套輕量級的 Git 提交訊息規範，建立在 SemVer（語義化版本）之上，透過結構化的提交訊息格式，讓自動化工具能解析提交歷史、自動產生 CHANGELOG、自動決定版本號遞增策略。該規範已成為 2025-2026 年開源社群與企業專案的事實標準，被 Angular、Vue.js、Electron 等數千個專案採用。</p>
+<p>---</p>
+<h2>核心規範（v1.0.0）</h2>
+<h3>提交訊息結構</h3>
+<pre><code>
+&lt;type&gt;[optional scope]: &lt;description&gt;
+
+[optional body]
+
+[optional footer(s)]
+</code></pre>
+<h3>必要元素</h3>
+<ol>
+<li><strong>type（類型）</strong>：描述此次提交的性質</li>
+<li><strong>description（描述）</strong>：簡潔摘要，緊接在冒號和空格之後</li>
+<li><strong>scope（範圍）</strong>：可選，用括號包裹的名詞，描述影響的程式碼區段</li>
+</ol>
+<h3>標準類型對照表</h3>
+<p>| 類型 | 語義化版本 | 說明 | 範例 |</p>
+<p>|------|-----------|------|------|</p>
+<p>| <code>feat</code> | MINOR | 新增功能 | <code>feat(hooks): 新增 behavior_tracker</code> |</p>
+<p>| <code>fix</code> | PATCH | 修復錯誤 | <code>fix(guard): 修正 MinGW 路徑正規化</code> |</p>
+<p>| <code>docs</code> | — | 文件變更 | <code>docs: 更新 CLAUDE.md 架構段落</code> |</p>
+<p>| <code>style</code> | — | 格式調整（不影響邏輯） | <code>style: 統一縮排為 2 空格</code> |</p>
+<p>| <code>refactor</code> | — | 重構（非新功能、非修復） | <code>refactor(logger): 抽取共用模組</code> |</p>
+<p>| <code>perf</code> | PATCH | 效能改善 | <code>perf: 正則快取降低編譯開銷</code> |</p>
+<p>| <code>test</code> | — | 測試相關 | <code>test(guardian): 新增 43 個測試</code> |</p>
+<p>| <code>build</code> | — | 建置系統變更 | <code>build: 升級 pyyaml>=6.0</code> |</p>
+<p>| <code>ci</code> | — | CI/CD 配置 | <code>ci: 新增 pre-commit hook</code> |</p>
+<p>| <code>chore</code> | — | 雜項維護 | <code>chore: 清理過期 loop-state</code> |</p>
+<h3>破壞性變更（Breaking Changes）</h3>
+<p>兩種標記方式（任選或並用）：</p>
+<ol>
+<li><strong>感嘆號標記</strong>：<code>feat!: 移除舊版 API 支援</code></li>
+<li><strong>Footer 標記</strong>：</li>
+<pre><code>
+feat(api): 重構認證流程
+
+BREAKING CHANGE: Bearer token 格式從 v1 改為 JWT
+</code></pre>
+</ol>
+<p>破壞性變更觸發 MAJOR 版本遞增（無論 type 為何）。</p>
+<h3>Footer 慣例</h3>
+<p>遵循 Git Trailer 格式：</p>
+<pre><code>
+fix(parser): 修正 UTF-8 解析錯誤
+
+Refs: #123
+Reviewed-by: Alice
+Co-Authored-By: Claude Opus 4.6 &lt;noreply@anthropic.com&gt;
+</code></pre>
+<ul>
+<li>Footer token 使用連字號替代空格（<code>Reviewed-by</code> 非 <code>Reviewed by</code>）</li>
+<li><code>BREAKING CHANGE</code> 是唯一例外，可用空格</li>
+</ul>
+<p>---</p>
+<h2>自動化工具鏈生態系統</h2>
+<h3>一、提交訊息生成與驗證</h3>
+<p>#### Commitizen（互動式提交嚮導）</p>
+<pre><code>
+# Python 版本安裝
+pip install commitizen
+
+# 互動式提交
+cz commit
+
+# 自動版本遞增
+cz bump
+
+# 產生 CHANGELOG
+cz changelog
+</code></pre>
+<p><strong>配置範例（pyproject.toml）</strong>：</p>
+<pre><code>
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.2.3"
+tag_format = "v$version"
+update_changelog_on_bump = true
+major_version_zero = true
+</code></pre>
+<p>#### Commitlint（提交訊息驗證）</p>
+<pre><code>
+# 安裝
+npm install --save-dev @commitlint/{cli,config-conventional}
+
+# 配置 commitlint.config.js
+module.exports = {
+  extends: ['@commitlint/config-conventional'],
+  rules: {
+    'scope-enum': [2, 'always', ['hooks', 'config', 'skills', 'tests']],
+    'subject-max-length': [2, 'always', 72]
+  }
+};
+</code></pre>
+<p>搭配 Husky Git Hooks 在 commit 前自動驗證。</p>
+<h3>二、CHANGELOG 與版本管理</h3>
+<p>#### semantic-release（全自動發佈）</p>
+<pre><code>
+# .releaserc.yml
+branches: ['main']
+plugins:
+  - '@semantic-release/commit-analyzer'
+  - '@semantic-release/release-notes-generator'
+  - '@semantic-release/changelog'
+  - '@semantic-release/git'
+  - '@semantic-release/github'
+</code></pre>
+<p><strong>運作流程</strong>：</p>
+<ol>
+<li>分析 <code>feat</code> / <code>fix</code> / <code>BREAKING CHANGE</code> 提交</li>
+<li>自動決定版本號（MAJOR.MINOR.PATCH）</li>
+<li>產生 Release Notes</li>
+<li>建立 Git Tag + GitHub Release</li>
+<li>發佈套件（npm/PyPI）</li>
+</ol>
+<p>#### git-cliff（Rust 高效能 CHANGELOG 生成器）</p>
+<pre><code>
+# cliff.toml
+[changelog]
+header = "# Changelog\n"
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+## {{ group | upper_first }}
+{% for commit in commits %}
+- {{ commit.message | upper_first }} ({{ commit.id | truncate(length=7, end="") }})
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^chore", group = "Miscellaneous" },
+]
+</code></pre>
+<p><strong>2025 新功能</strong>：</p>
+<ul>
+<li><strong>統計變數</strong>：提交數量、時間跨度、conventional commit 比例</li>
+<li><strong>路徑過濾</strong>：<code>include_paths</code> / <code>exclude_paths</code> 支援 monorepo</li>
+<li><strong>子目錄自動偵測</strong>：自動找到 Git 根目錄和配置檔</li>
+</ul>
+<p>#### Cocogitto（Rust 全方位工具箱）</p>
+<pre><code>
+# 安裝
+cargo install cocogitto
+
+# 驗證所有提交
+cog check
+
+# 自動版本遞增
+cog bump --auto
+
+# 產生 CHANGELOG
+cog changelog
+</code></pre>
+<p>原生支援 monorepo 的多套件版本管理。</p>
+<h3>三、AI 輔助 Commit 訊息生成</h3>
+<p>#### gcm.js（Gemini 驅動）</p>
+<pre><code>
+# 使用流程
+git add .
+gcm  # 自動分析 staged diff → 產生 Conventional Commit
+</code></pre>
+<p><strong>技術特點</strong>：</p>
+<ul>
+<li>使用 Gemini 2.5 Flash（速度快、成本低）</li>
+<li>智慧摘要：95,733 字元 diff 壓縮至 1,199 字元</li>
+<li>同時產生：commit message + branch name + PR description</li>
+<li>處理時間 < 1 秒（小型 diff）</li>
+</ul>
+<p>#### aicommits（OpenAI 驅動）</p>
+<pre><code>
+npx aicommits  # 分析 git diff → 產生 commit message
+</code></pre>
+<p>#### Claude Code 內建</p>
+<p>本專案的 <code>git-smart-commit</code> Skill 就是 AI 輔助 Conventional Commits 的實例：</p>
+<ol>
+<li>取得 <code>git diff --staged</code> 變更</li>
+<li>依目錄/檔案模式自動分群（9 種 scope 規則）</li>
+<li>產生符合 Conventional Commits 的訊息</li>
+<li>自動加上 <code>Co-Authored-By</code> footer</li>
+</ol>
+<p>---</p>
+<h2>Monorepo Scope 策略</h2>
+<h3>Scope 命名慣例</h3>
+<p>| 策略 | 適用場景 | 範例 |</p>
+<p>|------|---------|------|</p>
+<p>| 套件名稱 | npm monorepo | <code>feat(ui-button): 新增 disabled 狀態</code> |</p>
+<p>| 目錄路徑 | 一般 monorepo | <code>fix(hooks): 修正 guard 規則</code> |</p>
+<p>| 功能模組 | 功能導向 | <code>refactor(auth): 重構 JWT 驗證</code> |</p>
+<p>| 無 scope | 跨模組變更 | <code>chore: 更新 CI 配置</code> |</p>
+<h3>自動 Scope 偵測</h3>
+<pre><code>
+// prepare-commit-msg hook 範例
+const changedFiles = execSync('git diff --cached --name-only').toString();
+const scope = detectScope(changedFiles);  // hooks/ → hooks, config/ → config
+</code></pre>
+<p>---</p>
+<h2>Semantic Versioning 對映規則</h2>
+<pre><code>
+提交類型          → 版本遞增
+─────────────────────────────
+BREAKING CHANGE   → MAJOR (x.0.0)
+feat              → MINOR (0.x.0)
+fix / perf        → PATCH (0.0.x)
+docs / style / refactor / test / chore / ci / build → 無版本變更
+</code></pre>
+<p><strong>CMU SEI 的輕量實作</strong>（15 行 Python）：</p>
+<pre><code>
+import subprocess, re
+
+msg = subprocess.check_output(['git', 'log', '-1', '--format=%s']).decode()
+tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip()
+major, minor, patch = map(int, tag.lstrip('v').split('.'))
+
+if 'BREAKING CHANGE' in msg or msg.startswith('major'):
+    major += 1; minor = 0; patch = 0
+elif msg.startswith('feat'):
+    minor += 1; patch = 0
+else:
+    patch += 1
+
+new_tag = f'v{major}.{minor}.{patch}'
+</code></pre>
+<p>---</p>
+<h2>常見陷阱與最佳實踐</h2>
+<h3>陷阱</h3>
+<ol>
+<li><strong>scope 爆炸</strong>：過多的 scope 讓歷史難讀 → 限制 scope 清單（commitlint <code>scope-enum</code>）</li>
+<li><strong>type 誤用</strong>：<code>refactor</code> 改變了行為應是 <code>fix</code> 或 <code>feat</code> → type 決定版本遞增，須精確</li>
+<li><strong>description 過長</strong>：超過 72 字元在 <code>git log --oneline</code> 會被截斷 → 詳情放 body</li>
+<li><strong>忽略 body</strong>：複雜變更只有一行描述 → body 解釋「為什麼」而非「做了什麼」</li>
+<li><strong>破壞性變更遺漏</strong>：API 改變但未標記 <code>!</code> 或 <code>BREAKING CHANGE</code> → 用戶升級時出錯</li>
+</ol>
+<h3>最佳實踐</h3>
+<ol>
+<li><strong>原子提交</strong>：一個 commit 只做一件事，避免混合 feat + fix</li>
+<li><strong>先 scope 後 type</strong>：先確定影響範圍，再判斷變更性質</li>
+<li><strong>自動化驗證</strong>：commitlint + Husky 在 commit 時攔截不合規訊息</li>
+<li><strong>CI 雙重檢查</strong>：PR 合併前用 CI job 驗證所有提交訊息</li>
+<li><strong>Squash Merge</strong>：每個 PR 壓縮為一個 conventional commit，保持主線清潔</li>
+<li><strong>AI 輔助 + 人工審查</strong>：AI 生成初稿，人工確認 type 和 scope 正確性</li>
+</ol>
+<p>---</p>
+<h2>與 daily-digest-prompt 專案的關聯</h2>
+<h3>現有整合</h3>
+<ol>
+<li><strong>git-smart-commit Skill</strong>：專案已有 AI 輔助 Conventional Commits 的 Skill（<code>skills/git-smart-commit/SKILL.md</code>），定義了 9 種目錄→scope 映射規則</li>
+<li><strong>自動 git-push 任務</strong>：<code>templates/auto-tasks/git-push.md</code> 呼叫 git-smart-commit Skill 自動提交</li>
+<li><strong>現有提交風格</strong>：專案已穩定使用 <code>feat(hooks):</code>, <code>chore(config):</code>, <code>fix(guard):</code> 等格式</li>
+</ol>
+<h3>可改進方向</h3>
+<ol>
+<li><strong>git-cliff 整合</strong>：引入 git-cliff 自動產生 CHANGELOG.md，追蹤專案演進歷史</li>
+<li><strong>commitlint 驗證</strong>：在 Git pre-commit hook 加入提交訊息格式驗證</li>
+<li><strong>scope 標準化</strong>：將 9 種 scope 規則寫入 commitlint 配置，確保一致性</li>
+<li><strong>版本管理</strong>：目前 SKILL.md 有 version 欄位但無自動遞增機制，可考慮引入語義版本自動化</li>
+<li><strong>CHANGELOG 自動化</strong>：每次 git-push 自動任務執行時，順便更新 CHANGELOG</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://www.conventionalcommits.org/en/v1.0.0/">Conventional Commits v1.0.0 Specification</a></li>
+<li><a href="https://www.sei.cmu.edu/blog/versioning-with-git-tags-and-conventional-commits/">CMU SEI: Versioning with Git Tags and Conventional Commits</a></li>
+<li><a href="https://www.cebre.us/blog/gemini-conventional-commits-gcm/">Speed up your Git workflow with AI-written Conventional Commits (gcm.js)</a></li>
+<li><a href="https://git-cliff.org/">git-cliff: A highly customizable Changelog Generator</a></li>
+<li><a href="https://github.com/semantic-release/semantic-release">semantic-release: Fully automated version management</a></li>
+<li><a href="https://github.com/commitizen-tools/commitizen">Commitizen: Create committing rules for projects</a></li>
+<li><a href="https://github.com/cocogitto/cocogitto">Cocogitto: The Conventional Commits toolbox</a></li>
+<li><a href="https://github.com/Nutlope/aicommits">aicommits: A CLI that writes your git commit messages with AI</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

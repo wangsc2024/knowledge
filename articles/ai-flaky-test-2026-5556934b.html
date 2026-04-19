@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動的持續整合進階實作：Flaky Test 根因分類、隔離治理與預測式選測（2026）">
+  <title>AI 驅動的持續整合進階實作：Flaky Test 根因分類、隔離治理與預測式選測（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動的持續整合進階實作：Flaky Test 根因分類、隔離治理與預測式選測（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">持續整合</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動的持續整合進階實作：Flaky Test 根因分類、隔離治理與預測式選測（2026）</h1>
+<h2>技術概述</h2>
+<p>AI 輔助 CI 已從單純的測試重跑，進化成三段式閉環：先用歷史執行資料做預測式選測，縮小每次提交的測試範圍；再用 flaky detection 找出同一 commit 上忽通忽斷的測試；最後把不可靠測試隔離、標記、通知負責團隊，並持續追蹤修復後是否回穩。實務上，這不是單一模型問題，而是「資料蒐集、風險分類、管線策略、團隊責任」一起設計。對 daily-digest-prompt 這類自動化腳本專案，價值在於降低排程假失敗、縮短回歸驗證時間，並把 CI 噪音轉成可治理的品質訊號。</p>
+<h2>核心方法與工具</h2>
+<h3>1. 預測式選測（Predictive Test Selection）</h3>
+<ul>
+<li>Launchable 以歷史測試結果與程式碼變更做機器學習選測，讓 test runner 只跑高風險子集。</li>
+<li>適合 PR 驗證、pre-merge 快速守門、夜間全量測試搭配。</li>
+<li>關鍵輸入：commit diff、過往失敗分佈、測試耗時、測試名稱穩定性。</li>
+</ul>
+<h3>2. Flaky test 偵測</h3>
+<ul>
+<li>Buildkite Test Engine 以「同一 commit SHA 上同一測試同時出現 pass/fail」定義 flaky。</li>
+<li>若最近 100 次執行或 7 天內恢復穩定，會移除 flaky 標記。</li>
+<li>GitLab 的 unhealthy tests 文件則進一步把根因分成 state leak、dataset-specific、random input、unreliable DOM selector、datetime-sensitive、unstable infrastructure、improper synchronization 等類別。</li>
+</ul>
+<h3>3. 隔離與修復治理</h3>
+<ul>
+<li>Buildkite 建議把 flaky test 轉為 <code>muted</code> 或 <code>skipped</code>；<code>muted</code> 較佳，因為仍保留執行資料。</li>
+<li>自動動作可包含：加標籤、Slack 通知、建立 Linear/Jira issue、恢復穩定後自動解除隔離。</li>
+<li>Google 的大規模經驗說明：只靠 retry 不夠，還要有 quarantine、變動監控與 flakiness level 追蹤。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>收集測試資料</li>
+</ol>
+<p>   在 CI 上傳每次測試結果、commit SHA、測試名稱、耗時、重跑次數。</p>
+<ol>
+<li>建立快速路徑</li>
+</ol>
+<p>   PR pipeline 先跑預測式選測子集；主幹或夜間排程跑全量測試補足 coverage。</p>
+<ol>
+<li>偵測 flaky</li>
+</ol>
+<p>   針對同一 commit 若同一測試同時 pass/fail，立即標記為 flaky candidate。</p>
+<ol>
+<li>做根因分類</li>
+</ol>
+<p>   依 GitLab 分類規則分到 state leak、同步問題、隨機輸入、時間敏感、基礎設施不穩等桶。</p>
+<ol>
+<li>套用隔離政策</li>
+</ol>
+<p>   高干擾測試先 <code>mute</code>，保留遙測；極高成本且已知無法快速修復者才 <code>skip</code>。</p>
+<ol>
+<li>建立責任閉環</li>
+</ol>
+<p>   自動通知 owner、建立 issue、附上最近失敗樣本、seed、log、變更 commit。</p>
+<ol>
+<li>驗證恢復</li>
+</ol>
+<p>   當最近 7 天或一定執行次數內恢復一致結果，自動移除 flaky 標記並重新納入 gate。</p>
+<h2>程式碼 / 配置範例</h2>
+<h3>範例 1：GitHub Actions 中先跑快速子集，再做 flaky 分流</h3>
+<pre><code>
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test-fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      - name: Run selected tests
+        run: pytest tests/unit tests/integration -q --maxfail=1 --junitxml=reports/junit.xml
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-fast
+          path: reports/junit.xml
+
+  flaky-triage:
+    if: always()
+    needs: [test-fast]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: junit-fast
+          path: reports
+      - run: python scripts/flaky_triage.py reports/junit.xml
+</code></pre>
+<h3>範例 2：本機簡化版 flaky 分析器</h3>
+<pre><code>
+from collections import defaultdict
+import xml.etree.ElementTree as ET
+
+def summarize_junit(path: str):
+    tree = ET.parse(path)
+    seen = defaultdict(set)
+    for case in tree.iterfind('.//testcase'):
+        key = f"{case.get('classname')}::{case.get('name')}"
+        status = 'failed' if list(case) else 'passed'
+        seen[key].add(status)
+    return {k: sorted(v) for k, v in seen.items() if len(v) &gt; 1}
+
+if __name__ == '__main__':
+    suspects = summarize_junit('reports/junit.xml')
+    for test_name, states in suspects.items():
+        print(f"FLAKY {test_name} =&gt; {states}")
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>Google 公開表示，其整體測試執行中約 1.5% 會出現 flaky 結果，接近 16% 的測試具某種程度 flakiness，而 pass→fail 轉換中約 84% 最後被證實與 flaky 有關。這說明若不做治理，CI 告警大多是噪音。</li>
+<li>Buildkite 文件指出，test splitting 可把 4 個 agent 的總執行時間從 10 分鐘降到約 4 分鐘；其 flaky quarantine 又能避免重試造成的額外浪費。</li>
+<li>Launchable 的做法不直接保證覆蓋率最大化，而是優先把「最可能抓到變更風險」的測試拉進前景，實務上適合把 PR 等待時間壓到可接受區間。</li>
+</ul>
+<h2>與本專案的應用場景（daily-digest-prompt 如何受益）</h2>
+<ul>
+<li>對 PowerShell / Python 驗證腳本建立 junit 或 JSONL 結果輸出，累積每次自動任務的穩定性資料。</li>
+<li>把 <code>results/*.json</code> 驗證、prompt lint、設定檔檢查拆成快速守門集與夜間完整集，降低每次修改的等待時間。</li>
+<li>對偶發失敗的排程任務建立 <code>muted-but-observed</code> 名單，避免單次網路抖動或本機服務未啟動時污染品質趨勢。</li>
+<li>將 flaky 類型對映到專案語境：API 連線不穩歸 infrastructure、時間依賴歸 datetime-sensitive、順序問題歸 state leak / order dependent。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>只做 retry 會掩蓋真實缺陷，不能把「重跑後過了」當成修復。</li>
+<li><code>skip</code> 會失去觀測資料，除非成本極高，否則先用 <code>mute</code> 比較穩健。</li>
+<li>預測式選測需要足夠歷史資料；資料品質差時，先把它當加速層，而不是唯一 gate。</li>
+<li>flaky 分類需要把 commit、seed、測試檔、執行環境版本一起存下來，否則根因追不回去。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>Launchable Docs, Predictive Test Selection: https://help.launchableinc.com/features/predictive-test-selection/</li>
+<li>Buildkite Docs, Reduce flaky tests: https://buildkite.com/docs/test-engine/reduce-flaky-tests</li>
+<li>Buildkite Docs, Test state and quarantine: https://buildkite.com/docs/test-engine/test-state-and-quarantine</li>
+<li>Buildkite Docs, Test splitting: https://buildkite.com/docs/test-engine/test-splitting</li>
+<li>GitLab Docs, Unhealthy tests: https://docs.gitlab.com/development/testing_guide/unhealthy_tests/</li>
+<li>Google Testing Blog, Flaky Tests at Google and How We Mitigate Them: https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

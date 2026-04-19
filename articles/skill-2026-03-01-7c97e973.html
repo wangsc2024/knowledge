@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-01）：git-smart-commit + chatroom-query 深度審查">
+  <title>Skill 品質審查報告（2026-03-01）：git-smart-commit + chatroom-query 深度審查 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-01）：git-smart-commit + chatroom-query 深度審查</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">git-smart-commit</span><span class="tag">chatroom-query</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-01）</h1>
+<h2>審查範圍</h2>
+<p>本次深度審查 2 個從未被獨立審查的 Skill：</p>
+<ul>
+<li><strong>git-smart-commit</strong>（智慧分群提交，工具 Skill #23）</li>
+<li><strong>chatroom-query</strong>（bot.js 聊天室任務互動，工具 Skill #24）</li>
+</ul>
+<h2>選擇理由</h2>
+<p>歷次審查覆蓋：</p>
+<ul>
+<li>2026-02-15：14 個 Skill 全面體檢（核心 13 + 工具 1）</li>
+<li>2026-02-18：system-audit + kb-curator</li>
+<li>2026-02-25：arch-evolution + todoist-task-creator</li>
+</ul>
+<p>本次選擇 git-smart-commit（frontmatter 缺少 cache-ttl）和 chatroom-query（較新 Skill，格式不一致問題最多），為從未被獨立審查的 6 個 Skill 中品質缺陷最明顯的 2 個。</p>
+<p>---</p>
+<h2>git-smart-commit 審查結果</h2>
+<h3>Frontmatter 規範性（4/5 -> 修正後 5/5）</h3>
+<ul>
+<li>name 與目錄名一致</li>
+<li>description 含 "Use when:" 觸發條件</li>
+<li>allowed-tools: Bash, Read, Write — 合理</li>
+<li><strong>修正</strong>：補上 <code>cache-ttl: N/A</code>（24 個 Skill 中唯一缺少此欄位者）</li>
+</ul>
+<h3>內容品質（5/5）</h3>
+<ul>
+<li>6 步驟流程清晰：取得變更 -> 分群 -> 特殊規則 -> 產生訊息 -> 逐批執行 -> 確認結果</li>
+<li>分群對照表完整（11 個目錄/檔案模式映射）</li>
+<li>可執行的 bash 範例充分</li>
+<li>容錯設計 4 層 fallback</li>
+<li>不適用場景明確列出 3 個排除項</li>
+</ul>
+<h3>路由一致性（5/5）</h3>
+<ul>
+<li>SKILL_INDEX.md 觸發關鍵字 7 個，完整覆蓋</li>
+<li>非路由型 Skill（工具 Skill），由 auto-task git-push 直接引用，不需 routing.yaml 映射</li>
+<li>frequency-limits.yaml 正確引用 <code>skills: [knowledge-query, git-smart-commit]</code></li>
+</ul>
+<h3>修正摘要</h3>
+<p>| 項目 | 修正前 | 修正後 |</p>
+<p>|------|--------|--------|</p>
+<p>| cache-ttl | 缺失 | N/A |</p>
+<p>---</p>
+<h2>chatroom-query 審查結果</h2>
+<h3>Frontmatter 規範性（2/5 -> 修正後 5/5）</h3>
+<ul>
+<li>name 與目錄名一致</li>
+<li>description 含 "Use when:" 觸發條件</li>
+<li><strong>修正 1</strong>：<code>version: 1.1.0</code> -> <code>version: "1.1.0"</code>（加引號，統一字串格式）</li>
+<li><strong>修正 2</strong>：<code>allowed-tools: [Read, Bash, Write]</code> -> <code>allowed-tools: Bash, Read, Write</code>（統一逗號分隔格式與順序）</li>
+<li><strong>修正 3</strong>：<code>depends-on: api-cache</code> -> <code>depends-on:\n  - api-cache</code>（統一 YAML 陣列格式）</li>
+<li>cache-ttl: 15min 合理（與 cache-policy.yaml 一致）</li>
+</ul>
+<h3>內容品質（4/5 -> 修正後 5/5）</h3>
+<ul>
+<li>端點清單完整（7 個端點，含健康檢查、CRUD、排程查詢）</li>
+<li>每個端點附帶可執行的 curl 範例</li>
+<li>快取策略段落完整，與 cache-policy.yaml 配置一致</li>
+<li>錯誤處理表格覆蓋 5 種失敗情境</li>
+<li>Gun.js 資料結構說明提供必要背景</li>
+<li><strong>修正 4</strong>：標題 <code>v1.0.0</code> -> <code>v1.1.0</code>（與 frontmatter 版本號一致）</li>
+</ul>
+<h3>路由一致性（5/5）</h3>
+<ul>
+<li>SKILL_INDEX.md 觸發關鍵字 9 個，完整覆蓋</li>
+<li>routing.yaml 有 <code>^Chat系統</code> 標籤映射，template 指向 <code>chatroom-task.md</code></li>
+<li>子 Agent 模板 <code>templates/sub-agent/chatroom-task.md</code> 存在且正確引用此 Skill</li>
+<li>frequency-limits.yaml 有 <code>chatroom_optimize</code> 自動任務（daily_limit: 2）</li>
+<li>cache-policy.yaml 有 <code>chatroom</code> 條目（TTL 15min，降級 120min）</li>
+</ul>
+<h3>修正摘要</h3>
+<p>| 項目 | 修正前 | 修正後 |</p>
+<p>|------|--------|--------|</p>
+<p>| version 格式 | <code>1.1.0</code>（無引號） | <code>"1.1.0"</code>（加引號） |</p>
+<p>| allowed-tools 格式 | <code>[Read, Bash, Write]</code> | <code>Bash, Read, Write</code> |</p>
+<p>| depends-on 格式 | <code>api-cache</code>（純字串） | <code>- api-cache</code>（陣列） |</p>
+<p>| 標題版本 | v1.0.0 | v1.1.0 |</p>
+<p>---</p>
+<h2>全局品質觀察</h2>
+<h3>24 個 Skill 審查覆蓋率</h3>
+<ul>
+<li>已審查：20/24（含本次 2 個）</li>
+<li>未審查：4 個（system-insight、web-research、github-scout、task-manager）</li>
+</ul>
+<h3>常見品質模式</h3>
+<ul>
+<li>Frontmatter 格式不一致是最常見問題（引號、陣列語法、逗號分隔）</li>
+<li>版本號 frontmatter vs 文件標題不同步是次常見問題</li>
+<li>內容品質普遍良好（步驟清晰、範例充足、容錯設計完備）</li>
+<li>SKILL_INDEX.md 與各 SKILL.md 的觸發關鍵字保持高度一致</li>
+</ul>
+<h3>建議</h3>
+<ul>
+<li>下次審查優先處理剩餘 4 個未審查 Skill</li>
+<li>考慮建立 frontmatter schema 驗證工具自動檢查格式一致性</li>
+</ul>
+<p>---</p>
+<h2>修改檔案清單</h2>
+<ol>
+<li><code>skills/git-smart-commit/SKILL.md</code> — 補上 cache-ttl: N/A</li>
+<li><code>skills/chatroom-query/SKILL.md</code> — 修正 version 引號、allowed-tools 格式、depends-on 格式、標題版本號</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

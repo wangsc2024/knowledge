@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Vite SSG 靜態網站生成與知識庫驅動內容管線 — 從 RAG 資料源到高效能知識分享網站的完整建構策略（2026）">
+  <title>Vite SSG 靜態網站生成與知識庫驅動內容管線 — 從 RAG 資料源到高效能知識分享網站的完整建構策略（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Vite SSG 靜態網站生成與知識庫驅動內容管線 — 從 RAG 資料源到高效能知識分享網站的完整建構策略（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Vite</span><span class="tag">SSG</span><span class="tag">靜態網站</span><span class="tag">VitePress</span><span class="tag">Astro</span><span class="tag">知識庫</span><span class="tag">內容管線</span><span class="tag">增量同步</span><span class="tag">RAG</span><span class="tag">Cloudflare Pages</span><span class="tag">深度思維</span><span class="tag">研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Vite SSG 靜態網站生成與知識庫驅動內容管線</h1>
+<h2>一、概述</h2>
+<p>本研究探討以 Vite 為核心的靜態網站生成（SSG）技術生態系統，重點聚焦於如何將 RAG 知識庫作為內容資料源，透過自動化管線生成高效能靜態知識分享網站。研究涵蓋三大框架比較（VitePress / Astro Starlight / Vite-SSG）、內容管線設計模式、增量同步策略，以及與 Cloudflare Pages 等邊緣平台的部署整合。</p>
+<h3>研究動機</h3>
+<p>知識庫（如 RAG 系統、Obsidian、Notion）中積累的知識若僅停留在 API 查詢階段，其可及性（Accessibility）和可發現性（Discoverability）受限。將知識庫轉化為靜態網站，能同時達成：</p>
+<ul>
+<li><strong>SEO 友善</strong>：搜尋引擎可索引所有內容</li>
+<li><strong>離線存取</strong>：靜態 HTML 不依賴後端服務</li>
+<li><strong>高效能</strong>：CDN 邊緣快取，TTFB < 50ms</li>
+<li><strong>低成本</strong>：Cloudflare Pages / Netlify 免費方案即可承載</li>
+</ul>
+<p>---</p>
+<h2>二、Vite SSG 生態系統三大方案</h2>
+<h3>2.1 VitePress（推薦用於 Vue 生態 + 文件站）</h3>
+<p><strong>架構</strong>：Vite + Vue 3 的 SPA/SSG 混合體</p>
+<ul>
+<li>初次造訪為純靜態 HTML（SEO + 快速 LCP）</li>
+<li>後續導航自動升級為 SPA（client-side routing）</li>
+<li>Markdown 即 Vue SFC：<code>100% HTML 語法相容</code></li>
+<li>HMR 延遲僅 ~100ms</li>
+</ul>
+<p><strong>核心特色</strong>：</p>
+<ul>
+<li><strong>自動搜尋</strong>：內建 MiniSearch 全文搜尋（無需額外配置）</li>
+<li><strong>多語系</strong>：原生 i18n 支援</li>
+<li><strong>主題系統</strong>：預設主題 + CSS Variables 自定義</li>
+<li><strong>Vue 元件嵌入</strong>：Markdown 中直接使用 <code><script setup></code> 和 Vue 元件</li>
+</ul>
+<p><strong>效能基準（500 頁文件站）</strong>：</p>
+<p>| 指標 | VitePress |</p>
+<p>|------|----------|</p>
+<p>| 建構時間 | 8.4s |</p>
+<p>| 產出大小 | 2.7MB |</p>
+<p>| LCP | 1.2s |</p>
+<p><strong>適用場景</strong>：Vue 團隊、技術文件、API 文件、內部知識庫</p>
+<h3>2.2 Astro Starlight（推薦用於跨框架 + 文件品質優先）</h3>
+<p><strong>架構</strong>：Astro Islands Architecture + Vite + Rollup</p>
+<ul>
+<li>元件級部分水合（Partial Hydration）：只載入互動所需的 JS</li>
+<li>框架無關：React、Vue、Svelte、Solid 元件可混用</li>
+<li>原生 MDX 支援</li>
+</ul>
+<p><strong>核心特色</strong>：</p>
+<ul>
+<li><strong>Pagefind 搜尋</strong>：零配置全文搜尋，建構時自動生成索引</li>
+<li><strong>TypeScript 型別安全 frontmatter</strong></li>
+<li><strong>內建圖片優化</strong></li>
+<li><strong>多主題支援</strong></li>
+</ul>
+<p><strong>效能基準（500 頁文件站）</strong>：</p>
+<p>| 指標 | Astro Starlight |</p>
+<p>|------|----------------|</p>
+<p>| 建構時間 | 12.8s |</p>
+<p>| 產出大小 | 1.2MB |</p>
+<p>| LCP | 820ms |</p>
+<p><strong>適用場景</strong>：跨框架專案、內容優先網站、企業文件平台</p>
+<h3>2.3 Vite-SSG / Vite-React-SSG（推薦用於自定義應用）</h3>
+<p><strong>架構</strong>：純 Vite + 自動 SSR/SSG 合併</p>
+<ul>
+<li><code>antfu-collective/vite-ssg</code>（Vue 3）或 <code>vite-react-ssg</code>（React）</li>
+<li><code>getStaticPaths()</code> 定義預渲染路徑</li>
+<li>建構時 <code>loader</code> 取得資料，生成 manifest</li>
+<li>瀏覽器端透過 manifest 載入資料（不重新 fetch）</li>
+</ul>
+<p><strong>核心特色</strong>：</p>
+<ul>
+<li>完全自定義佈局與路由</li>
+<li><code>vite-plugin-pages</code> 自動掃描 Markdown 生成路由</li>
+<li><code>includedRoutes</code> hook 控制預渲染範圍</li>
+</ul>
+<p><strong>適用場景</strong>：需要完全自定義 UI 的知識庫前端、已有 React/Vue 應用的靜態化</p>
+<h3>2.4 三方案決策矩陣</h3>
+<p>| 需求 | VitePress | Astro Starlight | Vite-SSG |</p>
+<p>|------|-----------|----------------|----------|</p>
+<p>| 設定複雜度 | 低 | 中 | 高 |</p>
+<p>| Vue 整合 | 原生 | 支援（Island） | 原生 |</p>
+<p>| React 整合 | 不支援 | 原生 | 原生 |</p>
+<p>| 搜尋 | MiniSearch | Pagefind | 自建 |</p>
+<p>| 產出大小 | 大（SPA bundle） | 小（最少 JS） | 依設計 |</p>
+<p>| LCP 效能 | 中 | 優 | 依設計 |</p>
+<p>| 建構速度 | 快 | 中 | 快 |</p>
+<p>| 適合頁數 | <5000 | <10000 | <2000 |</p>
+<p>---</p>
+<h2>三、知識庫驅動的內容管線設計</h2>
+<h3>3.1 管線架構總覽</h3>
+<pre><code>
+RAG 知識庫 (localhost:3000)
+  │
+  ├─ API 查詢 (/api/notes?limit=500)
+  │
+  ▼
+Sync 腳本 (Python)
+  │
+  ├─ 差異偵測 (SHA-256 / modified_at)
+  ├─ Markdown 轉換 (contentText → .md)
+  ├─ Frontmatter 注入 (title, tags, date)
+  ├─ 分類路由 (tags → 目錄結構)
+  │
+  ▼
+靜態網站建構器 (Vite/VitePress/Astro)
+  │
+  ├─ Markdown 解析 + 元件注入
+  ├─ 搜尋索引生成
+  ├─ HTML 預渲染
+  │
+  ▼
+部署平台 (Cloudflare Pages / Netlify)
+</code></pre>
+<h3>3.2 增量同步策略</h3>
+<p><strong>核心原則</strong>：避免每次全量重建</p>
+<ol>
+<li><strong>時間戳型增量</strong>：</li>
+</ol>
+<p>   - 記錄 <code>last_sync_timestamp</code> 至 <code>sync-log.json</code></p>
+<p>   - 僅處理 <code>modified_at > last_sync_timestamp</code> 的筆記</p>
+<p>   - 預估效能提升：全建 300+ 頁 → 增量 10-20 頁/次</p>
+<ol>
+<li><strong>內容雜湊型增量</strong>：</li>
+</ol>
+<p>   - 對每篇筆記 contentText 計算 SHA-256</p>
+<p>   - 比對 <code>content-hashes.json</code> 中的上次雜湊</p>
+<p>   - 雜湊不同才重新生成對應頁面</p>
+<ol>
+<li><strong>混合策略（推薦）</strong>：</li>
+</ol>
+<p>   - 時間戳初篩 → 雜湊確認 → 僅變更頁面重建</p>
+<p>   - 搜尋索引採用差異更新（非全量重建）</p>
+<h3>3.3 Frontmatter 映射</h3>
+<p>知識庫 API 欄位到靜態網站 frontmatter 的轉換：</p>
+<pre><code>
+def note_to_frontmatter(note):
+    return {
+        'title': note['title'],
+        'date': note['createdAt'][:10],
+        'updated': note['updatedAt'][:10],
+        'tags': note.get('tags', []),
+        'source': note.get('source', 'import'),
+        'description': note['contentText'][:150] + '...',
+        'layout': 'doc'  # VitePress layout
+    }
+</code></pre>
+<h3>3.4 目錄結構自動路由</h3>
+<p>依標籤自動分類到目錄：</p>
+<pre><code>
+TAG_TO_DIR = {
+    '佛學': 'buddhism',
+    'AI': 'ai-ml',
+    '技術研究': 'tech',
+    '遊戲': 'games',
+    '邏輯思維': 'thinking',
+    '智慧城市': 'smart-city'
+}
+
+def get_target_dir(tags):
+    for tag in tags:
+        if tag in TAG_TO_DIR:
+            return TAG_TO_DIR[tag]
+    return 'misc'
+</code></pre>
+<p>---</p>
+<h2>四、RAG 搜尋整合</h2>
+<h3>4.1 雙軌搜尋架構</h3>
+<p><strong>靜態端（建構時）</strong>：</p>
+<ul>
+<li>Pagefind / MiniSearch / Lunr.js 生成客戶端搜尋索引</li>
+<li>無需後端服務，純前端搜尋</li>
+<li>適合 SEO 和離線使用</li>
+</ul>
+<p><strong>動態端（可選）</strong>：</p>
+<ul>
+<li>保留 RAG API 作為進階語義搜尋</li>
+<li>向量搜尋 + BM25 混合檢索</li>
+<li>適合需要 AI 問答的場景</li>
+</ul>
+<h3>4.2 搜尋效能比較</h3>
+<p>| 搜尋引擎 | 索引大小(300頁) | 查詢延遲 | 特色 |</p>
+<p>|---------|----------------|---------|------|</p>
+<p>| Pagefind | ~150KB | <50ms | 零配置、WASM |</p>
+<p>| MiniSearch | ~200KB | <20ms | VitePress 內建 |</p>
+<p>| Lunr.js | ~300KB | <30ms | 自定義權重 |</p>
+<p>| FlexSearch | ~100KB | <10ms | 最輕量 |</p>
+<p>---</p>
+<h2>五、部署與 CI/CD 管線</h2>
+<h3>5.1 GitHub Actions 自動化</h3>
+<pre><code>
+# .github/workflows/sync-and-deploy.yml
+name: Sync Knowledge &amp; Deploy
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每 6 小時同步
+  push:
+    branches: [main]
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync from RAG
+        run: python sync_knowledge.py --incremental
+      - name: Build site
+        run: npm run build
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+</code></pre>
+<h3>5.2 Cloudflare Pages 部署</h3>
+<ul>
+<li><strong>Build Command</strong>: <code>npm run build</code></li>
+<li><strong>Output Directory</strong>: <code>dist/</code> 或 <code>.vitepress/dist/</code></li>
+<li><strong>Node.js Version</strong>: 20+</li>
+<li><strong>自動 HTTPS + CDN 全球分發</strong></li>
+<li><strong>Preview Deployments</strong>: 每個 PR 自動生成預覽 URL</li>
+</ul>
+<h3>5.3 效能優化策略</h3>
+<p>| 策略 | 效果 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| Brotli 壓縮 | 減少 15-25% 傳輸 | 所有靜態資產 |</p>
+<p>| 圖片 WebP/AVIF | 減少 30-50% | 含圖筆記 |</p>
+<p>| HTTP/3 | 降低連線延遲 | Cloudflare 預設 |</p>
+<p>| Service Worker 離線快取 | 完全離線存取 | PWA 場景 |</p>
+<p>| 預載入關鍵資源 | LCP < 1s | 首頁 + 常用頁 |</p>
+<p>---</p>
+<h2>六、與 daily-digest-prompt 專案的具體對應</h2>
+<h3>6.1 現有架構對映</h3>
+<p>本專案的知識庫同步場景（待辦 #10：「知識庫同步更新 Vite 網站並推送 GitHub」）完全匹配此管線：</p>
+<pre><code>
+localhost:3000 (RAG API)
+  ↓ sync_knowledge.py（增量同步）
+D:\Source\knowledge\（靜態 HTML）
+  ↓ git commit &amp; push
+Cloudflare Pages（自動部署）
+</code></pre>
+<h3>6.2 優化建議</h3>
+<ol>
+<li><strong>導入 VitePress</strong>：取代目前的純 HTML 靜態網站，獲得搜尋、主題、SPA 導航</li>
+<li><strong>增量同步</strong>：<code>sync_knowledge.py</code> 加入 SHA-256 雜湊比對，避免全量重建</li>
+<li><strong>搜尋索引</strong>：VitePress 內建 MiniSearch 或改用 Pagefind</li>
+<li><strong>自動化</strong>：GitHub Actions 排程每 6 小時同步 + 部署</li>
+<li><strong>分類導航</strong>：利用 VitePress sidebar 自動生成分類目錄</li>
+</ol>
+<p>---</p>
+<h2>七、技術選型建議總結</h2>
+<h3>小型知識庫（< 500 頁）</h3>
+<p>→ <strong>VitePress</strong>：設定最簡、建構最快、Vue 生態整合佳</p>
+<h3>中型知識庫（500-5000 頁）</h3>
+<p>→ <strong>Astro Starlight</strong>：產出最小、LCP 最佳、Pagefind 搜尋強大</p>
+<h3>自定義前端（已有 React/Vue 應用）</h3>
+<p>→ <strong>Vite-SSG</strong>：完全彈性、自建搜尋、自建路由</p>
+<h3>需要 AI 問答</h3>
+<p>→ 任一方案 + RAG API 做進階語義搜尋</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://vitepress.dev/">VitePress 官方文件</a></li>
+<li><a href="https://www.kuaiyizhi.cn/en/blogs/astro-vs-vitepress/">Astro vs VitePress 技術選型指南 - Kuzee</a></li>
+<li><a href="https://dev.to/kevinbism/coding-the-perfect-documentation-deciding-between-vitepress-and-astro-starlight-2i11">VitePress vs Astro Starlight 決策分析 - DEV Community</a></li>
+<li><a href="https://dasroot.net/posts/2025/12/building-knowledge-base-rag-hugo-ollama/">Building Knowledge Base with RAG, Hugo, Ollama - dasroot.net</a></li>
+<li><a href="https://github.com/antfu-collective/vite-ssg">Vite SSG - antfu-collective</a></li>
+<li><a href="https://github.com/Daydreamer-riri/vite-react-ssg">Vite React SSG</a></li>
+<li><a href="https://vite.dev/guide/ssr">Vite SSR 官方指南</a></li>
+<li><a href="https://dasroot.net/posts/2025/12/rag-personal-knowledge-management-obsidian-integration/">RAG for Personal Knowledge Management - Obsidian Integration</a></li>
+<li><a href="https://hygraph.com/blog/top-12-ssgs">2025 SSG 框架比較 - Hygraph</a></li>
+<li><a href="https://www.vuemastery.com/blog/nuxt-vs-vitepress-vs-astro/">Nuxt vs VitePress vs Astro - Vue Mastery</a></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

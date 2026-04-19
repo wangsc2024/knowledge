@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SGLang — 高效能 LLM 推理與服務框架深度研究：RadixAttention、Zero-Overhead Scheduler、PD/EP 大規模部署與 OpenAI 相容 API（24.3K Stars, 2026-03）">
+  <title>SGLang — 高效能 LLM 推理與服務框架深度研究：RadixAttention、Zero-Overhead Scheduler、PD/EP 大規模部署與 OpenAI 相容 API（24.3K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>SGLang — 高效能 LLM 推理與服務框架深度研究：RadixAttention、Zero-Overhead Scheduler、PD/EP 大規模部署與 OpenAI 相容 API（24.3K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">SGLang</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>SGLang — 高效能 LLM 推理與服務框架深度研究</h1>
+<blockquote>研究日期：2026-03-10  </blockquote>
+<blockquote>研究類型：ai_github_research  </blockquote>
+<blockquote>研究對象：<code>sgl-project/sglang</code></blockquote>
+<h2>一、專案概述</h2>
+<p><strong>SGLang</strong> 是一個面向大型語言模型與多模態模型的高效能推理與服務框架，定位在「把模型推理做成可部署、可擴展、可低延遲服務」。它同時提供推理後端、OpenAI 相容 API、Runtime DSL，以及與多種模型家族相容的部署層。根據 GitHub API，該專案在 <strong>2026-03-10</strong> 時有 <strong>24,308 stars、2,514 forks、1,685 open issues</strong>，最近一次 push 是 <strong>2026-03-10T11:14:18Z</strong>；最新 release 為 <strong>v0.4.4.post1</strong>，發布於 <strong>2026-02-24</strong>。這表示它不只是「熱門」，而且是近月仍高速演進的基礎設施專案。</p>
+<p>SGLang 的核心價值不是再包一層 Agent，而是把 LLM serving 的瓶頸往下壓到執行層：更快的前綴重用、更好的排程、更高的吞吐、更低的首 token 延遲，以及更容易接進既有 OpenAI client 生態。這類專案對 RAG、批次摘要、客服問答、長文件理解、多模型服務平台都很重要。</p>
+<h2>二、技術架構</h2>
+<h3>2.1 分層定位</h3>
+<p>從官方 README 與文件來看，SGLang 可視為四層結構：</p>
+<ol>
+<li><strong>模型服務層</strong>：<code>sglang.launch_server</code> 啟動推理服務，暴露 OpenAI 相容端點。  </li>
+<li><strong>執行與排程層</strong>：負責 request batching、prefill / decode 調度、prefix cache、記憶體管理。  </li>
+<li><strong>核心優化層</strong>：包含 <strong>RadixAttention</strong>、<strong>zero-overhead batch scheduler</strong>、structured outputs、reasoning parser、PD disaggregation、EP/MoE 支援。  </li>
+<li><strong>開發者介面層</strong>：提供 OpenAI API、原生 Runtime/DSL、REST 與文件化部署參數。</li>
+</ol>
+<h3>2.2 關鍵設計決策</h3>
+<p><strong>(1) RadixAttention + prefix tree cache</strong>  </p>
+<p>SGLang 早期代表性設計是 <strong>RadixAttention</strong>。官方技術文說明它把請求前綴放進 radix tree 中做共享，使多個請求若有共同 prompt 前綴，就能避免重複 prefill 計算。這種設計特別適合多輪對話、system prompt 重用、RAG 共用模板、工具呼叫前綴固定的情境。對 daily-digest-prompt 這種大量共用 prompt 模板的系統，理論上很有價值。</p>
+<p><strong>(2) Zero-overhead batch scheduler</strong>  </p>
+<p>官方文件把 scheduler 視為吞吐與延遲的核心。SGLang 的方向不是單純把 batch 做大，而是在 request 進出頻繁時降低排程額外成本，讓 decode 階段維持高 GPU 利用率。這使它在高併發 serving 情境下，較適合作為 API gateway 背後的推理引擎。</p>
+<p><strong>(3) Prefill-Decode Disaggregation (PD 分離)</strong>  </p>
+<p>SGLang 已支援把 prefill 與 decode 分離部署。原因是兩者資源特性不同：prefill 更吃頻寬與大張量處理，decode 則更依賴低延遲 token-by-token 生成。把它們分開，有助於在大型叢集中獨立擴縮不同節點池，改善成本與 tail latency。</p>
+<p><strong>(4) Expert Parallelism / MoE 擴展</strong>  </p>
+<p>對 DeepSeek、Qwen 等 MoE 模型，SGLang 持續強化 expert parallelism。這意味專案不是只做單卡 demo，而是朝生產級大模型叢集部署前進，特別是高參數量模型與多 GPU / 多節點場景。</p>
+<p><strong>(5) OpenAI 相容 API</strong>  </p>
+<p>這是採用門檻最低的一層。對既有應用而言，只要把 <code>base_url</code> 指到 SGLang，就能直接接入現有 SDK，減少重寫成本。這也是它比純研究型推理專案更容易落地的原因。</p>
+<h2>三、功能特色與差異化</h2>
+<p>相較一般「只提供推理 kernel」或「只提供聊天 API」的專案，SGLang 的差異在於它把<strong>效能優化、服務介面與部署策略</strong>放在同一產品面處理。</p>
+<ul>
+<li><strong>不是單純 wrapper</strong>：它不是只把 Hugging Face 模型包成 API，而是針對 serving 路徑做深度優化。  </li>
+<li><strong>重視 prefix reuse</strong>：對模板化、會話型、RAG 型工作負載特別有優勢。  </li>
+<li><strong>支援高階部署能力</strong>：包含 PD 分離、路由、MoE / EP、多種量化與 structured outputs。  </li>
+<li><strong>生態相容性強</strong>：OpenAI API 讓上層應用遷移成本低。  </li>
+<li><strong>多模態延伸</strong>：官方 benchmark 與文件已覆蓋 vision-language model 與 image-heavy workload，不限文字模型。</li>
+</ul>
+<p>若把它與 vLLM 類推理引擎對照，SGLang 更強調「把 serving 做成一個完整可編排系統」，而不只是單點 kernel 最佳化。官方 benchmark 頁面亦直接列出與 vLLM、TensorRT-LLM 等系統的吞吐比較，顯示其定位就是正面競爭的推理基礎設施。</p>
+<h2>四、快速上手</h2>
+<h3>4.1 安裝與啟動</h3>
+<pre><code>
+pip install "sglang[all]"
+python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --port 30000
+</code></pre>
+<h3>4.2 以 OpenAI Client 呼叫</h3>
+<pre><code>
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:30000/v1", api_key="EMPTY")
+
+resp = client.chat.completions.create(
+    model="default",
+    messages=[
+        {"role": "system", "content": "你是摘要助手"},
+        {"role": "user", "content": "請用三點整理今天的 AI 新聞"}
+    ],
+    temperature=0.2,
+)
+
+print(resp.choices[0].message.content)
+</code></pre>
+<h3>4.3 何時適合選 SGLang</h3>
+<ul>
+<li>你已經有 OpenAI SDK client，但想把推理搬到自家 GPU。  </li>
+<li>你有大量共用 prompt 前綴，希望靠 prefix cache 壓低成本。  </li>
+<li>你要做高吞吐批次生成、RAG 問答或內部模型服務平台。  </li>
+<li>你需要比單機 demo 更接近生產部署的路線。</li>
+</ul>
+<h2>五、社群活躍度</h2>
+<p>截至 <strong>2026-03-10</strong>：</p>
+<ul>
+<li><strong>24,308 stars / 2,514 forks / 1,685 open issues</strong>  </li>
+<li><strong>10,462 commits</strong>（GitHub repo 頁面）  </li>
+<li>最新 release：<strong>v0.4.4.post1（2026-02-24）</strong>  </li>
+<li>最近 push：<strong>2026-03-10</strong></li>
+</ul>
+<p>這組數據代表三件事：</p>
+<ol>
+<li>社群採用已跨過實驗性階段，屬於主流熱門專案。  </li>
+<li>issues 數量高，表示使用者廣、需求多，也代表升級節奏快。  </li>
+<li>release 與 push 都很新，符合「最近 3 個月持續活躍」條件。</li>
+</ol>
+<h2>六、對自身專案的應用建議</h2>
+<h3>6.1 對 daily-digest-prompt</h3>
+<p>daily-digest-prompt 有大量固定模板、系統提示與批次摘要任務，天然符合 SGLang 的 prefix reuse 優勢。可考慮：</p>
+<ul>
+<li>把摘要、翻譯、分類等高頻任務改成走內部 SGLang gateway。  </li>
+<li>以固定 system prompt + 任務模板做 cache-friendly 設計。  </li>
+<li>將 OpenAI 相容端點作為本機 fallback / 成本優化層。  </li>
+<li>後續若知識庫查詢量成長，可把 RAG 問答與批次重寫併入同一推理叢集。</li>
+</ul>
+<h3>6.2 對 game 或互動應用</h3>
+<p>若未來做 NPC 對話、任務生成、劇情摘要、提示式 UI 說明，SGLang 可作為本地或私有化推理後端。對遊戲類場景特別有用的是：</p>
+<ul>
+<li>低延遲聊天回應  </li>
+<li>多玩家共用世界觀 prompt 的 prefix 快取  </li>
+<li>可依不同模式切分 prefill / decode 資源池</li>
+</ul>
+<h2>七、優缺點評估</h2>
+<h3>優點</h3>
+<ul>
+<li>架構目標明確，直接瞄準 serving 核心瓶頸。  </li>
+<li>官方文件完整，從安裝、benchmark 到進階部署都有覆蓋。  </li>
+<li>與 OpenAI API 相容，導入成本低。  </li>
+<li>支援從單機到多節點擴展，具備生產級路線。  </li>
+<li>對模板化、高重複前綴工作負載特別友善。</li>
+</ul>
+<h3>缺點</h3>
+<ul>
+<li>系統層複雜度明顯高於單純 model server，新手調校門檻較高。  </li>
+<li>高速演進帶來相容性與升級風險，需做好版本鎖定。  </li>
+<li>issues 數量高，表示雖然活躍，但也代表使用邊界仍在快速擴張。  </li>
+<li>若只是低流量單模型 demo，SGLang 的優勢未必能完全發揮。</li>
+</ul>
+<h2>八、總結</h2>
+<p>SGLang 值得研究，不是因為它又是一個熱門 AI 專案，而是因為它代表 2026 年開源 AI 生態的一個清楚方向：<strong>從「模型可跑」走向「推理可規模化營運」</strong>。對 daily-digest-prompt 這類有固定 prompt、批次任務與成本壓力的系統而言，SGLang 的 prefix cache、排程器與 OpenAI 相容介面，都有很直接的實用價值。若後續要深化，最值得追的下一階段是它的 scheduler、RadixAttention 與 PD/EP 實作細節，以及在真實混合負載下和 vLLM 的取捨邊界。</p>
+<h2>參考來源</h2>
+<ul>
+<li>GitHub Repo: https://github.com/sgl-project/sglang  </li>
+<li>GitHub API Repo Metadata: https://api.github.com/repos/sgl-project/sglang  </li>
+<li>GitHub API Latest Release: https://api.github.com/repos/sgl-project/sglang/releases/latest  </li>
+<li>Official Docs: https://docs.sglang.ai/  </li>
+<li>Installation / OpenAI-compatible API: https://docs.sglang.ai/start/install.html  </li>
+<li>Benchmark: https://docs.sglang.ai/references/bench_serving  </li>
+<li>RadixAttention blog: https://lmsys.org/blog/2024-01-17-sglang/  </li>
+<li>Zero-overhead scheduler / PD / EP blog index: https://lmsys.org/blog/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

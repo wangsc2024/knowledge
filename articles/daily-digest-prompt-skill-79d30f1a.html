@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt Skill 系統可組合性與 Token 經濟學優化建議 — 從靜態索引到動態能力圖譜的演進策略（2026-02-27）">
+  <title>Daily-Digest-Prompt Skill 系統可組合性與 Token 經濟學優化建議 — 從靜態索引到動態能力圖譜的演進策略（2026-02-27） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt Skill 系統可組合性與 Token 經濟學優化建議 — 從靜態索引到動態能力圖譜的演進策略（2026-02-27）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">Token經濟學</span><span class="tag">Skill系統</span><span class="tag">Context Engineering</span><span class="tag">深度思維</span><span class="tag">知識庫</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt Skill 系統可組合性與 Token 經濟學優化建議</h1>
+<blockquote>日期：2026-02-27 | 任務：運用 RAG 知識庫檢視專案並提出優化建議</blockquote>
+<blockquote>基礎：知識庫 339+ 筆筆記、22 個 Skills、496 個測試、8 大自動任務群組</blockquote>
+<p>---</p>
+<h2>一、現況分析</h2>
+<h3>1.1 Skill 系統現狀</h3>
+<p>本專案目前採用 <strong>Skill-First 策略</strong>（ADR-001），擁有 23 個 Skills（17 核心 + 6 工具），透過 <code>SKILL_INDEX.md</code> 提供靜態索引。這套系統在過去 2 週的運作中展現了穩定性，但從 Token 經濟學和可組合性角度分析，存在以下可優化空間：</p>
+<p>| 維度 | 現狀 | 業界最佳實踐（2026） | 差距 |</p>
+<p>|------|------|---------------------|------|</p>
+<p>| <strong>索引載入</strong> | 全量載入 SKILL_INDEX.md（~100 行表格） | 漸進式揭露：L1 元資料 ~100 tokens → L2 運行時 <5K → L3 按需 | 載入過量 |</p>
+<p>| <strong>Skill 選擇</strong> | 關鍵字 + 標籤匹配 | 語義相似度 + 歷史成功率加權 | 匹配精度可提升 |</p>
+<p>| <strong>組合模式</strong> | 手動串聯（prompt 硬編碼鏈式規則） | 動態依賴圖 + 自動組合 | 靈活性不足 |</p>
+<p>| <strong>Token 預算</strong> | 無顯式預算管理 | 分層預算（system 20% / tools 30% / history 30% / output 20%） | 完全缺失 |</p>
+<p>| <strong>快取效益</strong> | API 回應快取（cache-policy.yaml） | 多層快取（精確匹配 + 語義快取 + Session 上下文） | 僅一層 |</p>
+<h3>1.2 Token 消耗熱點分析</h3>
+<p>根據 <code>config/benchmark.yaml</code> 定義的 <code>avg_io_per_call <= 5000</code> 目標，以及 <code>post_tool_logger.py</code> 的 JSONL 日誌結構，推估主要 Token 消耗來源：</p>
+<ol>
+<li><strong>CLAUDE.md 全文載入</strong>：專案 CLAUDE.md 約 400+ 行，每次 session 全量注入 context window</li>
+<li><strong>SKILL_INDEX.md 全量讀取</strong>：Skill-First 規則要求「啟動第一個動作就是載入 Skill 索引」，但 23 個 Skill 的完整表格在多數任務中只需 3-5 個</li>
+<li><strong>研究註冊表膨脹</strong>：<code>research-registry.json</code> 已有 50+ entries，每次研究任務都全量讀取</li>
+<li><strong>模板重複載入</strong>：<code>preamble.md</code> 每個 sub-agent 都獨立讀取，團隊模式 5+ 個 agent 產生 5 倍冗餘</li>
+</ol>
+<p>---</p>
+<h2>二、問題識別（五大瓶頸）</h2>
+<h3>問題 1：靜態索引缺乏上下文感知</h3>
+<p><strong>現象</strong>：<code>SKILL_INDEX.md</code> 是一份靜態 Markdown 表格，所有 23 個 Skill 同等權重呈現。Agent 每次都必須讀取完整索引，即使當前任務只涉及 2-3 個 Skill。</p>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>浪費約 2000-3000 tokens 的上下文空間</li>
+<li>觸發關鍵字匹配是字串級別的，缺乏語義理解</li>
+<li>新增 Skill 需手動更新索引，維護成本隨 Skill 數量線性增長</li>
+</ul>
+<h3>問題 2：Skill 組合缺乏形式化描述</h3>
+<p><strong>現象</strong>：Skill 之間的組合關係散落在多處：</p>
+<ul>
+<li><code>SKILL_INDEX.md</code> 的 <code>depends-on</code> 註記（如 pingtung-policy-expert depends-on pingtung-news）</li>
+<li><code>CLAUDE.md</code> 的文字描述（「pingtung-policy-expert 必搭 pingtung-news」）</li>
+<li><code>routing.yaml</code> 的標籤映射（多標籤合併 skills）</li>
+</ul>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>組合規則分散，新 Agent 或新 Skill 整合時容易遺漏</li>
+<li>缺乏形式化的依賴圖（dependency graph），無法自動偵測循環依賴或遺漏依賴</li>
+<li>模板衝突解決規則（game>code>research>skill>general）硬編碼在 routing.yaml 中</li>
+</ul>
+<h3>問題 3：Token 預算無顯式管理</h3>
+<p><strong>現象</strong>：目前沒有 Token 預算分配機制。<code>benchmark.yaml</code> 有 <code>avg_io_per_call <= 5000</code> 目標，但這是事後度量而非事前控制。</p>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>研究任務（WebSearch + KB 查詢 + 報告生成）消耗的 token 量遠超一般任務，但使用相同的 timeout 分配</li>
+<li>團隊模式中，Phase 1 的 5 個並行 agent 各自獨立管理 context，無全局 token 預算</li>
+<li>CLAUDE.md 約 400 行 × 每次 session = 固定開銷，但業界建議 system prompt 應控制在總預算的 20% 以內</li>
+</ul>
+<h3>問題 4：研究註冊表缺乏壓縮機制</h3>
+<p><strong>現象</strong>：<code>research-registry.json</code> 實施 7 天滾動視窗，但高頻研究日（如 2026-02-25 有 20+ entries）導致檔案膨脹。每次研究任務都全量讀取，消耗大量 token。</p>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>7 天累積可達 100+ entries，全量讀取約 5000-8000 tokens</li>
+<li>去重判定只需近 3 天的 topic 和 task_type，但讀取了全部 7 天的完整 entry</li>
+<li>缺乏摘要/壓縮視圖，每個 entry 含完整 tags 陣列和 kb_note_title</li>
+</ul>
+<h3>問題 5：快取策略單一維度</h3>
+<p><strong>現象</strong>：<code>cache-policy.yaml</code> 只實作了 API 回應快取（精確匹配 + TTL），缺乏語義快取層。</p>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>相似但不完全相同的查詢無法命中快取（如「AI 深度研究」vs「AI 技術趨勢」）</li>
+<li>Session 間的上下文無法複用（每次 agent 啟動都是冷啟動）</li>
+<li><code>benchmark.yaml</code> 的 <code>cache_hit_ratio >= 40%</code> 目標可能難以達成</li>
+</ul>
+<p>---</p>
+<h2>三、優化建議方案（6 項）</h2>
+<h3>建議 1：實作 Skill 能力圖譜（Skill Capability Graph）</h3>
+<p><strong>目標</strong>：將靜態索引升級為結構化的 JSON 能力圖譜，支援動態查詢和漸進式載入。</p>
+<p><strong>方案</strong>：</p>
+<pre><code>
+# config/skill-graph.yaml（新增）
+version: 1
+skills:
+  todoist:
+    category: core
+    capabilities: [task-query, task-create, task-complete]
+    inputs: [todoist-api-token]
+    outputs: [task-list, task-status]
+    depends_on: []
+    composable_with: [knowledge-query, ntfy-notify, api-cache]
+    avg_tokens: 800  # 典型 SKILL.md 載入 token 數
+  
+  pingtung-news:
+    category: core
+    capabilities: [news-query, news-search]
+    inputs: [mcp-endpoint]
+    outputs: [news-list, news-detail]
+    depends_on: []
+    composable_with: [pingtung-policy-expert, knowledge-query]
+    avg_tokens: 600
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>Agent 可按 <code>capabilities</code> 精準匹配 Skill，取代字串級關鍵字匹配</li>
+<li><code>depends_on</code> 和 <code>composable_with</code> 形式化後，可自動偵測依賴衝突</li>
+<li><code>avg_tokens</code> 欄位支援 token 預算估算</li>
+<li>漸進式載入：先讀 skill-graph.yaml（~50 行）→ 按需讀取 SKILL.md</li>
+</ul>
+<p><strong>預期效益</strong>：索引載入 token 減少 40-60%，Skill 匹配準確率提升至 90%+</p>
+<p><strong>優先級</strong>：P1（高）</p>
+<h3>建議 2：引入分層 Token 預算管理</h3>
+<p><strong>目標</strong>：為不同類型的 agent session 設定明確的 token 預算分配。</p>
+<p><strong>方案</strong>：</p>
+<pre><code>
+# config/token-budget.yaml（新增）
+version: 1
+budgets:
+  daily_digest:
+    total: 50000  # 估算值，需實測校準
+    allocation:
+      system_prompt: 20%    # CLAUDE.md + preamble
+      skill_loading: 15%    # SKILL.md 按需載入
+      api_io: 35%           # API 呼叫 + 回應處理
+      output: 20%           # 摘要生成 + 通知
+      buffer: 10%           # 重試 + 錯誤處理
+  
+  todoist_research:
+    total: 80000
+    allocation:
+      system_prompt: 15%
+      skill_loading: 10%
+      research_io: 40%      # WebSearch + WebFetch + KB
+      analysis: 25%         # 深度分析 + 報告撰寫
+      buffer: 10%
+  
+  auto_task:
+    total: 30000
+    allocation:
+      system_prompt: 25%
+      skill_loading: 15%
+      execution: 40%
+      output: 15%
+      buffer: 5%
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>事前預算分配取代事後度量，防止 token 超支</li>
+<li>不同任務類型有差異化的預算策略</li>
+<li>搭配 <code>post_tool_logger.py</code> 的實際數據校準預算值</li>
+</ul>
+<p><strong>預期效益</strong>：token 浪費減少 20-30%，平均回應時間縮短 15%</p>
+<p><strong>優先級</strong>：P2（中高）</p>
+<h3>建議 3：研究註冊表壓縮視圖</h3>
+<p><strong>目標</strong>：為高頻讀取的 <code>research-registry.json</code> 提供壓縮摘要，減少 token 消耗。</p>
+<p><strong>方案</strong>：</p>
+<p>在 <code>context/</code> 目錄新增 <code>research-summary.json</code>，由 <code>self-heal</code> 自動任務每日生成：</p>
+<pre><code>
+{
+  "generated_at": "2026-02-27T08:00:00+08:00",
+  "summary": {
+    "total_entries_7d": 45,
+    "by_type": {
+      "todoist_research": 12,
+      "shurangama": 4,
+      "tech_research": 3
+    },
+    "recent_topics_3d": [
+      "深度工作與認知負荷理論",
+      "排程效能與資源利用率優化",
+      "Circuit Breaker Pattern"
+    ],
+    "saturated_types": ["todoist_research"]
+  }
+}
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>去重判定只需讀取壓縮摘要（~20 行）而非完整 registry（~200+ 行）</li>
+<li><code>saturated_types</code> 預計算後，agent 無需自行遍歷統計</li>
+<li>完整 registry 僅在需要寫入新 entry 時才讀取</li>
+</ul>
+<p><strong>預期效益</strong>：研究任務的去重階段 token 消耗減少 70%</p>
+<p><strong>優先級</strong>：P1（高）</p>
+<h3>建議 4：CLAUDE.md 分層載入策略</h3>
+<p><strong>目標</strong>：將 CLAUDE.md 拆分為核心層和擴展層，按需載入。</p>
+<p><strong>方案</strong>：</p>
+<pre><code>
+CLAUDE.md              → 精簡核心（~100 行）：架構概述 + 禁止行為 + ADR 索引
+CLAUDE.detail.md       → 完整細節（~300 行）：執行流程 + Hook 說明 + 常用操作
+</code></pre>
+<p>核心 CLAUDE.md 只保留：</p>
+<ol>
+<li>專案概述（10 行）</li>
+<li>Skill-First 策略（15 行）</li>
+<li>文件驅動架構原則（10 行）</li>
+<li>嚴禁行為（10 行）</li>
+<li>架構決策索引 ADR（15 行）</li>
+<li>配置文件速查表（20 行）</li>
+<li>排程配置摘要（10 行）</li>
+<li>引用指針：「完整細節見 CLAUDE.detail.md」</li>
+</ol>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>每次 session 系統提示減少 ~60%（從 400+ 行降至 ~100 行）</li>
+<li>自動任務（30K token 預算）節省最多，system prompt 佔比從估計 40% 降至 15%</li>
+<li>Agent 需要細節時按需讀取 CLAUDE.detail.md</li>
+</ul>
+<p><strong>預期效益</strong>：每個 session 節省 3000-5000 tokens 的固定開銷</p>
+<p><strong>優先級</strong>：P2（中高）- 需評估 Claude Code 對分層 CLAUDE.md 的支援程度</p>
+<h3>建議 5：語義快取層（Semantic Cache）</h3>
+<p><strong>目標</strong>：在現有精確匹配快取之上，新增語義快取層，提升快取命中率。</p>
+<p><strong>方案</strong>：</p>
+<p>擴展 <code>api-cache</code> Skill，新增語義快取邏輯：</p>
+<pre><code>
+# config/cache-policy.yaml 擴展
+semantic_cache:
+  enabled: true
+  similarity_threshold: 0.85  # 語義相似度閾值
+  supported_apis:
+    - knowledge_query  # KB hybrid search 結果可語義快取
+    - hackernews       # HN 新聞查詢結果短期可複用
+  ttl_minutes: 30      # 語義快取 TTL 較短
+  storage: cache/semantic-cache.json
+</code></pre>
+<p>實作方式：利用知識庫的 hybrid search 本身作為語義比對引擎。查詢前先在 semantic-cache.json 中搜尋相似 query：</p>
+<ul>
+<li>相似度 >= 0.85 → 直接返回快取結果</li>
+<li>相似度 < 0.85 → 呼叫 API，結果同時寫入精確快取和語義快取</li>
+</ul>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>快取命中率預估從當前 ~30% 提升至 50-60%</li>
+<li>研究任務的 KB 去重查詢可複用近似查詢結果</li>
+<li>減少重複 API 呼叫（每日 44 次 session × 平均 3 次 KB 查詢 = 132 次，語義快取可減少 ~40 次）</li>
+</ul>
+<p><strong>預期效益</strong>：API 呼叫量減少 25-30%，benchmark cache_hit_ratio 達標（>= 40%）</p>
+<p><strong>優先級</strong>：P3（中）- 需要知識庫 API 的語義搜尋能力配合</p>
+<h3>建議 6：Skill 使用熱力圖與自動退化</h3>
+<p><strong>目標</strong>：基於實際使用數據，動態調整 Skill 載入策略。</p>
+<p><strong>方案</strong>：</p>
+<p>擴展 <code>system-insight</code> Skill，新增 Skill 使用熱力圖分析：</p>
+<pre><code>
+// context/skill-heatmap.json（由 system-insight 每日生成）
+{
+  "period": "2026-02-20 ~ 2026-02-27",
+  "usage": {
+    "knowledge-query": { "count": 156, "avg_tokens": 850, "success_rate": 0.95 },
+    "todoist": { "count": 88, "avg_tokens": 720, "success_rate": 0.92 },
+    "ntfy-notify": { "count": 82, "avg_tokens": 200, "success_rate": 0.98 },
+    "github-scout": { "count": 4, "avg_tokens": 1200, "success_rate": 1.0 },
+    "skill-scanner": { "count": 1, "avg_tokens": 600, "success_rate": 1.0 }
+  },
+  "composition_patterns": [
+    { "chain": ["todoist", "knowledge-query", "ntfy-notify"], "frequency": 44 },
+    { "chain": ["web-research", "knowledge-query"], "frequency": 28 },
+    { "chain": ["pingtung-news", "pingtung-policy-expert"], "frequency": 12 }
+  ],
+  "recommendations": [
+    "knowledge-query 是最高頻 Skill，建議預載其 SKILL.md 摘要",
+    "github-scout 使用極低頻，建議從默認索引移至擴展索引"
+  ]
+}
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>數據驅動的 Skill 載入策略：高頻 Skill 預載摘要，低頻 Skill 按需載入</li>
+<li><code>composition_patterns</code> 揭示實際組合模式，可自動推薦 Skill 鏈</li>
+<li>搭配 Token 預算管理，精準分配 skill_loading 預算</li>
+</ul>
+<p><strong>預期效益</strong>：Skill 載入效率提升 30%，新增「Skill 推薦」能力</p>
+<p><strong>優先級</strong>：P3（中）</p>
+<p>---</p>
+<h2>四、實施路線圖</h2>
+<p>| 階段 | 建議項 | 預計工作量 | 依賴 |</p>
+<p>|------|--------|-----------|------|</p>
+<p>| <strong>Phase 1</strong>（立即） | 建議 3：研究摘要壓縮 | 0.5 天 | 無 |</p>
+<p>| <strong>Phase 1</strong>（立即） | 建議 1：Skill 能力圖譜 | 1 天 | 無 |</p>
+<p>| <strong>Phase 2</strong>（短期） | 建議 4：CLAUDE.md 分層 | 0.5 天 | 測試分層載入行為 |</p>
+<p>| <strong>Phase 2</strong>（短期） | 建議 2：Token 預算管理 | 1 天 | 建議 1 的 avg_tokens 數據 |</p>
+<p>| <strong>Phase 3</strong>（中期） | 建議 5：語義快取層 | 1.5 天 | KB API 支援 |</p>
+<p>| <strong>Phase 3</strong>（中期） | 建議 6：Skill 熱力圖 | 1 天 | post_tool_logger 數據累積 |</p>
+<p>---</p>
+<h2>五、預期綜合效益</h2>
+<p>| 指標 | 當前估計 | 優化後預期 | 改善幅度 |</p>
+<p>|------|---------|-----------|--------|</p>
+<p>| <strong>每 session 固定 token 開銷</strong> | ~8000 tokens | ~4000 tokens | -50% |</p>
+<p>| <strong>研究任務去重 token</strong> | ~6000 tokens | ~1500 tokens | -75% |</p>
+<p>| <strong>Skill 匹配準確率</strong> | ~75% | ~92% | +17pp |</p>
+<p>| <strong>快取命中率</strong> | ~30% | ~55% | +25pp |</p>
+<p>| <strong>平均回應延遲</strong> | 基準 | -15~20% | 顯著改善 |</p>
+<p>---</p>
+<h2>六、與既有 ADR 的關聯</h2>
+<ul>
+<li><strong>ADR-001（Skill-First）</strong>：建議 1 和 6 是 Skill-First 的自然演進</li>
+<li><strong>ADR-002（文件驅動）</strong>：建議 1 和 4 延續「改配置不改 prompt」原則</li>
+<li><strong>ADR-007（研究去重三層防護）</strong>：建議 3 是去重機制的效能優化</li>
+<li><strong>ADR-008（OODA 閉環）</strong>：建議 6 的熱力圖為 Observe 階段提供新數據源</li>
+</ul>
+<p>---</p>
+<h2>七、參考來源</h2>
+<ol>
+<li>SmartScope Blog — AGENTS.md Token Optimization Guide 2026（漸進式揭露設計、70% token 節省）</li>
+<li>Anthropic — Effective Context Engineering for AI Agents（context rot、attention budget 概念）</li>
+<li>Redis Blog — LLM Token Optimization: Cut Costs & Latency in 2026（多層快取策略）</li>
+<li>FlowHunt — Context Engineering for AI Agents（Token 預算分配四象限模型）</li>
+<li>JetBrains Research — Smarter Context Management for LLM-Powered Agents（上下文壓縮技術）</li>
+<li>antigravity-skills（漸進式上下文揭露、平面化 JSON 索引）</li>
+<li>everything-claude-code（Instinct Learning、Token 經濟學）</li>
+<li>Claude Code Skills Documentation（Skills 系統架構與組合模式）</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-02-27</em></p>
+<p><em>任務 ID：6g2FfvWmxqhCWx85</em></p>
+<p><em>研究類型：專案優化 / 深度思維 / 知識庫</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

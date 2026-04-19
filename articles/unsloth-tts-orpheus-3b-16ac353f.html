@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth TTS 語音合成微調實戰 — Orpheus 3B 模型架構、SNAC 音訊編碼與自訂語音訓練完整指南（2026）">
+  <title>Unsloth TTS 語音合成微調實戰 — Orpheus 3B 模型架構、SNAC 音訊編碼與自訂語音訓練完整指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth TTS 語音合成微調實戰 — Orpheus 3B 模型架構、SNAC 音訊編碼與自訂語音訓練完整指南（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">TTS</span><span class="tag">Text-to-Speech</span><span class="tag">Orpheus</span><span class="tag">SNAC</span><span class="tag">Neural Audio Codec</span><span class="tag">語音合成</span><span class="tag">語音微調</span><span class="tag">LoRA</span><span class="tag">串流推論</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth TTS 語音合成微調實戰 — Orpheus 3B 模型架構、SNAC 音訊編碼與自訂語音訓練完整指南</h1>
+<h2>概述</h2>
+<p>Unsloth 自 2025 年末起支援 Text-to-Speech（TTS）模型的微調，透過 <code>FastLanguageModel</code> API 實現語音合成模型的高效訓練。相比 Flash Attention 2 方案，Unsloth 達成 <strong>1.5x 加速</strong>與 <strong>50% VRAM 節省</strong>。本篇聚焦三大核心面向：(1) Orpheus TTS 模型架構與 SNAC 神經音訊編碼器的整合原理，(2) 從零開始的自訂語音微調完整流程（含音訊 Token 化、資料集準備、訓練配置），(3) 即時串流推論與部署策略。這是 Unsloth 微調系列的全新領域 — 從文字生成跨入語音合成。</p>
+<p>---</p>
+<h2>一、Orpheus TTS 模型架構</h2>
+<h3>1.1 核心設計理念</h3>
+<p>Orpheus TTS 是建立在 <strong>Llama 3B</strong> 骨幹上的語音合成模型，展現了 LLM 在語音生成領域的突現能力（emergent capabilities）。其核心創新在於：</p>
+<ul>
+<li><strong>直接輸出音訊 Token</strong>：不需要獨立的 vocoder，模型直接預測離散的音訊 Token 序列</li>
+<li><strong>SNAC 編碼器/解碼器</strong>：使用 Multi-Scale Neural Audio Codec 將連續音訊壓縮為離散 Token</li>
+<li><strong>情緒標籤控制</strong>：透過角括號標籤（如 <code><laugh></code>、<code><sigh></code>）精確控制語音情感表達</li>
+</ul>
+<h3>1.2 技術規格</h3>
+<p>| 項目 | 規格 |</p>
+<p>|------|------|</p>
+<p>| 骨幹模型 | Llama 3B |</p>
+<p>| 訓練序列長度 | 8192 tokens |</p>
+<p>| 訓練資料量 | 100K+ 小時英語語音 |</p>
+<p>| 預設取樣率 | 24kHz |</p>
+<p>| 內建語音 | 8 種（Tara, Leah, Jess, Leo, Dan, Mia, Zac, Zoe） |</p>
+<p>| 延遲（串流） | ~200ms（可壓至 ~100ms） |</p>
+<p>| 授權 | Apache-2.0 |</p>
+<h3>1.3 模型變體</h3>
+<p>| 模型 | 用途 | HuggingFace ID |</p>
+<p>|------|------|---------------|</p>
+<p>| Finetuned Prod | 日常 TTS 應用（8 聲優） | <code>canopylabs/orpheus-tts-0.1-finetune-prod</code> |</p>
+<p>| Pretrained | 自訂微調基底 | <code>unsloth/orpheus-3b-0.1-pretrained</code> |</p>
+<p>| Finetuned (Unsloth) | Unsloth 優化版 | <code>unsloth/orpheus-3b-0.1-ft</code> |</p>
+<p>| 4-bit 量化版 | 低 VRAM 環境 | <code>unsloth/orpheus-3b-0.1-ft-bnb-4bit</code> |</p>
+<p>| 多語系家族 | 7 語言研究預覽 | research release |</p>
+<p>---</p>
+<h2>二、SNAC 神經音訊編碼器 — 音訊 Token 化的核心</h2>
+<h3>2.1 SNAC 架構原理</h3>
+<p>SNAC（Multi-Scale Neural Audio Codec）是一種多尺度殘差量化音訊編碼器，將連續音訊波形壓縮為離散 Token 序列：</p>
+<ul>
+<li><strong>編碼器</strong>：6.7M 參數，將 24kHz 音訊壓縮為離散碼</li>
+<li><strong>解碼器</strong>：13.0M 參數（含噪聲區塊），從 Token 重建波形</li>
+<li><strong>總參數量</strong>：19.8M（極輕量）</li>
+<li><strong>壓縮效率</strong>：每秒音訊 ≈ 83 tokens</li>
+</ul>
+<h3>2.2 三層多尺度量化</h3>
+<p>SNAC 在不同時間解析度進行量化，形成 <strong>3 層結構</strong>：</p>
+<ul>
+<li><strong>Layer 0</strong>（低頻）：粗粒度時間解析度</li>
+<li><strong>Layer 1</strong>（中頻）：2x Layer 0 的時間解析度</li>
+<li><strong>Layer 2</strong>（高頻）：4x Layer 0 的時間解析度</li>
+</ul>
+<p>每層有 4096 種碼值（0-4095），共 12,288 個 SNAC Token。</p>
+<h3>2.3 7-Token 群組結構</h3>
+<p>SNAC 解碼器期望音訊 Token 以 <strong>7 個為一組</strong>、跨 3 層排列：</p>
+<pre><code>
+群組結構（每 7 個 Token）：
+[L0_i, L1_2i, L2_4i, L2_4i+1, L1_2i+1, L2_4i+2, L2_4i+3]
+</code></pre>
+<p>在 Orpheus 的 Token 空間中，音訊 Token 從 offset 128266 開始：</p>
+<ul>
+<li>Layer 0：128266 ~ 128266+4095</li>
+<li>Layer 1：128266+4096 ~ 128266+8191</li>
+<li>Layer 2：128266+8192 ~ 128266+12287</li>
+<li>依此類推，共 7 層 offset</li>
+</ul>
+<p>---</p>
+<h2>三、Unsloth 微調完整流程</h2>
+<h3>3.1 環境準備</h3>
+<pre><code>
+pip install unsloth snac torchaudio datasets
+</code></pre>
+<h3>3.2 模型載入與 LoRA 配置</h3>
+<pre><code>
+from unsloth import FastLanguageModel
+import torch
+
+# 載入 Orpheus 模型（不用 4-bit，確保音訊精度）
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name = "unsloth/orpheus-3b-0.1-ft",
+    max_seq_length = 2048,
+    dtype = None,          # 自動偵測（T4/V100 用 FP16，Ampere+ 用 BF16）
+    load_in_4bit = False,  # TTS 建議關閉 4-bit
+)
+
+# LoRA 配置
+model = FastLanguageModel.get_peft_model(
+    model,
+    r = 64,                # LoRA rank（TTS 建議較高值）
+    target_modules = [
+        "q_proj", "k_proj", "v_proj", "o_proj",
+        "gate_proj", "up_proj", "down_proj"
+    ],
+    lora_alpha = 64,
+    lora_dropout = 0,
+    bias = "none",
+    use_gradient_checkpointing = "unsloth",
+    random_state = 3407,
+)
+</code></pre>
+<p><strong>關鍵參數說明</strong>：</p>
+<ul>
+<li><code>load_in_4bit = False</code>：TTS 微調建議關閉 4-bit 量化以維持音訊生成精度</li>
+<li><code>r = 64</code>：較高的 LoRA rank 有助於學習語音特徵的細微差異</li>
+<li><code>use_gradient_checkpointing = "unsloth"</code>：啟用 Unsloth 優化的梯度檢查點，節省 VRAM</li>
+</ul>
+<h3>3.3 SNAC 音訊 Token 化</h3>
+<pre><code>
+import torchaudio.transforms as T
+from snac import SNAC
+
+# 載入 SNAC 編碼器
+snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz")
+snac_model = snac_model.to("cuda")
+
+def tokenise_audio(waveform, source_sample_rate=24000):
+    """將音訊波形轉為 Orpheus 格式的離散 Token 序列"""
+    waveform = torch.from_numpy(waveform).unsqueeze(0)
+    waveform = waveform.to(dtype=torch.float32)
+    
+    # 重新取樣至 24kHz（SNAC 要求）
+    if source_sample_rate != 24000:
+        resample = T.Resample(orig_freq=source_sample_rate, new_freq=24000)
+        waveform = resample(waveform)
+    
+    waveform = waveform.unsqueeze(0).to("cuda")
+    
+    with torch.inference_mode():
+        codes = snac_model.encode(waveform)
+    
+    # 將三層 SNAC 碼組合為 7-token 群組（含 offset）
+    all_codes = []
+    for i in range(codes[0].shape[1]):
+        all_codes.append(codes[0][0][i].item() + 128266)           # L0
+        all_codes.append(codes[1][0][2*i].item() + 128266 + 4096)  # L1a
+        all_codes.append(codes[2][0][4*i].item() + 128266 + 8192)  # L2a
+        all_codes.append(codes[2][0][4*i+1].item() + 128266 + 12288) # L2b
+        all_codes.append(codes[1][0][2*i+1].item() + 128266 + 16384) # L1b
+        all_codes.append(codes[2][0][4*i+2].item() + 128266 + 20480) # L2c
+        all_codes.append(codes[2][0][4*i+3].item() + 128266 + 24576) # L2d
+    
+    return all_codes
+</code></pre>
+<h3>3.4 資料集準備</h3>
+<pre><code>
+from datasets import load_dataset, Audio
+
+# 載入範例資料集（含情緒標籤的語音資料）
+dataset = load_dataset("MrDragonFox/Elise", split="train")
+dataset = dataset.cast_column("audio", Audio(sampling_rate=24000))
+
+# 自訂資料集（從 CSV）
+# dataset = load_dataset("csv", data_files="mydata.csv", split="train")
+# dataset = dataset.cast_column("filename", Audio(sampling_rate=24000))
+
+# Step 1：將音訊轉為 SNAC Token
+def add_codes(example):
+    codes_list = None
+    try:
+        audio_array = example["audio"]["array"]
+        codes_list = tokenise_audio(audio_array)
+    except Exception as e:
+        print(f"Skipping row: {e}")
+    example["codes_list"] = codes_list
+    return example
+
+dataset = dataset.map(add_codes, remove_columns=["audio"])
+
+# Step 2：過濾無效資料 + 去除重複幀
+dataset = dataset.filter(lambda x: x["codes_list"] is not None and len(x["codes_list"]) &gt; 0)
+
+def remove_duplicate_frames(example):
+    """移除連續重複的 7-token 群組（降低冗餘）"""
+    vals = example["codes_list"]
+    result = vals[:7]
+    for i in range(7, len(vals), 7):
+        if vals[i] != result[-7]:  # 比較群組首 Token
+            result.extend(vals[i:i+7])
+    example["codes_list"] = result
+    return example
+
+dataset = dataset.map(remove_duplicate_frames)
+
+# Step 3：建構 input_ids（含特殊 Token）
+tokeniser_length = 128256
+start_of_human = tokeniser_length + 3
+end_of_human   = tokeniser_length + 4
+start_of_ai    = tokeniser_length + 5
+end_of_ai      = tokeniser_length + 6
+start_of_speech = tokeniser_length + 1
+end_of_speech   = tokeniser_length + 2
+end_of_text     = 128009
+
+def create_input_ids(example):
+    text_prompt = example.get("source", "") + ": " + example["text"] if "source" in example else example["text"]
+    text_ids = tokenizer.encode(text_prompt, add_special_tokens=True)
+    text_ids.append(end_of_text)
+    
+    input_ids = (
+        [start_of_human] + text_ids + [end_of_human]
+        + [start_of_ai] + [start_of_speech]
+        + example["codes_list"]
+        + [end_of_speech] + [end_of_ai]
+    )
+    example["input_ids"] = input_ids
+    example["labels"] = input_ids
+    example["attention_mask"] = [1] * len(input_ids)
+    return example
+
+dataset = dataset.map(create_input_ids, remove_columns=["text", "codes_list"])
+</code></pre>
+<p><strong>特殊 Token 對照表</strong>：</p>
+<p>| Token | ID | 用途 |</p>
+<p>|-------|------|------|</p>
+<p>| <code>start_of_human</code> | 128259 | 文字輸入開始 |</p>
+<p>| <code>end_of_human</code> | 128260 | 文字輸入結束 |</p>
+<p>| <code>start_of_ai</code> | 128261 | 模型輸出開始 |</p>
+<p>| <code>end_of_ai</code> | 128262 | 模型輸出結束 |</p>
+<p>| <code>start_of_speech</code> | 128257 | 語音 Token 序列開始 |</p>
+<p>| <code>end_of_speech</code> | 128258 | 語音 Token 序列結束 |</p>
+<p>| <code>CODE_TOKEN_OFFSET</code> | 128266 | 音訊 Token 起始偏移 |</p>
+<h3>3.5 訓練配置</h3>
+<pre><code>
+from transformers import TrainingArguments, Trainer
+from unsloth import is_bfloat16_supported
+
+trainer = Trainer(
+    model = model,
+    train_dataset = dataset,
+    args = TrainingArguments(
+        per_device_train_batch_size = 1,
+        gradient_accumulation_steps = 4,   # 有效 batch size = 4
+        warmup_steps = 5,
+        max_steps = 60,                    # ~50 例即可見品質提升
+        learning_rate = 2e-4,
+        fp16 = not is_bfloat16_supported(),
+        bf16 = is_bfloat16_supported(),
+        logging_steps = 1,
+        optim = "adamw_8bit",
+        weight_decay = 0.001,
+        lr_scheduler_type = "linear",
+        seed = 3407,
+        output_dir = "outputs",
+        report_to = "none",
+    ),
+)
+
+trainer_stats = trainer.train()
+</code></pre>
+<p><strong>訓練建議</strong>：</p>
+<ul>
+<li><strong>最少資料量</strong>：~50 例即可看到品質提升，建議每個說話者 300 例</li>
+<li><strong>音訊品質</strong>：使用真實錄音，避免合成資料（synthetic data 效果差）</li>
+<li><strong>取樣率統一</strong>：所有音訊必須重新取樣至 24kHz</li>
+<li><strong>情緒標籤</strong>：在文字中嵌入 <code><laugh></code>、<code><sigh></code> 等角括號標籤觸發情緒語音</li>
+</ul>
+<h3>3.6 模型儲存</h3>
+<pre><code>
+model.save_pretrained("lora_model")
+tokenizer.save_pretrained("lora_model")
+# 推送至 HuggingFace Hub
+# model.push_to_hub("your_name/lora_model", token="...")
+</code></pre>
+<p>---</p>
+<h2>四、推論與音訊生成</h2>
+<h3>4.1 基本推論</h3>
+<pre><code>
+from orpheus_tts import OrpheusModel
+
+model = OrpheusModel(
+    model_name="canopylabs/orpheus-tts-0.1-finetune-prod",
+    max_model_len=2048
+)
+
+syn_tokens = model.generate_speech(
+    prompt="Hello, this is a test of the Orpheus TTS system.",
+    voice="tara"         # 8 種預設語音之一
+)
+</code></pre>
+<h3>4.2 情緒語音生成</h3>
+<p>Orpheus 支援以下情緒標籤：</p>
+<p>| 標籤 | 效果 |</p>
+<p>|------|------|</p>
+<p>| <code><laugh></code> | 笑聲 |</p>
+<p>| <code><chuckle></code> | 輕笑 |</p>
+<p>| <code><sigh></code> | 嘆氣 |</p>
+<p>| <code><cough></code> | 咳嗽 |</p>
+<p>| <code><sniffle></code> | 吸鼻 |</p>
+<p>| <code><groan></code> | 呻吟 |</p>
+<p>| <code><yawn></code> | 打呵欠 |</p>
+<p>| <code><gasp></code> | 驚嘆 |</p>
+<pre><code>
+# 帶情緒的語音生成
+prompt = "Hey there &lt;giggles&gt; I'm so excited to tell you about this! &lt;sigh&gt; But it's a long story..."
+result = model.generate_speech(prompt=prompt, voice="tara")
+</code></pre>
+<h3>4.3 即時串流推論架構</h3>
+<p>生產部署的串流 TTS 系統由三個元件組成：</p>
+<ol>
+<li><strong>vLLM/SGLang 推論伺服器</strong>：以 <code>stream=True</code> 模式逐 Token 輸出</li>
+<li><strong>FastAPI 協調層</strong>：管理 Token 流、觸發 SNAC 解碼</li>
+<li><strong>SNAC 解碼器</strong>：將 7-Token 群組即時轉換為音訊波形</li>
+</ol>
+<pre><code>
+# 串流 Token 解碼示意
+from snac import SNAC
+import torch
+
+snac = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").to("cuda")
+CODE_TOKEN_OFFSET = 128266
+CHUNK_SIZE = 210  # 30 groups x 7 tokens
+
+def redistribute_codes(flat_tokens):
+    """將扁平 Token 序列重組為 SNAC 3 層結構"""
+    layer0, layer1, layer2 = [], [], []
+    for i in range(0, len(flat_tokens), 7):
+        layer0.append(flat_tokens[i] - CODE_TOKEN_OFFSET)
+        layer1.append(flat_tokens[i+1] - CODE_TOKEN_OFFSET - 4096)
+        layer2.append(flat_tokens[i+2] - CODE_TOKEN_OFFSET - 8192)
+        layer2.append(flat_tokens[i+3] - CODE_TOKEN_OFFSET - 12288)
+        layer1.append(flat_tokens[i+4] - CODE_TOKEN_OFFSET - 16384)
+        layer2.append(flat_tokens[i+5] - CODE_TOKEN_OFFSET - 20480)
+        layer2.append(flat_tokens[i+6] - CODE_TOKEN_OFFSET - 24576)
+    return [
+        torch.tensor(layer0).unsqueeze(0).to("cuda"),
+        torch.tensor(layer1).unsqueeze(0).to("cuda"),
+        torch.tensor(layer2).unsqueeze(0).to("cuda"),
+    ]
+
+def decode_chunk(token_chunk):
+    """解碼一個音訊區塊"""
+    codes = redistribute_codes(token_chunk)
+    with torch.inference_mode():
+        audio = snac.decode(codes)
+    return audio.squeeze().cpu().numpy()
+</code></pre>
+<p><strong>串流延遲優化</strong>：</p>
+<ul>
+<li>首個 chunk 使用較小尺寸（70 tokens = 10 groups）加速首音輸出</li>
+<li>後續 chunk 使用標準 210 tokens，平衡品質與延遲</li>
+<li>chunk 邊界套用 5-10ms fade-in/fade-out 消除接合雜音</li>
+</ul>
+<p>---</p>
+<h2>五、部署選項</h2>
+<p>| 平台 | 特點 | 適用場景 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Baseten</strong> | 一鍵部署、FP8/FP16 推論 | 生產環境 |</p>
+<p>| <strong>vLLM + FastAPI</strong> | 串流 TTS、GPU 共用 | 自建伺服器 |</p>
+<p>| <strong>Ollama</strong> | 本地部署、GGUF 格式 | 邊緣裝置 |</p>
+<p>| <strong>LM Studio</strong> | GUI 操作 | 桌面應用 |</p>
+<p>| <strong>Google Colab</strong> | 免費 GPU | 原型驗證 |</p>
+<p><strong>單卡 RTX 3090（24GB）部署</strong>：</p>
+<ul>
+<li>FP8 量化 LLM + SNAC 解碼器可共存</li>
+<li><code>--gpu-memory-utilization 0.7</code> 控制 VRAM 佔用</li>
+<li>或分配 LLM 與解碼器到不同 GPU</li>
+</ul>
+<p>---</p>
+<h2>六、與文字微調的關鍵差異</h2>
+<p>| 面向 | 文字 LLM 微調 | TTS 語音微調 |</p>
+<p>|------|-------------|-------------|</p>
+<p>| 資料格式 | JSON/JSONL 文字對 | 音訊 + 文字轉錄 |</p>
+<p>| Token 化 | 文字 tokenizer | SNAC 音訊 codec |</p>
+<p>| 4-bit 量化 | 推薦啟用 | 建議關閉（精度敏感） |</p>
+<p>| 最少資料量 | ~100 例 | ~50 例（300 例/說話者更佳） |</p>
+<p>| 輸出格式 | 文字 Token | 離散音訊 Token → 波形 |</p>
+<p>| 評估方式 | BLEU/ROUGE | MOS/PESQ/聽感評估 |</p>
+<p>| VRAM 需求 | 較低（4-bit 可用） | 較高（FP16 建議） |</p>
+<p>---</p>
+<h2>七、常見問題與解法</h2>
+<h3>Q1：生成的音訊有重複或迴圈</h3>
+<p><strong>解法</strong>：設定 <code>repetition_penalty >= 1.1</code>，這是穩定生成的必要條件。提高 <code>repetition_penalty</code> 和 <code>temperature</code> 可加速語音輸出。</p>
+<h3>Q2：音訊品質不如預期</h3>
+<p><strong>解法</strong>：</p>
+<ul>
+<li>確保所有訓練音訊統一為 24kHz 取樣率</li>
+<li>使用真實錄音而非合成資料（合成資料效果顯著較差）</li>
+<li>增加每個說話者的訓練範例至 300+ 例</li>
+</ul>
+<h3>Q3：串流播放有雜音/爆音</h3>
+<p><strong>解法</strong>：在 chunk 邊界套用短時間（5-10ms）的 fade-in/fade-out，防止波形不連續造成的 click 噪音。</p>
+<h3>Q4：max_new_tokens 如何設定？</h3>
+<p><strong>解法</strong>：預設 125 tokens ≈ 10 秒音訊。長句需相應增加。計算公式：目標秒數 × 12.5 ≈ 所需 Token 數。</p>
+<h3>Q5：如何進行零樣本語音複製（Zero-shot）？</h3>
+<p><strong>解法</strong>：Orpheus 支援零樣本複製，但微調能產生更精確的語音特徵。零樣本模式下，提供參考音訊片段作為 context；微調模式下，每個目標聲音收集 50-300 例訓練。</p>
+<p>---</p>
+<h2>八、與現有知識庫內容的關聯</h2>
+<p>本篇與 Unsloth 微調系列的定位：</p>
+<ul>
+<li><strong>架構原理篇</strong>：理解 Triton kernel 加速 → TTS 同樣受惠</li>
+<li><strong>部署管線篇</strong>：vLLM/Ollama 部署策略直接適用於 TTS 模型</li>
+<li><strong>GRPO 強化學習篇</strong>：未來 TTS 可結合 RL 做語音品質偏好優化</li>
+<li><strong>框架比較篇</strong>：Unsloth 是唯一原生支援 TTS 微調的加速框架</li>
+<li><strong>繁中微調篇</strong>：Orpheus 多語系家族可延伸至中文語音合成</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://unsloth.ai/docs/basics/text-to-speech-tts-fine-tuning">Unsloth TTS Fine-tuning Guide</a> — 官方文件</li>
+<li><a href="https://unsloth.ai/blog/tts">Fine-tune TTS models with Unsloth</a> — 官方部落格</li>
+<li><a href="https://github.com/canopyai/Orpheus-TTS">Orpheus-TTS GitHub</a> — 開源專案</li>
+<li><a href="https://arxiv.org/html/2410.14411v1">SNAC: Multi-Scale Neural Audio Codec</a> — 學術論文</li>
+<li><a href="https://bitbasti.com/blog/audio-streaming-with-orpheus">Real-Time TTS Streaming with Orpheus and SNAC</a> — 串流部署實戰</li>
+<li><a href="https://github.com/unslothai/notebooks/blob/main/nb/Kaggle-Orpheus_(3B">Unsloth Kaggle Notebook: Orpheus TTS</a>-TTS.ipynb) — 完整訓練 Notebook</li>
+<li><a href="https://huggingface.co/collections/unsloth/text-to-speech-tts-models">HuggingFace: Orpheus TTS Models Collection</a> — 模型庫</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

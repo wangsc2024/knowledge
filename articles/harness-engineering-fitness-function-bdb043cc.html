@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 持續效能基準與回歸防護 — fitness function 自動校準、約束漂移偵測與效能門檻演化策略（optimization 階段）">
+  <title>Harness Engineering 持續效能基準與回歸防護 — fitness function 自動校準、約束漂移偵測與效能門檻演化策略（optimization 階段） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 持續效能基準與回歸防護 — fitness function 自動校準、約束漂移偵測與效能門檻演化策略（optimization 階段）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">Fitness Function</span><span class="tag">約束漂移</span><span class="tag">效能基準</span><span class="tag">回歸防護</span><span class="tag">系統優化</span><span class="tag">optimization</span><span class="tag">Agent治理</span><span class="tag">研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 持續效能基準與回歸防護</h1>
+<h2>optimization 階段：從約束設計到量測閉環</h2>
+<blockquote>本文為 harness-engineering 系列第 optimization 階段，承接 foundation（學科定義與四大組件）和 application（約束演化管線與自癒機制），深入探討如何量化 Harness 效能、偵測約束漂移並自動校準效能門檻。</blockquote>
+<p>---</p>
+<h2>一、Fitness Function 在 Harness Engineering 的角色</h2>
+<h3>1.1 定義與核心概念</h3>
+<p>Fitness Function 源自演化式架構（Evolutionary Architecture），定義為「對架構特性的客觀完整性評估」。在 Harness Engineering 語境中，Fitness Function 是衡量 Agent 約束系統有效性的自動化指標：</p>
+<ul>
+<li><strong>原子型（Atomic）</strong>：評估單一面向，如約束覆蓋率、單次任務成功率</li>
+<li><strong>整體型（Holistic）</strong>：評估複合特性，如安全性 × 效能 × 成本的平衡</li>
+<li><strong>觸發型（Triggered）</strong>：在特定事件（部署、PR 合併）時執行</li>
+<li><strong>持續型（Continual）</strong>：透過生產監控持續驗證，不需排程</li>
+</ul>
+<h3>1.2 三步驟實作模式</h3>
+<p>| 步驟 | 說明 | 實例 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>Selection</strong> | 識別與架構目標對齊的非功能需求 | Agent 任務成功率、約束違規率 |</p>
+<p>| <strong>Definition</strong> | 建立基準線、目標值與失敗閾值 | 成功率 baseline=85%, target=92%, fail<80% |</p>
+<p>| <strong>Frequency</strong> | 決定量測頻率（依自動化程度） | CI/CD 每次部署、生產環境每小時 |</p>
+<h3>1.3 治理實踐</h3>
+<p>建議從 3 個 Fitness Function 開始，成熟團隊擴展至 5-6 個。每週審查追蹤狀態，失敗時需產出修復計畫恢復合規。</p>
+<p>---</p>
+<h2>二、Agent 約束漂移（Constraint Drift）偵測</h2>
+<h3>2.1 漂移四大類型</h3>
+<p>研究顯示 91% 的 ML 系統未主動干預時會經歷效能降級。在 Harness Engineering 中，漂移分為：</p>
+<p>| 類型 | 特徵 | 偵測方法 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>概念漂移（Concept Drift）</strong> | 輸入與目標變數關係改變 | 任務成功率趨勢、錯誤頻率監控 |</p>
+<p>| <strong>資料漂移（Data Drift）</strong> | 輸入資料分佈改變 | KS 檢驗、PSI 指數、KL 散度 |</p>
+<p>| <strong>Prompt 漂移</strong> | 指令模板不一致或演變 | 版本控制、部署變量管理 |</p>
+<p>| <strong>上下文漂移（Context Drift）</strong> | RAG 資料特徵變化 | 知識庫過期偵測、向量嵌入偏移監控 |</p>
+<h3>2.2 早期預警信號</h3>
+<ul>
+<li><strong>效能降級</strong>：成功率下降、錯誤頻率增加、回應不一致</li>
+<li><strong>效率異常</strong>：回應時間變長、Token 使用量激增</li>
+<li><strong>統計偏差</strong>：分佈參數超過閾值（PSI > 0.2 為顯著漂移）</li>
+</ul>
+<h3>2.3 偵測實作模式</h3>
+<pre><code>
+持續監控 → 統計檢定（KS/PSI/KL）→ 閾值判定 → 告警/自動修復
+</code></pre>
+<p>---</p>
+<h2>三、效能門檻自動校準策略</h2>
+<h3>3.1 動態閾值 vs 靜態閾值</h3>
+<p>傳統 Fitness Function 採靜態閾值（pass/fail），但 Agent 系統需要動態調整：</p>
+<p>| 策略 | 適用情境 | 優勢 |</p>
+<p>|------|---------|------|</p>
+<p>| <strong>靜態閾值</strong> | 安全性底線、合規要求 | 簡單明確、不可妥協 |</p>
+<p>| <strong>滑動窗口</strong> | 效能指標、成功率 | 容許季節性波動 |</p>
+<p>| <strong>百分位基準</strong> | 延遲、Token 用量 | 基於歷史分佈自動調整 |</p>
+<p>| <strong>趨勢基準</strong> | 長期品質演化 | 持續改進而非固定標準 |</p>
+<h3>3.2 校準迴圈</h3>
+<pre><code>
+收集基準數據（30 天）
+  → 計算統計參數（mean, p95, std）
+  → 設定初始閾值（mean + 2σ 為警告、mean + 3σ 為失敗）
+  → 每週重新計算滑動窗口
+  → 檢測顯著偏移（t-test, p&lt;0.05）
+  → 觸發校準或告警
+</code></pre>
+<h3>3.3 Harness 特有的 Fitness Function 建議</h3>
+<p>| 指標 | 量測方式 | 建議閾值 |</p>
+<p>|------|---------|----------|</p>
+<p>| <strong>約束覆蓋率</strong> | 已定義約束 / 可約束操作 | ≥ 85% |</p>
+<p>| <strong>約束違規率</strong> | 違規次數 / 總操作次數 | ≤ 2% |</p>
+<p>| <strong>自癒成功率</strong> | 自動修復成功 / 觸發次數 | ≥ 70% |</p>
+<p>| <strong>回歸逃逸率</strong> | 生產環境發現的已知問題 | ≤ 1/sprint |</p>
+<p>| <strong>漂移偵測延遲</strong> | 從漂移發生到偵測的時間 | ≤ 24h |</p>
+<p>| <strong>Fitness Function 通過率</strong> | 通過數 / 總數 | ≥ 95% |</p>
+<p>---</p>
+<h2>四、生產環境持續基準追蹤</h2>
+<h3>4.1 分散式追蹤整合</h3>
+<ul>
+<li>OpenTelemetry 標準化遙測，Span 級延遲分析</li>
+<li>完整執行路徑可視化，成本歸因追蹤</li>
+<li>機器學習異常偵測演算法（Isolation Forest、DBSCAN）</li>
+</ul>
+<h3>4.2 30-60-90 天路線圖</h3>
+<p>| 階段 | 重點 | 產出 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>30 天</strong> | 建立基準線 + 3 個核心 Fitness Function | 效能 dashboard |</p>
+<p>| <strong>60 天</strong> | 自動漂移偵測 + 告警管線 | 告警規則 + 回應 SOP |</p>
+<p>| <strong>90 天</strong> | 自動校準 + 自癒整合 | 閉環治理系統 |</p>
+<h3>4.3 關鍵原則</h3>
+<p>Epsilla 提出的 Harness Engineering 核心原則：「先達成可偵測性，再授予自治權；先建立約束，再優化吞吐量」（achieve detectability before granting autonomy; establish constraints before optimizing for throughput）。</p>
+<p>---</p>
+<h2>五、對 Daily-Digest-Prompt 專案的應用映射</h2>
+<p>本專案已有的 Harness 基礎設施可直接對應 Fitness Function 體系：</p>
+<p>| 現有機制 | 可轉化的 Fitness Function |</p>
+<p>|---------|------------------------|</p>
+<p>| <code>config/benchmark.yaml</code> fitness_functions | 直接擴展漂移偵測指標 |</p>
+<p>| <code>check-health.ps1</code> 健康檢查 | 轉化為觸發型 Fitness Function |</p>
+<p>| <code>hooks/post_tool_logger.py</code> JSONL 日誌 | 提供持續監控數據源 |</p>
+<p>| <code>tools/trace_analyzer.py</code> 根因分析 | 整合漂移偵測告警 |</p>
+<p>| <code>state/quality-trend.json</code> 品質趨勢 | 滑動窗口基準計算基礎 |</p>
+<p>| <code>state/entropy-trend.json</code> 熵趨勢 | 約束漂移的代理指標 |</p>
+<p>建議下一步：在 <code>config/benchmark.yaml</code> 新增 <code>drift_detection</code> 段落，定義 3 個核心漂移指標（成功率、Token 用量、約束違規率）的滑動窗口閾值與校準頻率。</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Maxim AI. (2026). A Comprehensive Guide to Preventing AI Agent Drift Over Time. https://www.getmaxim.ai/articles/a-comprehensive-guide-to-preventing-ai-agent-drift-over-time/</li>
+<li>Continuous Architecture. (2024). Fitness Functions – Safeguard Architecture with Automated Checks. https://continuous-architecture.org/practices/fitness-functions/</li>
+<li>Epsilla. (2026). Harness Engineering: Why the Focus is Shifting from Models to Agent Control Systems. https://www.epsilla.com/blogs/2026-03-12-harness-engineering</li>
+<li>Neal Ford, Rebecca Parsons, Patrick Kua. Building Evolutionary Architectures, 2nd Edition. O'Reilly.</li>
+<li>AWS Architecture Blog. Using Cloud Fitness Functions to Drive Evolutionary Architecture.</li>
+<li>agent-engineering.dev. (2026). Harness Engineering in 2026: The Discipline That Makes AI Agents Production-Ready.</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

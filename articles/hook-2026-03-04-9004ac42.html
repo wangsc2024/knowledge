@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案優化：Hook 工具模組品質提升（2026-03-04）">
+  <title>專案優化：Hook 工具模組品質提升（2026-03-04） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案優化：Hook 工具模組品質提升（2026-03-04）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">Hook系統</span><span class="tag">程式碼品質</span><span class="tag">測試覆蓋</span><span class="tag">資訊安全</span><span class="tag">safe_load_json</span><span class="tag">behavior_tracker</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案優化報告：Hook 工具模組品質提升</h1>
+<h2>優化概述</h2>
+<p>針對 daily-digest-prompt 專案的 Hooks 機器強制層進行深度分析與優化，重點改善程式碼品質、安全性與測試覆蓋率。</p>
+<h2>分析方法</h2>
+<p>四維並行深度分析：</p>
+<ol>
+<li>Hooks 程式碼品質審查（代碼重複、安全風險、複雜度）</li>
+<li>配置檔案一致性檢查（數值矛盾、命名規範）</li>
+<li>PowerShell 腳本品質審查</li>
+<li>測試覆蓋缺口分析</li>
+</ol>
+<h2>優化項目</h2>
+<h3>1. safe_load_json() 共用工具函數（hook_utils.py）</h3>
+<ul>
+<li><strong>問題</strong>：5+ 個模組重複實作 JSON 安全載入（try/except FileNotFoundError/JSONDecodeError）</li>
+<li><strong>方案</strong>：抽取 <code>safe_load_json(filepath, default)</code> 至 hook_utils.py，統一錯誤處理</li>
+<li><strong>影響</strong>：behavior_tracker.py、agent_guardian.py、post_tool_logger.py 三處引用</li>
+<li><strong>效益</strong>：減少約 30 行重複程式碼，統一容錯邏輯</li>
+</ul>
+<h3>2. _find_token_usage_file() 絕對路徑修正（post_tool_logger.py）</h3>
+<ul>
+<li><strong>問題</strong>：函數包含相對路徑 <code>state/token-usage.json</code> 作為 fallback，團隊並行模式下 5 路 Phase 1 Agent 的 CWD 可能不同，導致寫入不同檔案的競態條件</li>
+<li><strong>方案</strong>：移除相對路徑 fallback，始終使用基於 <code>__file__</code> 的絕對路徑</li>
+<li><strong>影響</strong>：每日 44 次 Agent 執行 × 20-100 次工具呼叫的 Token 統計準確性</li>
+<li><strong>安全性</strong>：消除團隊模式下的競態條件</li>
+</ul>
+<h3>3. _YAML_AVAILABLE 模組層級旗標（hook_utils.py）</h3>
+<ul>
+<li><strong>問題</strong>：<code>_load_yaml_config()</code> 在 hot path 中使用 <code>try: import yaml except ImportError</code>，每次呼叫都觸發例外處理</li>
+<li><strong>方案</strong>：模組載入時一次性偵測 PyYAML 可用性，設定 <code>_YAML_AVAILABLE</code> 布林旗標</li>
+<li><strong>影響</strong>：每次 Hook 呼叫都會經過 YAML 載入路徑</li>
+<li><strong>效益</strong>：消除 hot path 中的 try/except 開銷，改用 <code>if not _YAML_AVAILABLE</code> 分支判斷</li>
+</ul>
+<h3>4. behavior_tracker.py 測試覆蓋（新增 test_behavior_tracker.py）</h3>
+<ul>
+<li><strong>問題</strong>：behavior_tracker.py 是每次 PostToolUse 都會呼叫的模組，但僅有 17 個測試（只覆蓋 sanitize + signature），track()、load/save、cleanup、report 等核心函數完全無測試</li>
+<li><strong>方案</strong>：擴展至 45 個測試，覆蓋全部 7 個功能類別</li>
+<li><strong>新增測試類別</strong>：</li>
+</ul>
+<p>  - TestLoadSavePatterns: 4 個測試（JSON 損壞/檔案缺失/roundtrip/目錄建立）</p>
+<p>  - TestCleanupStale: 3 個測試（過期清理/近期保留/時間戳更新）</p>
+<p>  - TestTrack: 10 個測試（新模式/信心遞增/上限/錯誤追蹤/IO 統計/溢位淘汰/靜默失敗/消毒/去重/截斷）</p>
+<p>  - TestReport: 3 個測試（空模式/有資料/低信心）</p>
+<p>  - TestConstants: 4 個測試（常量合理性驗證）</p>
+<h3>5. safe_load_json 測試（test_hook_utils.py 新增 8 個）</h3>
+<ul>
+<li>覆蓋：有效 JSON/缺失檔案/損壞 JSON/空檔案/Unicode/陣列/巢狀結構/預設值</li>
+</ul>
+<h2>驗證結果</h2>
+<ul>
+<li>語法檢查：4 個修改檔案全部通過</li>
+<li>測試套件：619 個測試全部通過（從 556 增加 63 個）</li>
+</ul>
+<p>  - behavior_tracker: 17 → 45（+28）</p>
+<p>  - hook_utils: 33 → 41（+8）</p>
+<p>  - 其餘 27 個模組的 546 個既有測試全部維持通過</p>
+<ul>
+<li>品質自評：無 P0/P1 問題</li>
+</ul>
+<h2>技術決策</h2>
+<ul>
+<li>safe_load_json 保留 ImportError fallback：確保獨立模組（如 agent_guardian.py 可脫離 hook_utils 運作）</li>
+<li>_YAML_AVAILABLE 使用模組層級變數：一次性偵測，避免 hot path 開銷</li>
+<li>_find_token_usage_file 移除 fallback：強制使用絕對路徑，犧牲微小的靈活性換取並行安全</li>
+</ul>
+<h2>影響範圍</h2>
+<ul>
+<li>修改：4 個 Python 檔案（hook_utils.py、post_tool_logger.py、agent_guardian.py、behavior_tracker.py）</li>
+<li>新增/修改：2 個測試檔案（test_behavior_tracker.py、test_hook_utils.py）</li>
+<li>向後相容：所有修改保持向後相容（ImportError fallback）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 程式碼審查優化：誤報治理、風險分級與修補建議驗證閉環（2026）">
+  <title>AI 程式碼審查優化：誤報治理、風險分級與修補建議驗證閉環（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 程式碼審查優化：誤報治理、風險分級與修補建議驗證閉環（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">程式碼審查</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 程式碼審查優化：誤報治理、風險分級與修補建議驗證閉環（2026）</h1>
+<p>研究階段：<code>ai-code-review</code> 系列 <code>optimization</code></p>
+<p>承接既有筆記：</p>
+<ul>
+<li><code>AI-Assisted Code Review 完整指南</code></li>
+<li><code>AI 程式碼審查的內部機制 — LLM 差異感知審查架構、AST/CFG 融合分析與大規模 Code Review 系統設計模式（2026）</code></li>
+<li><code>AI 程式碼審查的 CI/CD 落地指南：SARIF、CodeQL／Semgrep 與 LLM 修補建議分級閘門</code></li>
+</ul>
+<h2>技術概述</h2>
+<p>2025-2026 年的 AI 程式碼審查重點，已從「讓 LLM 幫你留言」轉向「如何把靜態分析、AI triage、AI 修補與 CI 驗證串成低噪音閉環」。核心問題不是能不能找出更多問題，而是如何避免重複 alert、壓低 false positive、讓真正高風險 issue 先被看見，並確保 AI 產出的修補建議在 merge 前真的通過測試與重新掃描。最新實務顯示，成功團隊會同時管理三類訊號：掃描結果 metadata、AI triage 狀態、修補後驗證結果，而不是只看單次 PR 評論。</p>
+<h2>核心方法與工具</h2>
+<h3>1. 以 SARIF metadata 做風險排序與去重</h3>
+<ul>
+<li>GitHub Code Scanning 會用 <code>partialFingerprints</code> 追蹤「邏輯上相同」的結果，避免同一問題在多次掃描中重複出現。</li>
+<li><code>properties.precision</code> 可標記規則的真陽性可靠度，<code>properties.security-severity</code> 可標記安全風險分數；GitHub 會依這些欄位排序，讓高風險、高精度結果優先浮現。</li>
+<li>GitHub 對每次 run 最多只納入前 5,000 筆結果，因此 noisy rules 不只干擾人，也會擠掉真正重要的警報。</li>
+</ul>
+<h3>2. 將 AI triage 與人工裁決分離</h3>
+<ul>
+<li>Semgrep Assistant 會對部分 finding 做 auto-triage，並把可疑 false positive 標為 <code>provisionally_ignored</code>，先從 PR 評論流中隱藏，但不等於永久關閉。</li>
+<li>實務上應保留 <code>open</code>、<code>reviewing</code>、<code>fixing</code>、<code>ignored</code>、<code>fixed</code> 等狀態，讓 AI 只處理預篩與排序，人類保留最後裁決權。</li>
+<li>對 recurring false positive，應保存「triage memories」或等價規則例外，讓相同上下文在未來掃描時自動降噪。</li>
+</ul>
+<h3>3. 將 AI autofix 視為「候選修補」，不是直接 merge 的 patch</h3>
+<ul>
+<li>GitHub Copilot Autofix 以 CodeQL alert、程式碼片段與 query help 生成建議；官方明示它是 best-effort，不能保證每次都成功。</li>
+<li>修補建議必須經過三重驗證：CI 測試是否通過、alert 是否消失、語意行為是否維持。</li>
+<li>最穩定的流程不是「AI 直接改」，而是「AI 提 patch + 靜態掃描回歸 + 測試回歸 + 人工覆核」。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>先跑 CodeQL、Semgrep 或其他 SAST，統一輸出 SARIF。</li>
+<li>在產出階段補齊 <code>partialFingerprints</code>、<code>precision</code>、<code>security-severity</code>，避免重複 alert 與排序失真。</li>
+<li>匯入 GitHub Code Scanning，讓 PR 只顯示 diff 內、且排序後的重要結果。</li>
+<li>對高風險 finding 啟用 AI explanation / suggested fix；對低精度規則只保留 advisory，不直接 block。</li>
+<li>對 AI 判定可能為 false positive 的 finding，先標記 <code>provisionally_ignored</code> 或等價暫存狀態，不直接刪除。</li>
+<li>安全或維護團隊批次審核被忽略的 finding，將確認安全的模式寫入 triage memory、rule suppression 或 allowlist。</li>
+<li>對接受的 AI 修補建議，重新執行單元測試、整合測試、lint、SAST re-scan。</li>
+<li>只有在「測試通過 + alert resolved + diff 無新高風險 finding」三條件同時成立時，才允許 merge。</li>
+<li>將 triage 自動化率、誤報率、修補接受率、重開率寫入 dashboard，持續調整 blocking policy。</li>
+</ol>
+<h2>程式碼／配置範例</h2>
+<h3>GitHub Actions：分級執行 CodeQL + Semgrep + 驗證閘門</h3>
+<pre><code>
+name: ai-code-review-optimized
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript,python
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: returntocorp/semgrep-action@v1
+        with:
+          publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+          publishDeployment: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
+
+  verify-fix:
+    needs: [codeql, semgrep]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+</code></pre>
+<h3>SARIF 規格重點：降低 noise、提升排序品質</h3>
+<pre><code>
+{
+  "ruleId": "js/sql-injection",
+  "level": "error",
+  "partialFingerprints": {
+    "primaryLocationLineHash": "8f1a9f0c:14"
+  },
+  "properties": {
+    "precision": "high",
+    "security-severity": "8.7",
+    "tags": ["security", "external/cwe/cwe-89"]
+  }
+}
+</code></pre>
+<h3>PR gate 判斷邏輯</h3>
+<pre><code>
+# 僅示意：高風險新 finding 才阻擋
+if [ "$NEW_CRITICAL_ALERTS" -gt 0 ]; then exit 1; fi
+if [ "$AI_FIX_APPLIED" = "true" ] &amp;&amp; [ "$CI_STATUS" != "passed" ]; then exit 1; fi
+if [ "$REOPENED_TRIAGE_COUNT" -gt 3 ]; then exit 1; fi
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>GitHub 表示 Copilot Autofix 已覆蓋 JavaScript、TypeScript、Java、Python 中超過 90% 的支援 alert 類型，且對支援漏洞有超過三分之二可用「少量或無需修改」的建議；GitHub 另稱 GitHub Advanced Security 可讓團隊修補速度達傳統工具的 7 倍。</li>
+<li>Semgrep 2025 年資料指出，Noise Filtering 部署後可立即減少約 20% 待分析 finding；其安全研究團隊對 Assistant 判定的同意率約 96%，使用者對 auto-triage 決策同意率約 95%。</li>
+<li>Semgrep 2025 年 9 月進一步表示，Assistant 已能處理約 60% 新進 SAST triage 工作，且使用者稽核同意率仍超過 96%。</li>
+<li>單一 Fortune 500 beta 使用者在加入 5 個 triage memories 後，額外獲得 2.8 倍的降噪改善。</li>
+</ul>
+<h2>與本專案的應用場景</h2>
+<p><code>daily-digest-prompt</code> 不是大型產品程式庫，但有大量 prompt、PowerShell、JSON、YAML 與 workflow 規則，最容易出現的是「規則誤報」「重複告警」「AI 建議修補後造成流程退化」。可直接套用的做法：</p>
+<ul>
+<li>把 hooks、PowerShell 腳本、prompt 規範檢查結果統一轉成 SARIF，集中進 GitHub Code Scanning 或同級 dashboard。</li>
+<li>對已知 benign pattern 建立 triage memory，例如 PowerShell 合法 here-string、Windows 路徑、prompt 模板中的固定關鍵詞，避免每次都被重報。</li>
+<li>對會改動 workflow 的 AI 修補建議，強制要求通過 <code>npm test</code>、必要 smoke test、以及重新掃描 hooks / prompt 規則後才可採納。</li>
+<li>針對 <code>results/</code>、<code>context/</code>、<code>templates/</code> 等不同區域設定不同 blocking policy：執行路徑與安全規則採 blocking，內容檔與報告檔採 advisory。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>AI triage 不能直接等同於真實 exploitability；任何自動忽略策略都需要可回溯與可重開。</li>
+<li><code>precision</code> 與 <code>security-severity</code> 如果填錯，排序會失真，反而讓高風險 issue 被淹沒。</li>
+<li>若 SARIF 缺少穩定 fingerprint，重跑掃描會產生重複 alert，讓指標失真。</li>
+<li>AI autofix 可能修掉警報卻引入語意回歸，因此一定要配回歸測試與 re-scan。</li>
+<li>對小型專案而言，最常見失敗不是模型不夠強，而是 policy 太激進，導致評論噪音高於修補價值。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>GitHub Docs, SARIF support for code scanning: https://docs.github.com/en/code-security/reference/code-scanning/sarif-support-for-code-scanning</li>
+<li>GitHub Docs, Responsible use of Copilot Autofix for code scanning: https://docs.github.com/en/code-security/responsible-use/responsible-use-autofix-code-scanning</li>
+<li>GitHub Blog, Found means fixed: Introducing code scanning autofix, powered by GitHub Copilot and CodeQL: https://github.blog/news-insights/product-news/found-means-fixed-introducing-code-scanning-autofix-powered-by-github-copilot-and-codeql/</li>
+<li>Semgrep Docs, Semgrep Assistant overview: https://semgrep.dev/docs/semgrep-assistant/overview</li>
+<li>Semgrep Docs, Triage and remediation: https://semgrep.dev/docs/semgrep-code/triage-remediation</li>
+<li>Semgrep Blog, Announcing an AI AppSec engineer that users agree with 95% of the time: https://semgrep.dev/blog/2025/announcing-ai-noise-filtering-and-triage-memories/</li>
+<li>Semgrep Blog, Our AI Assistant is handling 60% of incoming triage work for customers: https://semgrep.dev/blog/2025/semgrep-is-confidently-handling-60-of-all-triage-for-users-without-reducing-coverage/</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-21 — failure-stats.json 資料一致性修復與系統健康分析">
+  <title>專案RAG優化日報 2026-03-21 — failure-stats.json 資料一致性修復與系統健康分析 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-21 — failure-stats.json 資料一致性修復與系統健康分析</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">failure-stats</span><span class="tag">資料一致性</span><span class="tag">系統健康</span><span class="tag">daily-digest-prompt</span><span class="tag">Phase失敗</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案優化日報 2026-03-21</h1>
+<h2>問題診斷</h2>
+<h3>P0：failure-stats.json 資料不一致</h3>
+<p><strong>症狀</strong>：<code>total.phase_failure=52</code> 但 <code>failure_taxonomy.phase_failure.count=31</code>，差異 21 筆；<code>last_occurrence</code> 停在 2026-03-19 但 03-20 有 21 次失敗。</p>
+<p><strong>根因分析</strong>：</p>
+<ul>
+<li><code>Update-FailureStats</code>（PowerShell）即時遞增 <code>daily</code> 和 <code>total</code> 計數器</li>
+<li><code>failure_taxonomy</code> 由 <code>slo_budget_manager.py</code> 獨立重算，基於 <code>scheduler-state.json</code> 的模式匹配</li>
+<li>兩個更新機制從不同資料來源計算，導致數值漂移</li>
+</ul>
+<p><strong>修復方案</strong>：在 <code>Update-FailureStats</code> 函式末尾新增 <code>failure_taxonomy</code> 同步邏輯：</p>
+<ul>
+<li>每次更新時，從 <code>total</code> 重算各類型的 <code>count</code></li>
+<li>從 <code>daily</code> 遍歷找出各類型的 <code>last_occurrence</code></li>
+<li>維護 7 種失敗類型的 <code>blast_radius</code> 和 <code>description</code> 定義</li>
+<li>修改範圍：<code>run-todoist-agent-team.ps1</code> 和 <code>run-agent-team.ps1</code> 兩個檔案</li>
+</ul>
+<p><strong>驗證</strong>：1160 個測試全部通過，PowerShell 語法驗證通過。</p>
+<h2>系統健康指標（2026-03-21 快照）</h2>
+<p>| 指標 | 當前值 | 目標 | 狀態 |</p>
+<p>|------|--------|------|------|</p>
+<p>| Phase 失敗率 | 52 次/43 天 | 降低 | P0 已修復監控 |</p>
+<p>| 快取命中率 | 20.7% | 40% | P1 待優化 |</p>
+<p>| 日成功率 | 84.6% | 90% | P1 需改善 |</p>
+<p>| I/O 負載 | 24.3KB | 5KB | P1 超標 4.9 倍 |</p>
+<p>| Token 使用 | 6.8-15.3M/日 | <10M | 波動大 |</p>
+<p>| 自動任務公平性 | 0.512 | <0.5 | 已大幅改善 |</p>
+<h2>失敗趨勢（近 7 天）</h2>
+<ul>
+<li>2026-03-20：21 次 phase_failure（單日最高，需追蹤根因）</li>
+<li>2026-03-18：6 次</li>
+<li>2026-03-19：2 次</li>
+<li>主要失敗類型：Phase Failure（59.6%）> Timeout（21.2%）</li>
+</ul>
+<h2>配置膨脹趨勢</h2>
+<ul>
+<li>YAML 配置：3058→4072 行（+33.1%）</li>
+<li>SKILL_INDEX：54→76 行（+40.7%）</li>
+<li>4 個停用任務（daily_limit=0）仍佔配置空間</li>
+</ul>
+<h2>後續優化建議</h2>
+<ol>
+<li><strong>快取效率</strong>：TTL 已由 ADR-023 調整，需持續監控命中率變化</li>
+<li><strong>I/O 降載</strong>：強制大檔案讀取委派子 Agent</li>
+<li><strong>03-20 爆發根因</strong>：檢查當日 Codex/cursor_cli 後端穩定性</li>
+<li><strong>停用任務清理</strong>：考慮從 initial_schema 移除停用任務的計數欄位</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

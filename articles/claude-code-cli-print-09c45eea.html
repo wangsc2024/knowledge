@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Claude Code CLI 進階使用與自動化最佳實踐 — Print Mode、Background Tasks 與 CI/CD 整合指南（2026）">
+  <title>Claude Code CLI 進階使用與自動化最佳實踐 — Print Mode、Background Tasks 與 CI/CD 整合指南（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>Claude Code CLI 進階使用與自動化最佳實踐 — Print Mode、Background Tasks 與 CI/CD 整合指南（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Claude Code</span><span class="tag">CLI</span><span class="tag">命令列</span><span class="tag">自動化</span><span class="tag">CI/CD</span><span class="tag">print mode</span><span class="tag">background tasks</span><span class="tag">技術研究</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Claude Code CLI 進階使用與自動化最佳實踐 — Print Mode、Background Tasks 與 CI/CD 整合指南（2026）</h1>
+<blockquote><strong>研究日期</strong>：2026-03-16</blockquote>
+<blockquote><strong>研究類型</strong>：tech_research（每日任務技術研究）</blockquote>
+<blockquote><strong>系列</strong>：claude-code-cli-automation（foundation 階段）</blockquote>
+<blockquote><strong>研究動機</strong>：Daily-Digest-Prompt 專案大量使用 <code>claude -p</code> 模式運行自動化任務，但缺乏系統性的 CLI 知識基礎。本文建立 Claude Code CLI 的完整基礎知識框架。</blockquote>
+<p>---</p>
+<h2>一、技術概述</h2>
+<p>Claude Code CLI 是 Anthropic 提供的命令列介面工具，讓開發者能在終端機環境中與 Claude AI 互動。核心特性包括：</p>
+<ul>
+<li><strong>Print Mode (<code>-p</code>)</strong>：非互動式執行模式，執行單一指令後自動退出</li>
+<li><strong>Agent SDK</strong>：提供 CLI、Python、TypeScript 三種介面的程式化控制</li>
+<li><strong>工具自動批准</strong>：透過 <code>--allowedTools</code> 參數實現無人值守自動化</li>
+<li><strong>結構化輸出</strong>：支援 JSON、Stream-JSON 等機器可讀格式</li>
+<li><strong>Session 管理</strong>：跨次對話的狀態保持與 Context 延續</li>
+</ul>
+<p>Claude Code v2.1+ 已將原稱「headless mode」統一為「print mode」，所有 CLI 選項保持向後相容。</p>
+<p>---</p>
+<h2>二、核心概念與執行模式</h2>
+<h3>2.1 Print Mode 工作原理</h3>
+<p>Print mode 透過 <code>-p</code> 或 <code>--print</code> 旗標啟動，執行單一查詢並輸出結果後立即退出：</p>
+<pre><code>
+claude -p "Generate a Python quicksort function"
+</code></pre>
+<p><strong>關鍵特性</strong>：</p>
+<ul>
+<li><strong>退出碼</strong>：成功為 <code>0</code>，錯誤為 <code>1</code>（可用於 shell 腳本判斷）</li>
+<li><strong>標準輸出</strong>：預設輸出至 stdout，可重導向至檔案</li>
+<li><strong>非互動式</strong>：無需啟動 REPL session，適合腳本化</li>
+</ul>
+<h3>2.2 輸出格式控制</h3>
+<p>透過 <code>--output-format</code> 參數控制回應格式：</p>
+<p>| 格式 | 用途 | 範例 |</p>
+<p>|------|------|------|</p>
+<p>| <code>text</code> | 預設純文字輸出 | Shell 腳本直接讀取 |</p>
+<p>| <code>json</code> | 結構化 JSON（含 metadata） | 機器可解析，包含 session ID、成本、用量 |</p>
+<p>| <code>stream-json</code> | 逐行 NDJSON | 即時串流監控，搭配 <code>jq</code> 過濾 |</p>
+<p><strong>JSON 輸出範例</strong>：</p>
+<pre><code>
+claude -p "Summarize this project" --output-format json
+</code></pre>
+<p>回應結構：</p>
+<pre><code>
+{
+  "result": "專案摘要內容...",
+  "session_id": "abc123...",
+  "cost_usd": 0.03,
+  "duration_ms": 2345,
+  "num_turns": 1
+}
+</code></pre>
+<p><strong>Structured Output（JSON Schema 驗證）</strong>：</p>
+<pre><code>
+claude -p "Extract function names from auth.py" \
+  --output-format json \
+  --json-schema '{"type":"object","properties":{"functions":{"type":"array","items":{"type":"string"}}},"required":["functions"]}'
+</code></pre>
+<p>回應包含 <code>structured_output</code> 欄位（而非 <code>result</code>），內容符合指定 schema。</p>
+<h3>2.3 串流輸出（Real-Time Streaming）</h3>
+<p>結合 <code>--output-format stream-json</code>、<code>--verbose</code>、<code>--include-partial-messages</code> 實現 token 級串流：</p>
+<pre><code>
+claude -p "Write a poem" --output-format stream-json --verbose --include-partial-messages | \
+  jq -rj 'select(.type == "stream_event" and .event.delta.type? == "text_delta") | .event.delta.text'
+</code></pre>
+<p><strong>應用場景</strong>：</p>
+<ul>
+<li>CI/CD 管線的即時進度顯示</li>
+<li>長時間運算的中間結果監控</li>
+<li>WebSocket 推送的後端整合</li>
+</ul>
+<p>---</p>
+<h2>三、常見使用模式與範例</h2>
+<h3>3.1 Pipe 管線整合</h3>
+<p>Claude CLI 支援標準輸入，可與 Unix 工具鏈無縫整合：</p>
+<pre><code>
+# Pipe file content
+cat src/utils.ts | claude -p "Add missing TypeScript types"
+
+# Pipe git diff for code review
+git diff HEAD~1 | claude -p "Review this diff, list potential issues"
+
+# Pipe logs for analysis
+tail -n 100 /var/log/app.log | claude -p "Identify error patterns"
+</code></pre>
+<h3>3.2 工具自動批准（Auto-Approve Tools）</h3>
+<p>透過 <code>--allowedTools</code> 參數實現無人值守執行：</p>
+<pre><code>
+# 允許 Bash、Read、Edit 工具
+claude -p "Run the test suite and fix any failures" \
+  --allowedTools "Bash,Read,Edit"
+
+# 使用權限規則語法（Permission Rule Syntax）
+claude -p "Create a commit for staged changes" \
+  --allowedTools "Bash(git diff *),Bash(git log *),Bash(git commit *)"
+</code></pre>
+<p><strong>權限規則語法</strong>：</p>
+<ul>
+<li><code>Bash(git diff <em>)</code> — 允許所有以 <code>git diff</code> 開頭的命令（注意空格 + <code></em></code>）</li>
+<li><code>Read(.env)</code> — 允許讀取特定檔案</li>
+<li><code>Write(src/**)</code> — 允許寫入 src 目錄下所有檔案</li>
+</ul>
+<p><strong>安全注意事項</strong>：</p>
+<ul>
+<li>避免 <code>Bash(rm *)</code> 等危險操作</li>
+<li>生產環境建議使用白名單（僅允許必要工具）</li>
+<li>定期審查 allowed tools 設定</li>
+</ul>
+<h3>3.3 System Prompt 客製化</h3>
+<p><strong>追加 System Prompt</strong>（保留預設行為）：</p>
+<pre><code>
+gh pr diff "$1" | claude -p \
+  --append-system-prompt "You are a security engineer. Review for vulnerabilities." \
+  --output-format json
+</code></pre>
+<p><strong>完全替換 System Prompt</strong>：</p>
+<pre><code>
+claude -p "Analyze code" \
+  --system-prompt "You are a code quality expert. Focus on maintainability." \
+  --output-format json
+</code></pre>
+<p><strong>System Prompt 檔案</strong>（僅 <code>-p</code> 模式支援）：</p>
+<pre><code>
+claude -p "Review this PR" \
+  --system-prompt-file .claude/security-review.md \
+  --output-format json
+</code></pre>
+<h3>3.4 Session 延續（Multi-Turn Conversations）</h3>
+<p><strong>繼續最近對話</strong>：</p>
+<pre><code>
+claude -p "Review this codebase for performance issues"
+claude -p "Now focus on the database queries" --continue
+claude -p "Generate a summary of all issues found" --continue
+</code></pre>
+<p><strong>Resume 特定 Session</strong>：</p>
+<pre><code>
+session_id=$(claude -p "Start a review" --output-format json | jq -r '.session_id')
+claude -p "Continue that review" --resume "$session_id"
+</code></pre>
+<p><strong>Session 管理優勢</strong>：</p>
+<ul>
+<li><strong>Token 節省</strong>：相較於獨立請求，可減少約 40% token 消耗（無需重複傳遞 context）</li>
+<li><strong>Context 保留</strong>：跨次呼叫時保持專案理解、變數狀態</li>
+<li><strong>Cost 優化</strong>：減少重複的 context window 佔用</li>
+</ul>
+<p>---</p>
+<h2>四、CI/CD 整合策略</h2>
+<h3>4.1 GitHub Actions 整合</h3>
+<p>#### 快速設定（官方 GitHub App）</p>
+<p>最快方式是透過 Claude Code 終端執行：</p>
+<pre><code>
+claude
+/install-github-app
+</code></pre>
+<p>此指令會引導完成：</p>
+<ol>
+<li>GitHub App 安裝（需 repo admin 權限）</li>
+<li>設定 <code>ANTHROPIC_API_KEY</code> secret</li>
+<li>自動產生 <code>.github/workflows/claude.yml</code></li>
+</ol>
+<p>#### 手動設定</p>
+<p><strong>步驟 1：安裝 Claude GitHub App</strong></p>
+<ul>
+<li>訪問：https://github.com/apps/claude</li>
+<li>授予權限：Contents、Issues、Pull requests（Read & Write）</li>
+</ul>
+<p><strong>步驟 2：設定 Repository Secrets</strong></p>
+<ul>
+<li><code>ANTHROPIC_API_KEY</code> — Claude API 金鑰（從 console.anthropic.com 取得）</li>
+</ul>
+<p><strong>步驟 3：建立 Workflow 檔案</strong></p>
+<p>基礎 Workflow（<code>.github/workflows/claude.yml</code>）：</p>
+<pre><code>
+name: Claude Code
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # 自動回應 @claude 提及
+</code></pre>
+<p><strong>Code Review Workflow（自動觸發）</strong>：</p>
+<pre><code>
+name: Code Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "Review this pull request for code quality, correctness, and security."
+          claude_args: "--max-turns 5"
+</code></pre>
+<p><strong>排程任務（Daily Report）</strong>：</p>
+<pre><code>
+name: Daily Report
+on:
+  schedule:
+    - cron: "0 9 * * *"
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "Generate a summary of yesterday's commits and open issues"
+          claude_args: "--model claude-opus-4-6"
+</code></pre>
+<h3>4.2 安全最佳實踐</h3>
+<p><strong>API Key 管理</strong>：</p>
+<ul>
+<li>✅ 使用 GitHub Secrets：<code>${{ secrets.ANTHROPIC_API_KEY }}</code></li>
+<li>❌ 禁止硬編碼 API Key 至 workflow 檔案</li>
+<li>✅ Organization-level secrets 優於 repository-level（集中管理）</li>
+<li>❌ 禁止將 API Key 寫入日誌或作為 workflow input</li>
+</ul>
+<p><strong>權限最小化</strong>：</p>
+<pre><code>
+permissions:
+  contents: write    # 僅在需要修改程式碼時啟用
+  issues: write      # 僅在需要回應 issue 時啟用
+  pull-requests: write
+  id-token: write    # 僅 OIDC 驗證時需要
+</code></pre>
+<p><strong>Fork PR 安全</strong>：</p>
+<ul>
+<li>GitHub 預設不將 secrets 傳遞給 fork PR</li>
+<li>防止未經授權的貢獻者消耗 API credits</li>
+<li>若需支援 fork PR，使用 <code>pull_request_target</code> + 手動審查機制</li>
+</ul>
+<h3>4.3 CLAUDE.md 專案配置</h3>
+<p>在專案根目錄建立 <code>CLAUDE.md</code>，Claude 會自動載入此檔案至 context：</p>
+<pre><code>
+# Claude 配置指引
+
+## 程式碼風格
+- 使用 TypeScript strict mode
+- 函式命名採用 camelCase
+- 檔案命名採用 kebab-case
+
+## 測試要求
+- 所有新功能必須包含單元測試
+- 測試覆蓋率需達 80% 以上
+
+## Code Review 重點
+1. 安全性：檢查 SQL injection、XSS 漏洞
+2. 效能：避免 N+1 查詢
+3. 可讀性：複雜邏輯需加註解
+</code></pre>
+<p><strong>CLAUDE.md 優勢</strong>：</p>
+<ul>
+<li>無需在每次 prompt 重複說明規則</li>
+<li>節省 token 成本（context 自動載入）</li>
+<li>整個團隊共用一致的 AI 互動標準</li>
+</ul>
+<h3>4.4 Cost 與效能監控</h3>
+<p><strong>成本指標收集</strong>：</p>
+<pre><code>
+claude -p "Review PR" --output-format json | jq '{
+  cost: .cost_usd,
+  duration: .duration_ms,
+  turns: .num_turns
+}' &gt;&gt; metrics.jsonl
+</code></pre>
+<p><strong>典型成本範圍</strong>（2026 年數據）：</p>
+<ul>
+<li>一般 Code Review：$0.02-0.05</li>
+<li>複雜重構建議：$0.10-0.15</li>
+<li>完整 codebase 分析：$0.20-0.50</li>
+</ul>
+<p><strong>效能優化技巧</strong>：</p>
+<ul>
+<li>使用 <code>--max-turns</code> 限制迭代次數（推薦 10 次以內）</li>
+<li>啟用 Session 延續減少 context 重複傳遞</li>
+<li>針對簡單任務使用 Haiku 模型（成本降低 70%）</li>
+<li>設定 workflow timeout（避免 runaway jobs）</li>
+</ul>
+<p><strong>告警閾值建議</strong>：</p>
+<ul>
+<li>單次執行 >120 秒 → 觸發告警</li>
+<li>單次成本 >$0.20 → 觸發告警</li>
+<li>每日總成本 >$5 → 觸發告警</li>
+</ul>
+<p>---</p>
+<h2>五、進階功能與配置</h2>
+<h3>5.1 CLI 參數完整參考</h3>
+<p>| 參數 | 用途 | 範例 |</p>
+<p>|------|------|------|</p>
+<p>| <code>--model</code> | 指定模型 | <code>--model claude-opus-4-6</code> |</p>
+<p>| <code>--max-turns</code> | 限制對話輪數 | <code>--max-turns 5</code> |</p>
+<p>| <code>--allowedTools</code> | 批准工具清單 | <code>--allowedTools "Read,Write"</code> |</p>
+<p>| <code>--disallowedTools</code> | 禁用工具清單 | <code>--disallowedTools "Bash(rm *)"</code> |</p>
+<p>| <code>--add-dir</code> | 新增工作目錄 | <code>--add-dir ../apps ../lib</code> |</p>
+<p>| <code>--verbose</code> | 啟用詳細日誌 | <code>--verbose</code> |</p>
+<p>| <code>--output-format</code> | 輸出格式 | <code>--output-format json</code> |</p>
+<p>| <code>--json-schema</code> | 結構化輸出 schema | <code>--json-schema '{...}'</code> |</p>
+<p>| <code>--continue</code> | 繼續最近對話 | <code>--continue</code> |</p>
+<p>| <code>--resume</code> | Resume 特定 session | <code>--resume "session_id"</code> |</p>
+<h3>5.2 設定檔階層</h3>
+<p>Claude Code 支援多層級設定檔，優先順序如下（高 → 低）：</p>
+<ol>
+<li><strong>CLI 參數</strong> — 直接傳入的 <code>--model</code>、<code>--max-turns</code> 等</li>
+<li><strong><code>.claude/settings.local.json</code></strong> — 個人覆寫（不納入 git）</li>
+<li><strong><code>.claude/settings.json</code></strong> — 專案共用（版本控制）</li>
+<li><strong><code>~/.claude/settings.json</code></strong> — 全域預設</li>
+</ol>
+<p><strong>專案設定範例</strong>（<code>.claude/settings.json</code>）：</p>
+<pre><code>
+{
+  "model": "claude-sonnet-4-6",
+  "maxTokens": 4096,
+  "permissions": {
+    "allowedTools": ["Read", "Write", "Bash(git *)"],
+    "deny": ["Read(./.env)", "Bash(rm *)"]
+  }
+}
+</code></pre>
+<h3>5.3 Hooks 自動化</h3>
+<p>透過 hooks 實現工具執行後的自動化流程：</p>
+<pre><code>
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Write(*.py)",
+      "hooks": [{
+        "type": "command",
+        "command": "python -m black \"$file\""
+      }]
+    }]
+  }
+}
+</code></pre>
+<p><strong>常見 Hook 應用場景</strong>：</p>
+<ul>
+<li>Python 檔案寫入後自動執行 black 格式化</li>
+<li>Markdown 檔案變更後自動執行 markdownlint</li>
+<li>敏感檔案寫入前觸發告警</li>
+</ul>
+<h3>5.4 子 Agent（Subagents）</h3>
+<p>透過 <code>/agents</code> 指令建立專責 sub-agent：</p>
+<pre><code>
+# Interactive mode 範例
+claude
+/agents create security-reviewer
+/agents assign security-reviewer "Review auth.py for vulnerabilities"
+</code></pre>
+<p><strong>子 Agent 應用場景</strong>：</p>
+<ul>
+<li><strong>Code Review Agent</strong>：專注於程式碼品質檢查</li>
+<li><strong>Debugging Agent</strong>：專注於錯誤排查</li>
+<li><strong>Architecture Agent</strong>：專注於系統設計建議</li>
+</ul>
+<p>---</p>
+<h2>六、與本專案（Daily-Digest-Prompt）的關聯</h2>
+<h3>6.1 本專案當前使用模式</h3>
+<p>Daily-Digest-Prompt 專案大量使用 <code>claude -p</code> 模式：</p>
+<pre><code>
+# run-agent-team.ps1 中的典型呼叫
+cat task_prompt.md | claude -p
+</code></pre>
+<p><strong>當前實踐</strong>：</p>
+<ul>
+<li>透過 <code>cat prompt.md | claude -p</code> 傳遞多行指令</li>
+<li>使用 PowerShell <code>Start-Job</code> 並行執行多個 Claude CLI 任務</li>
+<li>透過 stdout 擷取結果並寫入 JSON 檔案</li>
+<li>設定 timeout 機制防止任務 hang</li>
+</ul>
+<h3>6.2 可優化方向</h3>
+<p>#### 優化 1：使用 <code>--output-format json</code> 標準化輸出</p>
+<p><strong>現況問題</strong>：</p>
+<ul>
+<li>目前直接擷取 stdout，未使用結構化格式</li>
+<li>無法取得 session ID、成本、執行時間等 metadata</li>
+</ul>
+<p><strong>建議改進</strong>：</p>
+<pre><code>
+$result = cat task_prompt.md | claude -p --output-format json | ConvertFrom-Json
+$resultText = $result.result
+$sessionId = $result.session_id
+$cost = $result.cost_usd
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>精確的成本追蹤（寫入 <code>state/token-usage.json</code>）</li>
+<li>Session ID 記錄（可用於多輪對話）</li>
+<li>執行時間監控（用於效能優化）</li>
+</ul>
+<p>#### 優化 2：啟用 Session 延續減少 token 消耗</p>
+<p><strong>應用場景</strong>：</p>
+<ul>
+<li>Phase 1 查詢 Todoist → Phase 2 執行任務 → Phase 3 組裝結果</li>
+<li>三個 Phase 可共用同一 session，避免重複傳遞 context</li>
+</ul>
+<p><strong>實作範例</strong>：</p>
+<pre><code>
+# Phase 1: 查詢
+$p1Result = cat todoist-query.md | claude -p --output-format json | ConvertFrom-Json
+$sessionId = $p1Result.session_id
+
+# Phase 2: 執行（繼續 Phase 1 的 session）
+$p2Result = cat todoist-execute.md | claude -p --resume $sessionId --output-format json | ConvertFrom-Json
+
+# Phase 3: 組裝（繼續同一 session）
+$p3Result = cat todoist-assemble.md | claude -p --resume $sessionId --output-format json | ConvertFrom-Json
+</code></pre>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>Token 消耗減少約 30-40%</li>
+<li>成本降低相應比例</li>
+<li>執行速度提升（減少 context 傳遞時間）</li>
+</ul>
+<p>#### 優化 3：設定檔取代 Prompt 內重複規則</p>
+<p><strong>現況問題</strong>：</p>
+<ul>
+<li>所有 prompt 都需引用 <code>templates/shared/preamble.md</code></li>
+<li>Skill-First 規則、nul 禁令等內容重複出現</li>
+</ul>
+<p><strong>建議改進</strong>：</p>
+<p>在專案根目錄建立 <code>CLAUDE.md</code>：</p>
+<pre><code>
+# Daily-Digest-Prompt 專案指引
+
+## Skill-First 規則
+1. 執行前必須先讀取 skills/SKILL_INDEX.md
+2. 先讀 SKILL.md 再動手
+3. 能用 Skill 就用 Skill
+4. Skill 鏈式組合
+5. 所有外部 API 必經 api-cache
+
+## 禁止行為
+- 禁止產生 nul 檔案（Windows 環境）
+- 禁止使用 &gt; nul 重導向
+- 使用 &gt; /dev/null 2&gt;&amp;1 替代
+
+## Shell 執行規則
+- 任何 Shell 命令都必須用 Bash tool 實際執行
+- 不得只輸出命令文字
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>所有 prompt 無需重複引用 preamble.md</li>
+<li>節省 token（CLAUDE.md 自動載入，不佔用 prompt token）</li>
+<li>更易維護（集中管理專案規則）</li>
+</ul>
+<p>#### 優化 4：使用 <code>--allowedTools</code> 自動批准工具</p>
+<p><strong>現況問題</strong>：</p>
+<ul>
+<li>目前每次 Bash、Write 工具執行都需要人工批准</li>
+<li>自動化任務需要無人值守執行</li>
+</ul>
+<p><strong>建議改進</strong>：</p>
+<pre><code>
+cat task_prompt.md | claude -p \
+  --allowedTools "Read,Write,Bash(git *),Bash(curl *),Bash(python *)" \
+  --disallowedTools "Bash(rm *),Write(.env)" \
+  --output-format json
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>完全無人值守自動化</li>
+<li>安全性不降低（精確控制允許的工具與命令）</li>
+<li>執行速度提升（無需等待人工批准）</li>
+</ul>
+<p>---</p>
+<h2>七、實戰最佳實踐總結</h2>
+<h3>7.1 開發階段最佳實踐</h3>
+<ol>
+<li><strong>本地測試先用 interactive mode</strong></li>
+</ol>
+<p>   - 快速迭代、即時反饋</p>
+<p>   - 理解 Claude 的推理過程</p>
+<p>   - 確認 prompt 有效性</p>
+<ol>
+<li><strong>確認可行後轉為 print mode</strong></li>
+</ol>
+<p>   - 加上 <code>--output-format json</code> 取得 metadata</p>
+<p>   - 使用 <code>--max-turns</code> 限制迭代</p>
+<p>   - 設定 <code>--allowedTools</code> 白名單</p>
+<ol>
+<li><strong>整合至自動化腳本</strong></li>
+</ol>
+<p>   - 使用 session 延續減少成本</p>
+<p>   - 錯誤處理（檢查 exit code）</p>
+<p>   - 日誌記錄（成本、時間、turns）</p>
+<h3>7.2 生產環境最佳實踐</h3>
+<ol>
+<li><strong>安全性優先</strong></li>
+</ol>
+<p>   - API Key 使用環境變數或 secrets</p>
+<p>   - 限制工具權限（Read-only for review）</p>
+<p>   - 定期審查 allowed tools 清單</p>
+<ol>
+<li><strong>成本控制</strong></li>
+</ol>
+<p>   - 設定 <code>--max-turns</code> 上限</p>
+<p>   - 使用適當模型（Haiku for simple tasks）</p>
+<p>   - 監控每日總成本</p>
+<ol>
+<li><strong>可靠性保證</strong></li>
+</ol>
+<p>   - 設定 timeout 機制</p>
+<p>   - 重試邏輯（exponential backoff）</p>
+<p>   - 降級策略（API 失敗時的 fallback）</p>
+<ol>
+<li><strong>可觀測性</strong></li>
+</ol>
+<p>   - 收集 JSON 輸出至 metrics.jsonl</p>
+<p>   - 定期分析成本趨勢</p>
+<p>   - 告警閾值設定</p>
+<p>---</p>
+<h2>八、參考來源</h2>
+<ol>
+<li><a href="https://code.claude.com/docs/en/headless">Claude Code Headless Mode Documentation</a> — 官方 headless mode 文件（2026）</li>
+<li><a href="https://shipyard.build/blog/claude-code-cheat-sheet/">Claude Code CLI Cheatsheet | Shipyard</a> — 完整 CLI 參數與配置指南</li>
+<li><a href="https://code.claude.com/docs/en/github-actions">Claude Code GitHub Actions Documentation</a> — 官方 GitHub Actions 整合文件</li>
+<li><a href="https://institute.sfeir.com/en/claude-code/claude-code-headless-mode-and-ci-cd/">SFEIR Institute: Claude Code Headless Mode and CI/CD</a> — 完整 CI/CD 整合指南</li>
+<li><a href="https://32blog.com/en/claude-code/claude-code-commands-cheatsheet">Claude Code Commands Cheat Sheet | 32blog</a></li>
+<li><a href="https://stevekinney.com/courses/ai-development/integrating-with-github-actions">Integrating Claude Code with GitHub Actions | Steve Kinney</a></li>
+<li><a href="https://github.com/anthropics/claude-code-action">GitHub - anthropics/claude-code-action</a> — 官方 GitHub Action 儲存庫</li>
+</ol>
+<p>---</p>
+<p><strong>研究者</strong>：Claude Code Agent</p>
+<p><strong>系列進度</strong>：claude-code-cli-automation / foundation 階段（0% → 20%）</p>
+<p><strong>下一階段提示</strong>：完成 foundation 後進入 mechanism：深入探討 CLI 的內部機制、Agent SDK 架構、Session 管理的實作細節</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

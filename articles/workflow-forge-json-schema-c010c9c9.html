@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge：自動任務結果 JSON Schema 統一化">
+  <title>workflow-forge：自動任務結果 JSON Schema 統一化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge：自動任務結果 JSON Schema 統一化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">JSON Schema</span><span class="tag">系統設計</span><span class="tag">架構決策</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge：自動任務結果 JSON Schema 統一化</h1>
+<h2>執行日期</h2>
+<p>2026-03-17</p>
+<h2>背景問題</h2>
+<p>28 個自動任務（todoist-auto-*.md）各自定義結果 JSON 格式，缺少統一 Schema，易產生格式漂移與不一致。</p>
+<p><strong>缺口分析</strong>：</p>
+<ul>
+<li><strong>影響範圍</strong>：所有 prompts/team/todoist-auto-*.md（28 個）</li>
+<li><strong>優先級</strong>：P0（影響範圍 40 分 + 可執行性 35 分 + 信號強度 20 分 = <strong>95 分</strong>）</li>
+<li><strong>缺口類型</strong>：output_schema（輸出格式規範）</li>
+</ul>
+<h2>產出物</h2>
+<p><strong>檔案路徑</strong>：<code>config/schemas/results-auto-task-schema.json</code></p>
+<p><strong>Schema 特性</strong>：</p>
+<ul>
+<li>基於 JSON Schema Draft 7</li>
+<li>必填欄位：<code>task_key</code>、<code>status</code></li>
+<li>二選一規則：<code>agent</code>（推薦）或 <code>task_type</code>（舊格式相容）</li>
+<li>支援多種選填欄位：<code>artifact</code>、<code>artifacts</code>、<code>summary</code>、<code>kb_imported</code> 等</li>
+<li>包容現有 prompt 格式變化（agent vs task_type、artifact vs artifacts）</li>
+</ul>
+<p><strong>主要欄位</strong>：</p>
+<ul>
+<li><code>agent</code>：格式 <code>todoist-auto-{task_key}</code>（推薦）</li>
+<li><code>task_type</code>：固定 <code>"auto"</code>（舊格式相容）</li>
+<li><code>task_key</code>：對應 frequency-limits.yaml 鍵名（必須底線，禁連字號）</li>
+<li><code>status</code>：<code>success</code> | <code>partial</code> | <code>failed</code> | <code>format_failed</code></li>
+<li><code>artifact</code>：單一產出物（物件）</li>
+<li><code>artifacts</code>：多個產出物（陣列）</li>
+<li><code>summary</code>：一句話摘要</li>
+<li>任務專用欄位：<code>repairs_attempted</code>（self-heal）、<code>alerts_count</code>（system-insight）</li>
+</ul>
+<h2>整合狀態</h2>
+<p>✅ <strong>已整合</strong>：</p>
+<ul>
+<li>寫入 <code>config/schemas/results-auto-task-schema.json</code></li>
+<li>更新 <code>config/README.md</code>（配置文件速查 + 配置階層）</li>
+<li>登記至 <code>context/workflow-forge-registry.json</code></li>
+</ul>
+<h2>驗證結果</h2>
+<p>✅ JSON Schema 格式合法（Draft 7）</p>
+<p>✅ 與現有 3 個 prompt 欄位對齊（workflow_forge、self_heal、system_insight）</p>
+<p>✅ 包容 <code>agent</code> / <code>task_type</code> 雙格式</p>
+<p>✅ 包容 <code>artifact</code> / <code>artifacts</code> 雙格式</p>
+<h2>價值與影響</h2>
+<ol>
+<li><strong>格式一致性</strong>：28 個自動任務結果 JSON 有統一規範可遵循</li>
+<li><strong>格式漂移偵測</strong>：可用此 Schema 驗證 results/*.json 是否符合規範</li>
+<li><strong>文件化</strong>：新增 prompt 時可參考此 Schema 定義必填欄位</li>
+<li><strong>向下相容</strong>：保留 <code>task_type</code> 欄位，既有 prompt 無需立即修改</li>
+</ol>
+<h2>後續建議</h2>
+<ol>
+<li><strong>P1</strong>：在 run-todoist-agent-team.ps1 Phase 3 加入 Schema 驗證（用 jsonschema 驗證 results/*.json）</li>
+<li><strong>P2</strong>：逐步統一所有 prompt 改用 <code>agent</code> 欄位（淘汰 <code>task_type</code>）</li>
+<li><strong>P2</strong>：擴充 Schema 支援其他 Agent 類型（如 daily-digest、system-audit）</li>
+</ol>
+<h2>參考資料</h2>
+<ul>
+<li>Schema 檔案：<code>config/schemas/results-auto-task-schema.json</code></li>
+<li>文件說明：<code>config/README.md</code></li>
+<li>註冊表：<code>context/workflow-forge-registry.json</code></li>
+<li>規格檔：<code>context/workflow_forge_spec.json</code></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

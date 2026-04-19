@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pac-Man v1.1 優化心得：水果獎勵道具系統與螢幕震動視覺回饋實作">
+  <title>Pac-Man v1.1 優化心得：水果獎勵道具系統與螢幕震動視覺回饋實作 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Pac-Man v1.1 優化心得：水果獎勵道具系統與螢幕震動視覺回饋實作</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">遊戲開發</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">Pac-Man</span><span class="tag">吃豆人</span><span class="tag">水果道具</span><span class="tag">螢幕震動</span><span class="tag">遊戲設計</span><span class="tag">復古遊戲</span><span class="tag">v1.1</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Pac-Man v1.1 優化心得：水果獎勵道具系統與螢幕震動視覺回饋</h1>
+<h2>優化概述</h2>
+<p>本次為 HTML5 Canvas Pac-Man 遊戲新增兩大創意改良：</p>
+<ol>
+<li><strong>水果獎勵道具系統</strong> — 忠於原作的 Bonus Item 機制</li>
+<li><strong>螢幕震動效果</strong> — 碰撞視覺回饋增強打擊感</li>
+</ol>
+<h2>水果獎勵道具系統</h2>
+<h3>設計要點</h3>
+<ul>
+<li>每關吃 70 顆和 170 顆豆子時各觸發一次水果出現</li>
+<li>水果類型隨關卡遞增：Cherry(100) → Strawberry(300) → Orange(500) → Apple(700) → Grape(1000) → Key(2000) → Crown(5000)</li>
+<li>水果出現在迷宮中央（ghost house 下方 y=17），持續 10 秒後消失</li>
+<li>最後 3 秒有閃爍預警效果</li>
+</ul>
+<h3>技術實作</h3>
+<ul>
+<li>使用 Canvas <code>fillText</code> 繪製 emoji 水果（避免圖片資源依賴）</li>
+<li>分層圓形光暈效果（取代 shadowBlur 以維持效能）</li>
+<li>上下浮動動畫（<code>Math.sin</code> 驅動的 bob 效果）</li>
+<li>專屬音效：出現時用 sine 波上行 blip，吃到時用 triangle 波四音階慶祝</li>
+<li>HUD 顯示最近收集的 5 個水果 emoji，未收集時以半透明顯示當前關卡水果</li>
+</ul>
+<h3>狀態管理</h3>
+<ul>
+<li><code>fruitSpawned[0,1]</code> 追蹤每關兩次觸發是否已用</li>
+<li><code>fruitsCollected[]</code> 記錄整場遊戲收集的水果歷史</li>
+<li><code>restartGame()</code> 和 <code>nextLevel()</code> 正確重置狀態</li>
+</ul>
+<h2>螢幕震動效果</h2>
+<h3>設計要點</h3>
+<ul>
+<li>吃到幽靈：中等震動（intensity=4）</li>
+<li>吃到高分水果：中等震動（intensity=3，≥1000分則 5）</li>
+<li>Pac-Man 死亡：強烈震動（intensity=8）</li>
+</ul>
+<h3>技術實作</h3>
+<ul>
+<li>使用 <code>ctx.save()</code> → <code>ctx.translate(shakeX, shakeY)</code> → 繪製全場景 → <code>ctx.restore()</code></li>
+<li>震動衰減用指數衰減：<code>shakeIntensity *= Math.pow(0.01, dt)</code></li>
+<li>每幀隨機偏移量 = <code>(Math.random() - 0.5) <em> intensity </em> 2</code></li>
+<li>死亡狀態（STATE_DYING）也持續更新震動，確保動畫連貫</li>
+</ul>
+<h2>效能考量</h2>
+<ul>
+<li>水果光暈用分層圓形而非 shadowBlur（shadowBlur 在 Canvas 2D 極慢）</li>
+<li>震動用 translate 而非重新計算每個物件座標</li>
+<li>水果過期時發射少量粒子（8 個）避免過度特效</li>
+</ul>
+<h2>品質基線</h2>
+<ul>
+<li>原有功能全部保留：4 隻 Ghost AI、粒子系統、8-bit 音效、CRT 濾鏡、觸控支援</li>
+<li>Brace 平衡檢查通過，2030 行程式碼</li>
+<li>版本：v1.0 → v1.1（小改良，非核心機制變更）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

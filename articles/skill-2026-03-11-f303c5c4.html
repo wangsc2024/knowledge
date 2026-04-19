@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-11）：github-scout + markdown-editor 深度審查">
+  <title>Skill 品質審查報告（2026-03-11）：github-scout + markdown-editor 深度審查 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-11）：github-scout + markdown-editor 深度審查</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">github-scout</span><span class="tag">markdown-editor</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-11）</h1>
+<h2>審查範圍</h2>
+<p>本次深度審查 2 個從未被審查的 Skill：</p>
+<ul>
+<li><strong>github-scout</strong>（核心 Skill #17，GitHub 靈感蒐集）</li>
+<li><strong>markdown-editor</strong>（工具 Skill #30，Markdown 編輯與總結）</li>
+</ul>
+<h2>選擇理由</h2>
+<p>歷次審查覆蓋：</p>
+<ul>
+<li>2026-02-15：14 個全面體檢（13 核心 + 1 工具）</li>
+<li>2026-02-18：system-audit + kb-curator</li>
+<li>2026-02-25：arch-evolution + todoist-task-creator</li>
+<li>2026-03-01：git-smart-commit + chatroom-query</li>
+<li>2026-03-03：groq + kb-research-strategist</li>
+<li>2026-03-08：system-insight + web-research</li>
+<li>2026-03-10：writing-masters + writing-plans</li>
+</ul>
+<p>本次選擇 <strong>github-scout</strong>（核心 Skill，影響系統改進）和 <strong>markdown-editor</strong>（觸發關鍵字最多 19 個，複雜度高），為剩餘 4 個未審查 Skill 中優先級最高的 2 個。</p>
+<p>---</p>
+<h2>github-scout 審查結果</h2>
+<h3>Frontmatter 規範性（5/5）</h3>
+<ul>
+<li>✅ name 與目錄名一致（github-scout）</li>
+<li>✅ description 含明確 "Use when" 觸發條件</li>
+<li>✅ allowed-tools: Read, Write, Bash, WebSearch, WebFetch（5 個，合理）</li>
+<li>✅ cache-ttl: N/A（靈感蒐集不需快取）</li>
+<li>✅ triggers: 12 個（GitHub 趨勢、熱門專案、開源靈感等）</li>
+<li>✅ <strong>depends-on 明確宣告</strong>：web-research, knowledge-query, ntfy-notify</li>
+</ul>
+<h3>內容品質（4/5）</h3>
+<ul>
+<li>✅ 6 個步驟結構清晰（多維度搜尋 → 篩選 → 分析 → 產出 → 寫入 backlog → KB 匯入）</li>
+<li>✅ 包含完整 JSON Schema（proposals 格式，第 89-120 行）</li>
+<li>✅ 錯誤處理完整（6 種情境：WebSearch 無結果、WebFetch 超時、KB 服務未啟動等）</li>
+<li>✅ 具體 API 範例（步驟 6 KB 匯入 curl 指令）</li>
+<li>⚠️ <strong>缺陷 1</strong>：步驟 1 提到從 research-registry.json 選擇主題（LRU 去重），但缺少「執行後寫回 registry」邏輯，導致去重失效</li>
+<li>⚠️ <strong>缺陷 2</strong>：depends-on 宣告 web-research，但步驟中未說明如何調用（關係不明確）</li>
+</ul>
+<h3>修正內容</h3>
+<p><strong>修正 1</strong>：新增「步驟 5.5：更新 research-registry」</p>
+<pre><code>
+### 步驟 5.5：更新 research-registry
+
+讀取 `context/research-registry.json`，寫回本次搜尋記錄（確保去重機制生效）：
+
+</code></pre>
+<h1>步驟 1：讀取現有 registry（Read 工具）</h1>
+<h1>步驟 2：在 entries 陣列追加本次記錄</h1>
+<h1>{</h1>
+<h1>  "timestamp": "ISO timestamp",</h1>
+<h1>  "task_type": "github_scout",</h1>
+<h1>  "topic": "本次搜尋主題",</h1>
+<h1>  "result_count": 專案數量</h1>
+<h1>}</h1>
+<h1>步驟 3：用 Write 工具寫回</h1>
+<pre><code>
+
+**注意**：若 registry 不存在，建立空結構 `{"version": 1, "entries": []}`。
+</code></pre>
+<p><strong>修正 2</strong>：依賴關係表格新增「調用方式」欄位，澄清 web-research 為「概念依賴」而非直接調用</p>
+<p>| Skill | 關係 | 說明 | 調用方式 |</p>
+<p>|-------|------|------|----------|</p>
+<p>| web-research | 設計繼承 | 遵循研究標準化框架（來源分級、品質自評），步驟 4 的 quality 欄位符合此規範 | 概念依賴，非直接調用 |</p>
+<p>| knowledge-query | 下游調用 | 有價值的專案分析匯入知識庫 | 步驟 6 使用 KB 匯入 API |</p>
+<p>| ntfy-notify | 下游調用 | 完成通知 | 自動任務模板調用 |</p>
+<h3>路由一致性（5/5）</h3>
+<ul>
+<li>✅ routing.yaml 無映射（符合預期，SKILL.md 第 191 行明確說明「為自動任務專用，不被 Todoist 直接路由」）</li>
+<li>✅ 自動任務模板：<code>templates/auto-tasks/github-scout.md</code>（僅週三/週日執行）</li>
+<li>✅ SKILL_INDEX.md 觸發關鍵字覆蓋自動任務場景</li>
+</ul>
+<h3>覆蓋度分析</h3>
+<ul>
+<li>✅ 自動任務定位明確（系統改進靈感蒐集，非即時響應）</li>
+<li>✅ 與 arch-evolution Skill 形成閉環（scout 產出 → backlog → arch-evolution 轉化 ADR → 實施）</li>
+<li>✅ 檔案存在性確認：<code>context/improvement-backlog.json</code> 存在</li>
+</ul>
+<p>---</p>
+<h2>markdown-editor 審查結果</h2>
+<h3>Frontmatter 規範性（5/5）</h3>
+<ul>
+<li>✅ name 與目錄名一致（markdown-editor）</li>
+<li>✅ description 含明確 "Use when" 觸發條件</li>
+<li>✅ allowed-tools: Read, Write, Edit, Bash（4 個，合理）</li>
+<li>✅ cache-ttl: N/A（編輯操作不需快取）</li>
+<li>✅ triggers: <strong>19 個</strong>（Markdown、md、格式化、摘要、TOC、目錄生成、表格、程式碼區塊、連結替換、Markdown 編輯、內容總結、文件排版、GFM、CommonMark、大綱、錨點、腳註、Mermaid、告警區塊）</li>
+<li>✅ <strong>references 外部文件</strong>：<code>docs/research/Markdown_指令_編輯與總結_skill.md</code></li>
+</ul>
+<h3>內容品質（4/5）</h3>
+<ul>
+<li>✅ 7 步驟清晰（MD 格式編輯）+ 5 種摘要類型（內容總結）</li>
+<li>⚠️ <strong>缺陷 3</strong>：33 種指令速查表佔用大量篇幅（38 行），增加 token 消耗</li>
+<li>⚠️ <strong>缺陷 4</strong>：工具依賴描述矛盾（第 141-146 行提供具體指令，第 148 行說「若工具不存在可依指南實作」，降低可執行性）</li>
+<li>✅ 完整指南參考路徑明確</li>
+<li>✅ 批次操作範例（連結替換、標題編號）</li>
+</ul>
+<h3>修正內容</h3>
+<p><strong>修正 3</strong>：速查表從 33 項縮減為 Top 10 常用指令，其餘參考外部完整指南</p>
+<pre><code>
+## 常用 Markdown 指令速查（Top 10）
+
+| 指令 | 語法範例 | 注意事項 |
+|------|----------|----------|
+| 標題 | `# H1` ~ `###### H6` | `#` 後必須有空格 |
+| 粗體/斜體 | `**粗體**` `*斜體*` | 建議用 `**`/`*`，避免 `__`/`_` 詞中衝突 |
+| 清單 | `- item` `1. item` | 無序用 `-`，有序用 `1.` |
+| 任務清單 | `- [ ] 待辦` `- [x] 完成` | GFM 擴展，GitHub 支援 |
+| 程式碼 | `` `code` `` 或 ` ```lang ` | 區塊支援語法高亮 |
+| 表格 | `\| H1 \| H2 \|\n\|---|---\|` | 必須有表頭分隔行 |
+| 連結 | `[text](url)` | 重複 URL 用參考式 `[text][id]` |
+| 圖片 | `![alt](path)` | 相對路徑避免跨平台問題 |
+| 引用 | `&gt; text` | 可嵌套 `&gt; &gt;` |
+| 分隔線 | `---` 或 `***` | 前後需空行 |
+
+**完整 33 種指令**（含腳註、Mermaid、告警區塊、數學公式等）見 `docs/research/Markdown_指令_編輯與總結_skill.md`。
+</code></pre>
+<p><strong>效果</strong>：從 38 行縮減為 14 行，節省約 600 tokens，保留核心資訊，詳細內容引導至外部完整指南。</p>
+<p><strong>修正 4</strong>：專案內工具新增「降級方案」欄位，明確工具不存在時的處理流程</p>
+<pre><code>
+## 專案內工具
+
+**工具可用性檢查**：執行前先確認 `tools/markdown-tools.py` 存在。
+
+| 功能 | 指令 | 降級方案 |
+|------|------|----------|
+| 產生 TOC | `uv run python tools/markdown-tools.py toc &lt;file.md&gt;` | 手動萃取標題：`grep '^#' file.md` |
+| 替換連結 | `uv run python tools/markdown-tools.py replace-links &lt;file.md&gt; --old "..." --new "..."` | 使用 Edit 工具逐項替換 |
+| 摘要 | `uv run python tools/markdown-tools.py summarize &lt;file.md&gt; --max-sentences 5` | 讀取檔案後手動摘要（依第五章準則） |
+| Lint | `uv run python tools/markdown-tools.py lint &lt;file.md&gt;` | 依完整指南 4.3 手動檢查規則 |
+
+**降級流程**：
+</code></pre>
+<h1>1. 檢查工具</h1>
+<p>test -f tools/markdown-tools.py && echo "TOOL_AVAILABLE" || echo "USE_FALLBACK"</p>
+<h1>2. 若不存在，依上表「降級方案」欄執行等效操作</h1>
+<pre><code>
+</code></pre>
+<h3>路由一致性（5/5）</h3>
+<ul>
+<li>✅ routing.yaml 無映射（符合預期，為工具 Skill，按需手動調用）</li>
+<li>✅ 觸發關鍵字 19 個，覆蓋 Markdown 編輯相關場景</li>
+<li>✅ 無 Todoist 任務直接路由需求（編輯類操作為互動式觸發）</li>
+</ul>
+<h3>覆蓋度分析</h3>
+<ul>
+<li>✅ 檔案存在性確認：<code>docs/research/Markdown_指令_編輯與總結_skill.md</code> 存在</li>
+<li>✅ 工具存在性確認：<code>tools/markdown-tools.py</code> 存在</li>
+<li>✅ 觸發關鍵字數量最多（19 個），覆蓋各種 Markdown 操作場景</li>
+<li>✅ 無與其他 Skill 的觸發關鍵字衝突（工具類 Skill，手動調用）</li>
+</ul>
+<p>---</p>
+<h2>品質驗證</h2>
+<h3>YAML Frontmatter 驗證</h3>
+<pre><code>
+✅ github-scout frontmatter YAML valid
+   name: github-scout
+   version: 1.2.0
+   triggers: 12 items
+
+✅ markdown-editor frontmatter YAML valid
+   name: markdown-editor
+   version: 2.0.0
+   triggers: 19 items
+</code></pre>
+<h3>步驟完整性驗證</h3>
+<p><strong>github-scout</strong>：6 個步驟（含新增的步驟 5.5 registry 寫回）</p>
+<pre><code>
+步驟 1：多維度搜尋
+步驟 2：篩選條件
+步驟 3：模式分析
+步驟 4：產出改進建議
+步驟 5：寫入 backlog
+步驟 5.5：更新 research-registry ← 新增
+步驟 6：KB 匯入（可選）
+</code></pre>
+<p><strong>markdown-editor</strong>：4 個主要章節結構完整</p>
+<pre><code>
+何時使用本 Skill
+MD 格式編輯 — 執行步驟
+內容總結 — 類型與輸出
+專案內工具 ← 新增降級邏輯
+</code></pre>
+<p>---</p>
+<h2>審查覆蓋度追蹤</h2>
+<p>| 審查日期 | 審查 Skill | 累計覆蓋 |</p>
+<p>|---------|-----------|----------|</p>
+<p>| 2026-02-15 | 14 個全面體檢 | 14/20 |</p>
+<p>| 2026-02-18 | system-audit, kb-curator | 16/20 |</p>
+<p>| 2026-02-25 | arch-evolution, todoist-task-creator | 18/22 |</p>
+<p>| 2026-03-01 | git-smart-commit, chatroom-query | 20/24 |</p>
+<p>| 2026-03-03 | groq, kb-research-strategist | 22/26 |</p>
+<p>| 2026-03-08 | system-insight, web-research | 24/29 |</p>
+<p>| 2026-03-10 | writing-masters, writing-plans | 26/30 |</p>
+<p>| <strong>2026-03-11</strong> | <strong>github-scout, markdown-editor</strong> | <strong>28/30</strong> |</p>
+<h3>剩餘未審查（2 個）</h3>
+<ol>
+<li><strong>skill-scanner</strong>（工具 Skill #21，AI 技能安全掃描）</li>
+<li><strong>knowledge-domain-builder</strong>（工具 Skill #27，Obsidian 知識領域搭建）</li>
+</ol>
+<p>---</p>
+<h2>修正總結</h2>
+<h3>github-scout 修正（2 項）</h3>
+<ol>
+<li>✅ <strong>新增步驟 5.5</strong>：research-registry.json 寫回邏輯（修復去重失效）</li>
+<li>✅ <strong>依賴關係澄清</strong>：新增「調用方式」欄位，說明 web-research 為概念依賴而非直接調用</li>
+</ol>
+<h3>markdown-editor 修正（2 項）</h3>
+<ol>
+<li>✅ <strong>速查表縮減</strong>：從 33 項（38 行）縮減為 Top 10（14 行），節省約 600 tokens</li>
+<li>✅ <strong>降級邏輯明確化</strong>：新增「降級方案」欄位和檢查流程，消除工具依賴矛盾</li>
+</ol>
+<p>---</p>
+<h2>品質自評：4/5</h2>
+<ul>
+<li>✅ 具體修正動作：4 項修正全部實施</li>
+<li>✅ 修正後驗證通過：YAML 可解析，步驟完整</li>
+<li>✅ 審查報告超過 300 字：完整報告約 1200 字</li>
+<li>✅ 修正前後對比清晰：每項修正包含具體內容變更</li>
+<li>⚠️ 改進空間：未進行實際執行測試（僅靜態審查）</li>
+</ul>
+<p>---</p>
+<h2>後續建議</h2>
+<ol>
+<li><strong>執行驗證</strong>：實際運行 github-scout 自動任務，確認步驟 5.5 registry 寫回邏輯正確執行</li>
+<li><strong>工具測試</strong>：測試 markdown-editor 的降級流程（刪除 tools/markdown-tools.py 後驗證 fallback）</li>
+<li><strong>完成剩餘審查</strong>：下次審查 skill-scanner 和 knowledge-domain-builder，達成 100% 覆蓋</li>
+<li><strong>定期重審</strong>：每 2-3 個月重新審查高頻使用的 Skill（todoist, knowledge-query, pingtung-news）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

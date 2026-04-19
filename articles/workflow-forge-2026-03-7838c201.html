@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge 錯誤物件標準化方案（2026-03-29）">
+  <title>workflow-forge 錯誤物件標準化方案（2026-03-29） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge 錯誤物件標準化方案（2026-03-29）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">錯誤處理</span><span class="tag">系統設計</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge 錯誤物件標準化方案</h1>
+<h2>執行日期</h2>
+<p>2026-03-29</p>
+<h2>缺口分析</h2>
+<p>本次執行識別出「錯誤物件標準化」為最高優先級缺口（評分 85 分）：</p>
+<ul>
+<li><strong>影響範圍（35 分）</strong>：35 個自動任務的錯誤處理 + system-insight 分析能力 + self-heal 可修復性判斷</li>
+<li><strong>可執行性（30 分）</strong>：僅需新增 JSON Schema + config，不改 PowerShell 核心邏輯</li>
+<li><strong>信號強度（20 分）</strong>：來自 improvement-backlog 明確建議 + system-insight 的 daily_success_rate=null 顯示診斷能力不足</li>
+</ul>
+<h2>產出物</h2>
+<h3>1. config/schemas/task-result-error.schema.json</h3>
+<p>統一錯誤物件格式（RFC 7807 Problem Details 風格），包含必填欄位：</p>
+<ul>
+<li><code>error.type</code>：錯誤類型識別碼（必須在 taxonomy 中定義）</li>
+<li><code>error.title</code>：錯誤簡短標題（10-50 字）</li>
+<li><code>error.detail</code>：錯誤詳細描述（含上下文與診斷資訊）</li>
+<li><code>error.retryable</code>：是否可重試（布林值）</li>
+<li><code>error.instance</code>：錯誤實例唯一識別碼（task_key + timestamp + phase）</li>
+</ul>
+<p>選填欄位：<code>status</code>（HTTP 狀態碼）、<code>task_key</code>、<code>phase</code>、<code>extensions</code>（任務特定診斷資訊）。</p>
+<h3>2. config/error-taxonomy.yaml</h3>
+<p>定義 8 種錯誤類型（version 1）：</p>
+<ol>
+<li><strong>timeout</strong>（執行逾時）- retryable: true</li>
+<li><strong>dependency_unhealthy</strong>（依賴服務不可用）- retryable: false</li>
+<li><strong>rate_limited</strong>（API 請求頻率超限）- retryable: true</li>
+<li><strong>phase_error</strong>（Multi-Phase 執行錯誤）- retryable: false</li>
+<li><strong>validation_failed</strong>（輸出驗證失敗）- retryable: false</li>
+<li><strong>api_error</strong>（API 呼叫錯誤）- retryable: true</li>
+<li><strong>filesystem_error</strong>（檔案系統錯誤）- retryable: false</li>
+<li><strong>network_error</strong>（網路錯誤）- retryable: true</li>
+</ol>
+<p>每種錯誤類型包含：category、title、description、typical_causes、suggested_actions。</p>
+<h3>3. workflows/error-object-validation-checklist.md</h3>
+<p>驗證清單包含 5 個步驟：</p>
+<ol>
+<li>Schema 語法驗證</li>
+<li>Taxonomy 完整性檢查</li>
+<li>Prompt 範例抽樣驗證（抽樣 3 個 prompt）</li>
+<li>實際執行驗證（可選）</li>
+<li>system-insight 整合驗證</li>
+</ol>
+<h2>設計理念</h2>
+<h3>為何選擇 RFC 7807 Problem Details</h3>
+<ul>
+<li>業界標準，提供 type/title/detail/instance 等結構化欄位</li>
+<li>易於機器解析與人類閱讀</li>
+<li>支援擴充欄位（extensions）以適應任務特定需求</li>
+</ul>
+<h3>為何外部化 Taxonomy</h3>
+<ul>
+<li>將 error.type 列表外部化至 config/error-taxonomy.yaml</li>
+<li>避免 schema 頻繁變更</li>
+<li>支援動態擴充新錯誤類型</li>
+</ul>
+<h3>為何加入 retryable 欄位</h3>
+<ul>
+<li>system-insight 與 self-heal 可據此決策是否重試或標記需人工介入</li>
+<li>減少無意義重試（如 validation_failed 不應重試）</li>
+<li>提升自動修復成功率</li>
+</ul>
+<h2>向後相容性</h2>
+<ul>
+<li>所有新欄位皆為 optional（除 5 個必填欄位外）</li>
+<li>現有結果 JSON 的 <code>error.message</code> 欄位仍可用（已標記 deprecated）</li>
+<li>prompt 範例需逐步更新，但不影響現有任務執行</li>
+</ul>
+<h2>整合點</h2>
+<ol>
+<li><strong>35 個自動任務 prompt</strong>：更新錯誤輸出範例（逐步進行）</li>
+<li><strong>context/system-insight.json</strong>：新增 <code>error_type_distribution</code> 欄位，統計各類錯誤分布</li>
+<li><strong>tools/collect_system_data.py</strong>：新增 error.type 統計邏輯</li>
+<li><strong>self-heal Skill</strong>：讀取 error.retryable 判斷可修復性</li>
+<li><strong>arch-evolution Skill</strong>：根據 error.type 分布決策架構改善方向</li>
+</ol>
+<h2>驗證結果</h2>
+<ul>
+<li>✅ Schema 語法驗證通過（version=1.0.0）</li>
+<li>✅ Taxonomy 語法驗證通過（8 種錯誤類型）</li>
+<li>✅ Schema 與 Taxonomy 一致性驗證通過</li>
+<li>✅ workflows/index.yaml 更新完成（新增 wf-20260329-error-object-schema entry）</li>
+</ul>
+<h2>下一步</h2>
+<ol>
+<li><strong>Prompt 範例更新</strong>：抽樣 3 個高頻任務（ai_deep_research、system_insight、skill_forge），更新錯誤輸出範例</li>
+<li><strong>system-insight 整合</strong>：在 collect_system_data.py 中新增 error.type 統計</li>
+<li><strong>self-heal 整合</strong>：讀取 error.retryable 欄位，優先處理可重試錯誤</li>
+<li><strong>監控 & 迭代</strong>：觀察錯誤類型分布，動態調整 taxonomy</li>
+</ol>
+<h2>預期效益</h2>
+<ul>
+<li><strong>診斷能力提升</strong>：system-insight 可自動產出 error.type 分布統計，無需人工閱讀 description</li>
+<li><strong>自動修復提升</strong>：self-heal 可根據 retryable 欄位智慧決策，減少無效重試</li>
+<li><strong>錯誤追溯</strong>：error.instance 提供唯一識別碼，便於追蹤特定錯誤實例</li>
+<li><strong>擴充性</strong>：透過 extensions 欄位，各任務可附加特定診斷資訊（如 API endpoint、response_time_ms）</li>
+</ul>
+<h2>參考資料</h2>
+<ul>
+<li>RFC 7807: Problem Details for HTTP APIs</li>
+<li>improvement-backlog.json: 錯誤物件標準化建議（id: backlog_si_*）</li>
+<li>system-insight.json: daily_success_rate=null 診斷能力不足信號</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

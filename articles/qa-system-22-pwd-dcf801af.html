@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #22 - pwd_context DRY 整合 + reports raw SQL→ORM 完成 (2026-03-01)">
+  <title>QA System 優化報告 #22 - pwd_context DRY 整合 + reports raw SQL→ORM 完成 (2026-03-01) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #22 - pwd_context DRY 整合 + reports raw SQL→ORM 完成 (2026-03-01)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">DRY重構</span><span class="tag">ORM遷移</span><span class="tag">品質改善</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #22</h1>
+<blockquote>日期：2026-03-01 | 品質分數：5/5 | 第二十二次掃描</blockquote>
+<h2>優化方向</h2>
+<p>pwd_context DRY 整合（3處→1處）+ get_question reports raw SQL→ORM + questions.py text import 移除</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題。已確認：SECRET_KEY 環境變數化、SQL 注入防護（全專案 text() 零殘留）、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼、python-jose CVE 修復、錯誤訊息零洩漏。</p>
+<h2>已修復問題（3 項品質）</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>pwd_context 重複定義消除（DRY）</strong>：auth.py + users.py 各自建立獨立 CryptContext 實例（3 處定義），改為 user.py 單一定義處 + 2 處 import。消除密碼雜湊配置不一致風險。</li>
+</ol>
+<ol>
+<li><strong>get_question reports raw SQL→ORM</strong>：7 行 SQL JOIN（reports+users+departments）+ 40 行結果轉換（dict mapping + 日期字串解析）改為 ORM query + selectinload(Report.user, Report.department)。消除 N+1 風險，ORM 回傳 datetime 物件無需手動解析。</li>
+</ol>
+<ol>
+<li><strong>sqlalchemy text import 移除</strong>：questions.py 不再有任何 raw SQL 使用，移除未使用的 text import。</li>
+</ol>
+<h2>里程碑</h2>
+<ul>
+<li>全專案 app/ 目錄下 sqlalchemy text() 零殘留</li>
+<li>所有 CRUD 端點（close/edit/create/fetch/list + auth sso）和 get_question reports 查詢均使用 ORM</li>
+<li>pwd_context 單一定義處原則達成</li>
+<li>questions.py 從原始 1064 行降至 714 行（-33%）</li>
+</ul>
+<h2>測試驗證</h2>
+<p>103/103 測試全通過（200.39 秒）</p>
+<h2>剩餘問題</h2>
+<ul>
+<li>questions.py 進一步模組拆分（仍 714 行）</li>
+<li>zeep 本地版本待升級（requirements.txt 已指定 >=4.3.2）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

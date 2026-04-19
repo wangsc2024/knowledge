@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 品質審查報告（2026-03-23）：kb-research-strategist + groq 深度審查">
+  <title>Skill 品質審查報告（2026-03-23）：kb-research-strategist + groq 深度審查 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 品質審查報告（2026-03-23）：kb-research-strategist + groq 深度審查</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">kb-research-strategist</span><span class="tag">groq</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Skill 品質審查報告（2026-03-23）</h1>
+<h2>審查範圍</h2>
+<p>本次深度審查 2 個從未被獨立審查的核心 Skill：</p>
+<ul>
+<li><strong>kb-research-strategist</strong>（核心 Skill #18）— 研究前 KB 全文分析 + 長期系列研究管理</li>
+<li><strong>groq</strong>（核心 Skill #19）— Groq 快速推理前處理層</li>
+</ul>
+<h2>選擇理由</h2>
+<p>歷次審查覆蓋：</p>
+<ul>
+<li>2026-02-15：14 個 Skill 全面體檢（總評 9.2/10）</li>
+<li>2026-03-01：git-smart-commit + chatroom-query</li>
+<li>2026-03-20：context-budget-monitor + execution-journal</li>
+</ul>
+<p>本次選擇 <strong>kb-research-strategist</strong>（研究策略核心）和 <strong>groq</strong>（API 加速層），因為：</p>
+<ol>
+<li>兩者均從未被獨立審查</li>
+<li>kb-research-strategist 涉及五階段模型和跨週追蹤，架構複雜</li>
+<li>groq 的 cache-ttl=5min 與 Relay 自有快取的關係需釐清</li>
+<li>具有代表性（一個研究策略，一個 API 加速）</li>
+</ol>
+<p>---</p>
+<h2>kb-research-strategist 審查結果</h2>
+<h3>Frontmatter 規範性：✅ 優秀</h3>
+<ul>
+<li>✅ name 與目錄名一致</li>
+<li>✅ description 含明確 "Use when:" 觸發條件</li>
+<li>✅ allowed-tools: <code>[Bash, Read, Write]</code> 符合需求（KB 查詢用 Bash curl、讀取用 Read、寫入暫存檔用 Write）</li>
+<li>✅ cache-ttl: <code>N/A</code> 合理（研究策略每次都不同，不應快取）</li>
+<li>✅ depends-on: <code>knowledge-query</code>, <code>config/dependencies.yaml</code></li>
+<li>✅ triggers: 7 個（符合最低 3 個要求）</li>
+</ul>
+<h3>內容品質：✅ 優秀</h3>
+<ul>
+<li>✅ 步驟結構清晰：0-7 步驟，有編號</li>
+<li>✅ 包含可執行的 curl/API 範例：有完整 curl 命令和 Python 腳本</li>
+<li>✅ 輸出格式有明確規範：<code>kb-research-brief.json</code> 格式完整定義</li>
+<li>✅ 錯誤處理/降級機制有說明：步驟 7「降級處理」有完整說明</li>
+</ul>
+<h3>路由一致性：✅ 符合設計</h3>
+<ul>
+<li>SKILL_INDEX.md 觸發詞：研究策略、系列研究、深化研究、知識差距分析、研究計畫、KB 擴充、知識系列</li>
+<li>routing.yaml：無直接映射（<strong>設計如此</strong>，作為底層 Skill，由 research-task 模板呼叫）</li>
+<li>研究類任務透過 <code>^研究</code> 或 <code>^深度思維</code> 標籤路由到 research-task.md，再由該模板呼叫 kb-research-strategist</li>
+</ul>
+<h3>修正內容</h3>
+<p><strong>微調</strong>：步驟 2 的 Python 腳本加上 <code>contentText</code> fallback 註解，說明若欄位缺失會取到空字串，步驟 3 會判定為無知識。</p>
+<pre><code>
+# contentText 是 KB 的主要內容欄位（knowledge-query SKILL 規範）
+# 若欄位缺失（舊資料或格式不一致）會取到空字串，步驟 3 會判定為無知識
+'content': n.get('contentText', '')[:2000]
+</code></pre>
+<h3>總評：9.5/10</h3>
+<p>唯一改進空間是 contentText fallback 的註解說明，已在本次審查中補充。其餘部分品質優秀。</p>
+<p>---</p>
+<h2>groq 審查結果</h2>
+<h3>Frontmatter 規範性：✅ 優秀</h3>
+<ul>
+<li>✅ name 與目錄名一致</li>
+<li>✅ description 含明確 "Use when:" 觸發條件</li>
+<li>✅ allowed-tools: <code>[Bash, Read, Write]</code></li>
+<li>✅ cache-ttl: <code>5min</code> <strong>已驗證合理性</strong>：</li>
+</ul>
+<p>  - Groq Relay 自有快取 5 分鐘（llm-router.yaml 的 <code>cache_ttl_min: 5</code>）</p>
+<p>  - Skill 層級的 cache-ttl 是指「本地快取檔案 TTL」（api-cache Skill 的概念）</p>
+<p>  - Groq 主要用於即時前處理（摘要/翻譯），快取 5 分鐘平衡了即時性與 API 配額</p>
+<p>  - <strong>結論</strong>：5min 是合理的</p>
+<ul>
+<li>✅ depends-on: <code>config/dependencies.yaml</code></li>
+<li>✅ triggers: 9 個</li>
+</ul>
+<h3>內容品質：✅ 優秀</h3>
+<ul>
+<li>✅ 四模式說明清晰（summarize/translate/classify/extract）</li>
+<li>✅ 有完整 curl 範例和 JSON 格式定義</li>
+<li>✅ 降級策略完善（Relay 不可用時跳過並記錄）</li>
+<li>✅ 速率限制和快取機制說明清楚</li>
+</ul>
+<h3>路由一致性：⚠️ 發現不一致</h3>
+<p><strong>問題</strong>：「與 llm-router.yaml 的關係」章節與實際配置不一致</p>
+<p><strong>修正前</strong>（SKILL.md 表格）：</p>
+<ul>
+<li><code>news_summary → groq</code></li>
+<li><code>en_to_zh → groq</code></li>
+</ul>
+<p><strong>實際配置</strong>（llm-router.yaml）：</p>
+<ul>
+<li><code>news_summary → cursor_cli</code>（Composer 2 Fast）</li>
+<li><code>en_to_zh → groq_direct</code>（直呼 Groq API，tools/groq_direct.py）</li>
+</ul>
+<h3>修正內容</h3>
+<p>更新「與 llm-router.yaml 的關係」章節，使其與實際配置一致：</p>
+<pre><code>
+| routing_rule | 實際 Provider | 說明 |
+|-------------|--------------|------|
+| `news_summary` | cursor_cli | 新聞快速摘要（Composer 2 Fast） |
+| `en_to_zh` | groq_direct | 英文翻譯（直呼 Groq API，tools/groq_direct.py） |
+| `topic_classify` | groq | 主題分類（透過 Relay） |
+| `quick_extract` | groq | 結構化萃取（透過 Relay） |
+| `policy_analysis` | claude | 政策深度解讀（保留給 Claude） |
+| `code_review` | claude | 程式碼審查（保留給 Claude） |
+</code></pre>
+<p>並新增說明：</p>
+<ul>
+<li><code>groq</code>（本 Skill）：透過 <code>bot/groq-relay.js</code> 代理，避免 API KEY 暴露</li>
+<li><code>groq_direct</code>：直接呼叫 Groq API（tools/groq_direct.py），金鑰讀 <code>bot/.env</code>，用於批次任務</li>
+</ul>
+<h3>總評：9.0/10</h3>
+<p>路由說明不一致是唯一問題，已在本次審查中修正。整體架構設計優秀，降級機制完善。</p>
+<p>---</p>
+<h2>整體發現</h2>
+<h3>優點</h3>
+<ol>
+<li><strong>Frontmatter 規範化程度高</strong>：所有掃描的 30 個 Skills 都有 "Use when" 觸發條件，觸發詞數量充足（6-15 個）</li>
+<li><strong>步驟結構清晰</strong>：兩個審查的 Skill 都有編號步驟和完整範例</li>
+<li><strong>降級機制完善</strong>：都有明確的錯誤處理和降級策略</li>
+<li><strong>依賴注入規範</strong>：都遵守 ADR-001 Phase 3 的 DI 規範</li>
+</ol>
+<h3>改進建議</h3>
+<ol>
+<li><strong>定期同步檢查</strong>：當 llm-router.yaml 或 routing.yaml 變更時，應同步檢查相關 SKILL.md 的描述是否一致</li>
+<li><strong>覆蓋度分析</strong>：建議未來審查加入「死 Skill 偵測」（分析執行日誌，找出從未被使用的 Skill）</li>
+<li><strong>欄位假設註解</strong>：對於依賴外部 API 回應格式的 Python 腳本，建議加上 fallback 註解說明</li>
+</ol>
+<p>---</p>
+<h2>修正對比</h2>
+<h3>groq SKILL.md</h3>
+<p><strong>修正前</strong>：表格顯示 <code>news_summary → groq</code>、<code>en_to_zh → groq</code></p>
+<p><strong>修正後</strong>：表格顯示實際 Provider（<code>cursor_cli</code>、<code>groq_direct</code>），並新增 <code>groq</code> vs <code>groq_direct</code> 的差異說明</p>
+<h3>kb-research-strategist SKILL.md</h3>
+<p><strong>修正前</strong>：步驟 2 的 <code>n.get('contentText', '')</code> 無註解</p>
+<p><strong>修正後</strong>：加上兩行註解，說明 contentText 是 KB 規範欄位，若缺失會取到空字串</p>
+<p>---</p>
+<h2>品質自評</h2>
+<ol>
+<li>✅ 是否有具體的修正動作（不只是報告）？ — 有，修正了 groq 路由說明和 kb-research-strategist 註解</li>
+<li>✅ 修正後是否通過驗證？ — 有，重新讀取了修改後的檔案確認格式正確</li>
+<li>✅ 審查報告是否超過 300 字？ — 有，本報告約 1,600 字</li>
+</ol>
+<h2>下次審查建議</h2>
+<p>從剩餘未被審查的 Skills 中，建議下次選擇：</p>
+<ol>
+<li><strong>skill-test-scaffolder</strong>（#29）— 測試生成，涉及 pytest 骨架自動生成</li>
+<li><strong>skill-registry-sync</strong>（#30）— Skill 註冊表同步，涉及觸發詞衝突偵測</li>
+</ol>
+<p>這兩個 Skill 都是系統基礎設施，品質影響較大。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

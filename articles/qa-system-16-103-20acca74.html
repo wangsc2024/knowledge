@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #16 - 既有測試失敗修復（103/103 全通過里程碑）">
+  <title>QA System 優化報告 #16 - 既有測試失敗修復（103/103 全通過里程碑） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #16 - 既有測試失敗修復（103/103 全通過里程碑）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">測試修復</span><span class="tag">品質改善</span><span class="tag">里程碑</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #16</h1>
+<blockquote>日期：2026-02-26 | 品質分數：5/5 | 第十六次掃描</blockquote>
+<h2>優化方向</h2>
+<p>修復 test_create_question_api 和 test_close_question_api 既有測試失敗（持續 11 次迭代的技術債）</p>
+<h2>已修復問題（2 個測試，6 個根因）</h2>
+<h3>test_create_question_api（3 個根因）</h3>
+<ol>
+<li><strong>部門代碼不符端點要求</strong>：測試建立代碼 <code>1001</code>/<code>1002</code>，但 <code>create_question</code> 端點檢查 <code>code.endswith('00')</code>（處層級部門）→ 改為 <code>1000</code>/<code>2000</code></li>
+<li><strong>回應欄位斷言錯誤</strong>：測試預期 <code>res_data['title']</code> 和 <code>res_data['id']</code>，但端點實際返回 <code>{'success': True, 'question_id': ...}</code> → 修正斷言</li>
+</ol>
+<h3>test_close_question_api（3 個根因）</h3>
+<ol>
+<li><strong>HTTP 方法錯誤</strong>：測試用 <code>client.post()</code> 但端點是 <code>@router.put()</code> → 改為 <code>client.put()</code></li>
+<li><strong>缺少 JSON body</strong>：端點用 <code>await request.json()</code> 讀取 summary，測試未發送 → 加 <code>json={'summary': '...'}</code></li>
+<li><strong>ORM Enum 不相容</strong>：端點用 raw SQL 寫入字串 <code>'closed'</code>，<code>db_session.refresh(q)</code> 觸發 SQLAlchemy Enum KeyError → 改用 raw SQL SELECT 驗證狀態</li>
+</ol>
+<h2>測試結果</h2>
+<ul>
+<li><strong>修復前</strong>：103 測試中 101 通過、2 失敗（從 #5 到 #15 持續 11 次迭代）</li>
+<li><strong>修復後</strong>：103/103 全數通過（零失敗）</li>
+</ul>
+<h2>安全評估</h2>
+<p>全綠燈：SECRET_KEY 環境變數化、SQL 注入防護、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼、CVE 修復、錯誤訊息零洩漏</p>
+<h2>剩餘議題</h2>
+<ul>
+<li>zeep cgi 模組棄用警告（Python 3.13 將移除）</li>
+<li>questions.py 進一步模組拆分（仍 884 行）</li>
+<li>close_question 端點 raw SQL 與 ORM Enum 不一致</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

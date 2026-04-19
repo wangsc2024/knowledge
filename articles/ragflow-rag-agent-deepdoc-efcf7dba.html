@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RAGFlow — 開源 RAG + Agent 引擎深度研究：五層微服務架構、DeepDoc 文件解析、12+ 分塊策略與 Agent Canvas 工作流（75.6K Stars, 2026-03）">
+  <title>RAGFlow — 開源 RAG + Agent 引擎深度研究：五層微服務架構、DeepDoc 文件解析、12+ 分塊策略與 Agent Canvas 工作流（75.6K Stars, 2026-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-claude">Claude Code</span>
+        <h1>RAGFlow — 開源 RAG + Agent 引擎深度研究：五層微服務架構、DeepDoc 文件解析、12+ 分塊策略與 Agent Canvas 工作流（75.6K Stars, 2026-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">RAGFlow</span><span class="tag">RAG</span><span class="tag">Agent</span><span class="tag">開源專案</span><span class="tag">深度思維</span><span class="tag">研究</span><span class="tag">知識庫</span><span class="tag">架構分析</span><span class="tag">混合搜尋</span><span class="tag">文件處理</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>RAGFlow — 開源 RAG + Agent 引擎深度研究</h1>
+<h2>專案概述</h2>
+<p><strong>RAGFlow</strong>（<a href="https://github.com/infiniflow/ragflow">infiniflow/ragflow</a>）是由 InfiniFlow 團隊開發的開源 RAG 引擎，結合先進的 RAG 技術與 Agent 能力，為 LLM 提供卓越的上下文層。截至 2026 年 3 月擁有 <strong>75.6K Stars</strong>、8.5K Forks，是 GitHub Top 20 AI 專案之一。</p>
+<p><strong>核心定位</strong>：「Deep document understanding + grounded citations = reduced hallucinations」— 透過深度文件理解與有根據的引用來減少 LLM 幻覺。</p>
+<p>---</p>
+<h2>五層微服務架構</h2>
+<p>RAGFlow 採用清晰的五層分離架構：</p>
+<h3>1. Client Layer（客戶端層）</h3>
+<ul>
+<li>React 19 SPA 前端</li>
+<li>Python SDK</li>
+<li>HTTP REST API</li>
+</ul>
+<h3>2. API Gateway（API 閘道）</h3>
+<ul>
+<li>Quart 非同步框架（port 9380）</li>
+<li>JWT 認證</li>
+<li>非同步請求處理</li>
+</ul>
+<h3>3. Service Layer（服務層）</h3>
+<ul>
+<li>DialogService：對話管理</li>
+<li>DocumentService：文件處理</li>
+<li>KnowledgebaseService：知識庫管理</li>
+<li>CanvasService：Agent 工作流</li>
+</ul>
+<h3>4. Worker Layer（工作層）</h3>
+<ul>
+<li>Redis queue consumer</li>
+<li>5 個併發執行緒的任務執行器</li>
+<li>透過 Redis streams + consumer groups 解耦長時間文件操作</li>
+<li>支援水平擴展</li>
+</ul>
+<h3>5. Storage Layer（儲存層）</h3>
+<ul>
+<li><strong>文件引擎</strong>：Elasticsearch 或 Infinity（可插拔切換）</li>
+<li><strong>中繼資料</strong>：MySQL</li>
+<li><strong>物件儲存</strong>：MinIO（S3 相容）</li>
+<li><strong>快取/佇列</strong>：Redis</li>
+</ul>
+<p>---</p>
+<h2>七階段文件處理管線（Document Processing Pipeline）</h2>
+<ol>
+<li><strong>Upload</strong>：檔案驗證 + MinIO 物件儲存</li>
+<li><strong>Task Queuing</strong>：Redis stream 發布，consumer group 確認</li>
+<li><strong>Parsing</strong>：可選解析器（DeepDoc、MinerU、Docling、naive）</li>
+<li><strong>Chunking</strong>：12+ 種模板式分塊（語義邊界感知）</li>
+<li><strong>Enrichment</strong>：LLM 輔助關鍵字提取、問題生成、中繼資料合成</li>
+<li><strong>Embedding</strong>：批次向量編碼（512-1024 維度可配置）</li>
+<li><strong>Indexing</strong>：批量插入文件儲存 + BM25 tokenization</li>
+</ol>
+<h3>DeepDoc 視覺處理</h3>
+<ul>
+<li>ONNX-based OCR</li>
+<li>PDF 版面辨識</li>
+<li>表格結構識別</li>
+<li>位置中繼資料提取（頁碼、邊界框）</li>
+</ul>
+<p>---</p>
+<h2>12+ 分塊策略（Chunking Strategies）</h2>
+<p>| 類型 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>模板式</strong> | 依文件類型（論文、書籍、法律、QA、表格、簡報）使用 regex 模式 |</p>
+<p>| <strong>語義式</strong> | 內容感知邊界偵測 |</p>
+<p>| <strong>位置感知</strong> | 保留頁碼、邊界框、層級結構 |</p>
+<p>| <strong>上下文附加</strong> | 將父區段標題和表格附加到分塊 |</p>
+<p>| <strong>Parent-Child</strong> | 父子分塊策略，支援階層式檢索 |</p>
+<p>| <strong>TOC 結構</strong> | 自動生成文件目錄，減緩因分塊不精確導致的上下文遺失 |</p>
+<p>分塊中繼資料欄位：<code>page_num_int</code>、<code>top_int</code>（位置）、<code>important_kwd</code>（關鍵字）、<code>available_int</code>（啟用旗標）。</p>
+<p>---</p>
+<h2>混合檢索與重排序（Hybrid Search + Re-ranking）</h2>
+<h3>混合搜尋</h3>
+<ul>
+<li><strong>向量匹配</strong>：HNSW 索引，密集向量搜尋（<code>q_N_vec</code> 欄位）</li>
+<li><strong>BM25 關鍵字</strong>：全文搜尋（<code>content_ltks</code> tokenized 欄位）</li>
+<li><strong>融合</strong>：可配置權重的分數組合</li>
+</ul>
+<h3>重排序</h3>
+<ul>
+<li>可選的 <code>LLMBundle.rerank()</code> 交叉編碼器評分</li>
+<li>結果格式化包含引用和分塊歸因</li>
+<li>有根據的引用（grounded citations）減少幻覺</li>
+</ul>
+<p>---</p>
+<h2>Agent Canvas 工作流系統</h2>
+<ul>
+<li><strong>DSL</strong>：JSON 格式的領域特定語言定義元件圖</li>
+<li><strong>內建元件</strong>：LLM、檢索、程式碼執行、記憶操作</li>
+<li><strong>串流</strong>：WebSocket 即時輸出</li>
+<li><strong>狀態管理</strong>：變數作用域 + 輸入/輸出綁定</li>
+<li><strong>API</strong>：Canvas API（port 9381）管理工作流 CRUD 和執行編排</li>
+<li><strong>MCP 整合</strong>：透過 <code>rag/llm/tool_calling.py</code> 支援 Model Context Protocol</li>
+</ul>
+<p>---</p>
+<h2>雙層記憶架構</h2>
+<p>| 層級 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>Session Memory</strong> | 對話歷史快取於 Redis，持久化至 MySQL <code>dialog</code> 表 |</p>
+<p>| <strong>Long-term Memory</strong> | 知識庫索引於文件儲存，動態檢索相關分塊 |</p>
+<p>---</p>
+<h2>2026 路線圖重點</h2>
+<ul>
+<li><strong>ContextEngine as filesystem</strong>：將上下文引擎實作為檔案系統介面</li>
+<li><strong>Tree-structured query decomposition</strong>：樹狀查詢分解策略（v0.24.0 已完成）</li>
+<li><strong>EraRAG</strong>：圖譜式 RAG 架構（補充 RAPTOR/GraphRAG）</li>
+<li><strong>Agent workflow checkpoints</strong>：Agent 執行狀態儲存/恢復</li>
+<li><strong>Programmatic Tool Calling</strong>：原生工具呼叫支援</li>
+</ul>
+<p>---</p>
+<h2>技術棧</h2>
+<p>| 層級 | 技術 |</p>
+<p>|------|------|</p>
+<p>| 後端 | Python (FastAPI/Quart), Go |</p>
+<p>| 前端 | React 19, TypeScript |</p>
+<p>| 資料庫 | MySQL, Elasticsearch/Infinity |</p>
+<p>| 快取 | Redis |</p>
+<p>| 物件儲存 | MinIO |</p>
+<p>| 容器化 | Docker, Docker Compose |</p>
+<p>| CI/CD | GitHub Actions |</p>
+<p>---</p>
+<h2>與本系統（Daily Digest Prompt）的關聯分析</h2>
+<p>| 面向 | RAGFlow | 本系統 | 啟示 |</p>
+<p>|------|---------|--------|------|</p>
+<p>| <strong>分塊策略</strong> | 12+ 模板式 + 語義式 + TOC | 後端自動 Tiptap JSON | 可參考 TOC 結構減少上下文遺失 |</p>
+<p>| <strong>混合搜尋</strong> | HNSW + BM25 融合 + 重排序 | hybrid search（BM25 + 向量） | 可考慮加入 cross-encoder 重排序 |</p>
+<p>| <strong>文件處理</strong> | DeepDoc OCR + 版面辨識 | 純文字匯入 | 若需處理 PDF/圖片可參考 DeepDoc |</p>
+<p>| <strong>Agent 工作流</strong> | Canvas DSL + 元件圖 | PowerShell 3 階段管線 | Canvas 的狀態管理概念可借鏡 |</p>
+<p>| <strong>記憶系統</strong> | 雙層（Session + Long-term） | digest-memory.json + KB | 架構理念一致，RAGFlow 更細緻 |</p>
+<p>| <strong>MCP 整合</strong> | 原生支援 | 未整合 | 未來可考慮 MCP 統一工具介面 |</p>
+<p>---</p>
+<h2>品質自評</h2>
+<pre><code>
+{
+  "research_topic": "RAGFlow 開源 RAG + Agent 引擎",
+  "queries_used": ["GitHub trending repositories March 2026 most starred AI projects", "GitHub fastest growing open source projects 2026 new AI framework", "RAGFlow infiniflow architecture deep dive chunking agent workflow 2026"],
+  "sources_count": 5,
+  "grade_distribution": {"A": 3, "B": 2, "C": 0, "D": 0},
+  "cross_verified_facts": 4,
+  "unverified_claims": 0,
+  "research_depth": "thorough",
+  "confidence_level": "high"
+}
+</code></pre>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://github.com/infiniflow/ragflow">infiniflow/ragflow</a> — 品質等級 A | GitHub 官方倉庫</li>
+<li><a href="https://deepwiki.com/infiniflow/ragflow">RAGFlow DeepWiki</a> — 品質等級 A | 架構深度分析</li>
+<li><a href="https://github.com/infiniflow/ragflow/issues/12241">RAGFlow 2026 Roadmap</a> — 品質等級 A | 官方路線圖</li>
+<li><a href="https://www.nocobase.com/en/blog/best-open-source-ai-projects-github-2026">Top 20 AI Projects on GitHub 2026 — NocoBase</a> — 品質等級 B | 專案排名與比較</li>
+<li><a href="https://blog.bytebytego.com/p/top-ai-github-repositories-in-2026">Top AI GitHub Repositories in 2026 — ByteByteGo</a> — 品質等級 B | 產業趨勢分析</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

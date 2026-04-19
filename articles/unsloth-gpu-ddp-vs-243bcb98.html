@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 多 GPU 分散式訓練完整指南 — DDP vs Model Parallelism、FSDP 現況與大型模型（70B+）微調記憶體最佳化策略（2026）">
+  <title>Unsloth 多 GPU 分散式訓練完整指南 — DDP vs Model Parallelism、FSDP 現況與大型模型（70B+）微調記憶體最佳化策略（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 多 GPU 分散式訓練完整指南 — DDP vs Model Parallelism、FSDP 現況與大型模型（70B+）微調記憶體最佳化策略（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">多GPU</span><span class="tag">DDP</span><span class="tag">FSDP</span><span class="tag">Model Parallelism</span><span class="tag">分散式訓練</span><span class="tag">記憶體最佳化</span><span class="tag">70B</span><span class="tag">DeepSpeed</span><span class="tag">NVIDIA</span><span class="tag">DGX Spark</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth 多 GPU 分散式訓練完整指南</h1>
+<h2>概述</h2>
+<p>Unsloth 支援多 GPU 訓練以加速 LLM 微調，但其多 GPU 策略與傳統框架有顯著差異。本文系統性整理 Unsloth 的兩種並行策略（DDP 資料並行 vs device_map 模型並行）、FSDP 支援現況、大型模型（70B+）微調配置，以及 NVIDIA DGX Spark 等硬體平台的記憶體最佳化策略。核心要點：<strong>兩種並行策略互斥，不可混用</strong>，選錯會導致訓練失敗。</p>
+<p>---</p>
+<h2>一、兩種並行策略（互斥，擇一使用）</h2>
+<h3>1.1 策略 A：DDP（Distributed Data Parallel）— 資料並行</h3>
+<p><strong>原理</strong>：在每張 GPU 上複製完整模型副本，將訓練 batch 分散到各 GPU 同時訓練，每步透過梯度平均同步更新權重。</p>
+<p><strong>適用條件</strong>：</p>
+<ul>
+<li>模型必須能<strong>完整載入單張 GPU</strong>（如 7B/8B QLoRA 4-bit ≈ 6-8GB VRAM）</li>
+<li>訓練腳本必須是 <code>.py</code> 格式（不支援 Jupyter Notebook）</li>
+</ul>
+<p><strong>啟動方式</strong>：</p>
+<pre><code>
+# 方式 1：使用 Accelerate（推薦）
+accelerate launch train.py
+
+# 方式 2：使用 torchrun
+torchrun --nproc_per_node N_GPUS train.py
+</code></pre>
+<p><strong>關鍵程式碼配置</strong>：</p>
+<pre><code>
+import os
+os.environ["UNSLOTH_DISABLE_TRAINER_PATCHING"] = "1"
+os.environ["UNSLOTH_NO_CUDA_EXTENSIONS"] = "1"
+
+from unsloth import FastLanguageModel
+
+local_rank = int(os.environ.get("LOCAL_RANK", 0))
+model, tokenizer = FastLanguageModel.from_pretrained(
+    "unsloth/Llama-3.1-8B-Instruct",
+    load_in_4bit=True,
+    device_map=local_rank,  # 重要：指定為當前 GPU rank
+)
+
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=16,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"],
+    lora_alpha=16,
+    lora_dropout=0,
+    use_gradient_checkpointing="unsloth",
+)
+
+from trl import SFTConfig, SFTTrainer
+training_args = SFTConfig(
+    per_device_train_batch_size=1,  # 目前限制：每 GPU batch=1
+    gradient_accumulation_steps=8,
+    find_unused_parameters=False,
+    output_dir="./output",
+)
+</code></pre>
+<p><strong>效能特性</strong>：</p>
+<ul>
+<li>加入更多 GPU 時，每步訓練的樣本數線性增加，梯度更新更穩定</li>
+<li>接近線性擴展（2x GPU ≈ 2x 吞吐量）</li>
+<li>比 Flash Attention 2 快最高 30x（多 GPU 場景）</li>
+</ul>
+<p><strong>已知限制</strong>：</p>
+<ul>
+<li><strong>Batch size 目前限制為每 GPU 1</strong>（tensor view 操作限制，未來版本會修復）</li>
+<li>需自定義 loss averaging 以正確處理 gradient accumulation</li>
+<li>Transformers 套件的 logging 可能在多 GPU 時不一致</li>
+<li>FSDP 尚未支援（開源版本）</li>
+</ul>
+<h3>1.2 策略 B：Model Parallelism（device_map="balanced"）— 模型分片</h3>
+<p><strong>原理</strong>：將一個模型的不同層分散到多張 GPU 上，單一進程跨 GPU 運算。適用於模型太大、無法載入單張 GPU 的場景。</p>
+<p><strong>適用條件</strong>：</p>
+<ul>
+<li>模型超出單張 GPU VRAM（如 70B 模型 QLoRA 4-bit 需 ~40GB+）</li>
+<li>有多張 GPU 合計 VRAM 足夠</li>
+</ul>
+<p><strong>關鍵程式碼</strong>：</p>
+<pre><code>
+from unsloth import FastLanguageModel
+model, tokenizer = FastLanguageModel.from_pretrained(
+    "unsloth/Llama-3.3-70B-Instruct",
+    load_in_4bit=True,
+    device_map="balanced",  # Unsloth 自動平衡分配各 GPU
+)
+</code></pre>
+<p><strong>注意</strong>：</p>
+<ul>
+<li>不可與 <code>accelerate launch</code> 或 <code>torchrun --nproc_per_node > 1</code> 混用</li>
+<li>直接用 <code>python train.py</code> 執行（單進程）</li>
+</ul>
+<h3>1.3 混用錯誤</h3>
+<p>若同時使用 <code>device_map="balanced"</code> 和 DDP 啟動器，會觸發：</p>
+<pre><code>
+ValueError: You can't train a model that has been loaded with
+`device_map='auto'` in any distributed mode.
+Please rerun your script specifying `--num_processes=1`.
+</code></pre>
+<p><strong>決策流程</strong>：</p>
+<pre><code>
+模型能放入單張 GPU？
+  ├─ YES → 使用 DDP（策略 A）→ torchrun/accelerate launch
+  └─ NO  → 使用 Model Parallelism（策略 B）→ device_map="balanced" + python 直接執行
+</code></pre>
+<p>---</p>
+<h2>二、FSDP 支援現況與路線圖</h2>
+<h3>2.1 開源版（Unsloth Free）</h3>
+<ul>
+<li><strong>DDP 已支援</strong>，但 <strong>FSDP 尚未支援</strong></li>
+<li>社群有 Challenge 專案嘗試整合 QLoRA + FSDP2（PyTorch 2.x 新版本）</li>
+<li>FSDP2 相比 FSDP1 優勢：DTensor 分片表示、無 recordStream 的確定性記憶體管理、簡化的 meta-device 初始化</li>
+</ul>
+<h3>2.2 Unsloth Pro</h3>
+<ul>
+<li>提供增強的多 GPU 支援</li>
+<li>號稱單 GPU 10x、多 GPU 最高 30x 加速</li>
+<li>記憶體使用減少最高 90%</li>
+<li>支援多節點（multi-node）訓練</li>
+</ul>
+<h3>2.3 DeepSpeed 整合</h3>
+<ul>
+<li>透過 HuggingFace Accelerate 的 DeepSpeed 配置可整合</li>
+<li>DeepSpeed ZeRO（Zero Redundancy Optimizer）三級分片：</li>
+</ul>
+<p>  - <strong>Stage 1</strong>：分片 Optimizer States</p>
+<p>  - <strong>Stage 2</strong>：分片 Optimizer States + Gradients</p>
+<p>  - <strong>Stage 3</strong>：分片 Optimizer States + Gradients + Parameters</p>
+<ul>
+<li>適合超大規模分散式訓練環境</li>
+</ul>
+<p>---</p>
+<h2>三、大型模型（70B+）微調記憶體估算</h2>
+<h3>3.1 VRAM 經驗法則</h3>
+<p><strong>QLoRA 4-bit 簡易估算：模型參數量（十億）≈ 所需 VRAM（GB）</strong></p>
+<p>| 模型規模 | QLoRA 4-bit VRAM | 適合 GPU |</p>
+<p>|---------|-----------------|--------|</p>
+<p>| 1.5B | ~5GB | RTX 3060 12GB |</p>
+<p>| 7B/8B | ~8GB | RTX 4060 Ti 16GB |</p>
+<p>| 14B | ~15GB | RTX 4090 24GB |</p>
+<p>| 32B | ~20GB | A100 40GB |</p>
+<p>| 70B | ~40-48GB | A100 80GB 或 2x A100 40GB |</p>
+<p>| 405B | ~200GB+ | 4x A100 80GB 或 8x A6000 48GB |</p>
+<h3>3.2 70B 模型配置範例</h3>
+<p><strong>單張 80GB GPU（A100/H100）</strong>：</p>
+<pre><code>
+model, tokenizer = FastLanguageModel.from_pretrained(
+    "unsloth/Llama-3.3-70B-Instruct",
+    load_in_4bit=True,
+    max_seq_length=89_000,  # Unsloth 支援 89K 上下文（13x HF+FA2）
+)
+</code></pre>
+<p><strong>雙 GPU Model Parallelism</strong>：</p>
+<pre><code>
+model, tokenizer = FastLanguageModel.from_pretrained(
+    "unsloth/Llama-3.3-70B-Instruct",
+    load_in_4bit=True,
+    device_map="balanced",  # 自動分配到 2 張 GPU
+)
+</code></pre>
+<h3>3.3 Context Length 與 VRAM 對應</h3>
+<p>Unsloth 的 RoPE 擴展與 Triton kernel 讓長上下文微調成為可能：</p>
+<ul>
+<li>Llama 3.3 70B 在 80GB GPU 上支援 89K context（HF+FA2 僅 ~7K）</li>
+<li>Qwen3 8B QLoRA 在 24GB VRAM 上支援 32K context</li>
+</ul>
+<p>---</p>
+<h2>四、NVIDIA 硬體平台建議</h2>
+<h3>4.1 消費級 RTX GPU</h3>
+<ul>
+<li><strong>RTX 4090 (24GB)</strong>：適合 7B-14B QLoRA 微調</li>
+<li><strong>RTX 5090 (32GB)</strong>：適合 14B-32B QLoRA 微調</li>
+<li>優勢：成本低、易取得</li>
+<li>限制：VRAM 有限，大型模型需 QLoRA</li>
+</ul>
+<h3>4.2 DGX Spark</h3>
+<ul>
+<li><strong>128GB 統一 CPU-GPU 記憶體</strong></li>
+<li>支援 30B+ 參數模型的全量微調（Full Fine-Tuning）</li>
+<li>支援強化學習（RL）工作流</li>
+<li>高達 PetaFLOP FP4 AI 效能</li>
+<li>適合進階場景：全量微調 + RL + 大型模型</li>
+</ul>
+<h3>4.3 雲端方案</h3>
+<ul>
+<li><strong>Colab Free</strong>：T4 16GB → 7B QLoRA</li>
+<li><strong>Colab Pro</strong>：A100 40GB → 14B-32B QLoRA</li>
+<li><strong>Lambda/RunPod</strong>：多 A100 80GB → 70B+ 模型 DDP 或 Model Parallelism</li>
+</ul>
+<p>---</p>
+<h2>五、最佳實踐與常見問題</h2>
+<h3>5.1 DDP 訓練檢查清單</h3>
+<ol>
+<li>確認模型能完整載入單張 GPU（先單 GPU 測試通過）</li>
+<li>設定環境變數 <code>UNSLOTH_DISABLE_TRAINER_PATCHING=1</code></li>
+<li>使用 <code>device_map=local_rank</code>（非 "auto" 或 "balanced"）</li>
+<li><code>per_device_train_batch_size=1</code>（目前限制）</li>
+<li>用 <code>accelerate config</code> 生成配置後 <code>accelerate launch</code></li>
+<li>運行間清除編譯快取避免衝突</li>
+</ol>
+<h3>5.2 Model Parallelism 檢查清單</h3>
+<ol>
+<li>計算模型 VRAM 需求（參數量十億 ≈ GB）</li>
+<li>確認 GPU 合計 VRAM 足夠</li>
+<li>設定 <code>device_map="balanced"</code></li>
+<li>直接用 <code>python train.py</code>（不用 torchrun）</li>
+<li>不要設定 <code>CUDA_VISIBLE_DEVICES</code> 排除 GPU</li>
+</ol>
+<h3>5.3 常見錯誤排除</h3>
+<p>| 錯誤 | 原因 | 解法 |</p>
+<p>|------|------|------|</p>
+<p>| <code>device_map='auto' in distributed mode</code> | DDP + device_map 混用 | 擇一策略 |</p>
+<p>| OOM on single GPU | 模型太大 | 改用 device_map="balanced" |</p>
+<p>| Gradient NaN | batch_size > 1 | 設回 batch_size=1 |</p>
+<p>| torchrun 掛住 | NCCL 通訊問題 | 改用 accelerate launch |</p>
+<p>| Loss 不下降 | gradient_accumulation 設太大 | 從 4 開始調整 |</p>
+<h3>5.4 效能最佳化建議</h3>
+<pre><code>
+# 啟用 Unsloth 的梯度檢查點（比 HF 節省 30% VRAM）
+model = FastLanguageModel.get_peft_model(
+    model,
+    use_gradient_checkpointing="unsloth",  # 專用實作
+)
+
+# 啟用 Packing（短序列自動拼接，減少 padding 浪費）
+# Unsloth 預設啟用 padding-free，額外加速 1.1-2x
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    dataset_text_field="text",
+    packing=True,  # 啟用序列打包
+    args=training_args,
+)
+</code></pre>
+<p>---</p>
+<h2>六、與知識庫已有內容的關聯</h2>
+<p>| 已有筆記 | 與本文關聯 |</p>
+<p>|---------|--------|</p>
+<p>| Unsloth 核心架構原理 | 本文的 Triton kernel/梯度檢查點是其記憶體最佳化基礎 |</p>
+<p>| Unsloth 生產環境部署管線 | 訓練完成後的 GGUF 匯出是本文的下游步驟 |</p>
+<p>| Unsloth 與主流框架比較 | Axolotl/LLaMA-Factory 的多 GPU 支援更成熟（FSDP+DeepSpeed） |</p>
+<p>| Unsloth 故障排除指南 | OOM 解法與本文的記憶體估算互補 |</p>
+<p>| Unsloth GRPO 強化學習 | RL 訓練的 VRAM 需求更高，多 GPU 策略更重要 |</p>
+<p>| Unsloth 繁中 LLM 微調 | 繁中資料集若需大模型（70B+），本文的配置直接適用 |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://unsloth.ai/docs/basics/multi-gpu-training-with-unsloth">Multi-GPU Fine-tuning with Unsloth</a> — 官方多 GPU 訓練文件</li>
+<li><a href="https://unsloth.ai/docs/basics/multi-gpu-training-with-unsloth/ddp">DDP Training with Unsloth</a> — 官方 DDP 教學</li>
+<li><a href="https://unsloth.ai/docs/basics/unsloth-multi-gpu-support">Unsloth Multi-GPU Support</a> — Pro 版功能說明</li>
+<li><a href="https://kaitchup.substack.com/p/how-to-run-unsloth-on-multi-gpu-setups">Unsloth Multi-GPU: device_map balanced vs DDP</a> — 兩種策略深度比較（Kaitchup）</li>
+<li><a href="https://trelis.substack.com/p/multi-gpu-training-with-unsloth">Multi GPU Training with Unsloth</a> — Trelis Research 實測</li>
+<li><a href="https://blogs.nvidia.com/blog/rtx-ai-garage-fine-tuning-unsloth-dgx-spark/">How to Fine-Tune LLMs on RTX GPUs With Unsloth</a> — NVIDIA 官方部落格</li>
+<li><a href="https://medium.com/@indosambhav/unsloth-challenge-2-make-qlora-work-with-fsdp2-c04e7ad5f614">Unsloth FSDP2 Challenge</a> — QLoRA + FSDP2 整合挑戰</li>
+<li><a href="https://huggingface.co/docs/accelerate/en/concept_guides/fsdp_and_deepspeed">FSDP vs DeepSpeed</a> — HuggingFace Accelerate 比較指南</li>
+<li><a href="https://github.com/unslothai/unsloth">Unsloth GitHub</a> — 開源專案倉庫</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

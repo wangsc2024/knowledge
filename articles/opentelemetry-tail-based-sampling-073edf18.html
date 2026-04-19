@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenTelemetry Tail-based Sampling：記憶體足跡、延遲與代表性偏差（銜接 Agent JSONL 稽核旁路） 深度研究報告">
+  <title>OpenTelemetry Tail-based Sampling：記憶體足跡、延遲與代表性偏差（銜接 Agent JSONL 稽核旁路） 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>OpenTelemetry Tail-based Sampling：記憶體足跡、延遲與代表性偏差（銜接 Agent JSONL 稽核旁路） 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">OpenTelemetry Tail-based Sampling</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>OpenTelemetry Tail-based Sampling：記憶體足跡、延遲與代表性偏差（銜接 Agent JSONL 稽核旁路）：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>本研究聚焦一個常被誤解的問題：為什麼同樣是取樣，OpenTelemetry 的 tail-based sampling 常比 head sampling 更容易拉高記憶體與延遲。答案不在「演算法比較重」，而在決策時點不同。Head sampling 在 SDK 建立 root span 時就做決策，因此下游多半只是在既有取樣語意下繼承處理，記憶體曲線較平。[來源：Trace SDK：Sampling（OpenTelemetry 規格）, 2026] Tail sampling 則把決策延後到 Collector，為了看見較完整的 trace 結果，必須先持有尚未完成的 trace 狀態與等待視窗。[來源：Tail Sampling Processor README（collector-contrib）, 2026] 這使它天然承擔更高的記憶體峰值與更長的輸出延遲。[來源：Sampling（OpenTelemetry 概念文件）, 2026]</p>
+<p>對本專案更重要的是，若 post_tool_logger 或 Golden Trace 旁路要求「全量留存」，就不應與一般 tail sampling 共用同一條緩衝鏈。否則同一批 trace 會在營運取樣與稽核保全之間重複支付等待與排隊成本，既難估算，也容易在 Collector 高峰期放大背壓。[來源：Collector 設定概覽（OpenTelemetry 文件）, 2026] 較穩健的工程策略是：把全量稽核旁路視為獨立成本中心，再用前段粗篩加後段精選的雙層管線控制進入 tail processor 的 trace 量。[來源：Probabilistic Sampling Processor README（collector-contrib）, 2026]</p>
+<h2>研究背景與動機</h2>
+<p>在一般可觀測性教學裡，tail sampling 常被描述成「比較聰明」的取樣，因為它能根據最終結果保留錯誤、慢請求或特定業務路徑。但這種說法只說對一半。它確實提供後見之明，卻也把成本從 SDK 端的即時決策，轉移到 Collector 端的等待、關聯與釋放流程。[來源：Sampling（OpenTelemetry 概念文件）, 2026]</p>
+<p>對 daily-digest-prompt 這類 Agent 系統而言，問題更敏感。若我們同時想要一般觀測用的 sampling，以及保留全量 JSONL 或 Golden Trace 的稽核旁路，就不能只問「tail sampling 能不能用」，而必須問「它應置於哪一層、與旁路如何分帳、哪些記憶體是共享成本、哪些是重複成本」。</p>
+<h2>核心技術解析</h2>
+<p>Head sampling 的核心特性是早決策。OpenTelemetry Trace SDK 規格將 TraceIdRatioBased、ParentBased 等 sampler 定義在 span 建立當下運作；一旦 root span 決定是否記錄，後續 span 多半承繼其結果。[來源：Trace SDK：Sampling（OpenTelemetry 規格）, 2026] W3C Trace Context 也說明 trace-flags 攜帶 sampled 位元，可作為跨服務傳播的建議訊號。[來源：Trace Context（W3C Recommendation）, 2021]</p>
+<p>Tail sampling 的邏輯正好相反。Collector Contrib 的 tail sampling processor 說明指出，它必須在決策前維持 trace 關聯狀態，直到等待視窗結束或足夠條件成立。[來源：Tail Sampling Processor README（collector-contrib）, 2026] 這意味著真正支配成本的不是單一 policy 名稱，而是「單位時間新進 trace 數量」「平均 trace 大小」「decision_wait 長度」與「下游匯出排隊是否順暢」。一旦 exporter 或 batch processor 回壓，tail processor 已持有的狀態會更慢釋放，記憶體峰值便上升。[來源：Collector 設定概覽（OpenTelemetry 文件）, 2026]</p>
+<p>工程團隊常把記憶體暴增歸咎於某條 policy，但從來源交叉比對來看，policy 多半只是決定哪些 trace 值得保留，真正讓成本放大的，是為了讓 policy 得以在較完整資訊上決策而付出的緩衝代價。[來源：Sampling（OpenTelemetry 概念文件）, 2026] [來源：Tail Sampling Processor README（collector-contrib）, 2026] [來源：Collector 設定概覽（OpenTelemetry 文件）, 2026]</p>
+<p>另一個關鍵是代表性偏差。Tail sampling 對錯誤與慢請求更友善，卻可能讓正常流量在資料集中被壓縮；反之，head sampling 對整體母體分布較穩，卻可能漏掉低頻高價值異常。若再在前段加入 probabilistic sampling 進行粗篩，雖然可以有效降低進入 tail 緩衝的 trace 量，但第一層偏差會帶入第二層精選。[來源：Probabilistic Sampling Processor README（collector-contrib）, 2026]</p>
+<p>最後要看跨服務一致性。W3C 規範明說 trace-flags 是呼叫端建議，不是不可違反的硬性命令；下游服務可因負載或安全考量調整。[來源：Trace Context（W3C Recommendation）, 2021] 然而 Trace SDK 的 ParentBased 又鼓勵子鏈路尊重父層取樣決策。[來源：Trace SDK：Sampling（OpenTelemetry 規格）, 2026] 若某些 Agent 任務或 Golden Trace 需要全鏈路保留，就必須用獨立旁路或明確 policy，而不是假設 sampled flag 會自動保障完整留存。</p>
+<h2>關鍵洞見</h2>
+<ul>
+<li>已驗證✅ Head sampling 的工程優勢在於把成本前移並鎖定，不在於它比 tail sampling 更能理解請求價值。</li>
+<li>已驗證✅ Tail sampling 的記憶體峰值與延遲是同一機制的兩個表現：都來自決策前暫存與等待。</li>
+<li>已驗證✅ 前段 probabilistic sampling 加後段 tail sampling 是可行的粗篩加精選結構，但其代價是把代表性偏差顯式制度化。</li>
+<li>已驗證✅ Golden Trace 或 JSONL 稽核旁路若要全量保留，應獨立於一般營運 tail sampling 鏈。</li>
+<li>已驗證✅ 跨服務 sampled flag 只能降低協調成本，不能取代治理。</li>
+<li>待驗證⚠️ decision_wait 的最佳值仍需以本專案實測校準。</li>
+</ul>
+<h2>實務應用建議</h2>
+<ol>
+<li>先把 Golden Trace／稽核旁路拆成獨立 pipeline，避免與一般 tail sampling 共用等待緩衝。</li>
+<li>在 tail processor 前加一層保守的 probabilistic sampling，只讓需要精選的流量進入高成本等待區。</li>
+<li>監控指標不要只看 CPU；至少同步追 decision_wait 期間未決 trace 數、batch queue 深度與 memory limiter 告警。</li>
+<li>對需要完整鏈路的 Agent 類任務，明訂 sampled flag、ParentBased 與旁路 exporter 的優先序。</li>
+<li>報表解讀時區分營運可觀測樣本與稽核全量樣本，不要把兩者混成同一母體。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本研究與前一篇「LLM Agent JSONL→OTLP 管線之批次背壓、取樣旁路與 Collector 資源成本基準」直接相接。前一篇把焦點放在 queue、memory limiter 與 persistent queue 的成本重分配；本篇則更精確地指出，tail sampling 不是單純的 policy 問題，而是決策時點與旁路分帳問題。</p>
+<h2>未來展望</h2>
+<p>下一步應針對 post_tool_logger 事件建立最小可重現壓測，量測不同 decision_wait、不同粗篩比例下的 Collector 記憶體峰值與端到端延遲；並建立營運樣本與稽核樣本分離的 dashboard，讓代表性偏差可視化。</p>
+<h2>完整書目</h2>
+<ul>
+<li>OpenTelemetry. (2026, retrieved 2026-04-03). Sampling. OpenTelemetry Documentation. https://opentelemetry.io/docs/concepts/sampling/</li>
+<li>OpenTelemetry. (2026, retrieved 2026-04-03). Trace SDK: Sampling. OpenTelemetry Specifications. https://opentelemetry.io/docs/specs/otel/trace/sdk/#sampling</li>
+<li>OpenTelemetry Collector Contrib. (2026, retrieved 2026-04-03). Tail Sampling Processor README. GitHub. https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md</li>
+<li>OpenTelemetry Collector Contrib. (2026, retrieved 2026-04-03). Probabilistic Sampling Processor README. GitHub. https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/probabilisticsamplerprocessor/README.md</li>
+<li>W3C. (2021, retrieved 2026-04-03). Trace Context. World Wide Web Consortium Recommendation. https://www.w3.org/TR/trace-context/</li>
+<li>OpenTelemetry. (2026, retrieved 2026-04-03). Collector Configuration. OpenTelemetry Documentation. https://opentelemetry.io/docs/collector/configuration/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

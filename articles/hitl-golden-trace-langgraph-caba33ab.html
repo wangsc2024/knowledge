@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HITL 工具核准理由碼與 Golden Trace 重放測試：LangGraph interrupt／MCP 邊界與 JSONL 追溯契約 深度研究報告">
+  <title>HITL 工具核准理由碼與 Golden Trace 重放測試：LangGraph interrupt／MCP 邊界與 JSONL 追溯契約 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>HITL 工具核准理由碼與 Golden Trace 重放測試：LangGraph interrupt／MCP 邊界與 JSONL 追溯契約 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">HITL與GoldenTrace</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>HITL 工具核准理由碼與 Golden Trace 重放測試：LangGraph interrupt／MCP 邊界與 JSONL 追溯契約：深度技術研究報告</h1>
+<h2>執行摘要（200-400 字）</h2>
+<p>本報告接續前期三角佐證結論，聚焦人機協同（HITL）在高風險工具呼叫場景下的「可重放核准契約」。綜合 LangGraph 的 interrupt／persistence、OpenAI Agents SDK 的 interruptions／RunState、Google ADK 的 resumable runtime，以及 MCP 規範與安全最佳實務，共識是可恢復 HITL 必須同時具備穩定執行身分（thread／run／世代）、可序列化狀態與明確工具邊界；MCP Host 承載同意與能力治理，圖編排層承載 pause／resume 控制流 [來源：Model Context Protocol Specification (2025-06-18), 2025][來源：LangGraph: Human-in-the-loop, 2025][來源：LangGraph Interrupts — Python, 2025]。在此基礎上，核准「理由碼」應為可機讀枚舉並落入 JSONL／error-object 單一觀測平面，Golden Trace 則需把工具輸入正規化雜湊、模型／prompt 指紋與核准決策綁定到 tool_call_id，才能驗證相同輸入與相同核准下追蹤欄位一致；細部雜湊契約仍有賴專案實作補齊，屬待驗證延伸 [來源：Human-in-the-loop — OpenAI Agents SDK, 2025][來源：Resume stopped agents — Google ADK, 2025]。</p>
+<h2>研究背景與動機</h2>
+<p>多代理與長回合編排普及後，工具呼叫從「一次性函數」變成具備安全與合規含義的作業。模型可能遭 prompt injection 誘發過度代理；若無 gate，高影響力工具會在缺乏稽核軌跡下被觸發 [來源：MCP Security Best Practices, 2025][來源：OWASP Top 10 for Large Language Model Applications, 2024]。研究問題因而分成三條：checkpoint／interrupt 下如何綁定唯一識別與版本；MCP Host 或同構核准層的理由碼如何支援稽核與 policy；Golden Trace 如何驗證「相同輸入＋核准決策」時雜湊、模型指紋與 JSONL 欄位一致。</p>
+<h2>核心技術解析（每個主張內嵌引用）</h2>
+<p><strong>可持久化 pause／resume 是 HITL 的工程前提。</strong> LangGraph 以 <code>interrupt()</code> 暫停圖執行並透過 <code>Command(resume=...)</code> 恢復；若無 checkpointer 與 <code>thread_id</code> 等穩定關聯，核准後重入會失去一致語意 [來源：LangGraph Interrupts — Python, 2025][來源：LangGraph Persistence — Python, 2025]。OpenAI Agents SDK 以 <code>needs_approval</code>、<code>RunResult.interruptions</code> 與可序列化 <code>RunState</code> 呈現同一問題的不同抽象 [來源：Human-in-the-loop — OpenAI Agents SDK, 2025]。Google ADK 則從 runtime 角度區分暫停與可恢復執行，利於與決定性工作流對照 [來源：Resume stopped agents — Google ADK, 2025]。</p>
+<p><strong>工具邊界與同意掛點落在 MCP Host。</strong> MCP 規範將工具能力曝露在 server，治理與同意流程由 Host 承擔，使最小權限與 policy hook 有固定位置 [來源：Model Context Protocol Specification (2025-06-18), 2025]。安全最佳實務進一步將 prompt injection、tool poisoning、confused deputy 列為核心威脅，要求 consent 與 scope minimization [來源：MCP Security Best Practices, 2025]。OWASP LLM Top 10 亦將過度代理與不當工具使用視為關鍵風險類型，並指出技術控制需搭配審計 [來源：OWASP Top 10 for Large Language Model Applications, 2024]。LangGraph 的 human-in-the-loop 概念文件亦強調節點邊界可暫停等待人類輸入，且需與 checkpoint 語意銜接 [來源：LangGraph: Human-in-the-loop, 2025]。</p>
+<p><strong>Golden Trace 與理由碼屬實作契約層。</strong> 框架文件多處理 pause／resume API；若要對「同一決策」做重放測試，需把 thread_id、checkpoint 世代、tool_call_id（或等價鍵）與核准理由碼一併寫入結構化日誌，並與 error-object 的 <code>type</code>、<code>retryable</code> 等欄位對齊，才能避免觀測平面分裂。工具輸入正規化雜湊與模型指紋的必備性獲兩方以上來源間接支持，但欄位級標準仍待各專案補強 [來源：LangGraph Interrupts — Python, 2025][來源：Human-in-the-loop — OpenAI Agents SDK, 2025]。</p>
+<h2>關鍵洞見（含三角佐證狀態 ✅／⚠️）</h2>
+<ul>
+<li><strong>核准事件應綁定 thread_id、checkpoint 世代、tool_call_id，以對齊 interrupt 後的同一決策。</strong> 狀態：已驗證✅；支持來源數：4（LangGraph Interrupts、Persistence、OpenAI Agents SDK、ADK resume）。</li>
+<li><strong>理由碼應為可機讀枚舉並可對照 error-object，利於稽核統計與下游 policy。</strong> 狀態：已驗證✅；支持來源數：3（MCP Security、OWASP LLM Top 10、OpenAI Agents HITL／治理共識）。</li>
+<li><strong>MCP Host 核准與 LangGraph 節點 interrupt 可分工：前者管能力集合與同意，後者管圖內流程與恢復點。</strong> 狀態：已驗證✅；支持來源數：3（MCP 規範、MCP Security、LangGraph HITL 概念）。</li>
+<li><strong>Golden Trace 須固定工具輸入雜湊與模型／prompt 指紋，否則重放可能因漂移失敗。</strong> 狀態：待驗證⚠️；目前以架構推導與部分框架重入模型支持，仍少公開欄位級規範。</li>
+<li><strong>JSONL（如 post_tool_logger）宜承載 approval_decision、reason_code、mcp_tool_name，與 phase／task_key 並列。</strong> 狀態：已驗證✅（與本儲庫 Hook／錯誤物件治理方向一致）；跨框架標準化程度待驗證⚠️。</li>
+</ul>
+<h2>實務應用建議（3-5 點）</h2>
+<ol>
+<li><strong>核准前後皆寫入同一 JSONL schema</strong>：至少含 <code>thread_id</code>、<code>tool_call_id</code>、<code>approval_decision</code>、<code>reason_code</code>、<code>checkpoint_gen</code>（或等價）、<code>mcp_tool_name</code>。</li>
+<li><strong>理由碼與 policy 分層</strong>：上游枚舉固定（稽核），下游可映射到風險分數與自動允許／拒絕規則。</li>
+<li><strong>Golden Trace 測試案例固定「輸入正規化」</strong>：對工具引數做排序鍵與空白規範後再雜湊，避免序列化差異造成假陰性。</li>
+<li><strong>MCP 與圖層職責矩陣</strong>：Host 管 consent 與 tool allowlist；LangGraph（或同級編排）管 interrupt 節點與 resume payload。</li>
+<li><strong>對照 OWASP LLM 風險清單設計稽核儀表</strong>：將過度代理、不當工具使用對應到可觀測指標與告警。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本主題與儲庫內「LangGraph 中斷節點之狀態恢復與工具調用重放」「MCP Host 與 LangGraph Interrupt：JSONL／error-object 追溯對齊」「LLM Agent operator override：理由碼與審計軌跡」等深度研究形成連續譜：前兩者建立 interrupt／Host 分工與追蹤平面；本報告把理由碼與 Golden Trace 收斂為可測契約，與 <code>config/error-types.yaml</code>、<code>hooks/post_tool_logger</code> 的結構化欄位可直接對接。</p>
+<h2>未來展望</h2>
+<p>OpenTelemetry GenAI 語意慣例若更普及，span 與核准事件的映射有機會標準化；在此之前，專案應以內部 schema 版本化（schema_version）保護重放測試。另可探索將「模型權重／推理服務版本」納入 trace fingerprint，以縮小待驗證⚠️區間。</p>
+<h2>完整書目</h2>
+<ol>
+<li>LangChain. LangGraph: Human-in-the-loop（概念文件）. LangChain Docs. https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/（摘取 2026-03-31）</li>
+<li>LangChain. LangGraph Interrupts — Python. LangChain Docs. https://docs.langchain.com/oss/python/langgraph/interrupts（摘取 2026-03-31）</li>
+<li>LangChain. LangGraph Persistence — Python. LangChain Docs. https://docs.langchain.com/oss/python/langgraph/persistence（摘取 2026-03-31）</li>
+<li>Model Context Protocol. Model Context Protocol Specification (2025-06-18). MCP Spec. https://spec.modelcontextprotocol.io/specification/2025-06-18/（摘取 2026-03-31）</li>
+<li>Model Context Protocol. MCP Security Best Practices. MCP Spec. https://modelcontextprotocol.io/specification/2025-06-18/basic/security_best_practices（摘取 2026-03-31）</li>
+<li>OpenAI. Human-in-the-loop — OpenAI Agents SDK. OpenAI GitHub Pages. https://openai.github.io/openai-agents-python/human_in_the_loop/（摘取 2026-03-31）</li>
+<li>OWASP. OWASP Top 10 for Large Language Model Applications. OWASP Foundation. https://owasp.org/www-project-top-10-for-large-language-model-applications/（摘取 2026-03-31）</li>
+<li>Google. Resume stopped agents — Google ADK. ADK Docs. https://google.github.io/adk-docs/runtime/resume/（摘取 2026-03-31）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

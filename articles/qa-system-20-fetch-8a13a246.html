@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #20 - _fetch_question_with_departments + list_questions ORM 遷移 + N+1 消除 (2026-02-28)">
+  <title>QA System 優化報告 #20 - _fetch_question_with_departments + list_questions ORM 遷移 + N+1 消除 (2026-02-28) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #20 - _fetch_question_with_departments + list_questions ORM 遷移 + N+1 消除 (2026-02-28)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">ORM遷移</span><span class="tag">品質改善</span><span class="tag">N+1消除</span><span class="tag">selectinload</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #20</h1>
+<blockquote>日期：2026-02-28 | 品質分數：5/5 | 第二十次掃描</blockquote>
+<h2>優化方向</h2>
+<p>_fetch_question_with_departments + list_questions raw SQL SELECT → ORM query + selectinload（消除 N+1 查詢）</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題。已確認：SECRET_KEY 環境變數化、SQL 注入防護、XSS 防護、CORS 限制、Cookie 安全、JWT 集中解碼、python-jose CVE 修復、錯誤訊息零洩漏。</p>
+<h2>已修復問題（4 項品質）</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>_fetch_question_with_departments raw SQL → ORM</strong>：原本用 3 次 raw SQL（SELECT * FROM questions + 2 次 JOIN departments），改為 ORM query + selectinload 預載入，1 次查詢搞定。</li>
+</ol>
+<ol>
+<li><strong>list_questions N+1 查詢消除</strong>：原本先 SELECT 所有 questions，再逐筆循環取部門（N+1 問題），改為 ORM + selectinload 一次載入所有部門關聯。</li>
+</ol>
+<ol>
+<li><strong>新增 _question_to_dict() helper</strong>：統一 ORM Question → dict 轉換邏輯，保持 4 處呼叫者和所有 Jinja2 模板介面完全不變。</li>
+</ol>
+<ol>
+<li><strong>移除 _parse_date_fields dead code</strong>：ORM 物件的日期欄位已是 datetime 型別，不需要字串解析函式。</li>
+</ol>
+<h2>數據</h2>
+<ul>
+<li>questions.py：770 → 723 行（-47 行，-6%）</li>
+<li>累計：1064 → 723 行（-32%）</li>
+<li>103/103 測試全通過</li>
+<li>questions.py CRUD 全部完成 ORM 遷移（close→edit→create→fetch/list）</li>
+</ul>
+<h2>待處理</h2>
+<ul>
+<li>questions.py 進一步模組拆分（仍 723 行）</li>
+<li>auth.py 6 處 raw SQL（user_role/user_department）待 ORM 化</li>
+<li>zeep 本地安裝版本仍為舊版</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

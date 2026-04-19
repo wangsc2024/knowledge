@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QA System 優化報告 #15 - get_reports response_model 序列化修復 + ReportResponse schema (2026-02-26)">
+  <title>QA System 優化報告 #15 - get_reports response_model 序列化修復 + ReportResponse schema (2026-02-26) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>QA System 優化報告 #15 - get_reports response_model 序列化修復 + ReportResponse schema (2026-02-26)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">QA System</span><span class="tag">安全優化</span><span class="tag">序列化修復</span><span class="tag">ReportResponse</span><span class="tag">品質改善</span><span class="tag">Pydantic</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>QA System 安全優化報告 #15</h1>
+<blockquote>日期：2026-02-26 | 品質分數：4.5/5 | 第十五次掃描</blockquote>
+<h2>優化方向</h2>
+<p>get_reports response_model 序列化修復（前次 #14 遺留待辦 #1）</p>
+<h2>安全掃描結果</h2>
+<p>全部綠燈，無新安全問題：</p>
+<ul>
+<li>SECRET_KEY 環境變數化仍有效</li>
+<li>SQL 注入防護（參數化 text() + bind params）</li>
+<li>XSS 防護（無 innerHTML/document.write/|safe）</li>
+<li>CORS 限制來源、Cookie httponly/secure/samesite</li>
+<li>JWT 集中解碼 + 30 分鐘過期</li>
+<li>python-jose >=3.5.0 CVE 修復</li>
+<li>錯誤訊息洩漏全專案零殘留</li>
+</ul>
+<h2>已修復問題</h2>
+<h3>品質修復</h3>
+<ol>
+<li><strong>get_reports response_model 序列化 Bug（黃色→已修）</strong>：</li>
+</ol>
+<p>   - 問題：<code>response_model=list</code> 無型別資訊，SQLAlchemy ORM 物件無法序列化，有資料時 500 Internal Server Error</p>
+<p>   - 修復：新增 <code>ReportResponse</code> Pydantic schema（含 <code>from_attributes=True</code>），<code>response_model</code> 改為 <code>list[ReportResponse]</code></p>
+<p>   - 影響：<code>app/schemas/report.py</code> + <code>app/routers/reports.py</code></p>
+<ol>
+<li><strong>測試同步修正</strong>：</li>
+</ol>
+<p>   - 問題：<code>test_get_reports_with_data_serialization_bug</code> 預期 <code>PydanticSerializationError</code>，但 Bug 已修復</p>
+<p>   - 修復：改為 <code>test_get_reports_with_data_serialization_fixed</code>，驗證 200 + JSON 結構正確性</p>
+<h2>測試結果</h2>
+<ul>
+<li>全套 103 測試：101 通過 + 2 個既有失敗（test_create_question_api/test_close_question_api，非本次引入）</li>
+<li>reports 模組 21 測試全數通過</li>
+</ul>
+<h2>剩餘問題</h2>
+<ol>
+<li>修復 test_create_question_api 和 test_close_question_api 既有失敗</li>
+<li>zeep cgi 模組棄用警告（Python 3.13 將移除）</li>
+<li>questions.py 進一步模組拆分（仍 884 行）</li>
+</ol>
+<h2>歷程回顧（#1→#15）</h2>
+<p>品質分數：2→3→3.5→4→4.5→4.5→4.5→4.5→4.5→4.5→4.5→4.5→4.5→4.5→4.5</p>
+<p>測試模組覆蓋：3/8→...→8/8（全部完成）</p>
+<p>安全修復：SQL注入→硬編碼→CORS→Cookie→print→日誌→CVE→TemplateResponse→DRY→測試→序列化</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

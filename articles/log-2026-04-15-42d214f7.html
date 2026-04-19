@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-04-15">
+  <title>系統 Log 審查報告 - 2026-04-15 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 審查報告 - 2026-04-15</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">log_audit</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 - 2026-04-15</h1>
+<h2>執行摘要</h2>
+<p>log_audit 自動任務完成系統日誌深度審查，發現 3 個需要系統核心層級修復的問題。log 層本身運作正常，所有發現問題已記錄待 arch_evolution 處理。</p>
+<h2>觀察與趨勢分析</h2>
+<h3>phase_failure（failure-stats）</h3>
+<p>最近一日 2026-04-15 的 phase_failure 為 15，高於前一日 2026-04-14（10），短期趨勢為惡化，不得描述為「改善中」。相較窗內高峰 2026-04-11（21 次）已回落。窗內 phase_failure 中位數為 15；最近一日相對中位數為「等於」中位數。</p>
+<p><strong>時間序列</strong>（由舊到新）：</p>
+<ul>
+<li>2026-04-09: 15 次</li>
+<li>2026-04-10: 18 次</li>
+<li>2026-04-11: 21 次（高峰，18 agent_crash）</li>
+<li>2026-04-13: 8 次</li>
+<li>2026-04-14: 10 次</li>
+<li>2026-04-15: 15 次（4 agent_crash, 3 timeout, 3 result_file_missing, 4 assembly_side_effects_missing, 1 plan_parse_error）</li>
+</ul>
+<h3>錯誤彙總（query-logs.ps1）</h3>
+<ul>
+<li>ERROR: 1 次</li>
+<li>WARN: 8 次</li>
+<li>TIMEOUT: 13 次</li>
+<li>區塊失敗: 48 次（任一 section 失敗）</li>
+</ul>
+<p>最多的區塊失敗：</p>
+<ul>
+<li>query: 27 次（Phase 1 查詢失敗）</li>
+<li>多個自動任務失敗或 snapshot-resume</li>
+</ul>
+<h3>排程系統健康診斷結果</h3>
+<ol>
+<li><strong>autonomous-runtime.json</strong>：✅ 正常（mode=normal, override.active=False）</li>
+<li><strong>LLM 對話性回應</strong>：</li>
+</ol>
+<p>   - Phase 1: 3 個檔案受影響</p>
+<p>   - Phase 3: 0 個檔案（良好）</p>
+<p>   - 防護機制均已到位（planWriteTime -lt 與 conversationalPattern 均存在）</p>
+<ol>
+<li><strong>ollama 思維鍊洩漏</strong>：✅ 無問題（0 個檔案）</li>
+</ol>
+<h2>🔴 嚴重問題（需系統核心層級修復）</h2>
+<h3>1. phase_failure 高頻（P0）</h3>
+<p><strong>症狀</strong>：近 7 天多日 phase_failure 超過 10 次（2026-04-15: 15次，2026-04-11: 21次）</p>
+<p><strong>根因</strong>：</p>
+<ul>
+<li>agent_crash：累計 23 次（2026-04-11 單日 18 次）</li>
+<li>timeout：累計 12 次</li>
+<li>result_file_missing：累計 4 次</li>
+<li>assembly_side_effects_missing：累計 7 次</li>
+</ul>
+<p><strong>影響範圍</strong>：系統整體成功率下降，多個 todoist-team 執行失敗</p>
+<p><strong>建議修復</strong>：</p>
+<ul>
+<li>分析 agent_crash 根因（可能是 prompt 錯誤、資源不足、依賴缺失）</li>
+<li>檢查 timeout 設定是否合理（config/timeouts.yaml）</li>
+<li>強化 result_file 產出驗證（templates/shared/preamble.md 的 Fail-Safe 佔坑）</li>
+</ul>
+<p><strong>責任邊界</strong>：系統核心配置（run-todoist-agent-team.ps1、config/timeouts.yaml），超出 log_audit 職責，已記錄待 arch_evolution 處理</p>
+<h3>2. podcast-history.json 解析錯誤（P1）</h3>
+<p><strong>症狀</strong>：18 個 log 檔案出現 podcast-history.json 解析失敗警告</p>
+<p><strong>錯誤訊息</strong>：</p>
+<ul>
+<li><code>The property 'query' cannot be found on this object</code></li>
+<li><code>Method invocation failed because [System.Management.Automation.PSObject] does not contain a method named 'op_Addition'</code></li>
+</ul>
+<p><strong>影響範圍</strong>：podcast_jiaoguangzong 相關任務執行異常（非致命，但影響記錄完整性）</p>
+<p><strong>建議修復</strong>：</p>
+<ul>
+<li>檢查 podcast-history.json schema 定義</li>
+<li>修正 PowerShell 腳本的 JSON 讀寫邏輯</li>
+<li>加強 JSON 格式驗證（使用 ConvertFrom-Json -ErrorAction Stop）</li>
+</ul>
+<p><strong>責任邊界</strong>：Skill 層邏輯（skills/podcast-jiaoguangzong/SKILL.md 或相關 PS1 腳本），超出 log_audit 職責，已記錄待 arch_evolution 處理</p>
+<h3>3. query Phase 1 失敗高頻（P1）</h3>
+<p><strong>症狀</strong>：近 7 天 query 區塊失敗 27 次（最多的區塊失敗類型）</p>
+<p><strong>影響範圍</strong>：todoist-team 執行流程受阻，可能導致後續 Phase 2/3 無法正常執行</p>
+<p><strong>建議修復</strong>：</p>
+<ul>
+<li>分析 prompts/team/todoist-query.md 的穩定性</li>
+<li>檢查 Todoist API 連線狀態</li>
+<li>加強 Phase 1 錯誤處理與重試機制</li>
+</ul>
+<p><strong>責任邊界</strong>：Prompt 層與 API 層（prompts/team/todoist-query.md、run-todoist-agent-team.ps1 Phase 1 邏輯），超出 log_audit 職責，已記錄待 arch_evolution 處理</p>
+<h2>🟢 正常狀態（log 層健康）</h2>
+<ol>
+<li><strong>log 輪轉</strong>：✅ 正常（無超過 7 天的檔案）</li>
+<li><strong>log 總大小</strong>：✅ 合理（38MB）</li>
+<li><strong>大型 log</strong>：2 個 stderr log 超過 1MB（ai_deep_research_continue: 1.1M, fahua: 1.7M），內容正常</li>
+<li><strong>nul 檔案</strong>：✅ 無問題</li>
+<li><strong>cache_degraded</strong>：✅ 無問題</li>
+</ol>
+<h2>結論</h2>
+<p>log_audit 審查發現的所有問題均屬於<strong>系統核心配置層級</strong>，不在 log 層職責範圍內。log 層本身運作正常，輪轉、大小、格式均符合預期。</p>
+<p>根據 ADR-XXX（責任邊界），這些問題已記錄於本報告，建議由 arch_evolution 自動任務依優先級（P0 → P1）處理：</p>
+<ol>
+<li>phase_failure 高頻問題（P0）</li>
+<li>podcast-history.json 解析錯誤（P1）</li>
+<li>query Phase 1 失敗高頻（P1）</li>
+</ol>
+<p><strong>下次審查建議</strong>：</p>
+<ul>
+<li>追蹤 phase_failure 趨勢（目標：單日 < 5 次）</li>
+<li>驗證 podcast-history 修復效果</li>
+<li>監控 query Phase 1 成功率（目標：> 95%）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

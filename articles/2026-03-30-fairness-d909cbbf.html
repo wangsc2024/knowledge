@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-03-30：快取優化 + Fairness 邏輯改善提案">
+  <title>系統優化落實報告 2026-03-30：快取優化 + Fairness 邏輯改善提案 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-03-30：快取優化 + Fairness 邏輯改善提案</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-03-30</h1>
+<h2>洞察來源</h2>
+<p>查詢 KB 近 2 天洞察筆記（4 個維度並行）+ context/system-insight.json 告警分析。</p>
+<h3>KB 查詢結果摘要</h3>
+<ul>
+<li><strong>系統優化建議</strong>（6 筆）：Mastra 記憶系統、Dify 蜂巢架構、gemini-cli 文件驅動、OODA 閉環實效性</li>
+<li><strong>系統審查報告</strong>（2 筆高相關）：2026-03-15 Log 審查、2026-03-02 Skill 品質審查</li>
+<li><strong>深度研究可借鏡</strong>（2 筆高相關）：Harness Agent 架構、Claude Code Teams 協作</li>
+<li><strong>KB 洞察評估</strong>（2 筆高相關）：2026-03-24 系統優化報告（Context 保護、arch_evolution 優化）</li>
+</ul>
+<h3>system-insight.json 告警</h3>
+<p>| 指標 | 當前值 | 門檻 | 差距 | 等級 |</p>
+<p>|------|--------|------|------|------|</p>
+<p>| cache_hit_ratio | 26.3% | 40% | -34.3% | ⚠️ warning |</p>
+<p>| auto_task_fairness | 0.635 | 0.5 | +27% | ⚠️ warning |</p>
+<p>| daily_success_rate | 82.5% | 90% | -8.3% | ⚠️ warning |</p>
+<p>| avg_io_per_call | 12474 | 12000 | +3.9% | ⚠️ warning |</p>
+<h2>方案規劃</h2>
+<p>依優先級排序（影響範圍 + 實作難度 + 風險等級）：</p>
+<h3>方案 1：快取命中率優化（評分 10/10）</h3>
+<p><strong>目標</strong>：將快取命中率從 26.3% 提升至 40% 以上</p>
+<p><strong>執行步驟</strong>：</p>
+<ol>
+<li>Bash 列出 cache/*.json 修改時間</li>
+<li>Read cache-policy.yaml 取得各快取 TTL</li>
+<li>識別 age > 2×TTL 的殭屍快取</li>
+<li>刪除識別到的殭屍快取</li>
+</ol>
+<p><strong>實作結果</strong>：</p>
+<ul>
+<li>識別到 1 個殭屍快取：gmail.json（33.2h > 24h 門檻）</li>
+<li>已刪除 gmail.json</li>
+<li>TTL 設定已在 2026-03-29 cache-optimizer 優化過，無需進一步調整</li>
+</ul>
+<h3>方案 2：自動任務公平性調整（評分 9/10 → 調整為記錄提案）</h3>
+<p><strong>目標</strong>：將 auto_task_fairness 從 0.635 降至 0.5 以下</p>
+<p><strong>根因分析</strong>：</p>
+<ul>
+<li>公平性指標 0.853（超過門檻 0.5）</li>
+<li>10 個從未執行的任務都有 allowed_hours 限制（6-19 點起始）</li>
+<li>當前時間為清晨 ~06:30，這些任務尚未進入允許執行時段</li>
+<li>count = 0 是<strong>設計符合預期</strong>，不是配置錯誤</li>
+</ul>
+<p><strong>修正策略調整</strong>：</p>
+<ul>
+<li>不執行 daily_limit / execution_order 調整（避免破壞時段設計）</li>
+<li>改為記錄根因分析至 improvement-backlog.json，提案改善 fairness 計算邏輯（排除尚未進入 allowed_hours 的任務）</li>
+<li>新增 backlog 條目：<code>backlog_kso_20260330_fairness_logic</code></li>
+</ul>
+<h2>測試與驗收</h2>
+<h3>格式與語法驗證</h3>
+<ul>
+<li>✓ YAML 語法檢查：config/*.yaml 全部通過</li>
+<li>✓ JSON 語法檢查：improvement-backlog.json, auto-tasks-today.json 全部通過</li>
+</ul>
+<h3>測試套件執行</h3>
+<ul>
+<li>✓ 776 個 hook 與 config 相關測試全部通過</li>
+</ul>
+<h3>驗收結果</h3>
+<ul>
+<li>✓ 方案 1：殭屍快取已清理（gmail.json 已刪除）</li>
+<li>✓ 方案 2：backlog 新增 fairness 改善提案（status: pending, priority: medium）</li>
+<li>✓ 配置一致性驗證：38 個自動任務配置全部一致</li>
+</ul>
+<h2>修改檔案</h2>
+<ul>
+<li>刪除：<code>cache/gmail.json</code>（殭屍快取）</li>
+<li>修改：<code>context/improvement-backlog.json</code>（新增 fairness 邏輯改善提案）</li>
+</ul>
+<h2>備份</h2>
+<ul>
+<li>Git backup：目前狀態已是最新，無需額外備份（cache/ 目錄不在版控中）</li>
+</ul>
+<h2>建議後續行動</h2>
+<ol>
+<li><strong>cache_hit_ratio</strong>：下次 Agent 執行後確認快取命中率是否提升至 35% 以上</li>
+<li><strong>auto_task_fairness</strong>：arch_evolution 或 self_heal 落實 fairness 計算邏輯改善（修改 tools/collect_system_data.py）</li>
+<li><strong>daily_success_rate</strong>：分析高失敗時段（6-8, 11, 19, 21-22 點）的任務類型與 timeout 配置</li>
+<li><strong>KB 洞察深入研究</strong>：Mastra Observational Memory 三層壓縮架構可應用於 digest-memory.json 升級</li>
+</ol>
+<h2>標籤</h2>
+<p>系統優化、kb-system-optimize、daily-digest-prompt、落實報告、快取優化、fairness邏輯改善</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

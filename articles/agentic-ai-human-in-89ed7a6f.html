@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agentic AI 的 Human-in-the-Loop Durable Orchestration：Temporal、LangGraph、OpenAI Agents SDK 與 Google ADK 的設計模式 深度研究報告">
+  <title>Agentic AI 的 Human-in-the-Loop Durable Orchestration：Temporal、LangGraph、OpenAI Agents SDK 與 Google ADK 的設計模式 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agentic AI 的 Human-in-the-Loop Durable Orchestration：Temporal、LangGraph、OpenAI Agents SDK 與 Google ADK 的設計模式 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">Agentic AI HITL Durable Orchestration</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agentic AI 的 Human-in-the-Loop Durable Orchestration：Temporal、LangGraph、OpenAI Agents SDK 與 Google ADK 的設計模式</h1>
+<h2>執行摘要</h2>
+<p>2026 年 Agent 系統的關鍵問題，已不再只是「模型能否正確呼叫工具」，而是「當流程跨越多步驟、等待人工批准、外部系統延遲或程序中斷時，整個任務能否帶著正確狀態繼續跑」。這使 human-in-the-loop（HITL）不再只是介面上的確認按鈕，而是 durable orchestration 問題。Temporal 把這件事包裝成 durable execution substrate，主張 workflow 失敗後可從上次狀態恢復，並已明確把 humans-in-the-loop 視為其典型場景 [來源：Temporal Homepage - Durable Execution Solutions, 2026]。[來源：Temporal Raises $300M Series D to Make Agentic AI Real for Companies, 2026]</p>
+<p>LangGraph、OpenAI Agents SDK 與 Google ADK 雖然 API 風格不同，但都收斂到相似結構：先在高風險步驟中斷，保存可恢復狀態，等待外部批准，再以穩定識別符或序列化狀態恢復執行 [來源：LangGraph Interrupts, 2026]。[來源：OpenAI Agents SDK - Human-in-the-loop, 2026]。[來源：Google ADK - Resume stopped agents, 2026] 這表示「暫停/恢復」不是補充功能，而是 agent 進入真實業務後的基本能力。</p>
+<p>對 <code>daily-digest-prompt</code> 或個人代理專案而言，最值得學習的不是複製某個框架，而是抽出共同原則：將 reasoning 與 orchestration 分離、對外部副作用設 gate、保存 run state 與 approval artifact、讓恢復動作可重放且可追蹤。這些做法可直接降低重複寫檔、重複通知、人工審批失聯與 phase 中斷後狀態漂移的風險。</p>
+<h2>背景與動機</h2>
+<p>過去許多 Agent demo 把成功條件放在「模型有沒有挑對工具」。但一旦系統進入真實工作流，風險會轉移到另一層：等待主管放行、第三方 API 間歇性失敗、長任務跨程序或跨天執行、以及外部副作用不可重做。Temporal 官方文件把 durable execution 描述為：應用在 crash、network failure 與 infrastructure outage 之後仍能從原狀態繼續 [來源：Temporal Docs, 2026]。這種表述直接切中 agent 生產化的痛點。</p>
+<p>Temporal 在 2026 年 2 月的融資新聞中，更把 durable execution 與 agentic AI 生產化直接連結，顯示市場已把這類能力視為 AI 基礎設施層，而非邊角功能 [來源：Temporal Raises $300M Series D to Make Agentic AI Real for Companies, 2026]。同一時期，Deloitte 也把 AI agent orchestration 視為企業規模化的重要課題，強調 workflow modularity、治理與 ownership [來源：Deloitte - AI agent orchestration, 2026]。這說明 HITL 的本質已從 UX 細節升級為執行治理問題。</p>
+<p>因此，本研究不再問「哪個框架最好」，而是分析四個代表性路線如何回答同一個核心問題：Agent 在等待人工判斷或跨長時間運行時，怎樣維持正確狀態與可控風險。</p>
+<h2>核心技術解析</h2>
+<p>Temporal 的重點在於把長流程與故障恢復視為第一級抽象。官方首頁直接宣稱 workflows 會在每一步自動捕捉 state，失敗後可從停止處恢復，並將 humans-in-the-loop 列為原生 use case，強調 clean, durable orchestration [來源：Temporal Homepage - Durable Execution Solutions, 2026]。這個定位意味著人工批准不該藏在臨時 callback 或聊天記錄裡，而應是 workflow 狀態機的一部分。Temporal 目前公開 AI 敘事偏基礎設施層，對 agent SDK 級 approval API 的描述較少，但方向很清楚：HITL 要靠 durable workflow 承接，而非靠 prompt 補強。</p>
+<p>LangGraph 走的是 runtime interrupt 路線。其 <code>interrupt</code> 文件說明，當節點呼叫 <code>interrupt()</code> 時，runtime 會暫停圖執行、保存當前狀態並等待外部輸入；恢復時使用 <code>Command(resume=...)</code> 繼續 [來源：LangGraph Interrupts, 2026]。更重要的是，它要求 <code>checkpointer</code> 與 <code>thread_id</code>，說明恢復語義必須綁定穩定執行上下文。LangChain 的 HITL middleware 進一步把這件事包裝成工程策略：在危險工具呼叫前中斷，並以 persistence layer 讓人類做 approve、edit、reject [來源：LangChain Human-in-the-loop Middleware, 2026]。這讓人看清 LangGraph 的立場：HITL 是 graph runtime 的中斷與狀態保存能力，不是單純的表單確認。</p>
+<p>OpenAI Agents SDK 則把 HILT 明確表達為 approval flow。官方文件指出，敏感工具可標記 <code>needs_approval</code>，執行時若尚未被批准，runner 會暫停並在 <code>RunResult.interruptions</code> 中暴露待處理項目；之後可把結果轉成 <code>RunState</code>，呼叫 <code>approve(...)</code> 或 <code>reject(...)</code>，再以原始 top-level agent 恢復 [來源：OpenAI Agents SDK - Human-in-the-loop, 2026]。同一文件也強調 <code>RunState</code> 可序列化存入資料庫或佇列，用於 long-running approvals [來源：OpenAI Agents SDK - Human-in-the-loop, 2026]。這裡的核心不是「等待人類」，而是「把等待本身變成可攜帶、可儲存、可版本化的狀態」。</p>
+<p>Google ADK 採取中間路線。其 workflow agents 文件把 orchestration 與 LLM reasoning 明確分離，指出 workflow agents 按預先定義邏輯執行，帶來 deterministic and predictable execution patterns [來源：Google ADK - Workflow Agents, 2026]。另一方面，ADK 的 resumability 文件把網路掉線、斷電與外部系統暫時不可用都視為正常中斷，並提供 <code>ResumabilityConfig</code> 與 resume 機制 [來源：Google ADK - Resume stopped agents, 2026]。在工具層，<code>LongRunningFunctionTool</code> 會啟動長任務後讓 agent run pause，官方也直接用 human approval 作為典型情境 [來源：Google ADK - Long Running Function Tools, 2026]。ADK 的價值在於把長任務、明確控制流與恢復能力組成一個較完整的 agent runtime。</p>
+<p>四條路線的共同點因此相當鮮明：都承認 agent 一定會卡在需要外部決策的節點，而且這些節點不能只靠當下記憶撐過去。差別在於抽象層級。Temporal 偏平台；LangGraph 偏圖執行時；OpenAI Agents SDK 偏 approval API；Google ADK 偏可恢復 workflow runtime。這些差異不是互斥，而是提供不同切入點。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ 已驗證。Agent 生產化的核心瓶頸已從工具選擇轉向 durable state management。Temporal、LangGraph、OpenAI Agents SDK 與 Google ADK 都把中斷後恢復視為一級能力，至少有 5 個來源支持 [來源：Temporal Docs, 2026]。[來源：Temporal Homepage - Durable Execution Solutions, 2026]。[來源：LangGraph Interrupts, 2026]。[來源：OpenAI Agents SDK - Human-in-the-loop, 2026]。[來源：Google ADK - Resume stopped agents, 2026]</li>
+</ol>
+<ol>
+<li>✅ 已驗證。Human-in-the-loop 的本質是「可持久化的 pause/resume 狀態機」，不是單次確認 UI。LangChain middleware、LangGraph interrupts、OpenAI RunState 與 Google 長任務工具都呈現同一模式，至少有 6 個來源支持 [來源：LangChain Human-in-the-loop Middleware, 2026]。[來源：LangGraph Interrupts, 2026]。[來源：LangGraph Server API - Human-in-the-loop using server API, 2026]。[來源：OpenAI Agents SDK - Human-in-the-loop, 2026]。[來源：Google ADK - Long Running Function Tools, 2026]。[來源：Google ADK - Resume stopped agents, 2026]</li>
+</ol>
+<ol>
+<li>✅ 已驗證。可靠 HITL 需要穩定的 run identity 或 thread identity，否則恢復時無法避免重跑與重複副作用。LangGraph 需要 <code>thread_id</code>，OpenAI Agents SDK 需要 <code>RunState</code>，ADK 需要 resumability config，至少有 4 個來源支持 [來源：LangGraph Interrupts, 2026]。[來源：LangGraph Server API - Human-in-the-loop using server API, 2026]。[來源：OpenAI Agents SDK - Human-in-the-loop, 2026]。[來源：Google ADK - Resume stopped agents, 2026]</li>
+</ol>
+<ol>
+<li>✅ 已驗證。將 orchestration 與 reasoning 分離，可讓高風險決策回到可審計、可恢復的 deterministic layer。這在 Google ADK workflow agents、LangGraph graph runtime 與 Temporal workflow 敘事中高度一致，至少有 4 個來源支持 [來源：Google ADK - Workflow Agents, 2026]。[來源：LangGraph Interrupts, 2026]。[來源：Temporal Homepage - Durable Execution Solutions, 2026]。[來源：Deloitte - AI agent orchestration, 2026]</li>
+</ol>
+<ol>
+<li>✅ 已驗證。對實務系統而言，最應先加 HITL 的不是聊天回答，而是任何會產生外部副作用的步驟，例如寫檔、發通知、關單、呼叫 shell 或外部 API。LangChain 與 OpenAI 都把工具批准設計在 tool call 邊界，至少有 3 個來源支持 [來源：LangChain Human-in-the-loop Middleware, 2026]。[來源：OpenAI Agents SDK - Human-in-the-loop, 2026]。[來源：Google ADK - Long Running Function Tools, 2026]</li>
+</ol>
+<ol>
+<li>⚠️ 待驗證。Temporal Signals/Updates 很可能是 agent approval gate 的理想機制，但目前公開 AI-native 參考案例仍較分散，主要仍停留在方向性材料與 webinar 訊號，僅有 2 個來源明確靠近這個結論 [來源：Temporal Homepage - Durable Execution Solutions, 2026]。[來源：Temporal Webinar - The Essential Ingredients for Humans in the (Agentic) Loop, 2026]</li>
+</ol>
+<h2>實務應用建議</h2>
+<p>對 <code>daily-digest-prompt</code>，最直接的改造不是全面導入某個新框架，而是先抽出「可中斷狀態」與「待批准副作用」。具體可做三件事。第一，把 phase handoff 從純 JSON 結果檔提升成 execution contract，加入 <code>run_id</code>、<code>phase_state</code>、<code>pending_approvals</code> 與 <code>side_effect_log</code>。第二，把高風險步驟改為先產生 approval artifact，再決定是否實際執行，例如 KB 匯入、對外通知、批次刪檔。第三，把 resume 規則明文化：同一個 <code>run_id</code> 被恢復時，只允許重放未提交副作用的步驟，已提交副作用則依 log 判斷是否跳過或補償。</p>
+<p>對個人專案，若目前規模小，可先採 LangGraph 或 OpenAI Agents SDK 式的 interrupt/approval 模式；若流程跨天、需要等待多人批准或存在大量外部副作用，再考慮採 Temporal 這類 durable workflow 基座。Google ADK 則適合想把 deterministic orchestration、長任務與 agent runtime 一起管理的團隊。</p>
+<h2>與現有知識的連結</h2>
+<p>本研究與昨日的「Temporal 在 Agentic AI 的 Durable Execution 機制與實戰編排」形成直接延伸。前一輪研究回答的是 durable execution 為何重要；這一輪則補上「人類介入時，durability 要落在哪一層」。它也與先前的「Durable Orchestration 與 Human-in-the-Loop（LangGraph、Trigger.dev、Google ADK）」GitHub Scout 結果形成互補：Scout 偏落實方案清單，本研究則把不同框架的設計抽象成共同模式。</p>
+<p>此外，本研究與 <code>Agent Tool Use 可靠性設計</code>、<code>Agent 記憶與狀態治理</code> 等既有筆記可形成同一條技術脈絡。三者合併後，可逐步沉澱出一套更完整的 agent runtime 原則：工具邊界治理、狀態持久化、人工批准與補償式恢復。</p>
+<h2>未來展望</h2>
+<p>下一步最值得深化的是 Temporal 的 Signals/Updates 在 AI agent 場景中的具體參考架構，尤其是如何把 approval queue、審批 UI、補償交易與 audit trail 串成一致模型。另一個值得追蹤的方向，是不同框架如何處理「待批期間版本漂移」問題，例如 prompt、tool schema 或模型版本改變後，舊的 pending state 是否仍可安全恢復。這會直接決定 HITL 能否從 demo 走向長期運行。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Temporal. (2026). Temporal Docs. https://docs.temporal.io/ （取用日期：2026-03-26）</li>
+<li>Temporal. (2026). Durable Execution Solutions. https://temporal.io/ （取用日期：2026-03-26）</li>
+<li>Temporal. (2026). Temporal Raises $300M Series D to Make Agentic AI Real for Companies. https://temporal.io/news/temporal-raises-300M-to-make-agentic-ai-real-for-companies （取用日期：2026-03-26）</li>
+<li>Temporal. (2026). The Essential Ingredients for Humans in the (Agentic) Loop. https://pages.temporal.io/webinar-essential-ingredients-for-humans （取用日期：2026-03-26）</li>
+<li>LangChain. (2026). Human-in-the-loop Middleware. https://docs.langchain.com/oss/python/langchain/human-in-the-loop （取用日期：2026-03-26）</li>
+<li>LangChain. (2026). LangGraph Interrupts. https://docs.langchain.com/oss/python/langgraph/interrupts （取用日期：2026-03-26）</li>
+<li>LangChain. (2026). Human-in-the-loop using server API. https://docs.langchain.com/langgraph-platform/add-human-in-the-loop （取用日期：2026-03-26）</li>
+<li>OpenAI. (2026). Human-in-the-loop - OpenAI Agents SDK. https://openai.github.io/openai-agents-python/human_in_the_loop/ （取用日期：2026-03-26）</li>
+<li>Google. (2026). Resume stopped agents - Agent Development Kit. https://google.github.io/adk-docs/runtime/resume/ （取用日期：2026-03-26）</li>
+<li>Google. (2026). Function Tools - Long Running Function Tools. https://google.github.io/adk-docs/tools-custom/function-tools/ （取用日期：2026-03-26）</li>
+<li>Google. (2026). Workflow Agents - Agent Development Kit. https://google.github.io/adk-docs/agents/workflow-agents/ （取用日期：2026-03-26）</li>
+<li>Deloitte. (2026). AI agent orchestration. https://www.deloitte.com/us/en/insights/industry/technology/technology-media-and-telecom-predictions/2026/ai-agent-orchestration.html （取用日期：2026-03-26）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

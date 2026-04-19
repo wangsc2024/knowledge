@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案RAG優化日報 2026-03-18 — Agent 工作流可靠性強化、RAG 管線韌性設計與安全防護深化">
+  <title>專案RAG優化日報 2026-03-18 — Agent 工作流可靠性強化、RAG 管線韌性設計與安全防護深化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案RAG優化日報 2026-03-18 — Agent 工作流可靠性強化、RAG 管線韌性設計與安全防護深化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">日報</span><span class="tag">daily-digest-prompt</span><span class="tag">Agent可靠性</span><span class="tag">RAG管線</span><span class="tag">安全防護</span><span class="tag">知識庫</span><span class="tag">深度思維</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案RAG優化日報 2026-03-18</h1>
+<blockquote>Daily-Digest-Prompt 專案深度優化建議：聚焦 Agent 工作流可靠性、RAG 管線韌性與安全防護三大維度</blockquote>
+<p>---</p>
+<h2>一、優化背景與方法論</h2>
+<p>本報告基於三路並行深度分析（架構/安全/工具鏈），結合 2026 年業界最佳實踐，針對 daily-digest-prompt 專案提出 <strong>12 項優化建議</strong>，分為 P0（必修）、P1（重要）、P2（改善）三級。</p>
+<p><strong>分析方法</strong>：</p>
+<ul>
+<li>架構層：10+ 配置文件交叉比對、Phase 執行流程追蹤</li>
+<li>安全層：6 個 Hook 守衛逐一審查、攻擊向量覆蓋度分析</li>
+<li>工具層：LLM Router / Trace Analyzer / Budget Guard 代碼品質評估</li>
+<li>外部參照：GitHub Blog Multi-Agent 可靠性、Redis RAG-at-Scale、Azure Agent Orchestration Patterns</li>
+</ul>
+<p>---</p>
+<h2>二、現況評分（7 維度）</h2>
+<p>| 維度 | 評分 | 關鍵發現 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>模組化</strong> | 5/5 | 30 Skills + 外部化配置 + 按需載入模板，架構清晰 |</p>
+<p>| <strong>可觀測性</strong> | 4/5 | JSONL 結構化日誌 + 7 種查詢模式，但缺少跨 Trace 關聯分析 |</p>
+<p>| <strong>安全性</strong> | 4.5/5 | Hook 機器強制層覆蓋 14+ 攻擊向量，但 UNC 路徑與 symlink 繞過未防 |</p>
+<p>| <strong>可維護性</strong> | 4/5 | 文件驅動（改配置不改 prompt）+ 8 個 ADR，但 PS hardcode 與 YAML 仍有漂移 |</p>
+<p>| <strong>可靠性</strong> | 3/5 | 18 天內 29 次 Phase 失敗 + 11 次超時，FSM 殭屍偵測不完整 |</p>
+<p>| <strong>吞吐量</strong> | 3.5/5 | 44 次/日執行容量，但快取命中率未達 40% 目標 |</p>
+<p>| <strong>韌性</strong> | 3/5 | 降級機制有但不完整：Groq 無指數退避、Schema 驗證僅警告不阻擋 |</p>
+<p><strong>綜合評分：3.86/5（可運作但脆弱，需可靠性強化）</strong></p>
+<p>---</p>
+<h2>三、P0 優化項目（必修，影響系統穩定性）</h2>
+<h3>P0-1：Phase 2 超時自適應機制</h3>
+<p><strong>問題</strong>：23 種自動任務各需獨立超時調校，YAML 與 PS hardcode 漂移導致靜默超時失敗。18 天內 11 次超時事件。</p>
+<p><strong>優化方案</strong>：</p>
+<ol>
+<li><strong>測量驅動</strong>：在結構化日誌中記錄每次 Phase 2 實際耗時（按 task_type 分類）</li>
+<li><strong>自適應算法</strong>：<code>tools/timeout_optimizer.py</code> 分析 7 天滑動窗口，推薦超時調整</li>
+</ol>
+<p>   - 變動 < 5%：自動套用</p>
+<p>   - 變動 5-10%：ntfy 通知待人工確認</p>
+<p>   - 變動 > 10%：阻擋並報告異常</p>
+<ol>
+<li><strong>溢出延伸</strong>：Phase 2 達到 90% 已分配時間 → 自動延伸 30%（而非硬性失敗）</li>
+<li><strong>殭屍偵測強化</strong>：FSM running > 配置超時 × 1.5 → 標記 zombie + ntfy 告警</li>
+</ol>
+<p><strong>預期效果</strong>：超時事件減少 70%+，消除手動調校需求</p>
+<h3>P0-2：Groq Rate Limit 指數退避</h3>
+<p><strong>問題</strong>：llm_router.py 的 Groq 呼叫無指數退避，rate_limit_per_min=2 下連續任務觸發 429 級聯失敗。</p>
+<p><strong>優化方案</strong>：</p>
+<pre><code>
+# 指數退避 + 抖動
+wait = min(2 ** retry_count + random.uniform(0, 1), 60)
+time.sleep(wait)
+</code></pre>
+<ul>
+<li>最大重試 3 次，每次退避加倍</li>
+<li>429 響應解析 Retry-After header</li>
+<li>降級路徑：Groq 3 次失敗 → 自動切換 Claude（已有 fallback 機制，需觸發）</li>
+</ul>
+<p><strong>預期效果</strong>：消除 429 級聯失敗，Groq 可用率提升至 99%+</p>
+<h3>P0-3：Schema 驗證從警告升級為阻擋</h3>
+<p><strong>問題</strong>：pre_write_guard.py 的 todoist-auto 結果 JSON Schema 驗證僅發出警告，不阻擋。畸形 Phase 2 輸出靜默傳遞至 Phase 3 組裝，導致摘要缺失或錯誤。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>Phase 2 結果 JSON 寫入時強制 Schema 驗證（必填欄位：agent, status, content, summary）</li>
+<li>驗證失敗 → 阻擋寫入 + 發出診斷 JSON（缺失欄位、型別錯誤）</li>
+<li>Phase 3 組裝前二次驗證（防止手動修改繞過）</li>
+</ul>
+<p><strong>預期效果</strong>：Phase 3 組裝失敗率降至接近零</p>
+<p>---</p>
+<h2>四、P1 優化項目（重要，提升效能與安全性）</h2>
+<h3>P1-1：快取預熱機制</h3>
+<p><strong>問題</strong>：快取命中率未達 40% 目標。每日摘要在固定時間（8:00, 11:15, 21:15）執行，但 API 快取可能在不同時間過期。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>排程在摘要執行前 10 分鐘預熱（7:50, 11:05, 21:05）</li>
+<li>並行預取所有低波動來源（news, HN, knowledge）</li>
+<li>獨立追蹤預熱命中/未命中（區分預熱 vs 執行時命中）</li>
+<li>預取失敗 → ntfy 預警（可能即將降級）</li>
+</ul>
+<p><strong>預期效果</strong>：快取命中率提升至 60%+，摘要延遲降低 40%</p>
+<h3>P1-2：Hook Pipeline 整合</h3>
+<p><strong>問題</strong>：hook_pipeline.py（DeerFlow 式中介軟體）已存在但未接入實際守衛執行流程。守衛各自獨立運行，缺乏 Trace/遙測層。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>將 hook_pipeline.py 作為所有守衛的必經中介軟體</li>
+<li>新增 Trace 中介軟體（前/後指標收集）</li>
+<li>新增 Alert 中介軟體（關鍵攔截 → ntfy 即時告警）</li>
+<li>Schema 驗證中介軟體（寫入後驗證）</li>
+</ul>
+<p><strong>預期效果</strong>：守衛延遲可量測、攔截事件即時通知、可擴展新守衛層</p>
+<h3>P1-3：跨 Trace 關聯分析</h3>
+<p><strong>問題</strong>：trace_analyzer.py 僅分析單一 trace_id，無法偵測系統性模式（如「Phase 1 延遲 → Phase 2 超時」因果鏈）。</p>
+<p><strong>優化方案</strong>：</p>
+<pre><code>
+# 按 Phase + 時間桶分群，偵測系統性失敗
+trace_clusters = defaultdict(list)
+for trace in entries:
+    cluster_key = (trace['phase'], trace['timestamp'].hour)
+    trace_clusters[cluster_key].append(trace)
+</code></pre>
+<ul>
+<li>關聯 scheduler-state.json + token-usage.json + failure-stats.json</li>
+<li>輸出根因假設（如「03-13 10 次失敗集中在 Groq 限流時段」）</li>
+</ul>
+<p><strong>預期效果</strong>：根因分析從單點提升至系統級，平均診斷時間縮短 50%</p>
+<h3>P1-4：路徑遍歷防禦強化</h3>
+<p><strong>問題</strong>：pre_read_guard.py 處理了 MSYS/Git Bash 路徑正規化，但未防禦 UNC 路徑（<code>\\?\D:\...</code>）、8.3 短名（<code>PROGRA~1</code>）、symlink/junction。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>拒絕所有 UNC 路徑前綴（<code>\\</code> 開頭）</li>
+<li>對路徑執行 <code>os.path.realpath()</code> 解析 symlink 後再比對</li>
+<li>allowed_paths 白名單需 ADR 審批（目前 D:/Source/knowledge 和 D:/Source/game_web 已在列）</li>
+</ul>
+<p><strong>預期效果</strong>：消除替代路徑表示法繞過風險</p>
+<p>---</p>
+<h2>五、P2 優化項目（改善，提升長期可維護性）</h2>
+<h3>P2-1：KB 感知式 LLM 路由</h3>
+<p><strong>問題</strong>：llm_router.py 的 5 種任務類型路由完全不考慮 KB 現有知識，導致跨日重複研究查詢。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>路由前先查詢 research-registry.json summary（O(1) 查詢）</li>
+<li>若 recent_3d_topics 含相似主題 → 降低研究權重，優先深化</li>
+<li>Groq classify 的 prompt 注入 KB context 片段（已有概念列表）</li>
+</ul>
+<h3>P2-2：語義去重取代文字比對</h3>
+<p><strong>問題</strong>：long_term_memory.py 僅用文字比對去重，遺漏改寫內容（paraphrase）。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>匯入前用 embedding similarity 檢查（閾值 0.85）</li>
+<li>或用 Groq classify 判斷「這是否為現有研究的新角度？」</li>
+</ul>
+<h3>P2-3：敏感資料消毒擴展</h3>
+<p><strong>問題</strong>：hook_utils.py 僅消毒 HTTP Authorization header 和 $env:TOKEN，未覆蓋 JSON payload、註釋中的 Bearer token、檔案內容。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>擴展消毒模式：JSON 值、程式碼註釋、檔案內容</li>
+<li>結構化日誌每筆上限 512 字元（截斷長值）</li>
+<li>對整個值消毒（非僅 token 部分）</li>
+</ul>
+<h3>P2-4：FSM 歷史保留擴展</h3>
+<p><strong>問題</strong>：run-fsm.json 僅保留最近 20 筆執行記錄，歷史失敗丟失，無法做趨勢分析。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>max_entries 提升至 100（或 30 天滾動）</li>
+<li>每日 00:40 系統審查時壓縮歷史（保留統計摘要，刪除原始 detail）</li>
+</ul>
+<h3>P2-5：預算守衛主動節流</h3>
+<p><strong>問題</strong>：budget_guard.py 在 80% 發警告、100% 才阻擋，中間 20% 無控制。配置缺失時靜默放行。</p>
+<p><strong>優化方案</strong>：</p>
+<ul>
+<li>75% 開始節流（降低 Groq 呼叫頻率，優先使用快取）</li>
+<li>90% 硬性限制（僅允許必要操作）</li>
+<li>配置缺失時寫入 <code>state/budget-alert-{date}.json</code>（非僅 stderr）</li>
+</ul>
+<p>---</p>
+<h2>六、優化實施路線圖</h2>
+<p>| 批次 | 項目 | 預估工作量 | 依賴 |</p>
+<p>|------|------|-----------|------|</p>
+<p>| Batch 1（本週） | P0-1 超時自適應 + P0-2 Groq 退避 + P0-3 Schema 阻擋 | 2-3 天 | 無 |</p>
+<p>| Batch 2（下週） | P1-1 快取預熱 + P1-2 Hook Pipeline 整合 | 2 天 | P0 完成 |</p>
+<p>| Batch 3（第三週） | P1-3 跨 Trace 關聯 + P1-4 路徑遍歷強化 | 1-2 天 | 無 |</p>
+<p>| Batch 4（持續） | P2-1~P2-5 逐步改善 | 各 0.5-1 天 | Batch 1-3 穩定後 |</p>
+<p>---</p>
+<h2>七、業界最佳實踐對照</h2>
+<p>| 實踐 | 業界標準（2026） | 本專案現況 | 差距 |</p>
+<p>|------|-----------------|-----------|------|</p>
+<p>| <strong>結構化輸出</strong> | JSON Schema 強制（GitHub Blog） | Schema 驗證僅警告 | P0-3 修復 |</p>
+<p>| <strong>語義快取</strong> | 多層快取可降 LLM 成本 68.8%（Redis） | 單層 TTL 快取 | P1-1 + P2-2 |</p>
+<p>| <strong>Agent 可觀測性</strong> | 完整 Trace + 工具呼叫精確度指標（Braintrust） | JSONL 日誌但無跨 Trace 關聯 | P1-3 |</p>
+<p>| <strong>韌性模式</strong> | 指數退避 + 斷路器 + 優雅降級（Azure） | 部分實現（缺退避） | P0-2 |</p>
+<p>| <strong>自反射</strong> | Reflection Pattern 自我評估（PromptEngineering.org） | Done Cert 品質評分 | 已具備基礎 |</p>
+<p>| <strong>超時管理</strong> | 預熱 + 健康檢查 + 有界重試（in10nt） | 靜態超時 + 1 次重試 | P0-1 |</p>
+<p>---</p>
+<h2>八、結論與預期成果</h2>
+<p>本專案架構設計優秀（模組化 5/5、安全性 4.5/5），但 <strong>可靠性（3/5）</strong> 是最大瓶頸。</p>
+<p>12 項優化完成後預期：</p>
+<ul>
+<li>Phase 失敗率：從 29 次/18 天 → < 5 次/18 天（降 83%）</li>
+<li>超時事件：從 11 次/18 天 → < 2 次/18 天（降 82%）</li>
+<li>快取命中率：從 < 40% → 60%+</li>
+<li>安全防護覆蓋：從 14 攻擊向量 → 17+（新增 UNC/symlink/8.3）</li>
+<li>平均診斷時間：從人工排查 → 跨 Trace 自動關聯（縮短 50%）</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li>GitHub Blog: Multi-agent workflows often fail — How to engineer ones that don't</li>
+<li>Redis: RAG at Scale — How to Build Production AI Systems in 2026</li>
+<li>Azure Architecture Center: AI Agent Orchestration Patterns</li>
+<li>PromptEngineering.org: 2026 Playbook for Building Reliable Agentic Workflows</li>
+<li>Braintrust: 5 Best AI Agent Observability Tools for 2026</li>
+<li>HackerNoon: Designing Production-Ready RAG Pipelines</li>
+<li>in10nt: Why your AI Agent deployment times out (and how to fix it)</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

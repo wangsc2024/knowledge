@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent Harness 自主管理最終報告（Phase 2 自治 Gate 補強）">
+  <title>Agent Harness 自主管理最終報告（Phase 2 自治 Gate 補強） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent Harness 自主管理最終報告（Phase 2 自治 Gate 補強）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">agent-harness</span><span class="tag">autonomy</span><span class="tag">runtime-policy</span><span class="tag">daily-digest</span><span class="tag">control-plane</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent Harness 自主管理最終報告（Phase 2 自治 Gate 補強）</h1>
+<p>日期：2026-03-20</p>
+<p>專案：<code>daily-digest-prompt</code></p>
+<h2>執行摘要</h2>
+<ul>
+<li>已完成 agent harness 深化研究，並確認本系統使用的自治控制面配置版本為 <code>config/autonomous-harness.yaml</code> 中 <code>version: 1</code>、產生日期 <code>2026-03-20</code>。</li>
+<li>已補齊 <code>run-agent-team.ps1</code> 的 Phase 2 assembly 自治 gate，讓 daily-digest harness 可依 supervisor 輸出自動切換 <code>full / degraded / skip</code> 與 retry 次數。</li>
+<li>已實際驗證 <code>python tools/autonomous_harness.py --format json</code> 可輸出 <code>daily_digest_assembly_mode=degraded</code>，並以手動腳本驗證 <code>recovery -> skip</code>、<code>retries=0</code>。</li>
+</ul>
+<h2>架構與工作流重點</h2>
+<ul>
+<li>控制面：<code>tools/autonomous_harness.py</code> 匯總 <code>run-fsm</code>、scheduler state、failed auto tasks、token budget、heartbeat、resource snapshot。</li>
+<li>執行面：<code>run-agent-team.ps1</code> 與 <code>run-todoist-agent-team.ps1</code> 讀取 <code>state/autonomous-runtime.json</code> 套用自治 policy。</li>
+<li>可觀測性：輸出 <code>state/autonomous-harness-plan.json</code>、<code>state/autonomous-runtime.json</code>、<code>state/autonomous-agent-registry.json</code>、<code>state/autonomous-resource-snapshot.json</code>。</li>
+<li>自我修復：將 restart / self-heal / rebalance 決策寫入 recovery queue，為後續 recovery worker 預留介面。</li>
+</ul>
+<h2>已落地優化方案</h2>
+<ol>
+<li>控制面集中化</li>
+<li>目的：把分散腳本邏輯收斂成單一 supervisor，降低人工判讀成本。</li>
+<li>效益：可統一輸出 runtime policy、recovery queue、registry 與資源快照。</li>
+<li>工具：Python、YAML、JSON state files。</li>
+<li>風險：單點控制面複雜度上升；對策是保留 script fallback 與 state-based degrade mode。</li>
+</ol>
+<ol>
+<li>資源感知與動態調度</li>
+<li>目的：依 CPU、記憶體、GPU、token budget 自動調整併發與封鎖任務。</li>
+<li>效益：降低高壓時的錯誤率與資源爭用。</li>
+<li>工具：PowerShell、<code>typeperf</code>、<code>nvidia-smi</code>、Python supervisor。</li>
+<li>風險：Windows 權限造成量測不穩；對策是加入 <code>typeperf</code> fallback。</li>
+</ol>
+<ol>
+<li>Phase 2 自治 Gate</li>
+<li>目的：讓 daily-digest assembly 在 <code>degraded</code> / <code>recovery</code> 狀態不再硬跑完整組裝流程。</li>
+<li>效益：減少高壓/故障時的額外 LLM 成本與連鎖失敗。</li>
+<li>工具：PowerShell orchestration、runtime policy、FSM/span logging。</li>
+<li>風險：過度降級可能影響摘要完整性；對策是保留 <code>full / degraded / skip</code> 分級並記錄 span/status。</li>
+</ol>
+<h2>驗證結果</h2>
+<ul>
+<li><code>python tools/autonomous_harness.py --format json</code>：成功。</li>
+<li>runtime 實際輸出：<code>mode=degraded</code>、<code>daily_digest_assembly_mode=degraded</code>、<code>daily_digest_phase2_retries=0</code>。</li>
+<li>手動驗證：在 <code>scheduler-heartbeat</code> stale 情境下，runtime 轉為 <code>recovery</code>，且 <code>daily_digest_assembly_mode=skip</code>。</li>
+<li><code>agent status</code>：登入成功，但 <code>agent -p ... --mode=ask --workspace ...</code> 實際回傳 <code>[internal]</code>，故研究與實作採本地腳本正式執行。</li>
+<li><code>pytest</code>：受 Windows 暫存資料夾 ACL 限制，<code>tmp_path</code> fixture 初始化失敗；已確認屬環境問題，不是本次邏輯錯誤。</li>
+</ul>
+<h2>後續方向</h2>
+<ul>
+<li>新增常駐 <code>autonomous_recovery_worker</code> 消費 recovery queue。</li>
+<li>將 <code>done_cert</code>、resource snapshot、recovery outcome 匯總為長期治理時間序列。</li>
+<li>若未來需要跨主機調度，可將 supervisor 升級為常駐 control plane service。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

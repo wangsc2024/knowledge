@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="擴散語言模型（Diffusion LLMs）— 從去噪平行生成到推理強化的語言模型新範式：LLaDA、Mercury、d1 與 diffu-GRPO 的技術全景（2026）">
+  <title>擴散語言模型（Diffusion LLMs）— 從去噪平行生成到推理強化的語言模型新範式：LLaDA、Mercury、d1 與 diffu-GRPO 的技術全景（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>擴散語言模型（Diffusion LLMs）— 從去噪平行生成到推理強化的語言模型新範式：LLaDA、Mercury、d1 與 diffu-GRPO 的技術全景（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">Diffusion LLM</span><span class="tag">擴散語言模型</span><span class="tag">LLaDA</span><span class="tag">Mercury</span><span class="tag">d1</span><span class="tag">diffu-GRPO</span><span class="tag">平行生成</span><span class="tag">去噪推理</span><span class="tag">Inception Labs</span><span class="tag">2026突破技術</span><span class="tag">技術研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>擴散語言模型（Diffusion LLMs）— 語言模型新範式</h1>
+<h2>主題概述</h2>
+<p>擴散語言模型（Diffusion Language Models, dLLMs）是 2026 年 AI 領域最重要的架構創新之一。不同於傳統自回歸（Autoregressive, AR）模型逐 token 生成文字，dLLMs 借鑑影像擴散模型的「去噪」思路，從隨機噪聲 token 出發，經多輪去噪迭代<strong>平行生成</strong>所有 token，從根本上改變了語言生成的速度與成本結構。</p>
+<p>2026 年 2-3 月，三項關鍵突破標誌著 dLLMs 從學術原型邁入產業應用：</p>
+<ul>
+<li><strong>LLaDA 8B</strong>（北大 ML-GSAI）：首個 80 億參數規模的擴散語言模型，性能比肩 LLaMA3 8B</li>
+<li><strong>Mercury / Mercury 2</strong>（Inception Labs）：首個商業級 dLLM，達 1000+ tokens/sec 推理速度</li>
+<li><strong>d1 框架</strong>：首個將強化學習（RL）引入 dLLMs 以提升推理能力的方法</li>
+</ul>
+<p>---</p>
+<h2>一、核心原理：擴散如何應用於文字生成</h2>
+<h3>1.1 自回歸 vs 擴散</h3>
+<p>| 維度 | 自回歸模型（GPT/Claude） | 擴散語言模型 |</p>
+<p>|------|------------------------|-------------|</p>
+<p>| 生成方式 | 逐 token 序列生成 | 所有 token 平行去噪 |</p>
+<p>| 速度瓶頸 | 輸出長度 = 推理步數 | 去噪步數（8-20 步，與長度無關） |</p>
+<p>| 理論基礎 | 條件機率鏈 P(x_t|x_{<t}) | 變分下界（ELBO）最大化 |</p>
+<p>| 反向推理 | 受「逆轉詛咒」限制 | 天然支持雙向推理 |</p>
+<h3>1.2 Masked Diffusion 機制（LLaDA 採用）</h3>
+<ol>
+<li><strong>前向過程</strong>：將原始文字逐步加入遮罩（mask），直到完全遮蔽</li>
+<li><strong>反向過程</strong>：Transformer 從完全遮蔽的序列預測所有被遮罩的 token</li>
+<li><strong>迭代精煉</strong>：經多步去噪，從「粗糙→精細」逐步還原完整文字</li>
+</ol>
+<p>這種「由粗到精」的生成模式，使得 dLLMs 可以在每一步同時處理所有位置，而非像 AR 模型逐位置生成。</p>
+<p>---</p>
+<h2>二、LLaDA：學術突破 — 80 億參數擴散模型比肩 LLaMA3</h2>
+<h3>2.1 關鍵數據</h3>
+<ul>
+<li><strong>模型規模</strong>：8B 參數</li>
+<li><strong>訓練數據</strong>：2.3 兆 token（預訓練）+ 450 萬對（SFT）</li>
+<li><strong>訓練成本</strong>：13 萬 H800 GPU 小時</li>
+<li><strong>架構</strong>：純 Transformer，僅改用擴散目標函數（非 AR 預測）</li>
+</ul>
+<h3>2.2 性能對比</h3>
+<p>| 基準測試 | LLaDA 8B | LLaMA2 7B | LLaMA3 8B |</p>
+<p>|---------|----------|-----------|----------|</p>
+<p>| 15 項零/少樣本任務 | 幾乎全面超越 | 基線 | 基本持平 |</p>
+<p>| 數學任務 | <strong>優勢明顯</strong> | — | — |</p>
+<p>| 中文任務 | <strong>優勢明顯</strong> | — | — |</p>
+<p>| 多輪對話（SFT 後） | 表現出色 | — | — |</p>
+<h3>2.3 突破性成就：解決逆轉詛咒</h3>
+<p>AR 模型的固有缺陷是<strong>逆轉詛咒</strong>（Reversal Curse）：學過「A 是 B」不代表能回答「B 是什麼的 A」。LLaDA 在逆序詩歌補全任務中<strong>超越 GPT-4o</strong>，這是擴散架構天然雙向性的直接優勢。</p>
+<h3>2.4 後續發展</h3>
+<ul>
+<li><strong>LLaDA 2.0</strong>：已擴展至 1000 億參數（arXiv: 2512.15745）</li>
+<li><strong>LLaDA-V</strong>：視覺擴散語言模型（arXiv: 2505.16933）</li>
+<li><strong>dInfer</strong>：華為開源的 dLLM 高效推理框架</li>
+</ul>
+<p>---</p>
+<h2>三、Mercury：商業突破 — 1000+ tokens/sec 的生產級 dLLM</h2>
+<h3>3.1 速度基準</h3>
+<p>| 模型 | 推理速度（tokens/sec） | 相對倍率 |</p>
+<p>|------|---------------------|----------|</p>
+<p>| <strong>Mercury Coder Mini</strong> | <strong>1,109</strong> | <strong>~10x</strong> |</p>
+<p>| <strong>Mercury Coder Small</strong> | <strong>737</strong> | <strong>~7x</strong> |</p>
+<p>| Claude 4.5 Haiku | ~89 | 1x |</p>
+<p>| GPT-5 Mini | ~71 | 0.8x |</p>
+<p>| GPT-5.2 | ~100 | 1.1x |</p>
+<p>生成 2,500 token 文章：Mercury 2 約 2.5 秒，傳統 AR 模型約 20-30 秒。</p>
+<h3>3.2 品質與成本</h3>
+<ul>
+<li><strong>強項（90-95% 品質）</strong>：JSON 生成、翻譯、摘要、標準程式碼</li>
+<li><strong>弱項（85-90% 品質）</strong>：複雜多步推理、創意寫作、長鏈思考</li>
+<li><strong>成本節省</strong>：批量工作負載比 GPT-5.2/Claude Opus 4.6 <strong>低 3-5 倍</strong></li>
+<li><strong>去噪步數</strong>：8-20 步自適應，完成時間取決於迭代次數而非輸出長度</li>
+</ul>
+<h3>3.3 部署平台</h3>
+<ul>
+<li>Inception Labs 開發者入口（分層定價）</li>
+<li>AWS Bedrock</li>
+<li>Google Cloud Vertex AI</li>
+<li>自託管（需專用 GPU）</li>
+</ul>
+<p>---</p>
+<h2>四、d1 框架：推理強化 — 讓擴散模型也能「思考」</h2>
+<h3>4.1 核心問題</h3>
+<p>AR 模型的推理能力（如 Chain-of-Thought）依賴序列生成的自然順序，但 dLLMs 缺乏這種順序性。d1 框架首次證明：<strong>dLLMs 也能透過 RL 獲得推理能力</strong>。</p>
+<h3>4.2 兩階段方法</h3>
+<ol>
+<li><strong>Masked SFT</strong>：從現有推理資料集蒸餾知識，灌注自我改進行為</li>
+<li><strong>diffu-GRPO</strong>：專為 dLLMs 設計的無批評者、策略梯度 RL 演算法</li>
+</ol>
+<p>   - AR 模型的 PPO/GRPO 依賴序列對數機率，無法直接套用於 dLLMs</p>
+<p>   - diffu-GRPO 創新性地估計 dLLM 的對數機率，繞過序列分解限制</p>
+<h3>4.3 關鍵發現</h3>
+<ul>
+<li><strong>d1-LLaDA</strong> 在所有基準測試中一致優於其他模型</li>
+<li>出現 AR 模型特有的「頓悟時刻」（aha moments）：模型能識別推理錯誤、回溯並自我修正</li>
+<li>diffu-GRPO 的效果優於單純 SFT</li>
+</ul>
+<p>---</p>
+<h2>五、產業影響與未來展望</h2>
+<h3>5.1 適用場景分析</h3>
+<p>| 場景 | 擴散 LLM 優勢 | AR LLM 優勢 |</p>
+<p>|------|-------------|------------|</p>
+<p>| 高吞吐量 API | 10x 速度、3-5x 低成本 | — |</p>
+<p>| 批量文件處理 | 平行生成，規模化 | — |</p>
+<p>| 程式碼補全 | 速度+雙向上下文 | — |</p>
+<p>| 複雜推理 | — | 序列依賴更自然 |</p>
+<p>| 創意寫作 | — | 逐步展開更佳 |</p>
+<p>| 即時對話 | — | 流式輸出延遲低 |</p>
+<h3>5.2 未來方向</h3>
+<ol>
+<li><strong>混合架構</strong>：AR 生成骨架 + 擴散並行填充（已有 Speculative Decoding 先例）</li>
+<li><strong>多模態擴散</strong>：LLaDA-V 已展示文字+視覺統一擴散的可能</li>
+<li><strong>推理深化</strong>：d1 證明 RL 可行，後續可結合 RLHF/RLAIF 進一步提升</li>
+<li><strong>硬體協同</strong>：擴散的平行特性更適合現代 GPU 的 SIMD 架構</li>
+</ol>
+<p>---</p>
+<h2>六、與本專案的關聯</h2>
+<p>對 daily-digest-prompt 系統的啟示：</p>
+<ul>
+<li><strong>高吞吐場景</strong>：批量新聞摘要、研究筆記生成可考慮 Mercury API 降低成本</li>
+<li><strong>LLM Router 擴展</strong>：<code>config/llm-router.yaml</code> 可新增 dLLM 路由規則（translation/summarization 等非推理任務）</li>
+<li><strong>速度敏感任務</strong>：Todoist 自動任務的快速分類可用 dLLM 替代 Groq</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Nie et al. (2025). <em>Large Language Diffusion Models (LLaDA)</em>. arXiv: 2502.09992. ICLR 2025.</li>
+<li>Inception Labs (2026). <em>Introducing Mercury: The World's First Commercial-Scale Diffusion LLM</em>.</li>
+<li>Inception Labs (2026). <em>Mercury 2: Fastest Reasoning LLM — 5x Faster Than Leading Speed-Optimized LLMs</em>.</li>
+<li>d1 Research Team (2025). <em>d1: Scaling Reasoning in Diffusion Large Language Models via Reinforcement Learning</em>. arXiv: 2504.12216.</li>
+<li>Digital Applied (2026). <em>Mercury 2: Diffusion LLM at 1000+ Tokens/Second</em>.</li>
+<li>VILA-Lab. <em>A Survey on Diffusion Language Models</em>. GitHub: Awesome-DLMs.</li>
+</ol>
+<p>---</p>
+<p><em>研究日期：2026-03-23</em></p>
+<p><em>研究者：Claude Code Agent</em></p>
+<p><em>研究動機：Todoist 任務「研究 1 項 AI 最新技術」。KB 去重檢查後確認擴散語言模型（Diffusion LLMs）方向尚未涵蓋，為 2026 年語言模型架構的重大範式轉移。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

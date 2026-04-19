@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge 2026-03-18：自動任務結果格式統一 Schema（v1.1.0）">
+  <title>workflow-forge 2026-03-18：自動任務結果格式統一 Schema（v1.1.0） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge 2026-03-18：自動任務結果格式統一 Schema（v1.1.0）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">流程標準化</span><span class="tag">JSON Schema</span><span class="tag">系統一致性</span><span class="tag">ADR-003</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>workflow-forge 執行報告</h2>
+<p><strong>日期</strong>: 2026-03-18  </p>
+<p><strong>缺口</strong>: results/*.json 無統一 Schema 定義  </p>
+<p><strong>產物</strong>: config/schemas/results-auto-task-schema.json (v1.1.0)  </p>
+<p><strong>影響範圍</strong>: 29 個自動任務（todoist-auto-*.json）</p>
+<p>---</p>
+<h3>1. 缺口分析</h3>
+<p>目前 29 個自動任務 prompt 各自用文字說明結果 JSON 格式，導致：</p>
+<ul>
+<li><strong>欄位名稱不一致</strong>：有的用 <code>agent</code>，有的用 <code>task_type</code>/<code>task_key</code></li>
+<li><strong>status 語義不一致</strong>：有的禁止 <code>partial</code>，有的允許</li>
+<li><strong>必填欄位不一致</strong>：<code>done_cert</code>、<code>artifact</code>、<code>stage</code> 等欄位無統一規範</li>
+</ul>
+<p><strong>證據</strong>：</p>
+<ul>
+<li><code>todoist-auto-workflow_forge.md</code> 要求 <code>agent</code> + <code>task_key</code></li>
+<li><code>todoist-auto-ai_deep_research.md</code> 只有 <code>agent</code>，無 <code>task_key</code></li>
+<li><code>todoist-auto-system_insight.md</code> 使用 <code>task_type</code> + <code>task_key</code></li>
+<li>現有結果檔案 <code>results/todoist-auto-kb_insight_evaluation.json</code> 缺少必填欄位 <code>task_key</code></li>
+</ul>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>system-insight.json 顯示 avg_io_per_call 超標 398%（24875 chars），部分原因是 LLM 需在 prompt 內自行理解格式說明，導致 I/O 膨脹</li>
+<li>Phase 3 assemble 解析結果檔案時容易因格式漂移導致錯誤</li>
+</ul>
+<p>---</p>
+<h3>2. 產出 Schema 規格</h3>
+<p><strong>Schema 版本</strong>: 1.1.0（基於 1.0.0 擴充）  </p>
+<p><strong>必填欄位</strong>:</p>
+<ul>
+<li><code>task_key</code>: 任務鍵（對應 frequency-limits.yaml）</li>
+<li><code>status</code>: 執行狀態（success / partial / failed / format_failed）</li>
+<li><code>agent</code> 或 <code>task_type</code>：至少一個（agent 推薦）</li>
+</ul>
+<p><strong>新增欄位</strong>（v1.1.0）:</p>
+<ul>
+<li><code>done_cert</code>: 完成證明（Agent Pool 使用，ADR-004 P5-A）</li>
+<li><code>stage</code>: 階段編號（多階段任務，如 ai_deep_research 的 1-4 階段）</li>
+<li><code>topic</code>: 研究主題名稱</li>
+<li><code>task_id</code>: Todoist 任務 ID</li>
+<li><code>duration_seconds</code>: 執行耗時（與 execution_time_seconds 相容）</li>
+</ul>
+<p><strong>條件必填</strong>:</p>
+<ul>
+<li><code>status=failed</code> 或 <code>format_failed</code> 時，<code>error</code> 欄位必填</li>
+</ul>
+<p><strong>Pattern 約束</strong>:</p>
+<ul>
+<li><code>agent</code>: <code>^todoist-auto-[a-z_]+$</code>（底線格式）</li>
+<li><code>task_key</code>: <code>^[a-z_]+$</code>（底線格式）</li>
+</ul>
+<p>---</p>
+<h3>3. 驗證結果</h3>
+<p><strong>Schema 格式驗證</strong>: ✅ 通過（可解析，required 欄位定義清晰）  </p>
+<p><strong>現有檔案抽樣驗證</strong>: ❌ 發現問題  </p>
+<ul>
+<li><code>results/todoist-auto-kb_insight_evaluation.json</code> 缺少必填欄位 <code>task_key</code></li>
+<li><code>prompts/team/todoist-auto-ai_deep_research.md</code> 的結果 JSON 示例無 <code>task_key</code> 欄位</li>
+</ul>
+<p><strong>結論</strong>: Schema 本身正確，但現有 prompt 格式不一致，需逐步更新。</p>
+<p>---</p>
+<h3>4. 整合狀態</h3>
+<ul>
+<li>✅ Schema 已寫入 <code>config/schemas/results-auto-task-schema.json</code></li>
+<li>✅ 已登記至 <code>docs/ARCHITECTURE.md</code> 配置速查表</li>
+<li>✅ 已更新 <code>context/workflow-forge-registry.json</code>（v1.1.0 changelog）</li>
+<li>⏳ <strong>後續工作</strong>: 29 個 prompt 檔案需逐步更新，統一引用此 Schema</li>
+</ul>
+<p>---</p>
+<h3>5. 推廣建議</h3>
+<p><strong>Phase A</strong>（立即可行）:</p>
+<ol>
+<li>在 <code>templates/shared/preamble.md</code> 的「自動任務連續記憶規則」段落新增 Schema 驗證提示</li>
+<li>建立小腳本驗證現有結果 JSON 是否符合 Schema，輸出不符合清單</li>
+</ol>
+<p><strong>Phase B</strong>（短期）:</p>
+<ol>
+<li>選 3 個高頻任務（ai_deep_research、system_insight、workflow_forge）的 prompt，更新結果 JSON 格式說明，引用 Schema</li>
+<li>執行後驗證結果檔案是否符合 Schema</li>
+</ol>
+<p><strong>Phase C</strong>（中期）:</p>
+<ol>
+<li>批次更新剩餘 26 個 prompt 檔案</li>
+<li>建立 CI 檢查腳本，Phase 3 assemble 前自動驗證結果 JSON</li>
+</ol>
+<p>---</p>
+<h3>6. 技術債追蹤</h3>
+<ul>
+<li><strong>TD-001</strong>: 29 個 prompt 格式統一更新（estimated effort: 2h）</li>
+<li><strong>TD-002</strong>: Schema 驗證腳本開發（estimated effort: 30min）</li>
+<li><strong>TD-003</strong>: CI 整合（estimated effort: 1h）</li>
+</ul>
+<p>---</p>
+<h3>7. 相關 ADR</h3>
+<ul>
+<li><strong>ADR-002</strong>: 文件驅動架構 — Prompt 薄層 + YAML 外部配置</li>
+<li><strong>ADR-003</strong>: 結果檔案 Schema 驗證與格式漂移偵測（本次產出為 ADR-003 落地）</li>
+<li><strong>ADR-004</strong>: Agent Pool DONE_CERT 機制（done_cert 欄位支援）</li>
+</ul>
+<p>---</p>
+<p><strong>總結</strong>: 本次產出統一了自動任務結果格式規範（Schema v1.1.0），解決了 29 個 prompt 格式不一致的根本問題。雖然現有檔案仍需逐步更新，但 Schema 已為系統輸出穩定度提供了標準基線。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unsloth 生產環境端到端部署管線 — 從微調到 Ollama/vLLM/Open WebUI 多平台部署的完整工作流（2026）">
+  <title>Unsloth 生產環境端到端部署管線 — 從微調到 Ollama/vLLM/Open WebUI 多平台部署的完整工作流（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Unsloth 生產環境端到端部署管線 — 從微調到 Ollama/vLLM/Open WebUI 多平台部署的完整工作流（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Unsloth</span><span class="tag">LLM</span><span class="tag">fine-tuning</span><span class="tag">部署管線</span><span class="tag">vLLM</span><span class="tag">Ollama</span><span class="tag">GGUF</span><span class="tag">LoRA熱插拔</span><span class="tag">CI/CD</span><span class="tag">生產部署</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Unsloth 生產環境端到端部署管線</h1>
+<h2>概述</h2>
+<p>Unsloth 不僅是高效的 LLM 微調框架（2-5x 加速、80% VRAM 節省），更提供從訓練到生產部署的完整管線。本筆記聚焦「微調完成後」的端到端部署工作流：模型匯出策略選擇、多平台部署（vLLM/Ollama/SGLang/LM Studio）、LoRA 熱插拔、品質驗證、以及 CI/CD 自動化管線建構。這填補了「知道如何訓練，但不知道如何上線」的知識缺口，是將 PoC 轉化為生產服務的關鍵一環。</p>
+<p>---</p>
+<h2>一、模型匯出策略（三種路徑）</h2>
+<p>微調完成後，Unsloth 支援三種匯出格式，適用不同部署場景：</p>
+<h3>1.1 FP16 合併匯出（推薦用於 vLLM）</h3>
+<p>將 LoRA adapter 合併回基礎模型，產出完整的 16-bit 權重檔案：</p>
+<pre><code>
+from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="./my-finetuned-lora",
+    max_seq_length=2048,
+    load_in_4bit=True,
+)
+
+# 合併為 16-bit（vLLM 推薦格式）
+model.save_pretrained_merged(
+    "finetuned_model",
+    tokenizer,
+    save_method="merged_16bit",
+)
+
+# 或直接推送至 HuggingFace Hub
+model.push_to_hub_merged(
+    "hf_username/my-model",
+    tokenizer,
+    save_method="merged_16bit",
+    token="hf_xxx",
+)
+</code></pre>
+<p><strong>關鍵原則</strong>：FP16 合併檢查點是「標準高保真檢查點」(canonical high-fidelity checkpoint)，所有後續 GGUF 匯出和進一步微調都應從此檔案出發。</p>
+<h3>1.2 GGUF 量化匯出（推薦用於 Ollama/llama.cpp/LM Studio）</h3>
+<pre><code>
+# 一鍵 GGUF 匯出（推薦）
+model.save_pretrained_gguf(
+    "my-model-gguf",
+    tokenizer,
+    quantization_method="q4_k_m",  # 最佳平衡點
+)
+
+# 推送至 HuggingFace Hub
+model.push_to_hub_gguf(
+    "hf_username/my-model-GGUF",
+    tokenizer,
+    quantization_method="q4_k_m",
+)
+</code></pre>
+<p><strong>量化方法速查表</strong>：</p>
+<p>| 方法 | 每權重位元 | 適用場景 | 說明 |</p>
+<p>|------|-----------|---------|------|</p>
+<p>| <code>f16</code> | 16 | 最高精度基準 | 檔案大、推論慢 |</p>
+<p>| <code>q8_0</code> | 8 | 快速匯出驗證 | 精度損失極小 |</p>
+<p>| <code>q5_k_m</code> | 5.5 | 高品質推論 | 接近 FP16 品質 |</p>
+<p>| <code>q4_k_m</code> | 4.5 | <strong>最佳平衡</strong> | Q6_K 用於一半注意力張量 |</p>
+<p>| <code>q4_0</code> | 4 | ARM CPU 優化 | 適合行動裝置 |</p>
+<p>| <code>iq2_xxs</code> | 2.06 | 極致壓縮 | 品質明顯下降 |</p>
+<p><strong>Dynamic 2.0 量化</strong>：Unsloth 預設啟用動態量化，智能地為不同層選擇不同精度——敏感層保持 6-bit，穩健層降至 4-bit，在相同檔案大小下獲得更好品質。每個模型有專屬的量化方案（Gemma 3 的量化模式與 Llama 4 完全不同）。</p>
+<h3>1.3 LoRA Adapter 匯出（推薦用於多 adapter 服務）</h3>
+<p>僅儲存 adapter 權重（約 100MB），部署時載入基礎模型 + adapter：</p>
+<pre><code>
+# 僅儲存 LoRA adapter
+model.save_pretrained("finetuned_lora")
+tokenizer.save_pretrained("finetuned_lora")
+
+# 或透過內建方法
+model.save_pretrained_merged(
+    "finetuned_model",
+    tokenizer,
+    save_method="lora",
+)
+</code></pre>
+<p>---</p>
+<h2>二、vLLM 生產部署</h2>
+<h3>2.1 基礎部署</h3>
+<pre><code>
+# 安裝 vLLM
+uv pip install -U vllm --torch-backend=auto
+
+# 啟動 API 伺服器
+vllm serve finetuned_model
+
+# 指定完整路徑
+vllm serve /mnt/models/finetuned_model
+
+# 使用 HuggingFace Hub 模型
+vllm serve unsloth/gpt-oss-120b
+</code></pre>
+<h3>2.2 生產級配置</h3>
+<pre><code>
+vllm serve finetuned_model \
+    --quantization fp8 \
+    --kv-cache-dtype fp8 \
+    --gpu-memory-utilization 0.8 \
+    --max-model-len 65536 \
+    --enable-lora \
+    --max-loras 4 \
+    --max-lora-rank 64 \
+    --port 8000
+</code></pre>
+<p><strong>關鍵參數說明</strong>：</p>
+<ul>
+<li><code>--quantization fp8</code>：執行期 FP8 量化（需 FP8 支援 GPU）</li>
+<li><code>--kv-cache-dtype fp8</code>：KV 快取使用 FP8，降低記憶體用量</li>
+<li><code>--gpu-memory-utilization</code>：GPU 記憶體使用比例（預設 0.9，OOM 時降至 0.75）</li>
+<li><code>--max-model-len</code>：最大上下文長度</li>
+<li><code>--enable-lora</code>：啟用 LoRA adapter 動態載入</li>
+<li><code>--max-loras</code>：同時載入的 LoRA 數量上限</li>
+</ul>
+<h3>2.3 LoRA 熱插拔（多 Adapter 服務）</h3>
+<p>適用場景：一個基礎模型服務多個客製化版本（多租戶、A/B 測試）。</p>
+<pre><code>
+# 啟動伺服器（啟用動態 LoRA 載入）
+export VLLM_ALLOW_RUNTIME_LORA_UPDATING=True
+vllm serve unsloth/Llama-3.1-8B-Instruct \
+    --enable-lora \
+    --max-loras 4 \
+    --max-lora-rank 64
+</code></pre>
+<pre><code>
+# 動態載入 LoRA adapter
+curl -X POST http://localhost:8000/v1/load_lora_adapter \
+    -H "Content-Type: application/json" \
+    -d '{"lora_name": "customer-A", "lora_path": "/models/lora-customer-A"}'
+
+# 使用特定 adapter 進行推論
+curl -X POST http://localhost:8000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{"model": "customer-A", "messages": [{"role": "user", "content": "Hello!"}]}'
+
+# 卸載 adapter
+curl -X POST http://localhost:8000/v1/unload_lora_adapter \
+    -H "Content-Type: application/json" \
+    -d '{"lora_name": "customer-A"}'
+</code></pre>
+<p><strong>生產注意事項</strong>：</p>
+<ul>
+<li><code>VLLM_ALLOW_RUNTIME_LORA_UPDATING=True</code> 僅適合開發/測試</li>
+<li>生產環境應使用 <code>--lora-modules</code> CLI 預載 adapter</li>
+<li>動態載入無法保證跨副本一致性，也無法在副本重啟後自動恢復</li>
+</ul>
+<p>---</p>
+<h2>三、Ollama 部署</h2>
+<h3>3.1 完整工作流</h3>
+<pre><code>
+# 步驟 1：匯出為 GGUF
+model.save_pretrained_gguf(
+    "my-model-gguf",
+    tokenizer,
+    quantization_method="q8_0",
+)
+</code></pre>
+<pre><code>
+# 步驟 2：建立 Ollama 模型（使用 Unsloth 自動產生的 Modelfile）
+ollama create my-model -f ./my-model-gguf/Modelfile
+
+# 步驟 3：執行推論
+ollama run my-model "What is machine learning?"
+
+# 步驟 4：作為 API 服務
+ollama serve  # 啟動 API 伺服器（localhost:11434）
+curl http://localhost:11434/api/chat -d '{
+    "model": "my-model",
+    "messages": [{"role": "user", "content": "Hello"}]
+}'
+</code></pre>
+<h3>3.2 Chat Template 對齊（最常見部署問題）</h3>
+<p>Unsloth 自動產生的 Modelfile 包含訓練時使用的 chat template。<strong>訓練和推論必須使用完全相同的 chat template</strong>，否則會產生：</p>
+<ul>
+<li>亂碼輸出（gibberish）</li>
+<li>無限生成（endless generation）</li>
+<li>重複輸出（repeated outputs）</li>
+</ul>
+<p><strong>排除步驟</strong>：</p>
+<ol>
+<li>確認 Modelfile 中的 TEMPLATE 與訓練時一致</li>
+<li>檢查 <code>eos_token</code> 設定是否正確</li>
+<li>使用 Unsloth 提供的 conversational notebooks 強制套用正確 template</li>
+</ol>
+<p>---</p>
+<h2>四、其他部署目標</h2>
+<p>| 平台 | 格式 | 適用場景 |</p>
+<p>|------|------|--------|</p>
+<p>| SGLang | FP16/GGUF | 結構化輸出（JSON mode） |</p>
+<p>| LM Studio | GGUF | 個人 GUI 實驗 |</p>
+<p>| llama-server | GGUF | OpenAI API 相容、輕量部署 |</p>
+<p>| Unsloth 原生 | — | 快速驗證（fast_inference=True） |</p>
+<p>---</p>
+<h2>五、端到端 CI/CD 管線範例（Union.ai 實戰）</h2>
+<pre><code>
+from union import task, Resources, workflow
+from flytekit.extras.accelerators import L4
+
+# 階段 1：微調
+@task(requests=Resources(mem="23Gi", gpu="1"), accelerator=L4)
+def finetune():
+    from unsloth import FastLanguageModel
+    from trl import SFTTrainer, SFTConfig
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name="unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
+        max_seq_length=2048, load_in_4bit=True,
+    )
+    model = FastLanguageModel.get_peft_model(
+        model, r=32,
+        target_modules=["q_proj","k_proj","v_proj","o_proj",
+                        "gate_proj","up_proj","down_proj"],
+        lora_alpha=32, use_gradient_checkpointing="unsloth",
+    )
+    trainer = SFTTrainer(model=model, tokenizer=tokenizer,
+        train_dataset=dataset,
+        args=SFTConfig(per_device_train_batch_size=2,
+            gradient_accumulation_steps=4, learning_rate=2e-4,
+            optim="adamw_8bit"),
+    )
+    trainer.train()
+    model.save_pretrained("lora_model")
+
+# 階段 2：轉換為 vLLM 格式
+@task(requests=Resources(mem="23Gi", gpu="1"), accelerator=L4)
+def convert_vllm(tuned_model):
+    from unsloth import FastLanguageModel
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=tuned_model, max_seq_length=2048, load_in_4bit=True,
+    )
+    model.save_pretrained_merged(
+        "vllm_model", tokenizer, save_method="merged_16bit",
+    )
+
+# 階段 3：部署
+from union.app.llm import VLLMApp
+app = VLLMApp(
+    name="my-tuned-model",
+    requests=Resources(mem="23Gi", gpu="1"),
+    model_id="my-model", stream_model=True,
+    accelerator=GPUAccelerator("nvidia-l40s"),
+)
+
+@workflow
+def train_and_deploy():
+    model = finetune()
+    convert_vllm(tuned_model=model)
+</code></pre>
+<h3>品質驗證閘門</h3>
+<pre><code>
+# 1. KL Divergence 量化品質評估（Unsloth 推薦的金標準）
+# 2. 回歸測試（DeepEval 框架）
+from deepeval import evaluate
+from deepeval.metrics import AnswerRelevancyMetric
+from deepeval.test_case import LLMTestCase
+test_case = LLMTestCase(
+    input="什麼是機器學習？",
+    actual_output=model_response,
+)
+metric = AnswerRelevancyMetric(threshold=0.7)
+evaluate([test_case], [metric])
+
+# 3. Chat Template 一致性驗證
+# 比較 tokenizer.apply_chat_template() 在訓練和推論時的輸出
+</code></pre>
+<p>---</p>
+<h2>六、部署平台選擇決策樹</h2>
+<pre><code>
+需求分析
+├── 多用戶 API 服務 → vLLM（FP16 合併 或 LoRA adapter）
+│   ├── 多租戶 → vLLM + LoRA 熱插拔
+│   └── 單模型 → vLLM serve（最簡部署）
+├── 個人/團隊本地使用 → Ollama（GGUF q4_k_m）
+│   ├── GUI 介面 → LM Studio
+│   └── CLI + API → Ollama serve
+├── 結構化輸出需求 → SGLang
+├── 邊緣裝置/行動端 → GGUF q4_0（ARM 優化）
+└── 快速驗證 → Unsloth 原生推論（fast_inference=True）
+</code></pre>
+<p>---</p>
+<h2>七、常見問題與解決方案</h2>
+<p>| 問題 | 原因 | 解決方案 |</p>
+<p>|------|------|--------|</p>
+<p>| 推論輸出亂碼或重複 | Chat template 不匹配 | 使用 Unsloth 自動產生的 Modelfile |</p>
+<p>| vLLM OOM | memory_usage 預設值過高 | <code>--gpu-memory-utilization 0.75</code> |</p>
+<p>| GGUF 匯出失敗 | llama.cpp 版本不相容 | 更新至最新版 |</p>
+<p>| LoRA 熱插拔不穩定 | 動態載入不保證跨副本一致 | 生產用 <code>--lora-modules</code> 預載 |</p>
+<p>| 量化品質評估不準 | 使用 perplexity 評估 | 改用 KL Divergence |</p>
+<p>---</p>
+<h2>八、與知識庫已有筆記的關聯</h2>
+<p>| 已有筆記 | 本筆記補充 |</p>
+<p>|---------|----------|</p>
+<p>| GGUF 量化匯出實戰指南 | 端到端部署管線視角 + CI/CD 自動化 |</p>
+<p>| TRL / Hugging Face Trainer 整合 | 訓練後的部署工作流銜接 |</p>
+<p>| 2025-2026 新功能與生態系統演進 | Dynamic 2.0 的實際部署應用 |</p>
+<p>| Pro / Studio 功能 | 企業級多 adapter 服務架構 |</p>
+<p>| 繁體中文 LLM 微調實戰 | 繁中模型的部署 chat template 注意事項 |</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li>Unsloth Saving to GGUF 官方文件：https://unsloth.ai/docs/basics/inference-and-deployment/saving-to-gguf</li>
+<li>Unsloth Saving to Ollama 官方文件：https://unsloth.ai/docs/basics/inference-and-deployment/saving-to-ollama</li>
+<li>Unsloth vLLM Deployment Guide：https://unsloth.ai/docs/basics/inference-and-deployment/vllm-guide</li>
+<li>Unsloth LoRA Hot Swapping Guide：https://unsloth.ai/docs/basics/inference-and-deployment/vllm-guide/lora-hot-swapping-guide</li>
+<li>Union.ai Finetuning with Unsloth and Serving with vLLM：https://www.union.ai/docs/v1/serverless/tutorials/serving/finetune-unsloth-serve/</li>
+<li>Unsloth Dynamic 2.0 GGUFs 文件：https://unsloth.ai/docs/basics/unsloth-dynamic-2.0-ggufs</li>
+<li>DeepEval LLM Evaluation Framework：https://github.com/confident-ai/deepeval</li>
+<li>Deepchecks CI/CD LLM Evaluation：https://www.deepchecks.com/llm-evaluation/ci-cd-pipelines/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

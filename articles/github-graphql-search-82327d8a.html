@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub 熱門專案研究工作流：GraphQL Search、排序訊號與去重策略">
+  <title>GitHub 熱門專案研究工作流：GraphQL Search、排序訊號與去重策略 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub 熱門專案研究工作流：GraphQL Search、排序訊號與去重策略</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">GitHub 研究工作流</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub 熱門專案研究工作流：GraphQL Search、排序訊號與去重策略</h1>
+<p>研究日期：2026-03-19  </p>
+<p>研究類型：技術研究</p>
+<p>今日任務涉及技術：[RAG 知識庫、GitHub 熱門專案研究、Vite 靜態同步、專案優化、PowerShell 自動化、知識庫洞見整理]  </p>
+<p>本次研究主題：<strong>GitHub 熱門專案研究工作流：GraphQL Search、排序訊號與去重策略</strong>。  </p>
+<p>選題原因：今日已完成任務中，至少兩項 recurring task 直接要求「找出熱門 GitHub 專案並深入研究」或「研究 GitHub 最熱門方案」，但現有知識庫多是單一專案個案研究，缺少一套可重複執行的搜尋、排序、去重與人工審核流程。</p>
+<h2>技術概述</h2>
+<p>GitHub 熱門專案研究的真正難點，不是能不能列出 star 數高的 repository，而是能否穩定找出「對目前任務有用、不是舊題重複、且值得深入」的候選清單。到 2026 年，較穩的做法是把 GitHub GraphQL Search 當成候選蒐集層，用 search query 一次拿到 repository 名稱、star、fork、更新時間、topic 與 owner 等必要欄位；再配合搜尋語法與排序限定詞先做粗篩；最後在本地或 RAG 知識庫端做去重與品質分數。對 daily-digest-prompt 而言，這比單靠網頁 Trending 或手動搜尋更穩，也更容易寫成自動任務。</p>
+<h2>核心概念與原理</h2>
+<h3>1. GraphQL Search 是候選蒐集層，不是最終決策器</h3>
+<p>GitHub GraphQL <code>search</code> 查詢可跨資源搜尋，並支援 GitHub 的搜尋語法；官方文件也明確說明 search connection 最多回傳 1,000 筆結果。這代表它適合做「先縮小宇宙，再分頁抓候選」，不適合拿來掃描整個 GitHub。實務上應把 query 寫成高訊號條件，例如：</p>
+<ul>
+<li><code>topic:rag language:python stars:>500 pushed:>=2025-01-01 sort:stars-desc</code></li>
+<li><code>topic:mcp language:typescript archived:false mirror:false sort:updated-desc</code></li>
+<li><code>topic:agent-framework good-first-issues:>5 stars:>300 sort:stars-desc</code></li>
+</ul>
+<p>先限制主題、語言、活躍度與最小 star，才能讓後續去重與人工審核成本可控。</p>
+<h3>2. 排序要分成探索排序與研究排序</h3>
+<p>GitHub 文件指出，一般搜尋結果可以用 Sort 選單或 <code>sort</code> 限定詞依 relevance、stars、forks、updated 等訊號排序。對研究任務而言，至少要拆成兩種排序模式：</p>
+<ul>
+<li>探索排序：<code>sort:updated-desc</code> 或 <code>sort:stars-desc</code>，目的是先抓近期仍活躍的熱門專案。</li>
+<li>研究排序：在本地再加權 <code>stars</code>、<code>updatedAt</code>、<code>forkCount</code>、topic 命中數、是否 archived、是否已有 KB 筆記。</li>
+</ul>
+<p>這樣能避免「高 star 但兩年沒動」與「剛爆紅但品質未確認」混在一起。</p>
+<h3>3. GraphQL 的優勢是欄位精準，代價是要管成本與限制</h3>
+<p>GitHub GraphQL 文件強調它相對 REST 更精準、更彈性，但也有明確限制：連線必須帶 <code>first</code>/<code>last</code>，單次通常 1 到 100，總 node 不可超過 500,000；對 GitHub.com 的一般使用者，常見 primary rate limit 是每小時 5,000 points。另有 secondary rate limits，例如最多 100 個 concurrent requests，以及 GraphQL endpoint 每分鐘 2,000 points。這表示自動研究工作流不能無腦併發，也不能把 repository、issues、releases、README、topics 全塞進一支查詢；應先用輕量 search 撈候選，再對前 5 到 10 個候選做第二階段細查。</p>
+<h3>4. 2025-11-07 後，官方已不鼓勵在文件內直接試 GraphQL Explorer</h3>
+<p>GitHub changelog 於 2025-11-07 明確宣布退休 GraphQL Explorer，並建議改用本地 GraphQL client。對 daily-digest-prompt 的意義很直接：若未來要把 GitHub 熱門專案研究任務自動化，應優先採用 <code>gh api graphql</code>、Insomnia、Altair 或腳本化 client，而不是依賴文件頁內的互動測試工具。這也更適合排程與 CI。</p>
+<h2>最佳實踐與常見陷阱</h2>
+<h3>最佳實踐</h3>
+<ol>
+<li>先窄查詢，再補細節。第一階段只抓 <code>nameWithOwner</code>、<code>url</code>、<code>stargazerCount</code>、<code>forkCount</code>、<code>updatedAt</code>、<code>repositoryTopics</code>、<code>isArchived</code>。</li>
+<li>查詢條件固定模板化。將 <code>topic</code>、<code>language</code>、<code>stars</code>、<code>pushed</code>、<code>sort</code> 做成參數，避免每次人工改寫造成偏差。</li>
+<li>搜尋結果進 KB 前先做去重。以 repository URL 或 <code>owner/name</code> 當自然鍵，並比對近 7 天 registry 與知識庫標題。</li>
+<li>用二階段評分。第一階段用 GitHub 訊號篩掉低價值 repo；第二階段再用專案需求相關性、文件品質、近 90 天活躍度與議題成熟度評估。</li>
+<li>若使用 GitHub CLI，優先 <code>gh api graphql</code>。官方 CLI 手冊已支援 <code>graphql</code> endpoint 與 pagination，適合 terminal / script workflow。</li>
+</ol>
+<h3>常見陷阱</h3>
+<ol>
+<li>只看 stars。star 是人氣訊號，不是可研究性或可落地性的保證。</li>
+<li>忽略 1,000 結果上限。若 query 太寬，後半段熱門專案根本抓不到。</li>
+<li>過度深查單一 query。容易撞 GraphQL node limit、timeout 或 secondary rate limit。</li>
+<li>不做 archived / mirror 過濾。會把已停止維護或鏡像倉庫誤列為候選。</li>
+<li>不做跨類型去重。GitHub 研究、todoist_research、tech_research 都可能重複分析同一 repo。</li>
+</ol>
+<h2>與本專案的關聯</h2>
+<p>對 daily-digest-prompt，這套工作流可直接支援兩類任務：</p>
+<ul>
+<li><code>研究1項 GitHub 最熱門方案並將研究結果寫入 RAG 知識庫</code></li>
+<li><code>參考 RAG 知識庫找出一個熱門的 GitHub 專案運用 skill 進行深度瞭解</code></li>
+</ul>
+<p>建議落地方式：</p>
+<ol>
+<li>用 GraphQL Search 取得候選 repo 清單。</li>
+<li>用本地規則計算研究分數，例如：<code>score = stars_weight + recency_weight + topic_match - duplicate_penalty</code>。</li>
+<li>對前 3 名候選做 README / release / docs 深查。</li>
+<li>匯入 KB 前，先比對 <code>context/research-registry.json</code> 與 KB hybrid search，避免跨任務重複。</li>
+<li>把最終候選與淘汰理由一起寫進結果 JSON，方便之後 audit。</li>
+</ol>
+<h2>程式碼範例</h2>
+<pre><code>
+gh api graphql -f query='\
+query($q:String!, $endCursor:String) {\
+  search(query:$q, type:REPOSITORY, first:20, after:$endCursor) {\
+    pageInfo { hasNextPage endCursor }\
+    nodes {\
+      ... on Repository {\
+        nameWithOwner\
+        url\
+        description\
+        stargazerCount\
+        forkCount\
+        updatedAt\
+        isArchived\
+        repositoryTopics(first:10) {\
+          nodes { topic { name } }\
+        }\
+      }\
+    }\
+  }\
+}' -F q='topic:mcp stars:&gt;300 archived:false sort:stars-desc'
+</code></pre>
+<p>後處理規則示意：</p>
+<pre><code>
+保留條件：
+- isArchived = false
+- updatedAt 在近 180 天內
+- KB / registry 無完全相同 topic
+- repositoryTopics 命中本次研究主題
+
+排序建議：
+- 40% stars
+- 25% recency
+- 20% topic match
+- 15% docs/readme quality
+</code></pre>
+<h2>品質自評</h2>
+<ol>
+<li>聚焦度：通過。主題直接對應今日 GitHub 熱門方案研究任務。  </li>
+<li>可操作性：通過。已提供查詢模板、分層排序與去重規則。  </li>
+<li>內容長度：通過。超過 400 字，且含可執行範例。  </li>
+</ol>
+<h2>參考來源</h2>
+<ol>
+<li>GitHub Docs, GraphQL API documentation: https://docs.github.com/en/graphql  </li>
+<li>GitHub Docs, Queries (<code>search</code> 最多 1,000 筆): https://docs.github.com/en/graphql/reference/queries  </li>
+<li>GitHub Docs, Rate limits and query limits for the GraphQL API: https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api  </li>
+<li>GitHub Docs, Using pagination in the GraphQL API: https://docs.github.com/graphql/guides/using-pagination-in-the-graphql-api  </li>
+<li>GitHub Docs, Sorting search results: https://docs.github.com/en/search-github/getting-started-with-searching-on-github/sorting-search-results  </li>
+<li>GitHub CLI manual, <code>gh api</code>: https://cli.github.com/manual/gh_api  </li>
+<li>GitHub Changelog, GraphQL Explorer removal from API documentation on November 7, 2025: https://github.blog/changelog/2025-11-07-graphql-explorer-removal-from-api-documentation-on-november-7-2025/</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

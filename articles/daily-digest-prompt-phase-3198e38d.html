@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Daily-Digest-Prompt 自動任務排程效能與資源利用率優化建議 — Phase 並行瓶頸分析、Timeout 調適策略與排程密度最佳化（2026-02-26）">
+  <title>Daily-Digest-Prompt 自動任務排程效能與資源利用率優化建議 — Phase 並行瓶頸分析、Timeout 調適策略與排程密度最佳化（2026-02-26） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Daily-Digest-Prompt 自動任務排程效能與資源利用率優化建議 — Phase 並行瓶頸分析、Timeout 調適策略與排程密度最佳化（2026-02-26）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">專案優化</span><span class="tag">排程效能</span><span class="tag">資源利用率</span><span class="tag">daily-digest-prompt</span><span class="tag">自適應排程</span><span class="tag">Timeout調適</span><span class="tag">並行瓶頸</span><span class="tag">Astraea</span><span class="tag">背壓機制</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Daily-Digest-Prompt 自動任務排程效能與資源利用率優化建議</h1>
+<blockquote>研究日期：2026-02-26</blockquote>
+<blockquote>分析焦點：18 個自動任務的排程效能、並行瓶頸、Timeout 調適策略與資源利用率</blockquote>
+<blockquote>差異化：聚焦排程層面的運行時效能優化（前次研究聚焦狀態管理/Token 經濟學）</blockquote>
+<p>---</p>
+<h2>一、專案排程現狀摘要</h2>
+<h3>1.1 排程架構</h3>
+<p>| 排程 | 頻率 | 腳本 | 平均耗時 |</p>
+<p>|------|------|------|----------|</p>
+<p>| todoist-team | 每小時半點 02:30-23:30 | run-todoist-agent-team.ps1 | <strong>749s (p50=720s, p90=992s)</strong> |</p>
+<p>| todoist-single | 每小時整點 02:00-23:00 | run-todoist-agent.ps1 | <strong>699s (p50=618s, p90=1215s)</strong> |</p>
+<p>| daily-digest-team | 3 次/日 | run-agent-team.ps1 | <strong>470s (p50=452s, p90=544s)</strong> |</p>
+<p>| system-audit | 1 次/日 00:40 | run-system-audit-team.ps1 | ~20min |</p>
+<h3>1.2 執行品質（200 次歷史樣本）</h3>
+<ul>
+<li><strong>成功率</strong>：98.5%（197/200），3 次失敗均為 todoist-team Phase 1 超時</li>
+<li><strong>Section-level timeout</strong>：0（Phase 2 動態 timeout 機制運作良好）</li>
+<li><strong>排程重疊</strong>：0 次（不同 Agent 30 分鐘錯開策略有效）</li>
+<li><strong>超出 30 分鐘時段</strong>：0 次（無排程溢出）</li>
+</ul>
+<h3>1.3 耗時分布</h3>
+<p>| 區間 | 次數（近 50 次）| 百分比 |</p>
+<p>|------|----------------|--------|</p>
+<p>| 5-10 分鐘 | 8 | 16% |</p>
+<p>| 10-15 分鐘 | 26 | 52% |</p>
+<p>| 15-20 分鐘 | 13 | 26% |</p>
+<p>| 20-30 分鐘 | 3 | 6% |</p>
+<p><strong>核心觀察</strong>：超過半數集中在 10-15 分鐘，但排程時段為 30 分鐘/60 分鐘，存在約 15-20 分鐘的閒置窗口。</p>
+<p>---</p>
+<h2>二、識別的六大優化機會</h2>
+<h3>2.1 排程密度優化 — 閒置窗口的利用</h3>
+<p><strong>現狀問題</strong>：</p>
+<ul>
+<li>todoist-team p50=720s（12 分鐘），但排程時段為 60 分鐘</li>
+<li>即使 p90=992s（16.5 分鐘），仍有 43.5 分鐘閒置</li>
+<li>18 個自動任務合計 45 次/日上限，但每次 team-mode 僅並行 2 個</li>
+</ul>
+<p><strong>優化建議</strong>：</p>
+<ol>
+<li><strong>提升 <code>max_auto_per_run.team_mode</code> 從 2 到 3</strong>：Phase 2 可同時啟動 3 個 auto-task Agent（而非 2 個）。因並行執行取 max 而非 sum，timeout 不會線性增加。估計可加速 45 次任務的完成速度約 33%。</li>
+</ol>
+<ol>
+<li><strong>自適應排程密度</strong>：根據前一次 <code>duration_seconds</code> 動態調整下次排程間隔。概念：若上次僅花 7 分鐘，下次可提前 15 分鐘觸發（前提是不與其他排程衝突）。</li>
+</ol>
+<ol>
+<li><strong>idle 模式快速退出</strong>：plan_type 為 idle 時，Phase 2 timeout 僅為 buffer（120s），但 Phase 1 仍用完整 420s。可在 Phase 1 偵測到 idle 時提前返回，將整體 idle 耗時從 ~420s 降至 ~120s。</li>
+</ol>
+<h3>2.2 Timeout 調適策略 — 從靜態到動態</h3>
+<p><strong>現狀問題</strong>：</p>
+<ul>
+<li>Phase 2 已有按任務類型的動態 timeout（research=600s, code=900s 等），但缺乏歷史學習機制</li>
+<li>creative_game_optimize 固定 900s，但多數情況 600-700s 即完成</li>
+<li>ai_deep_research 固定 720s，但 4 階段研究偶爾需要更多時間</li>
+</ul>
+<p><strong>借鑑 Astraea 的自適應方案</strong>：</p>
+<pre><code>
+# 建議新增 config/adaptive-timeout.yaml
+adaptive_timeout:
+  enabled: true
+  strategy: "ewma"  # 指數加權移動平均
+  alpha: 0.3        # 學習率（新觀測權重 30%）
+  safety_margin: 1.3  # 在 EWMA 上加 30% 安全邊際
+  min_timeout: 180    # 最低 3 分鐘
+  max_timeout: 1200   # 最高 20 分鐘
+  history_window: 10  # 追蹤最近 10 次執行
+</code></pre>
+<p><strong>核心演算法</strong>：</p>
+<pre><code>
+new_timeout = EWMA(recent_durations) × safety_margin
+如果近 3 次均成功且 actual &lt; timeout * 0.5 → 降低 safety_margin 至 1.2
+如果近 3 次有 timeout → 提升 safety_margin 至 1.5
+</code></pre>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>經常快完成的任務（如 buddhist research）：timeout 從 600s 自動降至 ~480s</li>
+<li>偶爾超時的任務（如 ai_deep_research）：timeout 從 720s 自動升至 ~900s</li>
+<li>整體 Phase 2 等待時間減少約 15-20%</li>
+</ul>
+<h3>2.3 Phase 1 查詢效能優化</h3>
+<p><strong>現狀問題</strong>：</p>
+<ul>
+<li>3 次失敗（3/200 = 1.5%）全部發生在 Phase 1，均為超時</li>
+<li>Phase 1 timeout = 420s，含重試共 ~900s</li>
+<li>Phase 1 的主要瓶頸：Todoist API 呼叫 + routing 計算 + plan.json 寫入</li>
+</ul>
+<p><strong>優化建議</strong>：</p>
+<ol>
+<li><strong>快取前次 routing 結果</strong>：若 Todoist 任務列表未變化（比對 hash），直接複用前次 plan.json 的路由結果，僅更新計分排序。</li>
+</ol>
+<ol>
+<li><strong>Phase 1 分段 timeout</strong>：將 420s 拆分為 API 呼叫（120s）+ 路由計算（120s）+ 寫入（60s），每段獨立超時，精準定位瓶頸。</li>
+</ol>
+<ol>
+<li><strong>Fallback 優化</strong>：現有的 Fallback（檢查 plan.json 檔案時間）已證明有效，但可增加 plan.json 內容完整性驗證（如檢查 plan_type 欄位存在）。</li>
+</ol>
+<h3>2.4 雙軌模式的資源效率分析</h3>
+<p><strong>現狀數據</strong>：</p>
+<ul>
+<li>todoist-team：118 次執行，avg=749s，失敗 3 次</li>
+<li>todoist-single：67 次執行，avg=699s，失敗 0 次</li>
+</ul>
+<p><strong>關鍵洞見</strong>：</p>
+<ul>
+<li>todoist-single 零失敗但平均耗時接近，且 p90=1215s 比 team 的 992s 高 22%</li>
+<li>team-mode 的 Phase 1 overhead（~120-200s 的 Job 啟動和 JSON 解析）在任務量少時不划算</li>
+<li>但 team-mode 可並行處理多任務，在 auto-task 場景下優勢明顯</li>
+</ul>
+<p><strong>優化建議</strong>：</p>
+<ol>
+<li><strong>根據時段自適應選擇模式</strong>：</li>
+</ol>
+<p>   - 白天活躍時段（08:00-22:00）：team-mode（可能有 Todoist 任務需並行處理）</p>
+<p>   - 深夜自動任務時段（02:00-07:00）：考慮僅用 single-mode（減少 Phase 1 開銷）</p>
+<ol>
+<li><strong>合併為單一入口</strong>：將 todoist-single 和 todoist-team 合併為一個腳本，根據 Phase 1 查詢結果（任務數量和類型）動態決定是否啟用並行模式。任務 ≤1 時走單一路徑，≥2 時啟用 Start-Job 並行。</li>
+</ol>
+<h3>2.5 背壓（Backpressure）機制</h3>
+<p><strong>現狀問題</strong>：</p>
+<ul>
+<li>當 API 回應變慢或知識庫服務負載高時，所有 Agent 仍以原速發送請求</li>
+<li>無法根據下游服務健康狀態調整請求頻率</li>
+</ul>
+<p><strong>借鑑 Agent.xpu 與 Astraea 的背壓設計</strong>：</p>
+<pre><code>
+# 建議新增 config/backpressure.yaml
+backpressure:
+  enabled: true
+  monitors:
+    - api: "todoist"
+      latency_threshold_ms: 3000
+      error_rate_threshold: 0.1
+      action: "reduce_parallelism"
+    - api: "knowledge"
+      latency_threshold_ms: 5000
+      error_rate_threshold: 0.2
+      action: "skip_kb_import"
+  actions:
+    reduce_parallelism:
+      max_auto_per_run: 1  # 從 2 降至 1
+      cooldown_minutes: 15
+    skip_kb_import:
+      description: "暫停知識庫寫入，僅快取結果"
+      cooldown_minutes: 30
+</code></pre>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>API 延遲高時自動降低並行度，避免雪崩</li>
+<li>知識庫故障時不阻塞研究流程，結果暫存待後續匯入</li>
+<li>與現有 Circuit Breaker 互補：CB 是「全斷」，背壓是「降速」</li>
+</ul>
+<h3>2.6 排程資料可觀測性增強</h3>
+<p><strong>現狀問題</strong>：</p>
+<ul>
+<li>scheduler-state.json 僅記錄時間、狀態、耗時，缺少資源利用率資訊</li>
+<li>無法判斷 Phase 2 的並行效率（如 3 個 Agent 中 2 個 5 分鐘完成，1 個 12 分鐘完成）</li>
+</ul>
+<p><strong>優化建議</strong>：</p>
+<ol>
+<li><strong>新增 Phase-level 計時</strong>：</li>
+<pre><code>
+{
+  "phase_timings": {
+    "phase1": { "start": "...", "end": "...", "duration_s": 180 },
+    "phase2": {
+      "start": "...", "end": "...", "duration_s": 480,
+      "agents": [
+        { "name": "auto-shurangama", "duration_s": 420, "status": "success" },
+        { "name": "auto-tech_research", "duration_s": 480, "status": "success" }
+      ],
+      "parallelism_efficiency": 0.88
+    },
+    "phase3": { "start": "...", "end": "...", "duration_s": 120 }
+  }
+}
+</code></pre>
+</ol>
+<ol>
+<li><strong>並行效率公式</strong>：</li>
+<pre><code>
+parallelism_efficiency = sum(agent_durations) / (max(agent_durations) × agent_count)
+</code></pre>
+</ol>
+<p>若 3 個 Agent 各花 400s/450s/480s，效率 = 1330/(480×3) = 0.92（很高）。</p>
+<p>若 3 個 Agent 各花 120s/120s/480s，效率 = 720/(480×3) = 0.50（兩個 Agent 閒置過長）。</p>
+<ol>
+<li><strong>趨勢儀表板</strong>：在 check-health.ps1 中新增排程效率趨勢（近 7 天的 p50/p90/並行效率）。</li>
+</ol>
+<p>---</p>
+<h2>三、實施優先級矩陣</h2>
+<p>| 優化項 | 影響 | 工作量 | 風險 | 優先級 |</p>
+<p>|--------|------|--------|------|--------|</p>
+<p>| 2.1 提升 max_auto_per_run 至 3 | 高 | 低（改 1 行 YAML） | 低 | <strong>P0</strong> |</p>
+<p>| 2.6 Phase-level 計時 | 中 | 中（改 PS1 腳本） | 低 | <strong>P1</strong> |</p>
+<p>| 2.3 Phase 1 分段 timeout | 中 | 中 | 低 | <strong>P1</strong> |</p>
+<p>| 2.1 idle 快速退出 | 低 | 低（改 PS1） | 低 | <strong>P1</strong> |</p>
+<p>| 2.2 自適應 timeout（EWMA） | 高 | 高（新 YAML + PS1 整合） | 中 | <strong>P2</strong> |</p>
+<p>| 2.4 雙軌合併為自適應單入口 | 中 | 高（重構 2 個 PS1） | 高 | <strong>P3</strong> |</p>
+<p>| 2.5 背壓機制 | 中 | 高（新模組） | 中 | <strong>P3</strong> |</p>
+<p>---</p>
+<h2>四、與學術研究的對照</h2>
+<h3>4.1 Astraea（狀態感知排程引擎）</h3>
+<p>Astraea（arXiv: 2512.14142）提出的「狀態感知排程」核心思想：根據請求的歷史狀態（已完成步驟、API 等待時間）動態調整排程優先級。本專案可借鑑：</p>
+<ul>
+<li><strong>Service Time Predictor</strong>：類似本建議的 EWMA timeout，Astraea 用離線 profiling + 線上學習預測每個請求的完成時間</li>
+<li><strong>Adaptive Cache Manager</strong>：類似本專案的 api-cache，但 Astraea 加入了「高/低水位閾值」的動態切換策略</li>
+<li><strong>JCT 降低 25.5%</strong>：證明自適應排程相比靜態排程有顯著效益</li>
+</ul>
+<h3>4.2 Agent.xpu（異構排程）</h3>
+<p>Agent.xpu 的「inter-XPU backfill」概念在本專案中的映射：</p>
+<ul>
+<li>當一個 auto-task Agent 提前完成時，可「回填」另一個 auto-task（類似 backfill 填補氣泡）</li>
+<li>現有架構的限制：Phase 2 使用 Wait-Job 等待所有 Job，無法中途加入新 Job</li>
+<li><strong>長期建議</strong>：改用事件驅動的 Job 管理（PowerShell 的 Register-ObjectEvent 或自訂佇列）</li>
+</ul>
+<h3>4.3 去中心化自適應任務分配</h3>
+<p>Nature 論文（s41598-025-21709-9）提出的兩層架構（自適應控制器 + 選擇性廣播）對本專案的啟發：</p>
+<ul>
+<li>Phase 1 的「查詢→路由→計畫」本質上就是集中式調度器</li>
+<li>未來可考慮讓 auto-task Agent 自主拉取任務（pull model），而非由 Phase 1 推送（push model）</li>
+<li>Pull model 的優勢：Agent 完成當前任務後立即拉取下一個，無需等待統一的 Phase 3</li>
+</ul>
+<p>---</p>
+<h2>五、快速勝利（Quick Wins）</h2>
+<p>以下 3 項可在 30 分鐘內實施，立即見效：</p>
+<h3>5.1 提升並行度</h3>
+<pre><code>
+# config/frequency-limits.yaml
+max_auto_per_run:
+  team_mode: 3  # 從 2 改為 3
+</code></pre>
+<h3>5.2 idle 快速返回</h3>
+<p>在 Phase 1 Agent 偵測到 idle 時，plan.json 加入 <code>"early_exit": true</code>，Phase 2 讀取後跳過等待。</p>
+<h3>5.3 Phase 計時記錄</h3>
+<p>在 run-todoist-agent-team.ps1 的 Update-State 中，新增 <code>phase_durations</code> 欄位：</p>
+<pre><code>
+$sections["phase_durations"] = @{
+    phase1 = $phase1Duration
+    phase2 = $phase2Duration
+    phase3 = $phase3Duration
+}
+</code></pre>
+<p>---</p>
+<h2>六、總結</h2>
+<p>本專案的排程系統已達到 <strong>98.5% 成功率</strong>，架構穩健。主要優化方向不在「修復」而在「提效」：</p>
+<ol>
+<li><strong>短期（P0-P1）</strong>：提升並行度、增加可觀測性、Phase 1 分段超時 — 預計提升整體吞吐量 20-30%</li>
+<li><strong>中期（P2）</strong>：自適應 timeout（EWMA） — 預計減少 15-20% 的無效等待時間</li>
+<li><strong>長期（P3）</strong>：雙軌合併、背壓機制、事件驅動排程 — 為未來擴展（更多自動任務/更多 API）奠定基礎</li>
+</ol>
+<p>核心理念：<strong>從靜態配置驅動轉向歷史數據驅動的自適應排程</strong>，讓系統根據自身執行經驗自動調優。</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Astraea: A State-Aware Scheduling Engine for LLM-Powered Agents（arXiv: 2512.14142）</li>
+<li>Agent.xpu: Efficient Scheduling of Agentic LLM Workloads on Heterogeneous SoC（arXiv: 2506.24045）</li>
+<li>Decentralized adaptive task allocation for dynamic multi-agent systems（Nature Scientific Reports, 2025）</li>
+<li>本專案 scheduler-state.json（200 次執行歷史資料分析）</li>
+<li>本專案 config/timeouts.yaml + config/frequency-limits.yaml（現行配置）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

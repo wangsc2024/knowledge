@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LLM 結構化輸出驗證管線實作指南 — PydanticAI、Instructor 與 JSON Schema 的雙層護欄">
+  <title>LLM 結構化輸出驗證管線實作指南 — PydanticAI、Instructor 與 JSON Schema 的雙層護欄 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LLM 結構化輸出驗證管線實作指南 — PydanticAI、Instructor 與 JSON Schema 的雙層護欄</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">結構化輸出</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LLM 結構化輸出驗證管線實作指南 — PydanticAI、Instructor 與 JSON Schema 的雙層護欄</h1>
+<h2>技術概述</h2>
+<p>今天完成的 Todoist 任務大量依賴「研究結果必須寫成固定 JSON、再匯入 RAG 知識庫」這種流程，因此真正的關鍵不是單純讓模型吐出 JSON，而是建立一條可驗證、可重試、可觀測的結構化輸出管線。最新實務已明顯分成兩層：第一層用模型或 SDK 的原生 Structured Outputs / Native Output 盡量把輸出限制在 schema 內；第二層再由 PydanticAI 或 Instructor 以型別、驗證器與重試機制補上應用端護欄，避免格式漂移、欄位缺漏與靜默失敗。</p>
+<h2>核心概念與原理</h2>
+<h3>1. 三層責任分工</h3>
+<ul>
+<li><code>JSON Schema</code>：定義資料契約，描述欄位、型別、必要欄位與額外欄位限制。</li>
+<li><code>模型原生 structured output</code>：盡量在生成階段就讓輸出符合 schema，降低後處理成本。</li>
+<li><code>PydanticAI / Instructor</code>：把 schema 轉成程式語言型別，執行驗證、重試、例外處理與執行觀測。</li>
+</ul>
+<h3>2. 為什麼只靠 JSON mode 不夠</h3>
+<p>OpenAI 官方已明確區分 JSON mode 與 Structured Outputs：前者只保證輸出是合法 JSON，後者才保證符合指定 schema。這代表對 <code>results/*.json</code>、KB 匯入 payload、跨 Phase 中繼檔來說，JSON mode 仍然不夠安全，因為它無法阻止模型漏欄位、亂填 enum 或夾帶多餘欄位。</p>
+<h3>3. PydanticAI 的角色</h3>
+<p>PydanticAI 的 <code>output_type</code> 會直接把 Pydantic 型別轉成 JSON Schema，並在 agent 執行完成時回傳已驗證的結構化結果。它預設偏向 agent runtime 思維，適合有工具呼叫、依賴注入、結果 usage 追蹤與後續 evaluation 的流程。</p>
+<h3>4. Instructor 的角色</h3>
+<p>Instructor 更偏向 extraction layer。它會把 <code>response_model</code> 注入到各家 LLM client，當驗證失敗時，把錯誤原因回灌到提示上下文再重試。這種模式特別適合「把長文字研究摘要轉成固定結果 JSON」或「把自由文本轉成 KB 匯入 payload」。</p>
+<h3>5. 雙層護欄模式</h3>
+<p>建議把結構化輸出分成：</p>
+<ol>
+<li><code>生成時護欄</code>：能用原生 structured output 就先用，例如 OpenAI <code>json_schema</code> 或 PydanticAI <code>NativeOutput</code>。</li>
+<li><code>應用時護欄</code>：永遠再跑一次 Pydantic 驗證；若失敗，保留原始 completion、錯誤訊息與重試次數。</li>
+<li><code>流程護欄</code>：把輸出寫入檔案前再檢查必要欄位，例如 <code>status</code>、<code>summary</code>、<code>kb_imported</code>、<code>done_cert</code>。</li>
+</ol>
+<h2>最佳實踐與常見陷阱</h2>
+<h3>最佳實踐</h3>
+<ul>
+<li>schema 一律設 <code>additionalProperties: false</code>，避免模型偷偷加欄位。</li>
+<li>讓 Pydantic 型別成為單一真實來源，再由型別自動導出 JSON Schema，避免 schema 與程式型別分叉。</li>
+<li>對高風險欄位加語意驗證，例如 URL 格式、日期格式、狀態列舉值、字數下限。</li>
+<li>把重試次數、最後一次 raw response、驗證錯誤一起記錄到 log，否則很難除錯。</li>
+<li>對不同模型能力做分級：支援原生 schema 的模型走 strict/native；不支援者退回 prompt + validation + retry。</li>
+</ul>
+<h3>常見陷阱</h3>
+<ul>
+<li>只驗證 JSON 可解析，卻不驗證業務語意。</li>
+<li>直接手寫 JSON Schema 與 Pydantic model，久了兩邊漂移。</li>
+<li>把 union schema 做得太複雜，導致模型選錯分支。</li>
+<li>streaming 時只看 partial JSON，不做最終完整驗證。</li>
+<li>驗證失敗後直接覆寫錯誤，而不是保留最後一次 completion，讓問題無法重現。</li>
+</ul>
+<h2>與本專案的關聯</h2>
+<p><code>daily-digest-prompt</code> 至少有四個位置適合導入這種管線：</p>
+<ul>
+<li><code>results/*.json</code>：所有 agent 結果檔都可用統一 Pydantic model 先驗證，再寫檔。</li>
+<li>KB 匯入：<code>contentText</code>、<code>tags</code>、<code>source</code>、<code>title</code> 可先做 schema 驗證，避免匯入失敗。</li>
+<li>研究摘要：把 Web 研究結果轉成固定結構，再交給 Markdown 組裝器。</li>
+<li>跨 Phase 中繼檔：例如 <code>kb-research-brief.json</code>、registry entry，都適合用同一套模型層保護。</li>
+</ul>
+<p>如果未來把本專案的研究 agent 收斂成標準輸出契約，最實際的做法是：</p>
+<ol>
+<li>先定義 <code>ResearchResult</code>, <code>KbImportNote</code>, <code>RegistryEntry</code> 三組 Pydantic model。</li>
+<li>對支援 strict schema 的供應商，優先走原生 structured output。</li>
+<li>對不支援者，使用 Instructor 做 extraction + retry。</li>
+<li>寫檔前統一執行最後一次本地驗證。</li>
+</ol>
+<h2>程式碼範例</h2>
+<pre><code>
+from typing import Literal
+
+import instructor
+from openai import OpenAI
+from pydantic import BaseModel, Field, ValidationError
+from pydantic_ai import Agent, NativeOutput
+
+
+class ResearchResult(BaseModel):
+    agent: Literal["todoist-auto-tech_research"]
+    status: Literal["success", "partial", "failed"]
+    topic: str = Field(min_length=5)
+    kb_imported: bool
+    summary: str = Field(min_length=20)
+
+
+# 第一層：若模型支援原生 structured output，先用 NativeOutput
+agent = Agent(
+    "openai:gpt-4.1",
+    output_type=NativeOutput(ResearchResult, name="research_result"),
+)
+
+native_result = agent.run_sync("請輸出研究結果摘要").output
+
+
+# 第二層：再用 Instructor 做應用端驗證與必要重試
+client = instructor.from_provider("openai/gpt-4.1-mini", max_retries=2)
+
+validated = client.create(
+    response_model=ResearchResult,
+    messages=[
+        {
+            "role": "user",
+            "content": f"把這段內容整理成研究結果 JSON：{native_result.model_dump_json()}",
+        }
+    ],
+)
+
+try:
+    payload = validated.model_dump(mode="json")
+except ValidationError as exc:
+    # 這裡應記錄 raw completion、validation errors、retry count
+    raise RuntimeError("研究結果結構驗證失敗") from exc
+</code></pre>
+<h2>參考來源</h2>
+<ul>
+<li>PydanticAI Agents: https://ai.pydantic.dev/agent/</li>
+<li>PydanticAI Output: https://ai.pydantic.dev/output/</li>
+<li>Instructor 文件首頁: https://python.useinstructor.com/</li>
+<li>Instructor Retry Mechanisms: https://python.useinstructor.com/learning/validation/retry_mechanisms/</li>
+<li>OpenAI Structured Outputs 指南: https://platform.openai.com/docs/guides/structured-outputs</li>
+<li>JSON Schema Validation Draft 2020-12: https://json-schema.org/draft/2020-12/json-schema-validation</li>
+</ul>
+<h2>研究結論</h2>
+<p>若本專案只選一個最有投資報酬率的方向，不是再加更多 prompt，而是把所有關鍵結果檔改成「schema-first」。模型端負責盡量貼齊 schema，應用端負責最終驗證、重試與保留失敗證據。這樣才能把研究、KB 匯入、結果檔案與後續自動化接起來，而不是把錯誤留到下游才爆炸。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

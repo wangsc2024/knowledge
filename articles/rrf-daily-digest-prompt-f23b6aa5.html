@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RRF 混合檢索與去重閾值設計：daily-digest-prompt 的 KB 查重與匯入落地指南">
+  <title>RRF 混合檢索與去重閾值設計：daily-digest-prompt 的 KB 查重與匯入落地指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>RRF 混合檢索與去重閾值設計：daily-digest-prompt 的 KB 查重與匯入落地指南</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Hybrid Search</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>RRF 混合檢索與去重閾值設計：daily-digest-prompt 的 KB 查重與匯入落地指南</h1>
+<p>研究日期：2026-03-29  </p>
+<p>研究類型：技術研究</p>
+<p>今日任務涉及技術：[WebSearch、RAG 知識庫、Hybrid Search、BM25、向量檢索、Markdown contentText 匯入、KB 驗證回寫]  </p>
+<p>本次研究主題：RRF 混合檢索與去重閾值設計（因知識庫已有混合檢索基礎，但尚缺面向 daily-digest-prompt 的 application 階段落地指南）</p>
+<h2>技術概述</h2>
+<p>混合檢索的核心不是「把 BM25 和向量查詢一起打開」而已，而是要決定如何融合排名、如何控制候選集合，以及何時把結果視為重複還是可深化。多數現代檢索系統都把關鍵字檢索與向量檢索並行執行，再以融合器把多份排序表合併 [來源：Create a Hybrid Query - Azure AI Search, 2026] [來源：Hybrid search | Weaviate Documentation, 2026] [來源：Hybrid Queries - Qdrant, 2026]。對 daily-digest-prompt 而言，真正的工程問題在於：研究前要如何快速判斷 KB 是否已有高度重複筆記、研究後要如何確保匯入內容可搜尋且可驗證，以及查重閾值如何避免被不同引擎的分數尺度誤導。</p>
+<h2>核心概念與原理</h2>
+<h3>1. Hybrid Search 的穩定基線是「並行召回 + 排名融合」</h3>
+<p>Azure、Weaviate 與 Qdrant 都把 hybrid search 描述為同時執行 keyword/BM25 與 vector retrieval，再把結果融合成單一排序 [來源：Create a Hybrid Query - Azure AI Search, 2026] [來源：Hybrid search | Weaviate Documentation, 2026] [來源：Hybrid Queries - Qdrant, 2026]。這表示實務上應先思考「每一路召回各抓多少候選」，而不是只看最後一個總分。Qdrant 的 <code>prefetch</code>、Azure 的 <code>vectorQueries + search</code>、Weaviate 的 hybrid query 都是同一個設計思想：先保留兩種訊號，再做融合。</p>
+<h3>2. RRF 的價值在於避免不同分數尺度互相污染</h3>
+<p>RRF 只看排名位置，不直接依賴各引擎原始分數，因此對異質檢索器更穩定 [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026] [來源：Reciprocal rank fusion | Elasticsearch Reference, 2026] [來源：Introducing reciprocal rank fusion for hybrid search - OpenSearch, 2025]。Elastic 明確指出 RRF 幾乎不需額外調參，且不同 relevance indicator 不必共享同一尺度也能合併 [來源：Reciprocal rank fusion | Elasticsearch Reference, 2026]；OpenSearch 則指出 min-max 或 L2 normalization 可能因分數分布差異造成某一路訊號主導 [來源：Introducing reciprocal rank fusion for hybrid search - OpenSearch, 2025]。這也是 Elastic 與 NVIDIA 文件都把 RRF 視為 hybrid 的預設或推薦方案的原因 [來源：Hybrid search | Elastic Docs, 2026] [來源：Enable Hybrid Search Support for NVIDIA RAG Blueprint, 2026]。</p>
+<h3>3. 但「RRF 預設」不等於「永遠不用權重或替代融合」</h3>
+<p>Weaviate 直接提供 <code>relativeScoreFusion</code> 與 <code>rankedFusion</code> 兩條路，且把保留原始分數細節較多的 <code>relativeScoreFusion</code> 設為新預設 [來源：Hybrid search | Weaviate Documentation, 2026]。NVIDIA RAG Blueprint 也說明：若查詢更偏語意，可提高 dense weight；若更偏精確詞，可提高 sparse weight [來源：Enable Hybrid Search Support for NVIDIA RAG Blueprint, 2026]。Azure 亦支援 vector weighting，讓某一路檢索在 RRF 前先被放大或縮小 [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026]。因此可得一個實務結論：若你還在建立穩定基線，用 RRF；若你已經有查詢日誌與人工標註，才值得進入加權融合或 score-based fusion 的校準階段。這是根據多份官方文件的共同方向整理出的工程推論。</p>
+<h3>4. 候選集合與 rerank 範圍要一起設計</h3>
+<p>Azure 建議剛開始用 balanced hybrid，<code>k</code> 約 30-50、<code>top</code> 約 10-20，並提醒不要一開始就把 text recall、vector recall 與 semantic rerank 全部開到最大 [來源：Create a Hybrid Query - Azure AI Search, 2026]。Qdrant 的 hybrid + reranking 教學則用 dense 20 + sparse 20 的 prefetch，再交給 ColBERT 類 late interaction reranker 做最後精排 [來源：Hybrid Search with Reranking - Qdrant, 2026]。DataStax 也將 hybrid 描述為先做 vector/lexical 檢索，再交給 reranking model 產出最終結果 [來源：Find data with hybrid search | Astra DB Serverless, 2026]。這三者共同支持一個實務規則：reranker 不該直接吃整庫，而應吃一個經過 hybrid 召回的中型候選集。</p>
+<h3>5. 去重閾值不能跨系統硬搬，必須結合分數語義與本地政策</h3>
+<p>Azure 明確指出 BM25、向量搜尋與 hybrid search 的分數範圍本來就不同，且提供 debug subscores 供校準 [來源：Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF), 2026]。Weaviate 說明不同 fusion strategy 會改變分數保留方式 [來源：Hybrid search | Weaviate Documentation, 2026]；OpenSearch 也提醒 normalization 本身可能造成失衡 [來源：Introducing reciprocal rank fusion for hybrid search - OpenSearch, 2025]。因此 <code>score > 0.85 即視為重複</code> 不應被當成通用定律，而應被視為 <strong>本專案知識庫的操作性政策</strong>。根據 <code>skills/knowledge-query/SKILL.md</code> 與現有 KB 查詢結果，本專案較合理的三段式做法是：</p>
+<ul>
+<li><code>score >= 0.85</code>：高度重複，跳過或改題。</li>
+<li><code>0.40 <= score < 0.85</code>：相關但仍可深化，適合沿既有系列進入下一階段。</li>
+<li><code>score < 0.40</code>：視為新主題或弱相關，需要重新界定問題。</li>
+</ul>
+<p>上面這個區間切法是根據專案既有政策與外部文件對分數尺度差異的說明所做的工程推論，不是通用業界標準。</p>
+<h2>最佳實踐與常見陷阱</h2>
+<p>最穩健的做法，是先固定一個「可觀測的預設流程」：先做 hybrid search 去重，再根據命中情況決定是跳過、深化、或新開主題，最後在匯入後驗證 note id 是否存在。若直接把 raw score 視為跨系統可比較數值，或在沒有查詢日誌的情況下過早調 dense/sparse 權重，通常會讓系統變得更難解釋。另一個常見陷阱是把 rerank 當作萬靈丹；若前段召回太窄，reranker 也救不回缺失的文件。</p>
+<h2>與本專案的關聯</h2>
+<p>對 <code>daily-digest-prompt</code>，這份研究最直接的落地方式有三個：</p>
+<ol>
+<li>研究前沿用 <code>POST /api/search/hybrid</code> 做查重，但把 <code>0.85</code> 明確標成「專案政策閾值」而非通用真理。</li>
+<li>對 <code>0.40-0.85</code> 的命中，優先走 <code>kb-research-strategist</code> 的系列深化，而不是重複寫概論。</li>
+<li>匯入後必須驗證回應含 <code>noteIds</code> 或 <code>id</code>，並把 note id 寫回 registry / continuity，形成可追蹤閉環。</li>
+</ol>
+<h2>程式碼範例</h2>
+<pre><code>
+{
+  "query": "RRF hybrid search dedup threshold",
+  "topK": 15
+}
+</code></pre>
+<pre><code>
+curl -s -X POST "http://localhost:3000/api/search/hybrid" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -d @query.json
+</code></pre>
+<pre><code>
+score &gt;= 0.85  -&gt; duplicate
+0.40 &lt;= score &lt; 0.85 -&gt; deepen existing series
+score &lt; 0.40   -&gt; explore new
+</code></pre>
+<h2>三角佐證摘要</h2>
+<ul>
+<li>主張 A：混合檢索的基本形態是關鍵字與向量並行召回後再融合。  </li>
+</ul>
+<p>  支持來源：Azure AI Search、Weaviate、Qdrant。</p>
+<ul>
+<li>主張 B：RRF 適合作為異質檢索器的穩定預設，因其以排名為主、較不受原始分數尺度影響。  </li>
+</ul>
+<p>  支持來源：Azure AI Search、Elastic、OpenSearch、NVIDIA。</p>
+<ul>
+<li>主張 C：進入 application/optimization 階段後，才應考慮權重與 rerank 範圍設計；否則先用 RRF 打穩基線。  </li>
+</ul>
+<p>  支持來源：Azure AI Search、Weaviate、Qdrant、DataStax、NVIDIA。</p>
+<h2>參考來源</h2>
+<ul>
+<li>Microsoft. (2026). Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF). https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking</li>
+<li>Microsoft. (2026). Create a hybrid query in Azure AI Search. https://learn.microsoft.com/en-us/azure/search/hybrid-search-how-to-query</li>
+<li>Elastic. (2026). Hybrid search. https://www.elastic.co/docs/solutions/search/hybrid-search/</li>
+<li>Elastic. (2026). Reciprocal rank fusion. https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion</li>
+<li>Weaviate. (2026). Hybrid search. https://docs.weaviate.io/weaviate/concepts/search/hybrid-search</li>
+<li>Qdrant. (2026). Hybrid and Multi-Stage Queries. https://qdrant.tech/documentation/concepts/hybrid-queries/</li>
+<li>Qdrant. (2026). Hybrid Search with Reranking. https://qdrant.tech/documentation/advanced-tutorials/reranking-hybrid-search/</li>
+<li>NVIDIA. (2026). Enable Hybrid Search Support for NVIDIA RAG Blueprint. https://docs.nvidia.com/rag/2.4.0/hybrid_search.html</li>
+<li>DataStax. (2026). Find data with hybrid search. https://docs.datastax.com/en/astra-db-serverless/databases/hybrid-search.html</li>
+<li>OpenSearch Project. (2025). Introducing reciprocal rank fusion for hybrid search. https://opensearch.org/blog/introducing-reciprocal-rank-fusion-hybrid-search/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

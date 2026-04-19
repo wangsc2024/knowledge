@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Biome — 取代 ESLint + Prettier 的 Rust 超高速前端工具鏈深度研究：Red-Green CST 架構、423+ Lint 規則、Type-Aware 推論引擎與 2026 Roadmap（23.9K Stars）">
+  <title>Biome — 取代 ESLint + Prettier 的 Rust 超高速前端工具鏈深度研究：Red-Green CST 架構、423+ Lint 規則、Type-Aware 推論引擎與 2026 Roadmap（23.9K Stars） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Biome — 取代 ESLint + Prettier 的 Rust 超高速前端工具鏈深度研究：Red-Green CST 架構、423+ Lint 規則、Type-Aware 推論引擎與 2026 Roadmap（23.9K Stars）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">Biome</span><span class="tag">前端工具鏈</span><span class="tag">Rust</span><span class="tag">ESLint替代</span><span class="tag">Prettier替代</span><span class="tag">Linter</span><span class="tag">Formatter</span><span class="tag">Type-Aware</span><span class="tag">開源專案</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Biome — 取代 ESLint + Prettier 的 Rust 超高速前端工具鏈深度研究</h1>
+<h2>Red-Green CST 架構、423+ Lint 規則、Type-Aware 推論引擎與 2026 Roadmap</h2>
+<p>研究日期：2026-03-04</p>
+<p>研究類型：GitHub 熱門專案深度分析</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p><strong>Biome</strong>（<a href="https://github.com/biomejs/biome">biomejs/biome</a>）是一款以 Rust 撰寫的高效能 Web 開發工具鏈，定位為「A performant toolchain for web projects」。專案前身為 Rome（Facebook 孵化），2023 年 8 月 fork 後以 Biome 名義重生並發布 v1.0，截至 2026 年 3 月已累積 <strong>23,900+ Stars</strong>、881 Forks，被 <strong>96,100+ 專案</strong> 使用，月下載量超過 <strong>1,500 萬次</strong>，採用 MIT + Apache 2.0 雙授權。</p>
+<h3>核心數據</h3>
+<p>| 指標 | 數值 |</p>
+<p>|------|------|</p>
+<p>| GitHub Stars | 23,900+ |</p>
+<p>| Forks | 881 |</p>
+<p>| 被使用專案數 | 96,100+ |</p>
+<p>| 月下載量 | 15,000,000+ |</p>
+<p>| 最新版本 | v2.4.5（2026-03-02） |</p>
+<p>| 主要語言 | Rust 86%、JavaScript 7.9%、TypeScript 3.5% |</p>
+<p>| 授權 | MIT + Apache 2.0 |</p>
+<p>| 贊助商 | Depot（白金）、L2BEAT、Lokalise（銀）、JetBrains（銅） |</p>
+<p>---</p>
+<h2>二、核心能力與效能基準</h2>
+<h3>2.1 統一工具鏈理念</h3>
+<p>Biome 的核心主張是<strong>一個工具取代整個 JS/TS 工具鏈</strong>：</p>
+<p>| 傳統方案 | Biome 替代 |</p>
+<p>|----------|------------|</p>
+<p>| ESLint（Linter） | biome lint |</p>
+<p>| Prettier（Formatter） | biome format |</p>
+<p>| eslint-config-* | 內建 423+ 規則 |</p>
+<p>| .eslintrc + .prettierrc + .editorconfig | 單一 biome.json |</p>
+<p>| 127+ npm 依賴 | 單一原生二進制 |</p>
+<h3>2.2 效能基準（Benchmark）</h3>
+<p>| 操作 | ESLint/Prettier | Biome | 加速倍數 |</p>
+<p>|------|----------------|-------|----------|</p>
+<p>| Lint 10,000 檔案 | 45.2 秒 | 0.8 秒 | <strong>56x</strong> |</p>
+<p>| Format 10,000 檔案 | 12.1 秒 | 0.3 秒 | <strong>40x</strong> |</p>
+<p>| Prettier 相容度 | — | 97% | — |</p>
+<p>| Lint 規則數 | 依插件 | 423+ | — |</p>
+<p>效能優勢來源：</p>
+<ol>
+<li><strong>原生二進制執行</strong>：無 JavaScript runtime 開銷</li>
+<li><strong>多執行緒並行</strong>：Rust 的 rayon 並行處理</li>
+<li><strong>增量解析</strong>：僅重新解析變動區塊</li>
+<li><strong>高效快取</strong>：結構共享的 Green Tree 避免重複分配</li>
+</ol>
+<h3>2.3 支援語言</h3>
+<ul>
+<li>JavaScript / TypeScript / JSX / TSX</li>
+<li>JSON / JSONC</li>
+<li>CSS</li>
+<li>GraphQL</li>
+<li>Vue / Svelte / Astro（v2.x 新增解析支援）</li>
+<li>HTML（2026 穩定化中）</li>
+<li>YAML（解析器穩定化中）</li>
+</ul>
+<p>---</p>
+<h2>三、架構深度解析</h2>
+<h3>3.1 Red-Green Tree 語法樹架構</h3>
+<p>Biome 的語法表示層建立在 <strong>biome_rowan</strong>（fork 自 rust-analyzer 的 rowan 庫）之上，採用 <strong>Red-Green Tree</strong> 模式：</p>
+<pre><code>
+源碼 → Parser → Green Tree（不可變、結構共享）
+                      ↓
+               Red Tree（可變游標導航）
+                      ↓
+              型別安全 AST 包裝器
+</code></pre>
+<ul>
+<li><strong>Green Tree</strong>：不可變、結構共享的底層表示，記憶體效率極高</li>
+<li><strong>Red Tree</strong>：提供可變的游標（cursor）導航，無需 clone 整棵樹</li>
+<li><strong>型別安全包裝器</strong>：每種語言定義具型別的節點列舉（如 <code>JsArrowFunctionExpression</code>）</li>
+<li><strong>TextSize / TextRange</strong>：精確的位置追蹤，支援 LSP 定位</li>
+</ul>
+<p><strong>關鍵設計決策</strong>：採用 <strong>CST（Concrete Syntax Tree）</strong> 而非 AST，保留所有原始碼資訊（空白、註解、分號），實現「Full Fidelity」無損表示。</p>
+<h3>3.2 Parser 架構</h3>
+<p>每種語言有獨立的解析器基礎設施：</p>
+<p>| Crate | 職責 |</p>
+<p>|-------|------|</p>
+<p>| <code>biome_js_parser</code> | JavaScript/TypeScript 解析器 |</p>
+<p>| <code>biome_js_syntax</code> | 型別化 AST 節點定義 |</p>
+<p>| <code>biome_js_factory</code> | 節點建構工廠 |</p>
+<p>| <code>biome_parser</code> | 共用解析器基礎設施 |</p>
+<p>解析器發射 parse events → <code>TreeBuilder</code> 轉換為 Green Tree → 包裝為型別化 Red Tree 節點。</p>
+<h3>3.3 Formatter 管線</h3>
+<pre><code>
+CST 節點 → Format trait 實作 → FormatElement IR → Printer → 格式化文字
+</code></pre>
+<ol>
+<li><strong>語言專屬格式化器</strong>：實作 <code>Format</code> trait（如 <code>biome_js_formatter</code>）</li>
+<li><strong>FormatElement IR</strong>：抽象表示格式化決策（縮排、換行、群組）</li>
+<li><strong>Printer</strong>：將 IR 轉換為最終文字，可配置行寬</li>
+<li><strong>97% Prettier 相容</strong>：透過 Prettier 測試套件驗證</li>
+</ol>
+<h3>3.4 Linter / 分析管線</h3>
+<ul>
+<li><strong>biome_analyze</strong>：通用規則引擎，提供執行框架</li>
+<li><strong>語言專屬分析器</strong>：如 <code>biome_js_analyze</code> 實作具體規則</li>
+<li><strong>Rule trait</strong>：每條規則實作 <code>Rule<Options></code>，含元資料與診斷</li>
+<li><strong>8 大規則分類</strong>：a11y、complexity、correctness、nursery、performance、security、style、suspicious</li>
+</ul>
+<h3>3.5 語義分析（JavaScript/TypeScript）</h3>
+<p>| 模組 | 能力 |</p>
+<p>|------|------|</p>
+<p>| <code>biome_js_semantic</code> | Scope 層次、Binding 解析、閉包分析 |</p>
+<p>| <code>biome_js_type_info</code> | 型別推論引擎、型別層次追蹤 |</p>
+<p>| <code>biome_module_graph</code> | 跨檔案依賴追蹤、模組匯出/匯入 |</p>
+<p><strong>Type-Aware Linting</strong>（v2.0 里程碑）：Biome 是第一個<strong>不依賴 TypeScript 編譯器</strong>就能執行 type-aware lint 規則的工具，透過自建推論引擎實現，由 Vercel 贊助開發。</p>
+<h3>3.6 Workspace 架構</h3>
+<p><code>biome_service::Workspace</code> 是中央調度點：</p>
+<ul>
+<li><strong>Trait-based 設計</strong>：多種實作（WorkspaceServer 管理狀態）</li>
+<li>維護：documents（開啟檔案追蹤）、projects（巢狀專案管理）、module_graph（跨檔依賴快取）、settings（合併配置與覆寫）</li>
+<li>統一介面供 CLI、LSP、JavaScript API 使用</li>
+</ul>
+<h3>3.7 使用者介面層</h3>
+<p>| 介面 | 技術 | 用途 |</p>
+<p>|------|------|------|</p>
+<p>| <code>biome_cli</code> | Rust binary | CLI（Check/Write/CI 模式） |</p>
+<p>| <code>biome_lsp</code> | tower-lsp | LSP 伺服器（即時診斷/格式化/Code Actions） |</p>
+<p>| <code>biome_wasm</code> | wasm-bindgen | WebAssembly 綁定 |</p>
+<p>| <code>@biomejs/js-api</code> | TypeScript | WASM 的 TS 包裝 |</p>
+<p>---</p>
+<h2>四、2026 Roadmap 重點</h2>
+<h3>4.1 已完成的 2025 里程碑</h3>
+<ul>
+<li>Biome v2 發布：Type-Aware Linting（不依賴 tsc）</li>
+<li>Vue、Svelte、Astro 解析支援</li>
+<li>月下載量突破 1,500 萬</li>
+<li>GritQL 整合進 Biome 組織</li>
+</ul>
+<h3>4.2 2026 規劃中功能</h3>
+<p>| 功能 | 說明 |</p>
+<p>|------|------|</p>
+<p>| <strong>Cross-Language Lint Rules</strong> | 跨語言規則（如檢測未使用的 CSS class，同時掃描 CSS 和 JSX/HTML） |</p>
+<p>| <strong>HTML 穩定化</strong> | 格式化匹配 Prettier，增強 Vue/Svelte/Astro 支援 |</p>
+<p>| <strong>SCSS 支援</strong> | 社群最高票需求功能 |</p>
+<p>| <strong>Workspaces 配置</strong> | Opt-in 式 monorepo 支援，解決效能問題 |</p>
+<p>| <strong>YAML 解析器穩定化</strong> | 配置檔案的原生支援 |</p>
+<p>| <strong>Markdown 解析</strong> | 尋求社群貢獻 |</p>
+<p>| <strong>Accessibility 規則增強</strong> | HTML 類語言的 a11y lint |</p>
+<p>| <strong>增強 LSP 能力</strong> | 更豐富的 IDE 整合功能 |</p>
+<p>---</p>
+<h2>五、遷移指南要點</h2>
+<h3>5.1 從 ESLint + Prettier 遷移</h3>
+<pre><code>
+# 1. 安裝 Biome
+npm install --save-dev --save-exact @biomejs/biome
+
+# 2. 初始化配置
+npx @biomejs/biome init
+
+# 3. 自動遷移 ESLint 配置
+npx @biomejs/biome migrate eslint --write
+
+# 4. 自動遷移 Prettier 配置
+npx @biomejs/biome migrate prettier --write
+
+# 5. 執行檢查
+npx @biomejs/biome check --write .
+</code></pre>
+<h3>5.2 遷移注意事項</h3>
+<ul>
+<li>ESLint 規則相容度約 <strong>80%+</strong>（2026 年持續提升）</li>
+<li>需要 type information 的規則（如 <code>@typescript-eslint/no-floating-promises</code>）：Biome v2 的 type-aware 已覆蓋部分，但仍建議保留 <code>tsc --noEmit</code> 在 CI</li>
+<li>自定義 ESLint 插件無法自動遷移，需手動轉換或等待對應 Biome 規則</li>
+</ul>
+<p>---</p>
+<h2>六、與本專案（Daily Digest Prompt）的關聯啟示</h2>
+<h3>6.1 Rust-Based 工具鏈趨勢</h3>
+<p>Biome 與 Oxc、Rolldown、Turbopack 共同代表 2026 年前端工具鏈「Rust 化」浪潮。核心驅動力：</p>
+<ul>
+<li>JavaScript 工具用 JavaScript 寫 → 受限於單執行緒、GC、冷啟動</li>
+<li>Rust 工具 → 原生多執行緒、零成本抽象、可編譯為 WASM</li>
+</ul>
+<h3>6.2 架構借鑑</h3>
+<p>| Biome 設計 | DDP 可借鑑 |</p>
+<p>|------------|----------|</p>
+<p>| Red-Green Tree（不可變 + 可變游標） | 類似 digest-memory.json 的不可變歷史 + 可變 session 狀態 |</p>
+<p>| Trait-based Workspace | 類似 Skill-First 的 trait-based 行為分派 |</p>
+<p>| 語言專屬 crate + 共用基礎設施 | 類似 templates/sub-agent/ 專屬模板 + shared/ 共用前言 |</p>
+<p>| 8 分類規則系統 | 類似 hook-rules.yaml 的分類規則管理 |</p>
+<p>---</p>
+<h2>七、結論與評價</h2>
+<h3>優勢</h3>
+<ul>
+<li><strong>驚人效能</strong>：40-56x 速度提升，CI 時間大幅縮短</li>
+<li><strong>統一配置</strong>：一個 biome.json 取代多個 config 檔案</li>
+<li><strong>零依賴</strong>：單一二進制，無 node_modules 膨脹</li>
+<li><strong>Type-Aware 創新</strong>：不依賴 tsc 的型別推論，開創先例</li>
+<li><strong>Cross-Language Vision</strong>：跨語言 lint 規則是革命性方向</li>
+</ul>
+<h3>挑戰</h3>
+<ul>
+<li>ESLint 插件生態系統龐大（2,800+），完全替代仍需時間</li>
+<li>SCSS/HTML 等語言支援仍在穩定化中</li>
+<li>社群規模（24K Stars）vs ESLint（25K+ Stars）仍在追趕</li>
+</ul>
+<h3>評分：4.5/5</h3>
+<p>Biome 是 2026 年前端工具鏈最重要的革新之一。對於追求極致 CI/CD 效能、厭倦 ESLint 配置地獄的團隊，Biome 已是成熟且可靠的選擇。</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://github.com/biomejs/biome">GitHub Repository: biomejs/biome</a></li>
+<li><a href="https://biomejs.dev/">Biome 官方網站</a></li>
+<li><a href="https://biomejs.dev/blog/roadmap-2026/">Biome 2026 Roadmap</a></li>
+<li><a href="https://deepwiki.com/biomejs/biome">DeepWiki: biomejs/biome 架構分析</a></li>
+<li><a href="https://dev.to/pockit_tools/biome-the-eslint-and-prettier-killer-complete-migration-guide-for-2026-27m">DEV Community: Biome Migration Guide for 2026</a></li>
+<li><a href="https://blog.appsignal.com/2025/05/07/migrating-a-javascript-project-from-prettier-and-eslint-to-biomejs.html">AppSignal: Migrating from Prettier and ESLint to BiomeJS</a></li>
+<li><a href="https://dev.to/dataformathub/deep-dive-why-rust-based-tooling-is-dominating-javascript-in-2026-3dbl">DEV Community: Why Rust-Based Tooling is Dominating JavaScript in 2026</a></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Frogger v2.0 品質優化實踐：Fixed Timestep、物件池、Combo 與成就系統">
+  <title>Frogger v2.0 品質優化實踐：Fixed Timestep、物件池、Combo 與成就系統 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Frogger v2.0 品質優化實踐：Fixed Timestep、物件池、Combo 與成就系統</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">遊戲設計</span><span class="tag">HTML5</span><span class="tag">Canvas</span><span class="tag">效能優化</span><span class="tag">Frogger</span><span class="tag">Fixed Timestep</span><span class="tag">物件池</span><span class="tag">Combo系統</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Frogger v2.0 品質優化實踐</h1>
+<h2>概要</h2>
+<p>將 Frogger 從 v1.0 升級至 v2.0，重點解決六大品質問題，並加入三大留客機制。</p>
+<h2>修復的品質問題</h2>
+<h3>1. Fixed Timestep 遊戲循環</h3>
+<ul>
+<li><strong>問題</strong>：v1.0 使用 <code>dt</code>（秒）直接乘以速度，不同裝置行為不一致</li>
+<li><strong>修復</strong>：採用 accumulator 模式，<code>FIXED_DT = 1000/60</code>，物理更新與渲染分離</li>
+<li><strong>程式碼模式</strong>：</li>
+<pre><code>
+let accumulator = 0;
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+  let dt = timestamp - lastTime;
+  lastTime = timestamp;
+  if (dt &gt; MAX_FRAME_DT) dt = MAX_FRAME_DT;
+  accumulator += dt;
+  while (accumulator &gt;= FIXED_DT) {
+    update();
+    accumulator -= FIXED_DT;
+  }
+  render();
+}
+</code></pre>
+</ul>
+<h3>2. 物件池（Object Pool）</h3>
+<ul>
+<li><strong>問題</strong>：粒子和浮動文字使用 push/splice，造成 GC 壓力</li>
+<li><strong>修復</strong>：預建立固定大小池（粒子 200、文字 30），用 <code>active</code> 旗標管理生命週期</li>
+<li><strong>效益</strong>：零 GC 壓力，穩定 60FPS</li>
+</ul>
+<h3>3. 計分系統修復</h3>
+<ul>
+<li><strong>問題</strong>：v1.0 前進計分的 if 區塊為空（永遠不加分）</li>
+<li><strong>修復</strong>：追蹤 <code>furthestRow</code>，每前進一格 +10 分，搭配浮動文字回饋</li>
+</ul>
+<h3>4. 全螢幕響應式 Canvas</h3>
+<ul>
+<li><strong>問題</strong>：v1.0 用固定尺寸 Canvas + CSS 縮放</li>
+<li><strong>修復</strong>：Canvas 大小 = 視窗大小，所有座標通過 <code>sx()</code>/<code>sy()</code> 縮放函數轉換</li>
+<li><strong>手機支援</strong>：虛擬 D-Pad（四個圓形按鈕）+ 滑動手勢 fallback</li>
+</ul>
+<h2>新增留客機制</h2>
+<h3>Combo 系統</h3>
+<ul>
+<li>連續進家不死亡 → combo 遞增，3 秒內（180 幀）須再進家</li>
+<li>combo x2 起額外加分：<code>50 * (combo - 1)</code></li>
+<li>combo x3 顯示「連續跳躍!」、x5 額外 +200 且顯示「完美節奏!」</li>
+<li>死亡重置 combo</li>
+</ul>
+<h3>成就系統</h3>
+<ul>
+<li>12 個成就，localStorage 持久化</li>
+<li>涵蓋里程碑（初渡、關卡、分數）、技巧（速度、combo）、挑戰（無死亡通關）</li>
+<li>Game Over 畫面展示新解鎖成就</li>
+</ul>
+<h3>方向感知瞳孔</h3>
+<ul>
+<li>青蛙眼睛瞳孔隨移動方向偏移，增加角色生動感</li>
+</ul>
+<h2>學到的設計原則</h2>
+<ol>
+<li><strong>Fixed Timestep 是基本功</strong>：任何涉及物理的遊戲必須用固定時間步</li>
+<li><strong>物件池 = 穩定幀率</strong>：頻繁建立/銷毀物件是效能殺手</li>
+<li><strong>即時回饋 = 成癮性</strong>：每個動作都應有視覺+音效回饋（浮動文字、粒子、音效）</li>
+<li><strong>連鎖機制 = 留客</strong>：Combo 系統讓玩家追求「再多一把」</li>
+<li><strong>成就 = 長期目標</strong>：給玩家超越單局的追求動力</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

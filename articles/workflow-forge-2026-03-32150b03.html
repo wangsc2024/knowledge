@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="workflow-forge 2026-03-30：錯誤物件格式統一（RFC 7807）">
+  <title>workflow-forge 2026-03-30：錯誤物件格式統一（RFC 7807） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>workflow-forge 2026-03-30：錯誤物件格式統一（RFC 7807）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">workflow-forge</span><span class="tag">錯誤處理</span><span class="tag">RFC7807</span><span class="tag">JSON-Schema</span><span class="tag">系統優化</span><span class="tag">流程標準化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>workflow-forge 2026-03-30：錯誤物件格式統一（RFC 7807 Problem Details）</h1>
+<h2>執行摘要</h2>
+<p><strong>缺口類型</strong>：格式缺口（P0）</p>
+<p><strong>問題描述</strong>：當前 <code>results/todoist-auto-*.json</code> 的 <code>error</code> 欄位僅為字串，缺乏結構化資訊（error.type、title、detail、retryable、instance 等），不利於 system-insight 分析與 self-heal 可修復性判斷。</p>
+<p><strong>產出物</strong>：</p>
+<ol>
+<li><code>config/schemas/error-object-schema.json</code>（JSON Schema Draft 2020-12）</li>
+<li><code>config/error-types.yaml</code>（17 種錯誤類型定義）</li>
+<li>更新 <code>workflows/index.yaml</code>（登記新產物）</li>
+<li>更新 <code>config/README.md</code>（新增產物說明）</li>
+<li>更新 <code>context/workflow-forge-registry.json</code>（追蹤產出）</li>
+</ol>
+<p>---</p>
+<h2>缺口識別過程</h2>
+<h3>掃描範圍</h3>
+<p><strong>配置類</strong>：</p>
+<ul>
+<li><code>config/pipeline.yaml</code>：7 個主要步驟，output_section 定義清晰</li>
+<li><code>config/routing.yaml</code>：三層路由規則，template 映射完整</li>
+<li><code>config/cache-policy.yaml</code>：各 API 的 TTL 定義完整</li>
+<li><code>config/ooda-workflow.yaml</code>：包含 quality_gates（decide 步驟）</li>
+<li><code>config/frequency-limits.yaml</code>：39 個任務，每個有 template、execution_order、allowed_hours、result_suffix 等</li>
+</ul>
+<p><strong>輸出規範</strong>：</p>
+<ul>
+<li>39 個 prompts，54 次 <code>Write results/todoist-auto-*.json</code></li>
+<li>Sample schema：<code>{agent, task_key, status, error, summary}</code> — 僅 5 個基本欄位</li>
+<li>現有 2 個結果檔</li>
+</ul>
+<p><strong>失敗或告警信號</strong>：</p>
+<ul>
+<li><code>failed-auto-tasks.json</code>：空（entries: []）</li>
+<li><code>improvement-backlog.json</code>：85 項，16 項 pending</li>
+<li><code>system-insight.json</code>：4 個 alerts（success_rate 82.5%, cache_hit_ratio 26.3%, auto_task_fairness 0.635, avg_io_per_call 12474）</li>
+<li>recommendations：檢查高失敗時段、快取 TTL、任務公平性、Context 壓縮</li>
+</ul>
+<h3>缺口清單（5 個）</h3>
+<p>| # | 缺口標題 | 影響範圍(40) | 可執行性(35) | 信號強度(25) | 總分 | 開創性 |</p>
+<p>|---|---------|-------------|-------------|-------------|------|--------|</p>
+<p>| 1 | 結果 JSON 必填欄位不一致 | 35 | 30 | 20 | 85 | 否 |</p>
+<p>| 2 | quality_gates 輸出未標準化 | 10 | 30 | 10 | 50 | 是 |</p>
+<p>| 3 | template_params 一致性 | 20 | 30 | 15 | 65 | 否 |</p>
+<p>| 4 | Phase 間交接格式 | 30 | 25 | 20 | 75 | 否 |</p>
+<p>| 5 | <strong>錯誤物件格式未統一</strong> | <strong>35</strong> | <strong>30</strong> | <strong>25</strong> | <strong>90</strong> | <strong>是</strong> |</p>
+<p><strong>選定理由</strong>：</p>
+<ul>
+<li>總分最高（90），且滿足開創性門檻（RFC 7807 Error Schema）</li>
+<li>影響所有 39 個自動任務</li>
+<li>可執行性高（僅需 JSON Schema + YAML 定義，不改 PowerShell 核心邏輯）</li>
+<li>信號強度最高（最新 workflow wf-20260329-error-object-schema）</li>
+</ul>
+<p>---</p>
+<h2>產物設計規格</h2>
+<h3>1. error-object-schema.json（JSON Schema）</h3>
+<p><strong>必填欄位</strong>（5 個）：</p>
+<ul>
+<li><code>type</code>（string, uri）：錯誤類型 URI，如 <code>config/error-types.yaml#timeout</code></li>
+<li><code>title</code>（string, ≤100 chars）：錯誤標題（簡短描述）</li>
+<li><code>detail</code>（string, ≤500 chars）：詳細錯誤訊息（含 context）</li>
+<li><code>retryable</code>（boolean）：是否可重試（true = 暫時性錯誤，false = 永久性錯誤）</li>
+<li><code>instance</code>（string, uri）：錯誤發生的具體執行實例（如 <code>logs/structured/20260330_050332.jsonl#line156</code>）</li>
+</ul>
+<p><strong>選填欄位</strong>（5 個）：</p>
+<ul>
+<li><code>trace_id</code>：追蹤 ID（對應 PowerShell $DIGEST_TRACE_ID）</li>
+<li><code>task_key</code>：任務鍵（對應 frequency-limits.yaml）</li>
+<li><code>phase</code>：失敗的執行階段（team mode）</li>
+<li><code>timestamp</code>：錯誤發生時間（ISO 8601）</li>
+<li><code>caused_by</code>：根因錯誤（遞迴結構，用於錯誤鏈）</li>
+</ul>
+<p><strong>參考標準</strong>：RFC 7807 Problem Details for HTTP APIs</p>
+<p><strong>範例</strong>：</p>
+<pre><code>
+{
+  "type": "config/error-types.yaml#timeout",
+  "title": "AI 深度研究任務超時",
+  "detail": "任務 ai_deep_research 在 Phase 2 執行超過 1440 秒，被 PowerShell 強制終止",
+  "retryable": true,
+  "instance": "logs/structured/20260330_050332.jsonl#line156",
+  "trace_id": "abc123-def456",
+  "task_key": "ai_deep_research",
+  "phase": "phase2",
+  "timestamp": "2026-03-30T05:03:32+08:00"
+}
+</code></pre>
+<h3>2. error-types.yaml（錯誤類型定義）</h3>
+<p><strong>7 大分類</strong>：</p>
+<ul>
+<li><code>timeout</code>：執行逾時</li>
+<li><code>api_failure</code>：API 呼叫失敗</li>
+<li><code>validation</code>：格式驗證失敗</li>
+<li><code>dependency</code>：依賴缺失</li>
+<li><code>resource</code>：資源不足</li>
+<li><code>config</code>：配置錯誤</li>
+<li><code>external</code>：外部服務不可用</li>
+</ul>
+<p><strong>17 種錯誤類型</strong>（摘錄）：</p>
+<ul>
+<li><code>timeout</code>：執行逾時（retryable: true, priority: 3）</li>
+<li><code>api_failure</code>：API 呼叫失敗（retryable: true, priority: 4）</li>
+<li><code>validation_error</code>：格式驗證失敗（retryable: false, priority: 3）</li>
+<li><code>skill_not_found</code>：Skill 不存在（retryable: false, priority: 4）</li>
+<li><code>context_overflow</code>：Context Window 溢出（retryable: false, priority: 4）</li>
+<li><code>config_semantic_error</code>：配置語義錯誤（retryable: false, priority: 4）</li>
+</ul>
+<p>---</p>
+<h2>整合點</h2>
+<h3>消費者（4 個）</h3>
+<ol>
+<li><strong>system-insight Skill</strong>：依 <code>error.type</code> 分類錯誤模式，計算 <code>error_rate</code> 與高失敗時段</li>
+<li><strong>self-heal Skill</strong>：依 <code>error.retryable</code> 判斷是否可自動修復（retryable=false → 需人工介入）</li>
+<li><strong>phase-snapshot-recovery Skill</strong>：依 <code>error.phase</code> 判斷從哪個 Phase 恢復</li>
+<li><strong>ntfy-notify</strong>：依 <code>error.type</code> 選擇通知優先級（timeout=3, api_failure=4, validation_error=3）</li>
+</ol>
+<h3>與現有 workflows 對齊</h3>
+<ul>
+<li><code>wf-20260329-error-object-schema</code>（validation_checklist）：本次產出為此 workflow 的實作產物</li>
+<li><code>wf-20260326-results-validation</code>（workflow）：results validation 應整合 error object schema 驗證</li>
+<li><code>wf-20260323-phase-handoff</code>（validation_checklist）：Phase 間交接時須保留錯誤物件結構</li>
+</ul>
+<p>---</p>
+<h2>驗證結果</h2>
+<p>✅ <strong>error-types.yaml 解析成功</strong>（Python yaml.safe_load）</p>
+<p>✅ <strong>error-object-schema.json 解析成功</strong>（Python json.loads）</p>
+<p>✅ <strong>範例 error object 驗證通過</strong>（包含所有必填欄位）</p>
+<p>---</p>
+<h2>預期成果</h2>
+<h3>立即效果</h3>
+<ul>
+<li>所有 prompt 開發者有明確的 error 物件格式規範（JSON Schema）</li>
+<li>39 個自動任務可依此 schema 結構化錯誤回報</li>
+</ul>
+<h3>中期效果（1-2 週）</h3>
+<ul>
+<li>system-insight 可依 <code>error.type</code> 分類錯誤模式（目前無法聚合）</li>
+<li>self-heal 可依 <code>error.retryable</code> 判斷可修復性（目前僅有字串）</li>
+<li>錯誤診斷效率提升 50%+</li>
+</ul>
+<h3>長期效果（1-2 月）</h3>
+<ul>
+<li>錯誤物件格式一致性保持在 95% 以上</li>
+<li>支援自動化錯誤分析與修復（OODA 閉環）</li>
+<li>配合 phase-snapshot-recovery，實現 Phase 間精確恢復</li>
+</ul>
+<p>---</p>
+<h2>相關檔案</h2>
+<ul>
+<li><strong>產物</strong>：<code>config/schemas/error-object-schema.json</code></li>
+<li><strong>依賴</strong>：<code>config/error-types.yaml</code></li>
+<li><strong>索引</strong>：<code>workflows/index.yaml</code>（wf-20260330-error-object-json-schema）</li>
+<li><strong>說明</strong>：<code>config/README.md</code>（行 37-38 更新）</li>
+<li><strong>註冊</strong>：<code>context/workflow-forge-registry.json</code>（entries[0]）</li>
+<li><strong>規格</strong>：<code>context/workflow_forge_spec.json</code></li>
+</ul>
+<p>---</p>
+<h2>關鍵決策</h2>
+<ol>
+<li><strong>採用 RFC 7807 Problem Details</strong>：業界標準，與 HTTP API 錯誤格式對齊</li>
+<li><strong>error.type 使用 YAML URI</strong>：<code>config/error-types.yaml#timeout</code>，避免硬編碼，集中管理</li>
+<li><strong>必填 5 欄位</strong>：type, title, detail, retryable, instance — 平衡簡潔與診斷力</li>
+<li><strong>支援錯誤鏈</strong>：<code>caused_by</code> 遞迴結構，追蹤根因錯誤</li>
+<li><strong>不修改 PowerShell 核心邏輯</strong>：僅新增 Schema 與定義，不改執行腳本</li>
+</ol>
+<p>---</p>
+<h2>後續行動</h2>
+<ol>
+<li><strong>更新 prompts</strong>：39 個 <code>todoist-auto-*.md</code> 逐步更新錯誤處理區塊，使用結構化 error object</li>
+<li><strong>整合 system-insight</strong>：讀取 error.type 並依 category 聚合錯誤模式</li>
+<li><strong>整合 self-heal</strong>：讀取 error.retryable 判斷可修復性，優先修復 retryable=true 的錯誤</li>
+<li><strong>整合 phase-snapshot-recovery</strong>：讀取 error.phase 判斷恢復起點</li>
+<li><strong>ntfy 優先級映射</strong>：依 error.type 查詢 error-types.yaml 的 priority，動態調整通知優先級</li>
+</ol>
+<p>---</p>
+<p><strong>標籤</strong>：#workflow-forge #錯誤處理 #RFC7807 #JSON-Schema #系統優化</p>
+<p><strong>生成時間</strong>：2026-03-30T05:15:00+08:00</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

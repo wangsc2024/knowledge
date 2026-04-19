@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-04-14">
+  <title>系統 Log 審查報告 - 2026-04-14 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 審查報告 - 2026-04-14</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">phase_failure趨勢</span><span class="tag">KB快取</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 - 2026-04-14</h1>
+<h2>執行摘要</h2>
+<ul>
+<li><strong>審查期間</strong>：2026-04-08 ~ 2026-04-14（7 天）</li>
+<li><strong>發現問題</strong>：9 個（3 嚴重、2 中優先、4 改善建議）</li>
+<li><strong>執行修正</strong>：1 個（KB 快取更新）</li>
+<li><strong>系統狀態</strong>：整體改善中，短期 phase_failure 下降</li>
+</ul>
+<p>---</p>
+<h2>🔍 診斷結果</h2>
+<h3>🔴 嚴重問題（3 個）</h3>
+<p>#### 1. auto-fahua 批次失敗與編碼問題</p>
+<p><strong>症狀</strong>：</p>
+<ul>
+<li><code>auto-fahua-stderr-20260414_033003.log</code> 含 160 個 nul、57 個 failed、13 個 ERROR</li>
+<li>12 次連續失敗（2026-04-13 19:37）</li>
+</ul>
+<p><strong>根因</strong>：</p>
+<ol>
+<li><strong>Cursor CLI 沙箱管道斷裂</strong>：<code>Windows sandbox: 管道正關閉中 (os error 232)</code></li>
+<li><strong>uv cache 權限問題</strong>：<code>C:\Users\user\AppData\Local\uv\cache\sdists-v9\.git</code> 存取被拒（os error 5）</li>
+<li><strong>編碼狀態</strong>：✅ 正常（KB API 回應 UTF-8 正確，無亂碼）</li>
+</ol>
+<p><strong>建議修復</strong>：</p>
+<ol>
+<li>檢查 uv 快取權限：<code>icacls C:\Users\user\AppData\Local\uv\cache\sdists-v9 /grant:r %USERNAME%:F</code></li>
+<li>驗證 Cursor CLI 沙箱配置（檢查 <code>.cursor/settings.json</code> 的 <code>sandbox_mode</code>）</li>
+<li>考慮增加 timeout 上限（目前可能過短）</li>
+</ol>
+<p><strong>狀態</strong>：✅ 記錄待修（外部環境問題，需手動處理）</p>
+<p>---</p>
+<p>#### 2. Token 預算超支（Phase 1）</p>
+<p><strong>症狀</strong>：</p>
+<ul>
+<li>Phase 1 估算 Token 用量 700~979KB / 200KB 預算 = <strong>370%~489% 超支</strong></li>
+<li>導致 Phase 2 倖存任務被 <code>token_level=critical</code> 過濾</li>
+</ul>
+<p><strong>根因</strong>：</p>
+<ul>
+<li>model selection 多路由導致預算估算膨脹</li>
+<li>自動任務累積執行，query 複雜度超出預期</li>
+</ul>
+<p><strong>影響</strong>：</p>
+<ul>
+<li>Phase 1 本身穩定（無直接失敗）</li>
+<li>下游 Phase 2 任務被提前過濾，降低系統吞吐量</li>
+</ul>
+<p><strong>建議</strong>：</p>
+<ol>
+<li>提升 Phase 1 預算至 600KB（或分段執行）</li>
+<li>優化 query prompt，減少不必要的路由分支</li>
+</ol>
+<p><strong>狀態</strong>：✅ 記錄待評估（需影響分析後再調整配置）</p>
+<p>---</p>
+<p>#### 3. agent_crash 高頻發生（已改善）</p>
+<p><strong>症狀</strong>：</p>
+<ul>
+<li>2026-04-11：18 次 agent_crash（單日）</li>
+<li>2026-04-13：7 次 agent_crash</li>
+<li>2026-04-14：0 次 agent_crash（已改善）</li>
+</ul>
+<p><strong>根因</strong>：</p>
+<ul>
+<li>具體原因需進一步分析歷史日誌</li>
+<li>可能與 2026-04-11 的 quota_exceeded（2 次）相關</li>
+</ul>
+<p><strong>狀態</strong>：✅ 持續監控（最近已改善，暫不修改）</p>
+<p>---</p>
+<h3>🟠 中優先問題（2 個）</h3>
+<p>#### 4. KB 快取持續不可用（ADR-387 警告）</p>
+<p><strong>症狀</strong>：</p>
+<ul>
+<li>todoist-team 日誌持續出現 "Critical dependency unavailable: kb (no_cache)"（29 次）</li>
+<li><code>cache/kb_live_status.json</code> 最後更新於 2026-04-13 15:30（超過 15 小時未更新）</li>
+</ul>
+<p><strong>根因</strong>：</p>
+<ul>
+<li>TTL 30 分鐘，但檔案超過 15 小時未刷新</li>
+<li>實際 KB API 可用（<code>http://localhost:3000/api/stats</code> 正常回應）</li>
+<li>問題在於快取檔案過期，而非 KB 不可用</li>
+</ul>
+<p><strong>修正</strong>：</p>
+<ul>
+<li>✅ 已手動更新 <code>cache/kb_live_status.json</code>（checked_at: 2026-04-14T06:37:28+08:00）</li>
+<li>預期效果：消除 ADR-387 警告，恢復 KB 快取可用性</li>
+</ul>
+<p><strong>狀態</strong>：✅ 已修正</p>
+<p>---</p>
+<p>#### 5. failure-stats.json 數據滯後</p>
+<p><strong>症狀</strong>：</p>
+<ul>
+<li>最晚有資料日為 2026-04-13，早於審查視窗終點 2026-04-14</li>
+<li>趨勢分析僅反映統計檔現況</li>
+</ul>
+<p><strong>建議</strong>：</p>
+<ul>
+<li>審查前先更新 <code>state/failure-stats.json</code></li>
+<li>考慮自動化定期更新機制</li>
+</ul>
+<p><strong>狀態</strong>：✅ 記錄建議</p>
+<p>---</p>
+<h3>🟡 改善建議（4 個）</h3>
+<p>#### 6. SLO 報告過時</p>
+<ul>
+<li><code>slo-budget-report.json</code> 產生於 2026-04-05（9 天前）</li>
+<li>建議：定期更新 SLO 報告（每週或每月）</li>
+</ul>
+<p>#### 7. LLM 對話性回應偵測</p>
+<ul>
+<li>Phase 1 偵測到 3 筆對話性回應</li>
+<li>Phase 3 偵測到 0 筆</li>
+<li>✅ Phase 1 和 Phase 3 防護均已到位（<code>planWriteTime -lt</code> 和 <code>conversationalPattern</code>）</li>
+<li>狀態：系統運行正常</li>
+</ul>
+<p>#### 8. Phase 1 query 失敗 40 次（認知修正）</p>
+<ul>
+<li>初步發現：query 失敗 40 次（近 7 天）</li>
+<li>深入分析：這些失敗集中在 2026-04-08~09（歷史記錄）</li>
+<li>最近狀況：2026-04-13~14 Phase 1 穩定（15 次執行，0 次直接失敗）</li>
+<li>狀態：已改善，持續監控</li>
+</ul>
+<p>#### 9. autonomous-runtime.json 狀態</p>
+<ul>
+<li>✅ 無殭屍降級狀態</li>
+<li>mode: "normal"</li>
+<li>override.active: false</li>
+<li>狀態：正常</li>
+</ul>
+<p>---</p>
+<h2>📊 趨勢分析</h2>
+<h3>phase_failure（failure-stats）</h3>
+<p>最近一日 2026-04-13 的 phase_failure 為 8，低於前一日 2026-04-11（21），短期趨勢為改善。相較窗內高峰 2026-04-08（34 次）已回落。窗內 phase_failure 中位數為 18；最近一日相對中位數為「低於」中位數。</p>
+<p><strong>數據滯後警告</strong>：failure-stats 最晚有資料日為 2026-04-13，早於視窗終點 2026-04-14；趨勢僅反映統計檔現況，審查前請確認是否需先更新 state/failure-stats.json。</p>
+<p><strong>時間序列</strong>（依日期由舊到新）：</p>
+<p>| 日期 | phase_failure |</p>
+<p>|------|---------------|</p>
+<p>| 2026-04-08 | 34 |</p>
+<p>| 2026-04-09 | 15 |</p>
+<p>| 2026-04-10 | 18 |</p>
+<p>| 2026-04-11 | 21 |</p>
+<p>| 2026-04-13 | 8 |</p>
+<h3>日誌關鍵字統計（最近 10 個日誌檔案）</h3>
+<p><strong>清潔度</strong>：8/10 檔案無錯誤</p>
+<p><strong>問題模式</strong>：</p>
+<ul>
+<li>ADR-387 警告："Critical dependency unavailable: kb (no_cache)" 持續出現（已修正）</li>
+<li>auto-fahua 批次失敗：高失敗計數（57），編碼問題（160 nul）</li>
+<li>Timeout：ADR-207 In-Flight guard 觸發，multiplier 調整（1.0-1.3）</li>
+</ul>
+<p>---</p>
+<h2>✅ 修正清單</h2>
+<ol>
+<li><strong>KB 快取更新</strong>（已完成）</li>
+</ol>
+<p>   - 更新 <code>cache/kb_live_status.json</code></p>
+<p>   - checked_at: 2026-04-14T06:37:28+08:00</p>
+<p>   - 預期：消除 ADR-387 警告</p>
+<p>---</p>
+<h2>📋 待辦建議</h2>
+<ol>
+<li><strong>auto-fahua 環境修復</strong>（P0）</li>
+</ol>
+<p>   - 修復 uv cache 權限</p>
+<p>   - 檢查 Cursor CLI 沙箱配置</p>
+<ol>
+<li><strong>Token 預算評估</strong>（P1）</li>
+</ol>
+<p>   - 評估 Phase 1 預算調整影響</p>
+<p>   - 考慮分段執行或 prompt 優化</p>
+<ol>
+<li><strong>SLO 報告自動化</strong>（P2）</li>
+</ol>
+<p>   - 定期更新 slo-budget-report.json</p>
+<ol>
+<li><strong>failure-stats 自動更新</strong>（P2）</li>
+</ol>
+<p>   - 審查前自動更新機制</p>
+<p>---</p>
+<h2>🎯 結論</h2>
+<p>系統整體健康度良好，短期 phase_failure 趨勢改善（8 < 21）。主要問題集中在：</p>
+<ol>
+<li>外部環境（uv cache、沙箱）</li>
+<li>Token 預算配置需調整</li>
+<li>KB 快取刷新機制需改進（已手動修正）</li>
+</ol>
+<p><strong>本次審查執行 1 項修正，記錄 8 項待辦建議，系統可繼續運行。</strong></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

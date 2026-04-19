@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="專案 RAG 優化日報（2026-04-18）">
+  <title>專案 RAG 優化日報（2026-04-18） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>專案 RAG 優化日報（2026-04-18）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">Observational Memory</span><span class="tag">RAG 優化</span><span class="tag">daily-digest-prompt</span><span class="tag">knowledge-driven-development</span><span class="tag">優化報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案 RAG 優化日報（2026-04-18）</h1>
+<h2>Daily Digest Prompt 系統優化實施報告</h2>
+<blockquote><strong>執行日期</strong>：2026-04-18 01:00-01:30</blockquote>
+<blockquote><strong>知識庫來源</strong>：RAG 知識庫系統優化實施方案（2026-04-15~17）</blockquote>
+<blockquote><strong>執行狀態</strong>：✅ Phase 1 完成（Observational Memory P0 優化）</blockquote>
+<p>---</p>
+<h2>一、優化背景與動機</h2>
+<h3>當前系統診斷（2026-04-18 01:00）</h3>
+<p><strong>關鍵指標現狀</strong>：</p>
+<p>| 指標 | 當前值 | 目標值 | 狀態 |</p>
+<p>|------|--------|--------|------|</p>
+<p>| 系統總評分 | 90.26/100 | ≥85 | ✅ S級 |</p>
+<p>| 每日成功率 | 70.5% | ≥90% | ⚠️ <strong>Critical</strong> |</p>
+<p>| 快取命中率 | 28.7% | ≥40% | ⚠️ Warning |</p>
+<p>| 熵分數 | 0.536 | ≤0.6 | ⚠️ Degrading |</p>
+<p>| 約束覆蓋率 | 75% | ≥80% | ⚠️ 待改進 |</p>
+<p><strong>主要問題</strong>：</p>
+<ol>
+<li><strong>成功率危機</strong>（70.5%）：Phase 失敗 137 次/7天</li>
+<li><strong>快取效率低落</strong>（28.7%）：所有 API 快取過期</li>
+<li><strong>熵增趨勢</strong>（degrading）：配置分散、手動維護成本高</li>
+</ol>
+<h3>知識庫洞見（5 大優化方向）</h3>
+<p>基於 RAG 知識庫筆記《RAG 知識庫系統優化實施方案（2026-04-15~17）》（note_id: df5d0098-8b16-4548-a627-e73bee159b82）：</p>
+<ol>
+<li><strong>Observational Memory 反思系統</strong>（P0）</li>
+<li>宣告式 Hook Registry（P0）</li>
+<li>Skill Discovery Manifest（P1）</li>
+<li>Harness 內容品質評測 B6（P2）</li>
+<li>Claude Agent SDK TypeScript 整合（P3）</li>
+</ol>
+<p>---</p>
+<h2>二、Phase 1 執行成果（2026-04-18）</h2>
+<h3>已完成：Observational Memory 反思系統【P0】</h3>
+<p>#### 實施內容</p>
+<p><strong>1. 建立 Insight Generator 引擎</strong></p>
+<p>檔案：\	ools/generate_insights.py\（432 行）</p>
+<p>核心功能：</p>
+<ul>
+<li><strong>4 種洞察分析</strong>：</li>
+</ul>
+<p>  1. \nalyze_failure_patterns()\：失敗模式識別</p>
+<p>  2. \nalyze_cache_efficiency()\：快取效率分析</p>
+<p>  3. \nalyze_entropy_trend()\：熵增趨勢偵測</p>
+<p>  4. \nalyze_success_rate_trend()\：成功率趨勢分析</p>
+<ul>
+<li><strong>智慧建議生成</strong>：</li>
+</ul>
+<p>  - 根據錯誤類型自動生成可執行建議</p>
+<p>  - timeout → 調整 \config/timeouts.yaml\</p>
+<p>  - assembly → 檢查 Phase 依賴</p>
+<p>  - API → 檢查 Circuit Breaker</p>
+<ul>
+<li><strong>輸出格式</strong>：</li>
+</ul>
+<p>\\\json</p>
+<p>{</p>
+<p>  "version": 1,</p>
+<p>  "schema": "observational-insights-v1",</p>
+<p>  "insights": [</p>
+<p>    {</p>
+<p>      "id": "insight-xxx",</p>
+<p>      "type": "success_rate_trend",</p>
+<p>      "severity": "critical",</p>
+<p>      "title": "每日成功率低於目標（70.5%）",</p>
+<p>      "recommendation": {</p>
+<p>        "action": "investigate_failures",</p>
+<p>        "targets": [...],</p>
+<p>        "expected_improvement": "成功率 +10~20%"</p>
+<p>      },</p>
+<p>      "priority": "P0"</p>
+<p>    }</p>
+<p>  ]</p>
+<p>}</p>
+<p>\\\</p>
+<p><strong>2. 首次洞察生成結果</strong></p>
+<p>檔案：\context/digest-insights.json\</p>
+<p>生成 <strong>2 個洞察</strong>：</p>
+<ol>
+<li><strong>Critical Insight</strong>：成功率僅 70.5%</li>
+</ol>
+<p>   - 證據：低於目標 90%，差距 19.5%</p>
+<p>   - 建議：檢查失敗模式、調整 timeout、分析 Phase 分布</p>
+<p>   - 優先級：<strong>P0</strong></p>
+<ol>
+<li><strong>Warning Insight</strong>：熵增趨勢（degrading）</li>
+</ol>
+<p>   - 證據：當前 0.536，趨勢 degrading</p>
+<p>   - 建議：Hook Registry 統一化、Skill Discovery 自動化</p>
+<p>   - 優先級：P1</p>
+<p><strong>3. 測試套件驗證</strong></p>
+<p>檔案：\	ests/tools/test_generate_insights.py\（8 個測試）</p>
+<p>測試覆蓋：</p>
+<ul>
+<li>✅ 失敗模式分析</li>
+<li>✅ 快取效率分析</li>
+<li>✅ 熵增趨勢分析</li>
+<li>✅ 成功率趨勢分析</li>
+<li>✅ 完整洞察生成</li>
+<li>✅ 洞察結構驗證</li>
+<li>✅ 健康狀態無誤報</li>
+<li>✅ 建議結構完整性</li>
+</ul>
+<p><strong>測試結果</strong>：✅ <strong>8/8 通過（100%）</strong></p>
+<p>---</p>
+<h2>三、技術實作細節</h2>
+<h3>核心設計模式</h3>
+<p><strong>Observer-Reflector 模式</strong>（來自 Mastra 框架）</p>
+<p>\\\</p>
+<p>被動記錄層（Observer）：</p>
+<p>  ├─ state/scheduler-state.json</p>
+<p>  ├─ context/system-insight.json</p>
+<p>  └─ cache/status.json</p>
+<p>主動反思層（Reflector）：</p>
+<p>  ├─ tools/generate_insights.py</p>
+<p>  └─ context/digest-insights.json  ← 新增</p>
+<p>自動執行層（Action）：</p>
+<p>  └─ （待實作：自動應用建議）</p>
+<p>\\\</p>
+<h3>關鍵技術決策</h3>
+<p>#### 決策 1：分離 Observations 與 Insights</p>
+<p><strong>動機</strong>：</p>
+<ul>
+<li>Observations = 原始事實（\scheduler-state.json\、\system-insight.json\）</li>
+<li>Insights = 主動反思（\digest-insights.json\）</li>
+<li>分離可避免資料污染，保持單一職責</li>
+</ul>
+<p><strong>實施</strong>：</p>
+<ul>
+<li>讀取多個 state 檔案</li>
+<li>生成獨立的 \digest-insights.json\</li>
+<li>保持原始資料不變</li>
+</ul>
+<p>#### 決策 2：閾值驅動的洞察生成</p>
+<p><strong>動機</strong>：</p>
+<ul>
+<li>避免無意義的洞察洪流</li>
+<li>只在指標異常時生成</li>
+</ul>
+<p><strong>閾值設定</strong>：</p>
+<p>\\\python</p>
+<p>failure_rate > 0.25 → critical</p>
+<p>failure_rate > 0.10 → warning</p>
+<p>cache_hit_ratio < 0.25 → critical</p>
+<p>cache_hit_ratio < 0.40 → warning</p>
+<p>entropy_score > 0.60 → critical</p>
+<p>entropy_score > 0.53 and trend=degrading → warning</p>
+<p>success_rate < 0.75 → critical</p>
+<p>success_rate < 0.90 → warning</p>
+<p>\\\</p>
+<p>#### 決策 3：可執行建議（Actionable Recommendations）</p>
+<p><strong>動機</strong>：</p>
+<ul>
+<li>洞察必須伴隨具體行動</li>
+<li>減少「發現問題但不知如何修復」</li>
+</ul>
+<p><strong>建議格式</strong>：</p>
+<p>\\\json</p>
+<p>{</p>
+<p>  "action": "adjust_timeout",</p>
+<p>  "target": "config/timeouts.yaml",</p>
+<p>  "params": { "建議": "延長 timeout +50%" },</p>
+<p>  "steps": ["步驟1", "步驟2"],</p>
+<p>  "expected_improvement": "失敗率 -30%"</p>
+<p>}</p>
+<p>\\\</p>
+<p>---</p>
+<h2>四、預期效益與驗證計劃</h2>
+<h3>短期效益（1 週內）</h3>
+<p>| 效益 | 指標 | 目標 |</p>
+<p>|------|------|------|</p>
+<p>| 自動發現問題 | Insights 生成數量 | 每日 2-5 個 |</p>
+<p>| 減少人工分析時間 | 日誌審查時間 | -50% |</p>
+<p>| 可執行建議 | 建議可操作性 | ≥80% |</p>
+<h3>中期效益（4 週內）</h3>
+<p>| 效益 | 當前值 | 目標值 | 改善幅度 |</p>
+<p>|------|--------|--------|---------|</p>
+<p>| 成功率提升 | 70.5% | ≥85% | +14.5% |</p>
+<p>| 快取命中率 | 28.7% | ≥45% | +16.3% |</p>
+<p>| 熵分數降低 | 0.536 | ≤0.50 | -0.036 |</p>
+<h3>驗證方式</h3>
+<ol>
+<li><strong>每日監控</strong>：</li>
+</ol>
+<p>   - \check-health.ps1\ 新增 [Observational Insights] 區塊</p>
+<p>   - 顯示 Critical/Warning 洞察數量</p>
+<p>   - 追蹤建議執行率</p>
+<ol>
+<li><strong>週度評估</strong>：</li>
+</ol>
+<p>   - 統計洞察準確率（真陽性 vs 誤報）</p>
+<p>   - 追蹤建議執行後的效果</p>
+<p>   - 調整閾值參數</p>
+<ol>
+<li><strong>月度回顧</strong>：</li>
+</ol>
+<p>   - 評估系統指標改善幅度</p>
+<p>   - 決策是否推進 Phase 2（Hook Registry、Skill Discovery）</p>
+<p>---</p>
+<h2>五、後續規劃</h2>
+<h3>Phase 2（Week 3-4）：Hook Registry + Skill Discovery</h3>
+<p><strong>優先級</strong>：P0-P1</p>
+<p>實施項目：</p>
+<ol>
+<li><strong>宣告式 Hook Registry</strong></li>
+</ol>
+<p>   - 建立 \config/hook-registry.yaml\</p>
+<p>   - 80% 規則外部化</p>
+<p>   - 重構 \pre_bash_guard.py\、\pre_write_guard.py\</p>
+<ol>
+<li><strong>Skill Discovery Manifest</strong></li>
+</ol>
+<p>   - 每個 Skill 生成 \manifest.json\</p>
+<p>   - 實作 O(1) 觸發詞查找</p>
+<p>   - 自動發現新 Skill</p>
+<h3>Phase 3（Week 5-6）：Harness B6 內容品質評測</h3>
+<p><strong>優先級</strong>：P2</p>
+<p>實施項目：</p>
+<ul>
+<li>定義 B6 評測指標（信息密度、可執行性、深度等級）</li>
+<li>整合到 \check-health.ps1\</li>
+</ul>
+<h3>Phase 4（Week 7-8）：TypeScript Agent SDK 整合</h3>
+<p><strong>優先級</strong>：P3</p>
+<p>實施項目：</p>
+<ul>
+<li>升級 \ot/groq-relay.js\ 為 Agent SDK 包裝器</li>
+<li>Agent Teams 並行支援</li>
+</ul>
+<p>---</p>
+<h2>六、關鍵學習與洞見</h2>
+<h3>學習 1：Observational Memory 的威力</h3>
+<p><strong>來自知識庫的啟發</strong>：</p>
+<blockquote>Mastra 框架的 Observer-Reflector-Memory 三層架構，將被動記錄升級為主動反思，實現 Agent 自我演化。</blockquote>
+<p><strong>實踐驗證</strong>：</p>
+<ul>
+<li>✅ 自動發現成功率低於目標（Critical）</li>
+<li>✅ 自動發現熵增趨勢（Warning）</li>
+<li>✅ 提供可執行建議（4 個具體 targets）</li>
+</ul>
+<p><strong>深度洞見</strong>：</p>
+<ul>
+<li><strong>從「事後諸葛」到「預測式維護」</strong>：傳統系統需人工查日誌才發現問題，Observational Memory 主動分析並預測風險</li>
+<li><strong>閾值即智慧</strong>：關鍵不在記錄資料，而在設定正確的閾值與反思邏輯</li>
+<li><strong>可執行性是核心</strong>：洞察若無對應行動，等同無用資訊</li>
+</ul>
+<h3>學習 2：知識庫驅動開發的價值</h3>
+<p><strong>流程</strong>：</p>
+<ol>
+<li>查詢 RAG 知識庫 → 獲得 5 大優化洞見</li>
+<li>深度理解 Mastra/Claude Code/DeepEval 框架</li>
+<li>映射到 daily-digest-prompt 專案</li>
+<li>實作最高優先級優化（Observational Memory）</li>
+</ol>
+<p><strong>成效</strong>：</p>
+<ul>
+<li>0.5 小時完成 432 行核心程式碼</li>
+<li>8 個測試全數通過</li>
+<li>立即生成 2 個有效洞察</li>
+</ul>
+<p><strong>關鍵要素</strong>：</p>
+<ul>
+<li><strong>知識庫品質</strong>：筆記需涵蓋架構模式、實作細節、同構性識別</li>
+<li><strong>執行速度</strong>：從洞見到實作僅需 30 分鐘</li>
+<li><strong>品質保證</strong>：TDD 驅動，測試先行</li>
+</ul>
+<h3>學習 3：系統熵增的根因</h3>
+<p><strong>觀察</strong>：</p>
+<ul>
+<li>Hook 規則分散在 13 個 Python 腳本</li>
+<li>Skills 手動維護（97 個）</li>
+<li>配置膨脹（13 個 YAML）</li>
+</ul>
+<p><strong>根因分析</strong>：</p>
+<ol>
+<li><strong>缺乏統一抽象層</strong>：每個 Hook 獨立實作，無共用框架</li>
+<li><strong>手動維護成本高</strong>：Skill 觸發詞需手動更新 SKILL_INDEX.md</li>
+<li><strong>配置分散</strong>：相關配置散布多檔，難以統一管理</li>
+</ol>
+<p><strong>解決方向</strong>（Phase 2）：</p>
+<ul>
+<li>Hook Registry：統一抽象層</li>
+<li>Skill Discovery：自動化維護</li>
+<li>配置整合：合併相關 YAML</li>
+</ul>
+<p>---</p>
+<h2>七、產出物清單</h2>
+<h3>核心程式碼</h3>
+<ol>
+<li>✅ \	ools/generate_insights.py\（432 行）</li>
+<li>✅ \	ests/tools/test_generate_insights.py\（8 測試）</li>
+</ol>
+<h3>配置與資料</h3>
+<ol>
+<li>✅ \context/digest-insights.json\（首次洞察）</li>
+</ol>
+<h3>文件</h3>
+<ol>
+<li>✅ \docs/plans/rag-optimization-plan-20260418.md\（完整優化計劃）</li>
+<li>✅ 本報告（專案 RAG 優化日報）</li>
+</ol>
+<h3>測試結果</h3>
+<ol>
+<li>✅ 測試套件：8/8 通過（100%）</li>
+<li>✅ 洞察生成：2 個（1 Critical + 1 Warning）</li>
+</ol>
+<p>---</p>
+<h2>八、結論</h2>
+<h3>階段性成果</h3>
+<p><strong>已完成</strong>（Phase 1）：</p>
+<ul>
+<li>✅ Observational Memory 反思系統（P0）</li>
+<li>✅ 測試驗證通過（8/8）</li>
+<li>✅ 首次洞察生成成功</li>
+</ul>
+<p><strong>待執行</strong>（Phase 2-4）：</p>
+<ul>
+<li>⏳ Hook Registry 統一化（P0）</li>
+<li>⏳ Skill Discovery 自動化（P1）</li>
+<li>⏳ Harness B6 品質評測（P2）</li>
+<li>⏳ TypeScript Agent SDK 整合（P3）</li>
+</ul>
+<h3>關鍵指標目標（4 週後）</h3>
+<p>| 指標 | 當前值 | 目標值 | 策略 |</p>
+<p>|------|--------|--------|------|</p>
+<p>| 每日成功率 | 70.5% | ≥85% | Observational Memory 自動發現問題 |</p>
+<p>| 快取命中率 | 28.7% | ≥45% | 自適應 TTL 調整 |</p>
+<p>| 熵分數 | 0.536 | ≤0.50 | Hook Registry + Skill Discovery |</p>
+<h3>下一步行動</h3>
+<p><strong>立即執行</strong>（本週）：</p>
+<ol>
+<li>整合 \generate_insights.py\ 到 \un-agent-team.ps1\ Phase 0</li>
+<li>在 \check-health.ps1\ 新增 [Observational Insights] 區塊</li>
+<li>監控首週洞察準確率</li>
+</ol>
+<p><strong>本月執行</strong>（Week 2-4）：</p>
+<ol>
+<li>實施 Hook Registry（Week 2-3）</li>
+<li>實施 Skill Discovery（Week 3-4）</li>
+<li>評估 Phase 1 效益</li>
+</ol>
+<p>---</p>
+<h2>九、參考資料</h2>
+<h3>知識庫筆記</h3>
+<ol>
+<li><strong>df5d0098-8b16-4548-a627-e73bee159b82</strong>：RAG 知識庫系統優化實施方案（2026-04-15~17）</li>
+<li><strong>042b6920-13c7-456b-864b-d78cc42a4786</strong>：Daily-Digest-Prompt 系統可觀測性與運維監控優化指南</li>
+<li><strong>979740a1-f2e1-41f9-90f1-f6ad13924a11</strong>：Harness Engineering 優化深度研究</li>
+</ol>
+<h3>技術框架</h3>
+<ul>
+<li>Mastra（23K Stars）：Observational Memory 設計模式</li>
+<li>Claude Code Hooks（2026-02）：三層治理架構</li>
+<li>DeepEval（14.2K Stars）：評測驅動開發</li>
+</ul>
+<p>---</p>
+<p><strong>報告版本</strong>：v1.0.0</p>
+<p><strong>撰寫時間</strong>：2026-04-18 01:30</p>
+<p><strong>作者</strong>：Claude Code Agent（Sonnet 4.5）</p>
+<p><strong>專案</strong>：daily-digest-prompt</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
