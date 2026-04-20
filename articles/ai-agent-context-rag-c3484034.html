@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Agent 系統中的 Context 分層載入與 RAG 優化最佳實踐（2026）">
+  <title>AI Agent 系統中的 Context 分層載入與 RAG 優化最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AI Agent 系統中的 Context 分層載入與 RAG 優化最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI Agent</span><span class="tag">Context Engineering</span><span class="tag">RAG優化</span><span class="tag">Token效率</span><span class="tag">快取策略</span><span class="tag">系統架構</span><span class="tag">研究</span><span class="tag">Harness Engineering</span><span class="tag">最佳實踐</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent 系統中的 Context 分層載入與 RAG 優化最佳實踐（2026）</h1>
+<h2>研究摘要</h2>
+<p>本研究探討 2026 年 AI Agent 系統在 Context Window 管理和 RAG（Retrieval-Augmented Generation）優化方面的最新技術和最佳實踐。隨著大型語言模型 Context Window 擴展到 1M-10M tokens，<strong>優化重點已從「能否放入 Context」轉向「如何以最經濟的方式放入且保持品質」</strong>。</p>
+<h2>一、Context Engineering 核心概念</h2>
+<h3>1.1 定義演進</h3>
+<p><strong>Context Engineering 正在取代 Prompt Engineering，成為 2026 年 AI 開發的核心技能</strong>。</p>
+<ul>
+<li><strong>Context Window</strong>：模型單次推理的 token 預算</li>
+<li><strong>Context Layer</strong>：上游治理架構，決定哪些內容進入 Window</li>
+<li><strong>Context Engineering</strong>：系統性設計和優化 Context 輸入的學科</li>
+</ul>
+<p>來源：<a href="https://logic.inc/resources/context-engineering-guide-for-ai-teams">Context Engineering Guide for AI Teams 2026</a></p>
+<h3>1.2 分層認知模型</h3>
+<p>生產級 AI Agent 採用五層 Context 架構：</p>
+<p>| 層級 | 內容 | 載入時機 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Meta-Context</strong> | Agent 身份、語氣、信心閾值 | 永久載入（系統 Prompt） |</p>
+<p>| <strong>Operational Context</strong> | 當前任務、用戶意圖、可用工具、約束條件 | 每次任務開始 |</p>
+<p>| <strong>Domain Context</strong> | 產業知識、業務規則 | 按需載入（條件觸發） |</p>
+<p>| <strong>Historical Context</strong> | 壓縮的互動記憶 | 滾動窗口（最近 N 次） |</p>
+<p>| <strong>Environmental Context</strong> | 系統狀態、即時數據、時間感知 | 動態注入（每次推理前） |</p>
+<p><strong>組織實踐</strong>：使用模組化 Context Assembler（如 LangChain 的 custom memory classes）根據任務複雜度僅載入必要的層。</p>
+<p>來源：<a href="https://medium.com/@bijit211987/optimizing-any-ai-agent-framework-with-context-engineering-81ceb09176a0">Optimizing AI Agent Framework with Context Engineering</a></p>
+<h2>二、Context Window 優化技術</h2>
+<h3>2.1 漸進式載入（Progressive Context Loading）</h3>
+<p><strong>核心原則</strong>：按需擴展 Context，避免預先載入全部內容。</p>
+<p>實施步驟：</p>
+<ol>
+<li><strong>基線載入</strong>：僅載入 Meta + Operational Context</li>
+<li><strong>相關性評估</strong>：根據任務類型判斷需要的 Domain Context</li>
+<li><strong>動態擴展</strong>：在執行過程中根據需求追加 Historical / Environmental Context</li>
+<li><strong>自適應裁剪</strong>：超過閾值時移除低相關內容</li>
+</ol>
+<p><strong>實證效果</strong>：減少平均 token 使用 30-40%，同時保持任務成功率。</p>
+<p>來源：<a href="https://airbyte.com/agentic-data/ai-context-window-optimization-techniques">5 AI Context Window Optimization Techniques</a></p>
+<h3>2.2 基於嵌入的檢索聚類</h3>
+<p><strong>策略</strong>：將歷史對話、範例、文檔預先嵌入向量，根據當前任務語義檢索最相關的 exemplars。</p>
+<p>技術要點：</p>
+<ul>
+<li>使用 FAISS / Chroma / Weaviate 等向量數據庫</li>
+<li>設定相似度閾值（如 cosine similarity > 0.75）</li>
+<li>僅載入 top-K 最相關項（K=3-5 為最佳平衡點）</li>
+</ul>
+<h3>2.3 注意力加權剪枝（Attention-Weighted Pruning）</h3>
+<p><strong>原理</strong>：在推理過程中移除低注意力權重的內容。</p>
+<p>實作方式：</p>
+<ul>
+<li>追蹤 Attention Scores（需模型支援，如 GPT-4 Turbo / Claude 3.5）</li>
+<li>在 Session 中期（如第 5 輪對話後）移除 attention < 0.1 的段落</li>
+<li>保留高權重的「錨點內容」（如任務描述、關鍵規則）</li>
+</ul>
+<h3>2.4 相關性衰減（Relevance Decay）</h3>
+<p><strong>策略</strong>：根據時間和主題漂移降低舊內容的優先級。</p>
+<p>衰減公式：</p>
+<pre><code>
+relevance_score = base_relevance × (0.95 ^ days_elapsed) × topic_similarity
+</code></pre>
+<ul>
+<li><code>days_elapsed</code>：內容產生後經過的天數</li>
+<li><code>topic_similarity</code>：與當前任務的主題相似度（cosine）</li>
+<li>衰減後 score < 0.3 的內容自動移除</li>
+</ul>
+<p>來源：<a href="https://datagrid.com/blog/optimize-ai-agent-context-windows-attention">Fix AI Agents that Miss Critical Details</a></p>
+<h2>三、RAG 系統優化策略</h2>
+<h3>3.1 多層快取架構</h3>
+<p><strong>生產級 RAG 系統採用三層快取</strong>：</p>
+<p>| 層級 | 匹配方式 | 延遲 | 命中率 | 適用場景 |</p>
+<p>|------|---------|------|--------|---------|</p>
+<p>| <strong>Exact Match Cache</strong> | 完全一致的查詢 | <1ms | 15-25% | 高重複性查詢（FAQ、常見指令） |</p>
+<p>| <strong>Semantic Cache</strong> | 語義相似（embedding distance < threshold） | 5-10ms | 30-45% | 相似問題、改寫查詢 |</p>
+<p>| <strong>Session Context</strong> | 對話狀態管理 | 實時 | N/A | 跨輪對話的記憶保持 |</p>
+<p><strong>實證效果</strong>：在高重複性聊天機器人場景中，三層快取可減少 <strong>60-70% 的 LLM 呼叫次數</strong>。</p>
+<p>來源：<a href="https://redis.io/blog/llm-token-optimization-speed-up-apps/">LLM Token Optimization: Cut Costs & Latency in 2026</a></p>
+<h3>3.2 RAGCache 架構</h3>
+<p><strong>RAGCache</strong> 是專為 RAG 設計的延遲優化服務系統（論文：arXiv:2404.12457）：</p>
+<p>核心技術：</p>
+<ol>
+<li><strong>Knowledge Tree</strong>：將檢索到的知識組織為樹狀結構，跨 GPU 和主機記憶體階層快取中間狀態</li>
+<li><strong>動態推測流水線（Dynamic Speculative Pipelining）</strong>：利用串流搜尋行為，<strong>重疊檢索與 LLM 生成</strong>，降低端到端延遲</li>
+<li><strong>階層記憶體管理</strong>：熱點知識放 GPU VRAM，次熱放 Host RAM，冷資料放磁碟</li>
+</ol>
+<p><strong>性能提升</strong>（vs. vLLM + Faiss）：</p>
+<ul>
+<li><strong>TTFT（Time to First Token）降低 4 倍</strong></li>
+<li><strong>吞吐量提升 2.1 倍</strong></li>
+</ul>
+<p>來源：<a href="https://arxiv.org/pdf/2404.12457">RAGCache: Efficient Knowledge Caching for RAG</a></p>
+<h3>3.3 Token 優化技術</h3>
+<p>#### LLMLingua 壓縮</p>
+<p><strong>功能</strong>：壓縮 Prompt 同時最小化性能損失，特別適合長檢索上下文。</p>
+<p>實作策略：</p>
+<ul>
+<li>保留關鍵實體和關係詞</li>
+<li>移除冗餘的修飾詞、轉折詞</li>
+<li>壓縮率可達 <strong>50-70%</strong>，準確率損失 < 5%</li>
+</ul>
+<p>#### 語義分塊（Semantic Chunking）</p>
+<p><strong>原則</strong>：按語義邊界切分文檔，而非固定長度。</p>
+<p>最佳實踐：</p>
+<ul>
+<li>使用 LangChain 的 <code>RecursiveCharacterTextSplitter</code> 搭配語義邊界偵測</li>
+<li>Chunk size：500-1000 tokens（依模型而定）</li>
+<li>Overlap：50-100 tokens（保持上下文連續性）</li>
+</ul>
+<p>#### 固定 Token 預算</p>
+<p><strong>策略</strong>：限制檢索結果的總 token 數，強制優先相關性而非數量。</p>
+<p>配置範例：</p>
+<pre><code>
+retrieval_budget:
+  max_tokens: 4000  # 單次檢索上限
+  top_k: 5          # 最多返回 5 個 chunks
+  min_relevance: 0.7  # 最低相關度閾值
+</code></pre>
+<p>來源：<a href="https://apxml.com/courses/optimizing-rag-for-production/chapter-5-cost-optimization-production-rag/minimize-llm-token-usage-rag">Techniques for Minimizing LLM Token Usage</a></p>
+<h3>3.4 成本優化組合策略</h3>
+<p>生產級 RAG 系統透過以下組合策略可減少 <strong>30-45% 的成本</strong>：</p>
+<ol>
+<li><strong>Smart Routing</strong>：簡單查詢路由到小模型（如 GPT-3.5），複雜查詢才用 GPT-4</li>
+<li><strong>Semantic Caching</strong>：消除重複推理呼叫</li>
+<li><strong>Model Degradation</strong>：在非關鍵路徑使用較小模型（如摘要、分類）</li>
+<li><strong>Prompt Compression</strong>：使用 LLMLingua 或自訂壓縮策略</li>
+</ol>
+<p><strong>實測節省</strong>：某企業 RAG 系統在導入以上策略後，月度基礎設施成本降低 <strong>40-46%</strong>。</p>
+<p>來源：<a href="https://fast.io/resources/ai-agent-token-cost-optimization/">AI Agent Token Cost Optimization Guide 2026</a></p>
+<h2>四、對 Daily Digest Prompt 專案的實施建議</h2>
+<h3>4.1 短期優化（1-2 週可完成）</h3>
+<p>#### 建議 1：實施三層 Context 載入</p>
+<p><strong>目標</strong>：降低 auto-task 的平均 token 使用 30%。</p>
+<p>實作步驟：</p>
+<ol>
+<li>將 <code>prompts/team/assemble-digest.md</code> 拆分為三層：</li>
+</ol>
+<p>   - <strong>L0-meta.md</strong>：Agent 身份、語氣、禁令（永久載入）</p>
+<p>   - <strong>L1-operational.md</strong>：當前任務步驟、工具約束（每次載入）</p>
+<p>   - <strong>L2-domain.md</strong>：Skill 路由、研究去重規則（按需載入）</p>
+<ol>
+<li>在 <code>run-todoist-agent-team.ps1</code> Phase 1 實施漸進式載入邏輯</li>
+<li>使用 <code>config/context-layers.yaml</code> 配置載入規則</li>
+</ol>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>減少 Phase 2 平均 token 使用 2000-3000 tokens</li>
+<li>Cache hit rate 從 ~60% 提升至 ~75%</li>
+</ul>
+<p>#### 建議 2：強化語義快取</p>
+<p><strong>目標</strong>：KB 查詢命中率從 15% 提升至 40%。</p>
+<p>實作步驟：</p>
+<ol>
+<li>擴展 <code>tools/kb_semantic_cache.py</code> 支援 profile 變體（topK=3/5/10）</li>
+<li>在 <code>knowledge-query</code> Skill 的所有搜尋 API 前強制插入 lookup</li>
+<li>調整相似度閾值：<code>distance < 0.15</code>（當前 0.1 過嚴）</li>
+<li>新增快取預熱：在 Phase 0 預載入高頻查詢（如「今日任務」「最新研究」）</li>
+</ol>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>KB API 呼叫次數減少 40%</li>
+<li>Phase 1 執行時間縮短 15-20%</li>
+</ul>
+<h3>4.2 中期優化（2-4 週）</h3>
+<p>#### 建議 3：導入 RAGCache 式知識樹</p>
+<p><strong>目標</strong>：建立專案級的知識快取樹，支援跨 Session 重用。</p>
+<p>架構設計：</p>
+<pre><code>
+cache/knowledge-tree/
+├── meta/             # Skill、ADR、Config 的靜態知識（7 天 TTL）
+├── operational/      # 最近 N 次執行的狀態摘要（1 天 TTL）
+├── domain/           # 研究主題、待辦事項分類（3 天 TTL）
+└── index.json        # 樹狀索引，記錄節點依賴關係
+</code></pre>
+<p>實作要點：</p>
+<ul>
+<li>使用 <code>tools/knowledge_tree_manager.py</code> 管理節點生命週期</li>
+<li>在 <code>preamble.md</code> 新增「步驟 -1：載入知識樹」</li>
+<li>當 Cache Miss 時才讀取原始檔案並更新樹節點</li>
+</ul>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>TTFT（首 token 延遲）降低 50%</li>
+<li>跨 Session 的重複讀取減少 70%</li>
+</ul>
+<p>#### 建議 4：實施 Attention-Weighted 記憶保留</p>
+<p><strong>目標</strong>：自動識別和保留高價值的歷史 Context。</p>
+<p>實作步驟：</p>
+<ol>
+<li>在 <code>context/continuity/*.json</code> 新增 <code>attention_score</code> 欄位</li>
+<li>使用 Claude 的 usage metadata（需 API 支援）或啟發式規則計算：</li>
+</ol>
+<p>   ```python</p>
+<p>   attention_score = (</p>
+<p>       0.4 * task_success_rate +  # 該記憶是否導致成功</p>
+<p>       0.3 * reuse_count +         # 被引用次數</p>
+<p>       0.3 * recency_factor        # 時間衰減</p>
+<p>   )</p>
+<p>   ```</p>
+<ol>
+<li>在 <code>max_runs</code> 清理邏輯中，保留 top-K 高分項，而非單純 FIFO</li>
+</ol>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>關鍵經驗（如失敗根因）的保留期從 5 次延長至有效保留</li>
+<li>減少重複踩坑次數</li>
+</ul>
+<h3>4.3 長期優化（1-2 月）</h3>
+<p>#### 建議 5：模型分級路由（Smart Routing）</p>
+<p><strong>目標</strong>：簡單任務用小模型，減少 40% 成本。</p>
+<p>分級策略：</p>
+<p>| 任務類型 | 模型選擇 | 理由 |</p>
+<p>|---------|---------|------|</p>
+<p>| KB 查詢摘要 | Haiku | 結構化輸出，無需深度推理 |</p>
+<p>| 研究去重判斷 | Sonnet | 需語義理解，但不需生成長文 |</p>
+<p>| 深度研究 | Opus | 需複雜推理和長篇生成 |</p>
+<p>| Phase 3 組裝 | Sonnet | 結構化組裝，中等複雜度 |</p>
+<p>實作：</p>
+<ul>
+<li>擴展 <code>tools/llm_router.py</code> 支援任務類型 → 模型映射</li>
+<li>在 <code>config/llm-router.yaml</code> 新增 <code>task_complexity</code> 評分規則</li>
+<li>在 <code>run-todoist-agent-team.ps1</code> Phase 1a 預分類時決定模型</li>
+</ul>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>月度 API 成本降低 35-40%</li>
+<li>簡單任務延遲降低 50%（Haiku 更快）</li>
+</ul>
+<p>#### 建議 6：Context 壓縮管線（LLMLingua 整合）</p>
+<p><strong>目標</strong>：長 Prompt 壓縮 50% 且準確率損失 < 5%。</p>
+<p>整合步驟：</p>
+<ol>
+<li>安裝 <code>llmlingua</code>：<code>uv add llmlingua</code></li>
+<li>建立 <code>tools/context_compressor.py</code>：</li>
+</ol>
+<p>   ```python</p>
+<p>   from llmlingua import PromptCompressor</p>
+<p>   def compress_context(text: str, target_ratio: float = 0.5) -> str:</p>
+<p>       compressor = PromptCompressor()</p>
+<p>       return compressor.compress_prompt(</p>
+<p>           text,</p>
+<p>           rate=target_ratio,</p>
+<p>           target_token=-1  # 自動計算</p>
+<p>       )["compressed_prompt"]</p>
+<p>   ```</p>
+<ol>
+<li>在 Phase 2 的 auto-task prompt 組裝前呼叫壓縮</li>
+<li>設定壓縮閾值：僅當 prompt > 8000 tokens 時啟用</li>
+</ol>
+<p><strong>預期效果</strong>：</p>
+<ul>
+<li>研究類任務的 input tokens 減少 40-50%</li>
+<li>整體成本再降 15-20%</li>
+</ul>
+<h2>五、總結與行動計畫</h2>
+<h3>核心洞察</h3>
+<ol>
+<li><strong>2026 年的 AI 優化核心已從「能不能放」轉向「如何經濟地放且保持品質」</strong></li>
+<li><strong>Context Engineering 取代 Prompt Engineering 成為核心技能</strong></li>
+<li><strong>分層載入 + 語義快取 + 模型路由是成本優化的黃金三角</strong></li>
+</ol>
+<h3>立即行動（下週完成）</h3>
+<ul>
+<li>[ ] 實施三層 Context 載入（建議 1）</li>
+<li>[ ] 調整 KB 語義快取閾值至 0.15（建議 2）</li>
+<li>[ ] 在 <code>check-health.ps1</code> 新增 Context 分層健康度指標</li>
+</ul>
+<h3>近期目標（本月完成）</h3>
+<ul>
+<li>[ ] 建立知識樹快取架構（建議 3）</li>
+<li>[ ] 導入 Attention-Weighted 記憶保留（建議 4）</li>
+<li>[ ] 撰寫 ADR-XXX：Context 分層載入架構決策</li>
+</ul>
+<h3>長期願景（2 個月）</h3>
+<ul>
+<li>[ ] 完整模型分級路由系統（建議 5）</li>
+<li>[ ] LLMLingua 壓縮管線（建議 6）</li>
+<li>[ ] 發布 Harness Engineering 優化報告（含前後對比數據）</li>
+</ul>
+<p>---</p>
+<h2>參考文獻</h2>
+<ol>
+<li><a href="https://medium.com/@bijit211987/optimizing-any-ai-agent-framework-with-context-engineering-81ceb09176a0">Optimizing AI Agent Framework with Context Engineering</a></li>
+<li><a href="https://airbyte.com/agentic-data/ai-context-window-optimization-techniques">5 AI Context Window Optimization Techniques</a></li>
+<li><a href="https://logic.inc/resources/context-engineering-guide-for-ai-teams">Context Engineering Guide for AI Teams 2026</a></li>
+<li><a href="https://datagrid.com/blog/optimize-ai-agent-context-windows-attention">Fix AI Agents that Miss Critical Details</a></li>
+<li><a href="https://redis.io/blog/llm-token-optimization-speed-up-apps/">LLM Token Optimization: Cut Costs & Latency in 2026</a></li>
+<li><a href="https://fast.io/resources/ai-agent-token-cost-optimization/">AI Agent Token Cost Optimization Guide 2026</a></li>
+<li><a href="https://arxiv.org/pdf/2404.12457">RAGCache: Efficient Knowledge Caching for RAG</a></li>
+<li><a href="https://apxml.com/courses/optimizing-rag-for-production/chapter-5-cost-optimization-production-rag/minimize-llm-token-usage-rag">Techniques for Minimizing LLM Token Usage</a></li>
+<li><a href="https://brlikhon.engineer/blog/building-production-rag-systems-in-2026-complete-tutorial-with-langchain-pinecone">Building Production RAG Systems in 2026</a></li>
+<li><a href="https://sparkco.ai/blog/agent-context-windows-in-2026-how-to-stop-your-ai-from-forgetting-everything">Agent Context Windows in 2026: How to Stop Your AI from Forgetting</a></li>
+</ol>
+<p><strong>研究完成時間</strong>：2026-04-21</p>
+<p><strong>字數</strong>：約 4,500 字</p>
+<p><strong>標籤</strong>：AI Agent、Context Engineering、RAG優化、Token效率、快取策略、系統架構</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

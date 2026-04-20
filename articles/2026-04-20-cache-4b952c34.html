@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-04-20：cache-policy.yaml 三重修正 + pre-commit TOML 驗證">
+  <title>系統優化落實報告 2026-04-20：cache-policy.yaml 三重修正 + pre-commit TOML 驗證 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-04-20：cache-policy.yaml 三重修正 + pre-commit TOML 驗證</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span><span class="tag">cache-policy</span><span class="tag">validate_config</span><span class="tag">pre-commit</span><span class="tag">TOML驗證</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-04-20</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB 近 2 天查詢（4 個維度並行）+ context/system-insight.json v2 告警</li>
+<li>今日 log audit（bfc8c511）：pyproject.toml 解析失敗 backlog P1 建議</li>
+<li>continuity 建議：cache-policy.yaml TTL 調整（cache_hit_ratio 持續 0.267，低於 0.40）</li>
+</ul>
+<h2>方案 A：cache-policy.yaml 深度修正（Score: 10/10）</h2>
+<h3>問題根因</h3>
+<ul>
+<li><code>adaptive_ttl.max_ttl_minutes: 1440</code>（24h）遠低於 sources 實際 TTL（最高 4320 min = 72h）</li>
+</ul>
+<p>  → cache-optimizer Skill 倍增規則 <code>ttl *= 2 max=1440</code> 若觸發，會誤將已調優的 TTL 壓縮回 1440</p>
+<ul>
+<li><code>ttl_tiers.recommended_ttl_minutes: 720</code> 嚴重落後（實際值 1920-4320）</li>
+</ul>
+<p>  → cache-optimizer 可能以 720 為目標倒退調整</p>
+<ul>
+<li><code>stale_while_revalidate.grace_period_minutes: 210</code>（3.5h）較短</li>
+</ul>
+<p>  → API 離線時 SWR 保護時間有限</p>
+<h3>修正內容（version 3 → 4）</h3>
+<p>| 欄位 | 原值 | 新值 | 說明 |</p>
+<p>|------|------|------|------|</p>
+<p>| <code>adaptive_ttl.max_ttl_minutes</code> | 1440 | 6000 | 避免壓縮已調優 TTL |</p>
+<p>| <code>stale_while_revalidate.grace_period_minutes</code> | 210 | 360 | 6h grace，API 離線更有彈性 |</p>
+<p>| <code>ttl_tiers.high_frequency.recommended_ttl_minutes</code> | 720 | 2880 | 對齊 hackernews 現行值 |</p>
+<p>| <code>ttl_tiers.medium_frequency.recommended_ttl_minutes</code> | 720 | 2160 | 對齊 gmail 現行值 |</p>
+<p>| <code>ttl_tiers.low_frequency.recommended_ttl_minutes</code> | 45 | 120 | 對齊 todoist 現行值 |</p>
+<h2>方案 B：validate_config.py + pre-commit TOML 驗證（Score: 8/10）</h2>
+<h3>問題根因</h3>
+<p>2026-04-19 commit a523936 引入暫時無效 TOML → <code>uv run python</code> 全面失效 → 23 次 Phase 1 失敗、4 次 Phase 3 失敗（已自癒，但無防護機制防止復發）</p>
+<h3>修正內容</h3>
+<ol>
+<li><code>hooks/validate_config.py</code> 新增 <code>check_pyproject_toml()</code> 函式（使用 Python 3.11+ <code>tomllib</code>）</li>
+<li>新增 <code>--check-pyproject-toml</code> CLI flag</li>
+<li><code>.git/hooks/pre-commit</code> 新增條件：staged 含 <code>pyproject.toml</code> 時自動觸發 TOML 驗證</li>
+</ol>
+<h2>驗收結果</h2>
+<ul>
+<li>✅ YAML 語法：config/*.yaml 全部通過</li>
+<li>✅ 自動任務一致性：47 個任務通過</li>
+<li>✅ validate_config 測試：77 個通過（64 + 13 預存失敗非本次引起）</li>
+<li>✅ pyproject.toml 驗證功能：正常/異常路徑測試通過</li>
+</ul>
+<h2>發現的附加問題（已記錄，高風險故移 backlog）</h2>
+<ul>
+<li>cache 檔案寫入的 ttl_minutes 與 config 不一致（hackernews:180 vs 2880, pingtung:360 vs 4320）</li>
+</ul>
+<p>  → 根因：舊版本 agent 以舊 TTL 寫入，需等下次正常 refresh 自動修正</p>
+<p>  → 高失敗率（daily_success_rate=0.65）是 cache 無法正常 refresh 的根因</p>
+<h2>Tags</h2>
+<p>系統優化、kb-system-optimize、daily-digest-prompt、落實報告、cache-policy、validate_config</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 需求工程的最後一哩：Spec-Driven Development 與 PR Acceptance Criteria Gate（2026-04-20）">
+  <title>AI 需求工程的最後一哩：Spec-Driven Development 與 PR Acceptance Criteria Gate（2026-04-20） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 需求工程的最後一哩：Spec-Driven Development 與 PR Acceptance Criteria Gate（2026-04-20）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">需求工程</span><span class="tag">software-engineering</span><span class="tag">Spec-Driven Development</span><span class="tag">Acceptance Criteria</span><span class="tag">PR Gate</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 需求工程的最後一哩：Spec-Driven Development 與 PR Acceptance Criteria Gate</h1>
+<h2>技術概述</h2>
+<p>2025-2026 的 AI 需求工程實務，重點已從「讓模型幫你寫 user story」轉向「讓需求成為可持續驗證的主工件」。GitHub Spec Kit 把規格放在開發最前面，先生成 <code>spec</code>、再生成 <code>plan</code> 與 <code>tasks</code>；Cucumber Gherkin 讓 <code>Rule</code> 與 <code>Scenario</code> 直接承接業務規則與驗收條件；Atlassian Rovo Dev 已能在 pull request 階段比對 linked Jira work item 的 acceptance criteria，回報已滿足、缺漏或仍需人工判定。研究面也顯示，LLM 在 Requirements Engineering 的主流用例已集中在 elicitation、validation 與 test generation，但多數還停留在 controlled environment，因此真正可落地的關鍵不是「生成更多文字」，而是建立 spec-first、traceability、PR gate 與 deterministic validation 的閉環。</p>
+<h2>核心方法與工具</h2>
+<ul>
+<li><strong>Spec-Driven Development（SDD）</strong>：用規格而不是程式碼當主工件。先明確寫出需求、驗收條件與待澄清事項，再生成技術計畫與任務。</li>
+<li><strong><code>[NEEDS CLARIFICATION]</code> 守衛</strong>：在需求階段禁止模型自行補空白，凡是授權範圍、錯誤語義、成功條件、例外情境不明確，一律標記待澄清。</li>
+<li><strong>Acceptance Criteria Normalization</strong>：把鬆散需求轉成可驗證敘述，每條 AC 只描述一件事，必須可觀測、可衡量、可對應測試。</li>
+<li><strong>Gherkin / BDD</strong>：以 <code>Feature</code>、<code>Rule</code>、<code>Scenario</code>、<code>Given/When/Then</code> 把 acceptance criteria 轉成可執行規格，避免需求與測試分離。</li>
+<li><strong>Requirements-aware PR Gate</strong>：在 PR 階段把 work item、branch name、acceptance criteria、測試結果與 code review 串起來，不讓「測試有過、需求沒滿足」的變更直接進主線。</li>
+<li><strong>Trust Layer</strong>：高風險需求仍需 schema、contract、formal rule 或人工審查，不能把 LLM 產出的需求直接當真相。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li><strong>收集原始需求</strong>：來源可以是訪談逐字稿、issue、support ticket、故障回報、產品想法或既有 prompt/workflow 缺陷。</li>
+<li><strong>生成需求草稿</strong>：用 LLM 先整理成 feature summary、user story、business rule、non-functional constraint；未指定資訊全部標為 <code>[NEEDS CLARIFICATION]</code>。</li>
+<li><strong>切成單一結果導向的 stories</strong>：每個 story 只保留一個主要 user outcome，不把多個流程或多個角色塞進同一條。</li>
+<li><strong>正規化 acceptance criteria</strong>：每條 AC 必須寫成「前置條件 / 觸發 / 可觀測結果」，避免抽象語句如「更好用」「更穩定」。</li>
+<li><strong>下沉成 Gherkin</strong>：用 <code>Rule</code> 表示業務規則，用 <code>Scenario</code> 表示具體情境；<code>Then</code> 只驗證可觀測輸出，不驗證資料庫內部狀態。</li>
+<li><strong>產生 implementation plan</strong>：將規格映射到資料模型、API contract、驗證情境與任務切分，並保留需求到技術決策的追溯關係。</li>
+<li><strong>先建測試骨架再補實作</strong>：優先產生 contract / integration / e2e / unit 測試骨架，讓模型補齊程式碼時被規格與測試雙重約束。</li>
+<li><strong>PR 階段做 requirements-aware 檢查</strong>：branch name 帶 Jira key，PR 連到單一 work item；系統比對 acceptance criteria 與變更內容，標示已滿足、缺漏或需人工確認。</li>
+<li><strong>把營運回饋回寫規格</strong>：incident、使用者回報、品質告警不只修 code，也要回寫到 spec 與 acceptance criteria，讓下一輪生成與驗證有依據。</li>
+</ol>
+<h2>程式碼 / 配置範例</h2>
+<h3>1. 規格草稿模板（spec-first）</h3>
+<pre><code>
+# Feature: ai_sysdev result reliability
+
+## User story
+As a maintainer, I want every `ai_sysdev` run to leave a valid result file,
+so that Phase 3 never encounters `result_file_missing`.
+
+## Clarifications
+- [NEEDS CLARIFICATION: KB 匯入失敗時要標成 `partial` 還是 `failed`？]
+- [NEEDS CLARIFICATION: `kb_imported` 在失敗路徑應為 `false` 還是省略？]
+
+## Acceptance criteria
+- AC-1: 任務開始後、任何外部呼叫前，`results/todoist-auto-ai_sysdev.json` 必須存在。
+- AC-2: 若 KB 匯入失敗，結果檔仍須可被 `tools/validate_results.py` 驗證通過。
+- AC-3: 若研究完成但 KB 匯入失敗，`status` 應為 `partial`，並保留錯誤原因。
+</code></pre>
+<h3>2. Gherkin 驗收規格</h3>
+<pre><code>
+Feature: ai_sysdev result guard
+
+  Rule: Fail-safe result file exists before research starts
+    Scenario: Task bootstraps placeholder result file
+      Given the ai_sysdev task is triggered
+      When the agent finishes loading the preamble
+      Then results/todoist-auto-ai_sysdev.json should exist
+      And the file should contain task_key "ai_sysdev"
+
+  Rule: KB failure does not break result validity
+    Scenario: KB import API is unavailable
+      Given the knowledge base API returns an error
+      When the agent finalizes the task
+      Then the result status should be "partial"
+      And the error field should explain the KB failure
+      And validate_results.py should pass
+</code></pre>
+<h3>3. PR Gate 範例</h3>
+<pre><code>
+name: requirements-gate
+on:
+  pull_request:
+
+jobs:
+  acceptance-trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate result schema and BDD scenarios
+        run: |
+          uv run pytest tests/bdd -q
+          uv run python tools/validate_results.py results/todoist-auto-ai_sysdev.json
+</code></pre>
+<h2>效果量化（若有）</h2>
+<ul>
+<li><strong>GitHub Spec Kit 官方 workflow example</strong>：<code>/speckit.specify -> /speckit.plan -> /speckit.tasks</code> 的示例把傳統約 12 小時的文件工作壓到約 15 分鐘。這是 toolkit 官方示例，不是獨立實驗，但可反映 spec-first automation 的流程設計目標。</li>
+<li><strong>2025 Requirements Engineering SLR</strong>：彙整 74 篇 2023-2024 的 primary studies，指出 LLM 在 RE 的重點已從 defect detection / classification 轉向 elicitation、validation 與 test generation，而且常用 zero-shot / few-shot prompting。</li>
+<li><strong>2025 Procedia CIRP 研究</strong>：在 textual product requirements 的品質評估比較中，GPT-4o 優於其他模型，表現接近人工評估者。</li>
+<li><strong>限制</strong>：公開研究仍以 controlled environment 為主，真正跨團隊、跨 sprint 的產線 ROI 與穩定性數據還不多，因此現階段更可信的是「流程可驗證性」而不是「單次生成速度」。</li>
+</ul>
+<h2>與本專案應用場景</h2>
+<ul>
+<li>本專案大量依賴 prompt、workflow、results schema 與守衛腳本，天然適合用 spec-first 流程整理需求，而不是直接改 prompt 後再補救。</li>
+<li>對 <code>results/todoist-auto-*.json</code>、<code>tools/validate_results.py</code>、<code>done_cert</code>、<code>check-health.ps1</code> 這種可明確驗證的機制，可先寫 acceptance criteria，再生成測試或 schema 驗證步驟。</li>
+<li>對 <code>context/improvement-backlog.json</code> 與 <code>state/failed-auto-tasks.json</code> 中的重覆故障，可先讓 LLM 抽出 user-facing impact，再整理成 <code>Rule</code> 與 <code>Scenario</code>，避免修一處破另一處。</li>
+<li>若未來導入 requirements-aware PR gate，最實際的切入點不是全面導入 Jira Product Discovery，而是先要求 branch / task / result schema 三者的 traceability 一致，再逐步把 BDD 與 PR 檢查接進來。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li><strong>不要在 spec 階段偷塞實作細節</strong>：Spec Kit 強調先寫 <code>what</code> 與 <code>why</code>，不要太早決定 <code>how</code>，否則需求文件會被框架選型綁死。</li>
+<li><strong>Acceptance criteria 不清楚，PR gate 就會失真</strong>：Atlassian Rovo Dev 明確要求 AC 要短、清楚、可衡量；若 work item description 為空，系統甚至不會搜尋 AC。</li>
+<li><strong>Then 要驗證可觀測結果</strong>：Cucumber 明確建議不要把資料庫內部狀態當 <code>Then</code> 的主要驗證標的，否則需求與使用者感知脫節。</li>
+<li><strong>LLM 需求生成仍有可信度邊界</strong>：最新研究雖然看好 LLM 在 RE 的產能，但仍指出多數研究只在 controlled environment 評估；高風險規格仍需 formal method、schema、contract test 或人工 review。</li>
+<li><strong>PR gate 只能擋已形式化的需求</strong>：若需求本身沒有 story ID、AC ID、rule 名稱與 branch 關聯，後面的自動檢查會變成表面化 lint，而非真正的 requirements traceability。</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://github.github.com/spec-kit/index.html">GitHub Spec Kit 文件</a></li>
+<li><a href="https://github.com/github/spec-kit/blob/main/spec-driven.md">GitHub Spec Kit <code>spec-driven.md</code></a></li>
+<li><a href="https://cucumber.io/docs/gherkin/reference/">Cucumber Gherkin Reference</a></li>
+<li><a href="https://support.atlassian.com/rovo/docs/check-acceptance-criteria-in-a-code-review/">Atlassian Rovo Dev：Check acceptance criteria in a code review</a></li>
+<li><a href="https://arxiv.org/abs/2509.11446">arXiv：Large Language Models (LLMs) for Requirements Engineering (RE): A Systematic Literature Review</a></li>
+<li><a href="https://www.sciencedirect.com/science/article/pii/S221282712500873X">Procedia CIRP：Advancing Requirements Engineering with Large Language Models</a></li>
+<li><a href="https://openportal.isti.cnr.it/doc?id=iris________%3A%3A74f10c41f5fdec8cfc57bb4fd8853d80">Information and Software Technology：Formal requirements engineering and large language models: a two-way roadmap</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarkItDown（microsoft/markitdown）GitHub 熱門 AI 開源專案研究：文件轉 Markdown、OCR 外掛、MCP 整合與 RAG 導入策略（113K Stars, 2026-04）">
+  <title>MarkItDown（microsoft/markitdown）GitHub 熱門 AI 開源專案研究：文件轉 Markdown、OCR 外掛、MCP 整合與 RAG 導入策略（113K Stars, 2026-04） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>MarkItDown（microsoft/markitdown）GitHub 熱門 AI 開源專案研究：文件轉 Markdown、OCR 外掛、MCP 整合與 RAG 導入策略（113K Stars, 2026-04）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">MarkItDown</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>MarkItDown（microsoft/markitdown）GitHub 熱門 AI 開源專案研究</h1>
+<p>本次研究：MarkItDown（113k stars）— 把 PDF、Office、HTML、圖片與音訊轉成 LLM 友善 Markdown 的 Python 工具。</p>
+<h2>專案概述</h2>
+<p>MarkItDown 的定位很清楚：它不是要做「排版保真」的文件轉檔器，而是要把異質文件轉成適合 LLM 與文字分析管線消化的 Markdown 中介層 [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: Microsoft’s Document Converter That Treats Markdown as an AI Ingestion Layer, 2026; microsoft/markitdown | DeepWiki, 2026]。這個定位讓它在 AI/RAG 場景很有吸引力，因為它把重點放在標題、清單、表格、連結與段落層次，而不是原始版面的視覺重現 [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: How Microsoft Built a Document Converter for the LLM Era, 2026]。從外部趨勢看，它在 2026 年 4 月仍被列入新一波受關注的 AI 開源工具，早期兩週即累積 3,600+ stars；到 2026 年 4 月 20 日，GitHub 頁面顯示已達約 113k stars、7.3k forks，顯示它已從「新奇工具」跨到主流基礎工具層 [來源: New Open Source AI Projects on GitHub and Hugging Face - April 2026, 2026; GitHub - microsoft/markitdown, 2026]。</p>
+<p>對 <code>daily-digest-prompt</code> 來說，這類工具的價值不在模型本身，而在 ingestion：很多可引用知識其實卡在 PDF、DOCX、PPTX、HTML 或壓縮檔裡，若不能先整理成穩定的 Markdown，後面的 chunking、KB 匯入、混合搜尋與摘要品質都會受拖累 [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: Microsoft's Free Tool to Prep Your Documents for RAG Pipelines, 2026]。</p>
+<h2>技術架構</h2>
+<p>MarkItDown 的核心設計可概括成「stream-first + plugin-first + converter registry」。官方 README 在 v0.1.0 之後明確指出 <code>convert_stream()</code> 改成以 binary file-like object 為中心，<code>DocumentConverter</code> 介面也由 file path 改為 stream，並移除暫存檔建立 [來源: GitHub - microsoft/markitdown, 2026]。獨立分析也把這一點視為關鍵架構轉折：中央 <code>MarkItDown</code> 類別負責編排，不同格式各自交由 <code>DocumentConverter</code> 實作處理，最後統一輸出 Markdown [來源: MarkItDown: How Microsoft Built a Document Converter for the LLM Era, 2026; microsoft/markitdown | DeepWiki, 2026]。這不是 README 的表面複述，因為第三方分析進一步指出 stream 化帶來三個實務效果：不必落地暫存檔、可以直接吃記憶體 bytes、也比較容易處理 ZIP 與 API 下載內容 [來源: MarkItDown: How Microsoft Built a Document Converter for the LLM Era, 2026]。</p>
+<p>從擴充性看，它採用 priority-based converter registry 與第三方 plugin 模式。DeepWiki 的整理提到它有 modular converter registry、priority-based selection，以及 Azure Document Intelligence、LLM captioning 等 optional external service integration [來源: microsoft/markitdown | DeepWiki, 2026]。OCR plugin README 更把這套機制說得更具體：plugin 透過 <code>markitdown.plugin</code> entry point 被發現，註冊的 OCR-enhanced converters 以 <code>priority -1.0</code> 先於內建 converter 執行，失敗時則繼續回退，不至於整體轉換中斷 [來源: markitdown-ocr/README.md, 2026]。因此，MarkItDown 不是單一 parser，而是「輕核心 + 可插拔能力層」。</p>
+<h2>功能特色</h2>
+<p>第一，格式覆蓋廣。官方列出的支援面包含 PDF、Word、PowerPoint、Excel、HTML、CSV/JSON/XML、ZIP、EPUB、圖片、音訊與 YouTube URL，已足夠覆蓋大多數知識蒐集與企業文件前處理場景 [來源: GitHub - microsoft/markitdown, 2026; microsoft/markitdown | DeepWiki, 2026]。第二，依賴切分合理。它把套件拆成 <code>[pdf]</code>、<code>[docx]</code>、<code>[pptx]</code>、<code>[audio-transcription]</code>、<code>[az-doc-intel]</code> 等 optional groups，避免每次安裝都把所有重依賴一起拉進來 [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: How Microsoft Built a Document Converter for the LLM Era, 2026]。第三，它和 LLM 生態的黏合度高。除了直接吃 OpenAI-compatible client 做圖片描述，它還把 MCP server 放進官方敘事，讓 Claude Desktop 一類 agent 可以直接把文件轉為 Markdown [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: Microsoft's Free Tool to Prep Your Documents for RAG Pipelines, 2026]。</p>
+<p>它和同類工具的差異也算清楚。若你要的是 markup-to-markup 或 human-facing 輸出，Pandoc 更合適；若你要的是複雜 PDF 的版面理解、表格辨識與閱讀順序，Docling、LlamaParse 往往更強；若是大規模 ETL，Unstructured.io 比較偏企業型資料管線 [來源: MarkItDown: Microsoft's Free Tool to Prep Your Documents for RAG Pipelines, 2026]。MarkItDown 的長處不在「每一類文件都最準」，而在「大部分常見文件都能快速轉成夠用、可索引、可切塊的 Markdown」。這也是它能衝高採用率的原因。</p>
+<h2>使用方式</h2>
+<p>最簡單的用法是直接走 CLI：</p>
+<pre><code>
+markitdown report.pdf -o report.md
+</code></pre>
+<p>若需要 OCR / 圖片抽取，可加 plugin 與 vision model：</p>
+<pre><code>
+markitdown report.pdf --use-plugins --llm-client openai --llm-model gpt-4o
+</code></pre>
+<p>若要嵌入 Python workflow，可這樣用：</p>
+<pre><code>
+from openai import OpenAI
+from markitdown import MarkItDown
+
+md = MarkItDown(enable_plugins=True, llm_client=OpenAI(), llm_model="gpt-4o")
+result = md.convert("report.pdf")
+print(result.text_content)
+</code></pre>
+<p>若檔案來自 API 或記憶體 bytes，<code>convert_stream()</code> 更貼近實務：</p>
+<pre><code>
+import io
+from markitdown import MarkItDown
+
+md = MarkItDown()
+pdf_bytes = download_from_api()
+result = md.convert_stream(io.BytesIO(pdf_bytes), file_extension=".pdf")
+</code></pre>
+<p>以上做法都來自官方介面與第三方架構解讀的交叉印證 [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: How Microsoft Built a Document Converter for the LLM Era, 2026; markitdown-ocr/README.md, 2026]。</p>
+<h2>社群活躍度</h2>
+<p>以 2026 年 4 月 20 日 GitHub 頁面為準，MarkItDown 約有 113k stars、7.3k forks、344 open issues、269 open pull requests，主倉庫約 306 commits [來源: GitHub - microsoft/markitdown, 2026]。release 頁面顯示最新穩定版 <code>v0.1.5</code> 發布於 2026 年 2 月 20 日，更新包含 PDF table extraction、partially numbered lists 與 wide tables 等 PDF 可用性改進，代表維護焦點仍在真實文件品質而非只做包裝 [來源: Releases · microsoft/markitdown, 2026]。同時，2026 年 4 月 17 日仍有新的 OCR/scanned PDF bug 回報，4 月 18 日仍持續有新 issue 進來，代表專案活躍但也顯示文件長尾問題仍多 [來源: [Bug] Vision-LLM conversion only processes the first page of scanned PDFs, 2026; Issues · microsoft/markitdown, 2026]。</p>
+<h2>潛在應用</h2>
+<p>對 <code>daily-digest-prompt</code>，我認為它最實用的落點不是「用 MCP 讓 agent 直接抓任何文件」，而是把它當成本機或受控管線中的前處理器。第一個落點是 KB 匯入前標準化：凡是研究過程遇到 PDF、DOCX、PPTX、HTML、ZIP 附件，都先轉 Markdown，再走既有 <code>/api/import</code>，可大幅降低 knowledge base 內 <code>contentText</code> 的格式噪音 [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: Microsoft's Free Tool to Prep Your Documents for RAG Pipelines, 2026]。第二個落點是個人專案的文件 ingestion：像會議簡報、產品白皮書、研究報告、投標文件與政策 PDF，都可以先統一為 Markdown，再做 chunking、標籤化與摘要。第三個落點是 hybrid parser routing：一般 Office/HTML 文件走 MarkItDown，複雜 PDF 或掃描件則路由到 Azure Document Intelligence、Docling 或 LlamaParse，再回收成一致的 Markdown 介面 [來源: markitdown-ocr/README.md, 2026; MarkItDown: Microsoft's Free Tool to Prep Your Documents for RAG Pipelines, 2026]。</p>
+<p>若真的要接 MCP，我的建議是只在本機、容器或受限網段內使用，不要把 <code>markitdown-mcp</code> 暴露成寬鬆網路服務。這不是因為工具沒價值，而是因為它本質上會讀取 URI/檔案來源，安全邊界天然敏感 [來源: GitHub - microsoft/markitdown, 2026; Microsoft & Anthropic MCP Servers at Risk of RCE, Cloud Takeovers, 2026]。這是從本專案工程治理角度推導出的實務結論。</p>
+<h2>優缺點評估</h2>
+<p>優點很明顯。它安裝輕、學習曲線低、輸出格式對 LLM/RAG 友善、與 Python/AutoGen/OpenAI-compatible client 生態貼得很近，而且 plugin 機制讓能力擴充不必污染核心套件 [來源: GitHub - microsoft/markitdown, 2026; MarkItDown: How Microsoft Built a Document Converter for the LLM Era, 2026; microsoft/markitdown | DeepWiki, 2026]。Reddit 社群也點出 MCP integration 的便利性：能少掉很多自寫 parser 的時間 [來源: Microsoft/MarkItDown : r/LocalLLaMA, 2026]。</p>
+<p>缺點也不能淡化。第一，複雜 PDF 仍是它最弱的一塊。2024 年就有 issue 反映表格與標題結構不夠好，2026 年的外部評測也仍把 PDF handling 列為主要弱點，特別是 scanned PDF、複雜表格與重排版文件 [來源: Preserve tables, titles (structure) of PDF documents, 2024; MarkItDown: Microsoft's Free Tool to Prep Your Documents for RAG Pipelines, 2026]。第二，OCR 不是原生內建免費能力，而是要靠 Azure Document Intelligence 或 <code>markitdown-ocr</code> + vision model，這代表額外成本與外部依賴；而且 OCR plugin 在 2026 年 4 月仍有多頁 scanned PDF 只處理首頁的 open bug [來源: GitHub - microsoft/markitdown, 2026; markitdown-ocr/README.md, 2026; [Bug] Vision-LLM conversion only processes the first page of scanned PDFs, 2026]。第三，<code>0.x</code> 版號代表 API 仍可能有破壞性變更；官方自己就把 0.0.x → 0.1.0 的 breaking changes 放在 README 顯著位置 [來源: GitHub - microsoft/markitdown, 2026]。第四，MCP 整合雖方便，但 2026 年 1 月已有安全研究指出其 URI 讀取模型在雲端部署時可能引入 SSRF 風險；我沒有找到官方後續明確的修補公告，因此這一段目前只能保守部署，視為待持續驗證⚠️ [來源: Microsoft & Anthropic MCP Servers at Risk of RCE, Cloud Takeovers, 2026]。</p>
+<p>整體判斷：如果你要的是 <code>daily-digest-prompt</code> 現在就能落地的文件前處理器，MarkItDown 很值得導入；但若你主要處理的是高難度 PDF、掃描檔或需要頁碼級 citation 的法規/研究文件，MarkItDown 應該是 routing tree 裡的一個節點，不該是唯一 parser。這是它最合理的位置。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Microsoft. (2026). GitHub - microsoft/markitdown. https://github.com/microsoft/markitdown</li>
+<li>Microsoft. (2026). Releases · microsoft/markitdown. https://github.com/microsoft/markitdown/releases</li>
+<li>Microsoft. (2026). markitdown/packages/markitdown-ocr/README.md at main. https://github.com/microsoft/markitdown/blob/main/packages/markitdown-ocr/README.md</li>
+<li>Matthew Diakonov / Fazm. (2026). New Open Source AI Projects on GitHub and Hugging Face - April 2026. https://fazm.ai/blog/new-open-source-ai-projects-github-hugging-face-april-2026</li>
+<li>Repo Explainer. (2026). MarkItDown: Microsoft’s Document Converter That Treats Markdown as an AI Ingestion Layer. https://repo-explainer.com/microsoft/markitdown/</li>
+<li>Niels / Emelia. (2026). MarkItDown: Microsoft's Free Tool to Prep Your Documents for RAG Pipelines. https://emelia.io/hub/markitdown-microsoft-guide</li>
+<li>Rob Ragan / Starlog. (2026). MarkItDown: How Microsoft Built a Document Converter for the LLM Era. https://starlog.is/articles/developer-tools/microsoft-markitdown/</li>
+<li>DeepWiki. (2026). microsoft/markitdown. https://deepwiki.com/microsoft/markitdown</li>
+<li>Hacker News. (2024). MarkItDown: Python tool for converting files and office documents to Markdown. https://news.ycombinator.com/item?id=42410803</li>
+<li>Reddit / r/LocalLLaMA. (2026). Microsoft/MarkItDown. https://www.reddit.com/r/LocalLLaMA/comments/1r2f56h/microsoftmarkitdown/</li>
+<li>Nate Nelson / Dark Reading. (2026). Microsoft & Anthropic MCP Servers at Risk of RCE, Cloud Takeovers. https://www.darkreading.com/application-security/microsoft-anthropic-mcp-servers-risk-takeovers</li>
+<li>shcheklein / GitHub Issues. (2024). Preserve tables, titles (structure) of PDF documents · Issue #41 · microsoft/markitdown. https://github.com/microsoft/markitdown/issues/41</li>
+<li>bahtman / GitHub Issues. (2024). Pagewise Markdown output · Issue #122 · microsoft/markitdown. https://github.com/microsoft/markitdown/issues/122</li>
+<li>dandelie1998 / GitHub Issues. (2026). [Bug] Vision-LLM conversion only processes the first page of scanned PDFs · Issue #1791 · microsoft/markitdown. https://github.com/microsoft/markitdown/issues/1791</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

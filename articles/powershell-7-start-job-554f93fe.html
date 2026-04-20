@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PowerShell 7 非同步作業管理：Start-Job 殭屍防護、Timeout 守衛與 Process Tree Kill">
+  <title>PowerShell 7 非同步作業管理：Start-Job 殭屍防護、Timeout 守衛與 Process Tree Kill | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>PowerShell 7 非同步作業管理：Start-Job 殭屍防護、Timeout 守衛與 Process Tree Kill</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">PowerShell</span><span class="tag">daily-digest</span><span class="tag">非同步作業</span><span class="tag">殭屍進程</span><span class="tag">Windows排程</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>PowerShell 7 非同步作業管理：Start-Job 殭屍防護、Timeout 守衛與 Process Tree Kill</h1>
+<h2>技術概述</h2>
+<p>PowerShell 7 的非同步作業管理（Start-Job / System.Diagnostics.Process）在 Windows 排程環境中存在三個主要失效模式：殭屍進程殘留、stdout/stderr Pipe 死結、以及 Kill 後子進程未終止。掌握這三類陷阱與對應的防護模式，是建立可靠 Windows 排程系統的基礎工程。</p>
+<h2>核心概念與原理</h2>
+<h3>1. uv 孤兒問題（已有 issue 確認）</h3>
+<p><code>uv.exe</code> 在 Windows 上不使用 Job Object 綁定子進程生命週期（[來源：astral-sh/uv #11817, 2025]），因此：</p>
+<ul>
+<li><code>Kill($uvProcess)</code> → uv.exe 終止，但 <code>python.exe</code> 子進程成為孤兒</li>
+<li>必須使用 <code>$proc.Kill($true)</code> (entireProcessTree) 或 <code>taskkill /F /T /PID</code></li>
+<li>SIGINT/Ctrl+C 傳播也不可靠（[來源：astral-sh/uv #8654, 2024]）</li>
+</ul>
+<p>三角佐證：uv #11817（確認）+ uv #8654（SIGINT 不可靠）+ puppetlabs PR #202（相同根因模式）</p>
+<h3>2. WaitForExit(int) 的兩階段完成語義</h3>
+<p><code>WaitForExit(int milliseconds)</code> 返回 <code>true</code> 後，非同步輸出 handler 可能尚未清空 [來源：Microsoft Learn Process.WaitForExit, .NET 10]。</p>
+<p>正確模式（需兩步）：</p>
+<pre><code>
+$exited = $proc.WaitForExit(60000)  # 帶 timeout 等待進程退出
+if ($exited) {
+    $proc.WaitForExit()  # 無參數版：等 BeginOutputReadLine handler 清空
+}
+</code></pre>
+<p>若跳過第二步，讀到的 JSON 可能截斷（[來源：PS issue #25262, 2025]）。</p>
+<p>三角佐證：.NET 10 文件（明確說明）+ PS issue #25262（實際截斷案例）+ PSScriptAnalyzer #1297（相同症狀）</p>
+<h3>3. Kill(entireProcessTree:true) 的 Exited 事件 Bug</h3>
+<p><code>Kill(entireProcessTree:$true)</code> 在 Windows 上不觸發 <code>Exited</code> 事件（[來源：dotnet/runtime #63328, 2022]），必須改用輪詢：</p>
+<pre><code>
+$proc.Kill($true)
+$proc.WaitForExit(5000) | Out-Null  # 輪詢等待，非事件驅動
+$proc.Close()
+</code></pre>
+<p>三角佐證：dotnet/runtime #63328（已確認 bug）+ .NET Kill() 文件（說明 Kill 是非同步的）+ phantom-killer（生產環境繞過方案）</p>
+<h3>4. Pipe 死結防護（Raymond Chen 定律）</h3>
+<p>OS pipe buffer 預設 ~4KB（Windows）。若父進程在 <code>WaitForExit()</code> 中阻塞而不排空 pipe，當子進程輸出超過 4KB 時雙方死結（[來源：Raymond Chen / The Old New Thing, 2011]）。</p>
+<p>唯一可靠修法：<code>BeginOutputReadLine()</code> + <code>BeginErrorReadLine()</code> 必須在 <code>WaitForExit()</code> 之前呼叫：</p>
+<pre><code>
+$proc.BeginOutputReadLine()   # 非同步排空 stdout
+$proc.BeginErrorReadLine()    # 非同步排空 stderr
+$proc.WaitForExit(60000)      # 現在安全等待
+</code></pre>
+<p>三角佐證：Raymond Chen 2011（根因分析）+ Icinga2 #32（生產修復案例）+ PS issue #25262（現代 PS 7 確認仍有此問題）</p>
+<h3>5. Start-Job 清理的必要步驟序列</h3>
+<p><code>Stop-Job</code> 發信號但不等待 pwsh.exe 終止（[來源：Microsoft Learn about_Jobs, 2025]）。完整清理序列：</p>
+<pre><code>
+Stop-Job $job -ErrorAction SilentlyContinue
+Wait-Job $job -Timeout 10 | Out-Null  # 確保 pwsh.exe 已終止
+Remove-Job $job -Force
+</code></pre>
+<h2>最佳實踐與陷阱</h2>
+<h3>禁止模式</h3>
+<ul>
+<li><code>& uv run python tools/xxx.py</code> 無 timeout — 會殭屍</li>
+<li><code>Start-Process -Wait</code> — PS #25262 確認可無限 hang</li>
+<li>順序呼叫 <code>ReadToEnd()</code> 兩次（stdout 後 stderr）— Pipe 死結</li>
+<li><code>Kill()</code> 後不呼叫 <code>WaitForExit()</code> — Kill 是非同步的</li>
+<li><code>Stop-Job</code> 後不接 <code>Wait-Job</code> — pwsh.exe 仍在運行</li>
+</ul>
+<h3>必用模式</h3>
+<ul>
+<li><code>System.Diagnostics.Process</code> + <code>WaitForExit(ms)</code> + <code>Kill(entireProcessTree:$true)</code></li>
+<li><code>BeginOutputReadLine()</code> / <code>BeginErrorReadLine()</code> 在 <code>WaitForExit()</code> 前</li>
+<li>Two-stage timeout：<code>WaitForExit(primary)</code> → kill → <code>WaitForExit(5000)</code> → <code>Close()</code></li>
+<li>每個 PS wrapper 的 <code>finally</code> block 確保 Kill+Close</li>
+</ul>
+<h2>與本專案的關聯</h2>
+<p>daily-digest-prompt 的 <code>Invoke-UvRunWithTimeout</code>（run-todoist-agent-team.ps1）實作了此模式的最佳實踐，解決了 2026-04-19 殭屍事件與 2026-04-20 wrapper hang 的根因。TimeoutSec 建議值：YAML 解析 30s、小工具 45-60s、中任務 60s、大型 workflow 900s。</p>
+<h2>程式碼範例</h2>
+<h3>Invoke-UvRunWithTimeout 完整實作</h3>
+<pre><code>
+function Invoke-UvRunWithTimeout {
+    param([string[]]$Arguments, [int]$TimeoutSec = 60, [string]$Label = 'uv-run', [string]$WorkDir = $PSScriptRoot)
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = 'uv'; $psi.Arguments = ($Arguments | ForEach-Object { "'$_'" }) -join ' '
+    $psi.WorkingDirectory = $WorkDir; $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+    $proc = [System.Diagnostics.Process]::new(); $proc.StartInfo = $psi
+    $stdout = [System.Text.StringBuilder]::new(); $stderr = [System.Text.StringBuilder]::new()
+    $proc.add_OutputDataReceived({ param($s,$e) if ($null -ne $e.Data) { $stdout.AppendLine($e.Data) } })
+    $proc.add_ErrorDataReceived({  param($s,$e) if ($null -ne $e.Data) { $stderr.AppendLine($e.Data) } })
+    $proc.Start() | Out-Null
+    $proc.BeginOutputReadLine(); $proc.BeginErrorReadLine()  # 防 pipe 死結
+    $exited = $proc.WaitForExit($TimeoutSec * 1000)
+    if (-not $exited) {
+        Write-Warning "[$Label] Timeout ${TimeoutSec}s — killing tree"
+        try { $proc.Kill($true) } catch { }
+        $proc.WaitForExit(5000) | Out-Null; $proc.Close(); return $null
+    }
+    $proc.WaitForExit(); $proc.Close()  # 無參數：清空 async handler
+    if ($proc.ExitCode -ne 0) { return $null }
+    try { return $stdout.ToString() | ConvertFrom-Json } catch { return $stdout.ToString() }
+}
+</code></pre>
+<h2>完整參考書目</h2>
+<ol>
+<li>Microsoft Learn (2026). Start-Job (PowerShell 7.6). https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/start-job?view=powershell-7.6</li>
+<li>Microsoft Learn (2026). Process.WaitForExit (.NET 10). https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process.waitforexit?view=net-10.0</li>
+<li>Microsoft Learn (2026). Process.Kill (.NET 10). https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process.kill?view=net-10.0</li>
+<li>Microsoft Learn (2025). about_Jobs (PS 7.5). https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_jobs?view=powershell-7.5</li>
+<li>GitHub/PowerShell (2021). Start-Process -Wait vs Wait-Process child tree — #15555. https://github.com/PowerShell/PowerShell/issues/15555</li>
+<li>GitHub/PowerShell (2023). Exiting pwsh orphans Start-Process children — #21149. https://github.com/PowerShell/PowerShell/issues/21149</li>
+<li>GitHub/PowerShell (2025). Start-Process -Wait infinite hang — #25262. https://github.com/PowerShell/PowerShell/issues/25262</li>
+<li>GitHub/dotnet (2022). Kill(entireProcessTree:true) does not fire Exited event — #63328. https://github.com/dotnet/runtime/issues/63328</li>
+<li>GitHub/astral-sh (2025). uv does not kill spawned processes on Windows — #11817. https://github.com/astral-sh/uv/issues/11817</li>
+<li>GitHub/astral-sh (2024). uv run SIGINT propagation unreliable on Windows — #8654. https://github.com/astral-sh/uv/issues/8654</li>
+<li>GitHub/puppetlabs (2018). Prevent zombie procs from timeout — puppetlabs-powershell PR #202. https://github.com/puppetlabs/puppetlabs-powershell/pull/202</li>
+<li>GitHub/Icinga2 (2020). Fix deadlock on processStart — #32. https://github.com/Icinga/icinga2-powershell-module/issues/32</li>
+<li>Raymond Chen / Microsoft DevBlogs (2011). Be careful when redirecting both stdin and stdout to pipes. https://devblogs.microsoft.com/oldnewthing/20110707-00/?p=10223</li>
+<li>Alkane Solutions (2023). Setting a Timeout in PowerShell Scripts to Prevent Hanging. https://www.alkanesolutions.co.uk/2023/12/22/setting-a-timeout-in-powershell-scripts-to-prevent-hanging/</li>
+<li>GitHub/chris-sekira (2020). phantom-killer — PowerShell zombie process scanner. https://github.com/chris-sekira/phantom-killer</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
