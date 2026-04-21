@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: LLM 可觀測性／trace／eval - 2026-04-21">
+  <title>GitHub Scout: LLM 可觀測性／trace／eval - 2026-04-21 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: LLM 可觀測性／trace／eval - 2026-04-21</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">LLM可觀測性</span><span class="tag">OpenTelemetry</span><span class="tag">trace</span><span class="tag">evaluation</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout 研究報告：LLM 可觀測性／trace／eval</h1>
+<p><strong>研究日期</strong>：2026-04-21  </p>
+<p><strong>主題</strong>：LLM 可觀測性、OpenTelemetry GenAI、trace 分析、evaluation 框架  </p>
+<p><strong>專案數量</strong>：3 個（Phoenix, Langfuse, OpenLLMetry）  </p>
+<p><strong>改進提案</strong>：4 個（2 個 P1, 2 個 P2）</p>
+<p>---</p>
+<h2>一、專案觀測摘要</h2>
+<h3>1. Phoenix (Arize-ai/phoenix) - 9.4k stars</h3>
+<p><strong>核心價值</strong>：原生 OpenTelemetry instrumentation + Claude Agent SDK 支援</p>
+<ul>
+<li><strong>架構模式</strong>：</li>
+</ul>
+<p>  - OpenTelemetry-native trace instrumentation，產出標準 OTEL traces/spans</p>
+<p>  - 支援 Claude Agent SDK、LangGraph、CrewAI、DSPy 等主流框架</p>
+<p>  - 內建 trace 可視化 UI，可查看完整 LLM 呼叫鏈路</p>
+<p>  - 整合 LLM evaluation & benchmarking，支援自訂 evaluators</p>
+<ul>
+<li><strong>部署選項</strong>：local、Jupyter、Docker、K8s、Cloud (app.phoenix.arize.com)</li>
+</ul>
+<ul>
+<li><strong>與本系統的關聯</strong>：明確支援 Claude Agent SDK，可直接整合至 claude -p 執行流程</li>
+</ul>
+<h3>2. Langfuse (langfuse/langfuse) - 25.2k stars（最受歡迎）</h3>
+<p><strong>核心價值</strong>：單一平台整合 observability + prompt mgmt + evals + playground</p>
+<ul>
+<li><strong>架構模式</strong>：</li>
+</ul>
+<p>  - Session-based tracing，可追蹤跨多輪對話的 context</p>
+<p>  - Prompt template 版本控制與 A/B testing</p>
+<p>  - LLM-as-judge evaluations，自動化品質評估</p>
+<p>  - Datasets 管理，支援測試集與 benchmark</p>
+<p>  - Self-hosted 選項（Docker/K8s），資料留在本地</p>
+<ul>
+<li><strong>整合範圍</strong>：OpenAI、LangChain、LlamaIndex、Vercel AI SDK、AutoGen、CrewAI 等 16+ 框架</li>
+</ul>
+<ul>
+<li><strong>與本系統的關聯</strong>：session tracking 概念可應用至 run-todoist-agent-team.ps1 的 Phase 1/2/3 追蹤</li>
+</ul>
+<h3>3. OpenLLMetry (traceloop/openllmetry) - 7k stars</h3>
+<p><strong>核心價值</strong>：純 OpenTelemetry 擴展，可與現有 observability stack 整合</p>
+<ul>
+<li><strong>架構模式</strong>：</li>
+</ul>
+<p>  - 基於 OpenTelemetry，輸出標準 OTEL 資料</p>
+<p>  - 自動 instrumentation，無需手動埋點</p>
+<p>  - 支援多種 observability backend（Datadog, Honeycomb, New Relic）</p>
+<p>  - 定義 GenAI semantic conventions（gen_ai.* attributes）</p>
+<ul>
+<li><strong>最新版本</strong>：0.60.0 (2026-04-19)</li>
+</ul>
+<ul>
+<li><strong>與本系統的關聯</strong>：semantic conventions 可作為 post_tool_logger 的標準化參考</li>
+</ul>
+<p>---</p>
+<h2>二、改進提案</h2>
+<h3>P1-1：OpenTelemetry-native trace instrumentation</h3>
+<p><strong>來源專案</strong>：Phoenix  </p>
+<p><strong>目標檔案</strong>：hooks/post_tool_logger.py, config/observability.yaml  </p>
+<p><strong>風險等級</strong>：medium  </p>
+<p><strong>工作量</strong>：medium</p>
+<p><strong>問題現狀</strong>：</p>
+<ul>
+<li>現有 post_tool_logger 已記錄 trace_id/session_id，但缺少 gen_ai.* 標準屬性</li>
+<li>JSONL 輸出無法被 Phoenix/Langfuse 等業界工具直接消費</li>
+<li>難以與 OpenTelemetry 生態整合</li>
+</ul>
+<p><strong>改進方案</strong>：</p>
+<ol>
+<li>在 post_tool_logger 新增 span_attributes 欄位</li>
+<li>包含 OpenTelemetry GenAI semantic conventions：</li>
+</ol>
+<p>   - gen_ai.system（anthropic/openai/groq）</p>
+<p>   - gen_ai.operation.name（chat/completion/embedding）</p>
+<p>   - gen_ai.request.model（claude-sonnet-4-6）</p>
+<p>   - gen_ai.request.max_tokens</p>
+<p>   - gen_ai.response.finish_reason</p>
+<ol>
+<li>參考 GitHub Issue open-telemetry/semantic-conventions#2664</li>
+</ol>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>JSONL 日誌可被業界工具直接讀取與分析</li>
+<li>支援與 Phoenix/Langfuse 整合，獲得 trace 可視化能力</li>
+<li>對齊 OpenTelemetry 標準，提升可觀測性成熟度</li>
+</ul>
+<h3>P1-2：Session-based trace grouping</h3>
+<p><strong>來源專案</strong>：Langfuse  </p>
+<p><strong>目標檔案</strong>：hooks/post_tool_logger.py, tools/trace_analyzer.py  </p>
+<p><strong>風險等級</strong>：low  </p>
+<p><strong>工作量</strong>：low</p>
+<p><strong>問題現狀</strong>：</p>
+<ul>
+<li>post_tool_logger 已記錄 session_id，但 trace_analyzer 未按 session 分組</li>
+<li>難以追蹤「單次 todoist-team 執行」的整體表現</li>
+<li>無法快速定位「哪一次執行」出問題</li>
+</ul>
+<p><strong>改進方案</strong>：</p>
+<ol>
+<li>將 run-todoist-agent-team.ps1 的單次執行視為一個 session</li>
+<li>所有 Phase 1/2/3 的 tool calls 共享同一 session_id</li>
+<li>在 trace_analyzer 新增 session_summary 功能：</li>
+</ol>
+<p>   - 彙整單次執行的 token 用量</p>
+<p>   - tool 呼叫次數與分佈</p>
+<p>   - 成功率與失敗點</p>
+<ol>
+<li>產出 session-level 診斷報告</li>
+</ol>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>快速定位問題執行（「2026-04-21 10:30 那次為何失敗」）</li>
+<li>追蹤 session 級別的 token 經濟學</li>
+<li>支援跨 Phase 的端到端追蹤</li>
+</ul>
+<h3>P2-1：Prompt template versioning</h3>
+<p><strong>來源專案</strong>：Langfuse  </p>
+<p><strong>目標檔案</strong>：prompts/team/todoist-auto-*.md, config/prompt-registry.yaml  </p>
+<p><strong>風險等級</strong>：medium  </p>
+<p><strong>工作量</strong>：medium</p>
+<p><strong>改進方案</strong>：</p>
+<ol>
+<li>建立 config/prompt-registry.yaml 記錄版本歷史</li>
+<li>每次修改 prompt 時記錄：版本號、變更原因、效果驗證</li>
+<li>支援 A/B 測試與成功率對比</li>
+<li>提供 prompt 版本回退機制</li>
+</ol>
+<h3>P2-2：Auto-instrumentation with minimal code changes</h3>
+<p><strong>來源專案</strong>：OpenLLMetry  </p>
+<p><strong>目標檔案</strong>：tools/llm_router.py, tools/llm_gate.ps1  </p>
+<p><strong>風險等級</strong>：low  </p>
+<p><strong>工作量</strong>：low</p>
+<p><strong>改進方案</strong>：</p>
+<ol>
+<li>在 Invoke-LlmGate 函式加入 pre/post hook</li>
+<li>自動記錄 model、tokens、latency、error</li>
+<li>減少 prompt 層面的 observability 負擔</li>
+</ol>
+<p>---</p>
+<h2>三、證據快照說明</h2>
+<p><strong>觀測方式</strong>：WebFetch 讀取 GitHub 頁面快照（gh CLI 未認證）  </p>
+<p><strong>資料新鮮度</strong>：2026-04-21 觀測，stars/最近更新為近似值  </p>
+<p><strong>建議複核</strong>：</p>
+<pre><code>
+gh api repos/Arize-ai/phoenix
+gh api repos/langfuse/langfuse
+gh api repos/traceloop/openllmetry
+</code></pre>
+<p>---</p>
+<h2>四、下一步行動</h2>
+<ol>
+<li><strong>立即執行</strong>（P1-2 Session grouping）：低風險、低工作量、高價值</li>
+<li><strong>2 週內規劃</strong>（P1-1 OpenTelemetry instrumentation）：需審慎設計 schema 相容性</li>
+<li><strong>長期追蹤</strong>（P2-1/P2-2）：作為技術債追蹤，視資源優先級執行</li>
+</ol>
+<p>---</p>
+<p><strong>關聯資源</strong>：</p>
+<ul>
+<li>context/github-scout-entries.json（完整分析記錄）</li>
+<li>OpenTelemetry GenAI Semantic Conventions: https://github.com/open-telemetry/semantic-conventions/issues/2664</li>
+<li>Phoenix 文件: https://docs.arize.com/phoenix</li>
+<li>Langfuse 文件: https://langfuse.com/docs</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

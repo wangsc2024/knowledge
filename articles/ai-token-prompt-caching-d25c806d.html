@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 輔助開發系統 Token 成本優化與效能調優實踐 — Prompt Caching、多模型路由與生產瓶頸診斷（2026）">
+  <title>AI 輔助開發系統 Token 成本優化與效能調優實踐 — Prompt Caching、多模型路由與生產瓶頸診斷（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 輔助開發系統 Token 成本優化與效能調優實踐 — Prompt Caching、多模型路由與生產瓶頸診斷（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">optimization</span><span class="tag">Token優化</span><span class="tag">Prompt Caching</span><span class="tag">模型路由</span><span class="tag">效能調優</span><span class="tag">生產實踐</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 輔助開發系統 Token 成本優化與效能調優實踐 — Prompt Caching、多模型路由與生產瓶頸診斷（2026）</h1>
+<blockquote>研究日期：2026-04-21</blockquote>
+<blockquote>研究範圍：Token 成本優化（Prompt Caching / Semantic Cache）、多模型路由決策、生產環境效能診斷</blockquote>
+<blockquote>系列階段：ai-software-development / optimization</blockquote>
+<blockquote>承接知識：AI Agent Context Management、Agent Harness 優化指南、AI 軟體開發系統核心架構</blockquote>
+<p>---</p>
+<h2>一、Prompt Caching 機制與優化策略</h2>
+<h3>1.1 Anthropic Prompt Caching 核心原理</h3>
+<p>Prompt caching 是前綴匹配（prefix matching）機制，將 tools、system、messages 依序快取至 cache_control 標記的區塊。2026 年 2 月 5 日起改為 workspace 層級隔離（取代組織層級），確保不同 workspace 間資料分離。</p>
+<p><strong>TTL 選擇策略</strong>（2026 年關鍵變更）：</p>
+<ul>
+<li><strong>5 分鐘快取</strong>：適用於請求頻率 <5 分鐘的場景（如即時聊天、高頻 API），write cost 1.25x，免費刷新</li>
+<li><strong>1 小時快取</strong>：適用於請求間隔 5-30 分鐘的場景（如排程任務、批次處理），write cost 2x，但命中率大幅提升</li>
+</ul>
+<p><strong>成本結構</strong>：</p>
+<ul>
+<li>Cache write：base input tokens × 1.25（5 分鐘）或 × 2（1 小時）</li>
+<li>Cache hit：base input tokens × 0.1（節省 90%）</li>
+<li><strong>ROI 計算</strong>：5 分鐘快取在第 1 次 hit 後回本，1 小時快取需 2 次 hit</li>
+</ul>
+<h3>1.2 Prompt 結構最佳實踐</h3>
+<p><strong>穩定內容優先原則</strong>：</p>
+<ol>
+<li>Tools schemas（最穩定）</li>
+<li>System instructions（次穩定）</li>
+<li>Long-lived context（參考文件、範例集）</li>
+<li>User-specific material（最後，易變動）</li>
+</ol>
+<p><strong>Cache breakpoint 放置</strong>：</p>
+<ul>
+<li>放在「保持相同的最後一個 block」結尾</li>
+<li>禁止放在變動 block 上（會導致每次失效）</li>
+<li>Automatic caching：系統自動移動 breakpoint 至對話歷史最後（多輪對話最佳）</li>
+</ul>
+<p><strong>反模式警示</strong>：</p>
+<ul>
+<li>❌ 前綴包含動態時間戳</li>
+<li>❌ 前綴包含個人化片段（每請求不同）</li>
+<li>❌ 前綴包含即時檢索結果（每次變動）</li>
+</ul>
+<h3>1.3 Semantic Caching 生產實作</h3>
+<p><strong>原理</strong>：將查詢轉為向量 embeddings（768 或 1,536 維），用 cosine similarity 比對，超過閾值（0.85-0.95）即返回快取。</p>
+<p><strong>生產工具（2026）</strong>：</p>
+<ul>
+<li><strong>Bifrost</strong>：雙層架構（exact hash + vector similarity），最快且完整</li>
+<li><strong>LiteLLM</strong>：最廣泛 provider 支援</li>
+<li><strong>Kong AI Gateway</strong>：企業級 plugin</li>
+<li><strong>GPTCache</strong>：獨立 library</li>
+</ul>
+<p><strong>實際命中率</strong>：真實生產系統為 <strong>20-45%</strong>（非行銷文件的 95%）。95% 是「match accuracy」（命中後正確率），非命中率。</p>
+<p><strong>關鍵挑戰</strong>：</p>
+<ul>
+<li><strong>Embedding 模型升級</strong>：舊 embeddings 與新模型算出的 similarity 無效，整個快取須失效或版本化</li>
+<li><strong>相似度閾值調校</strong>：0.85 太低會誤中，0.95 太高會漏中</li>
+</ul>
+<p><strong>三層快取架構</strong>（最佳實踐）：</p>
+<ol>
+<li>Exact hash matching（最快，100% 準確）</li>
+<li>Semantic caching（近似匹配，20-45% hit rate）</li>
+<li>Prefix caching（Anthropic 原生，60-80% hit rate for structured prompts）</li>
+</ol>
+<p>組合使用可達 <strong>70-80% 總 token 節省</strong>。</p>
+<h3>1.4 監控與優化指標</h3>
+<p><strong>命中率目標</strong>（依場景）：</p>
+<ul>
+<li>聊天機器人（共用 system prompt）：≥95%</li>
+<li>RAG（文件輪替）：60-80%</li>
+<li>批次處理（同 prompt）：≥99%</li>
+</ul>
+<p><strong>關鍵監控欄位</strong>：</p>
+<ul>
+<li><code>cache_creation_input_tokens</code>：寫入快取的 token 數</li>
+<li><code>cache_read_input_tokens</code>：從快取讀取的 token 數</li>
+<li><strong>命中率公式</strong>：cache_read / (cache_read + cache_creation)</li>
+</ul>
+<p><strong>告警規則</strong>：</p>
+<ul>
+<li>命中率 <60%：可能比不快取更貴（write premium 吃掉節省）</li>
+<li>命中率驟降：視為 incident（數個百分點差異影響巨大成本）</li>
+</ul>
+<p>---</p>
+<h2>二、多模型路由與成本優化決策模型</h2>
+<h3>2.1 2026 年 LLM 定價格局</h3>
+<p><strong>Q2 2026 價格分佈</strong>（每百萬 tokens）：</p>
+<ul>
+<li><strong>最便宜</strong>：Qwen 3.5 9B（$0.05/M input）</li>
+<li><strong>主流</strong>：Claude Sonnet 4.6（$3/M input）</li>
+<li><strong>頂級</strong>：Claude Opus 4.6（$15/M output）、GPT-5.4 Pro（更高）</li>
+</ul>
+<p><strong>價格曲線趨勢</strong>：雙峰化（bimodal）—— 便宜的更便宜，頂級維持頂級。<strong>60 倍價差</strong>在觸及 GPT-5 之前已存在。</p>
+<h3>2.2 模型強項領域分析（2026 前沿模型）</h3>
+<p>| 模型 | 核心強項 | 典型場景 | Benchmark |</p>
+<p>|------|---------|---------|-----------|</p>
+<p>| <strong>Claude Opus 4.6</strong> | 程式碼生成、軟體工程 | Cursor / Windsurf / Claude Code | SWE-bench Verified 80.9% |</p>
+<p>| <strong>GPT-5.4 / GPT-5.2</strong> | 抽象推理、邏輯問題 | Agent 工作流自動化 | ARC-AGI-2 52.9% |</p>
+<p>| <strong>Gemini 3.1 Pro</strong> | 長上下文（1M tokens）、多模態 | 大量文件分析、視覺理解 | 最便宜 API 輸出 |</p>
+<p>| <strong>Grok 4</strong> | （新興競爭者） | — | — |</p>
+<h3>2.3 路由策略與量化決策</h3>
+<p><strong>訓練式路由器效益</strong>：</p>
+<ul>
+<li>成本節省：<strong>40-70%</strong>（硬任務 <2% 品質損失）</li>
+<li>最高可達：<strong>85% 成本減少</strong>（維持 95% GPT-4 效能，MT Bench）</li>
+</ul>
+<p><strong>路由延遲成本</strong>：</p>
+<ul>
+<li>增加 5-20ms 推理延遲</li>
+<li>誤路由風險：需仔細調校閾值與 fallback 策略</li>
+</ul>
+<p><strong>決策矩陣範例</strong>（企業典型架構）：</p>
+<p>| 任務類型 | 路由目標 | 理由 |</p>
+<p>|---------|---------|------|</p>
+<p>| 程式碼生成 / Debug | Claude Opus | 開發者工具生態主導（Cursor / Windsurf） |</p>
+<p>| 複雜推理 / 分析 | Gemini 3.1 Pro | 長上下文 + 成本效益 |</p>
+<p>| 自動化工作流 / Agent | GPT-5.4 | 速度優先、結構化輸出 |</p>
+<p>| 成本敏感簡單任務 | Gemini 3.1 Pro / 本地模型 | 最便宜 API 或離線執行 |</p>
+<h3>2.4 LiteLLM Router 與 OpenRouter 實作</h3>
+<p><strong>LiteLLM 動態路由功能</strong>：</p>
+<ol>
+<li><strong>Auto Routing</strong>：請求時設 <code>model=auto_router1</code>，依規則自動選模型</li>
+<li><strong>Complexity-Based Routing</strong>：簡單查詢 → 輕量模型，複雜任務 → 高容量模型</li>
+<li><strong>Fallback Logic</strong>：主部署失敗時自動嘗試備援模型（可配置優先級）</li>
+</ol>
+<p><strong>OpenRouter 支援</strong>：</p>
+<ul>
+<li>LiteLLM 支援所有 OpenRouter 模型：<code>model=openrouter/<your-model></code></li>
+<li>統一閘道：LiteLLM Proxy Server 處理多 provider 路由、負載平衡、重試</li>
+</ul>
+<p><strong>實作範例</strong>（偽碼）：</p>
+<pre><code>
+from litellm import Router
+
+router = Router(
+    model_list=[
+        {"model_name": "claude-opus", "litellm_params": {"model": "claude-3-opus-20240229"}},
+        {"model_name": "gpt-5", "litellm_params": {"model": "gpt-5-turbo"}},
+        {"model_name": "gemini-pro", "litellm_params": {"model": "gemini-pro"}}
+    ],
+    routing_strategy="complexity-based"  # 或 "cost-optimized"
+)
+
+response = router.completion(
+    model="auto_router1",
+    messages=[{"role": "user", "content": "寫一個 React Hook"}]
+)
+</code></pre>
+<h3>2.5 成本-品質權衡矩陣</h3>
+<p><strong>關鍵權衡參數</strong>：</p>
+<ol>
+<li><strong>Latency</strong>（延遲）：GPT-5 快、Claude 中、Gemini 長上下文時較慢</li>
+<li><strong>Cost</strong>（成本）：Gemini 最便宜、Claude 中、Opus 最貴</li>
+<li><strong>Quality</strong>（品質）：任務相關，無絕對贏家</li>
+</ol>
+<p><strong>多模型策略優勢</strong>：</p>
+<ul>
+<li>無單一模型贏所有場景</li>
+<li>動態路由優於固定單模型</li>
+<li>平台如 Jenova 自動路由至最佳模型</li>
+</ul>
+<p>---</p>
+<h2>三、生產環境效能診斷與瓶頸優化案例</h2>
+<h3>3.1 AI Coding Assistant 效能數據（2026）</h3>
+<p><strong>生產效益</strong>（McKinsey 2026 年 2 月研究，4,500+ 開發者）：</p>
+<ul>
+<li>常規編碼任務時間減少：<strong>46%</strong></li>
+<li>Code review 週期縮短：<strong>35%</strong></li>
+<li>Feature → Production 時間降低：<strong>28%</strong></li>
+<li>PR 週期時間下降（高採用率組織）：<strong>24%</strong></li>
+<li>每開發者每週節省：<strong>3.6 小時</strong></li>
+</ul>
+<p><strong>生產力悖論</strong>：</p>
+<ul>
+<li>75%+ 開發者使用 AI coding 工具</li>
+<li>但企業未見交付速度或業務成果明顯改善</li>
+<li>AI 採用關聯 <strong>+9% bug 數</strong> 與 <strong>+154% PR 大小</strong></li>
+</ul>
+<p><strong>品質權衡</strong>：</p>
+<ul>
+<li>未充分驗證 AI 程式碼 → Code review 時間 <strong>+12%</strong></li>
+<li>無人監督的 AI 程式碼 → Bug 密度 <strong>+23%</strong></li>
+</ul>
+<p><strong>學習曲線效應</strong>（METR 研究）：</p>
+<ul>
+<li>2025 年初：<strong>-19% 速度</strong>（減慢）</li>
+<li>2026 年初（同批開發者）：<strong>+18% 速度</strong>（加快）</li>
+<li>結論：工具改進 + 開發者學會何時何地使用</li>
+</ul>
+<h3>3.2 GitHub Copilot 延遲優化案例</h3>
+<p><strong>2026 年官方優化成果</strong>：</p>
+<ul>
+<li>Coding Agent 啟動速度：<strong>50% 更快</strong></li>
+<li>吞吐量：<strong>3x 提升</strong>，延遲：<strong>35% 降低</strong></li>
+<li>檢索延遲（search-backed prompts）：420ms → <strong>190ms</strong>（平均）</li>
+<li>Inline completion 延遲：180-220ms → <strong>110-140ms</strong>（35-45% 更快）</li>
+</ul>
+<p><strong>優化手段</strong>：</p>
+<ol>
+<li><strong>模型效率</strong>：自訂模型（custom model）</li>
+<li><strong>Context 管理</strong>：優化 context 提取與注入</li>
+<li><strong>基礎設施</strong>：分散式推理、快取層</li>
+</ol>
+<p><strong>生產挑戰</strong>（2026 實際回報）：</p>
+<ul>
+<li>Web Coding Agent 冷啟動：<strong>90+ 秒</strong></li>
+<li>中途關閉需重新冷啟動（體驗不佳）</li>
+<li>2025 年末起品質與延遲穩定性下降（用戶反饋）</li>
+</ul>
+<h3>3.3 LLM 應用的七大效能瓶頸</h3>
+<p>#### 瓶頸 1：KV Cache 記憶體限制</p>
+<ul>
+<li><strong>問題</strong>：Decode 階段每個 token 的 attention keys/values 必須保留在 GPU HBM（最快但最小的記憶體）</li>
+<li><strong>規模</strong>：70B 模型處理 4,096 tokens → KV cache 消耗數 GB GPU 記憶體</li>
+<li><strong>影響</strong>：context 越長，記憶體壓力越大，限制 batch size</li>
+</ul>
+<p>#### 瓶頸 2：基礎設施與系統架構</p>
+<ul>
+<li><strong>關鍵洞察</strong>：延遲問題通常不是模型速度，而是<strong>系統架構問題</strong></li>
+<li><strong>常見問題</strong>：網路往返、資料序列化、服務間通訊</li>
+</ul>
+<p>#### 瓶頸 3：檢索與 Context 管理</p>
+<ul>
+<li><strong>反模式</strong>：重複計算 embeddings、檢索不必要文件、同步檢索（阻塞推理）</li>
+<li><strong>影響</strong>：實際效能取決於索引大小、過濾複雜度、資料分佈</li>
+</ul>
+<p>#### 瓶頸 4：Batching 效率</p>
+<ul>
+<li><strong>問題</strong>：batch 中一個請求生成 50 tokens、另一個生成 1,200 tokens → padding 浪費</li>
+<li><strong>成本</strong>：高流量時 padding overhead 可達 <strong>30-40% 總計算量</strong>（硬體產出無用功）</li>
+</ul>
+<p>#### 瓶頸 5：記憶體頻寬（GPU decode 限制）</p>
+<ul>
+<li><strong>傳統 GPU 問題</strong>：模型權重在 HBM，每個 token 生成都需從 HBM 讀取</li>
+<li><strong>新架構突破</strong>：Cerebras wafer-scale / Groq LPU → 權重在 on-chip SRAM，消除頻寬瓶頸</li>
+<li><strong>效果</strong>：<strong>5-20x 更快</strong>的 per-request 速度</li>
+</ul>
+<p>#### 瓶頸 6：多請求並發與佇列管理</p>
+<ul>
+<li><strong>問題</strong>：請求堆積、優先級管理、公平性調度</li>
+<li><strong>解決</strong>：Dynamic batching、priority queue、背壓（backpressure）策略</li>
+</ul>
+<p>#### 瓶頸 7：模型載入與切換</p>
+<ul>
+<li><strong>問題</strong>：多模型服務時切換成本高</li>
+<li><strong>優化</strong>：Model sharding、Shared base layers、Speculative decoding</li>
+</ul>
+<h3>3.4 優化策略與權衡</h3>
+<p><strong>Speculative Decoding</strong>（Cursor 應用）：</p>
+<ul>
+<li>用小模型預測多個 tokens，大模型並行驗證</li>
+<li>適用：減少大模型呼叫次數，降低延遲</li>
+</ul>
+<p><strong>PagedAttention</strong>（vLLM）：</p>
+<ul>
+<li>分頁管理 KV cache，減少記憶體碎片</li>
+<li>提升 throughput 與 batch size 上限</li>
+</ul>
+<p><strong>Continuous Batching</strong>：</p>
+<ul>
+<li>動態加入新請求到執行中的 batch</li>
+<li>改善資源利用率</li>
+</ul>
+<p><strong>硬體加速器選擇</strong>：</p>
+<ul>
+<li>Cerebras / Groq：極致 decode 速度（5-20x）</li>
+<li>GPU（A100 / H100）：通用、生態成熟</li>
+<li>TPU：Google Gemini 專用優化</li>
+</ul>
+<p>---</p>
+<h2>四、對 Daily-Digest-Prompt 系統的應用建議</h2>
+<h3>4.1 Prompt Caching 優化方案</h3>
+<p><strong>當前狀態分析</strong>：</p>
+<ul>
+<li>每日執行數十次自動任務</li>
+<li>System prompts 穩定（tools、frequency-limits、routing 規則）</li>
+<li>User content 變動（Todoist 任務、新聞、研究主題）</li>
+</ul>
+<p><strong>建議策略</strong>：</p>
+<ol>
+<li><strong>5 分鐘快取</strong>：用於高頻 auto-tasks（如 log_audit / system_insight 每 2 小時執行）</li>
+<li><strong>1 小時快取</strong>：用於排程任務（每日摘要、Todoist team）</li>
+<li><strong>Prefix 結構重組</strong>：</li>
+</ol>
+<p>   ```</p>
+<p>   [Tools schemas] → [System instructions] → [Frequency limits YAML] → [Task-specific context] → [User query/動態內容]</p>
+<p>   ```</p>
+<p>   cache_control 放在 Task-specific context 結尾</p>
+<p><strong>預期效益</strong>：</p>
+<ul>
+<li>當前 ~40% cache hit rate → 目標 <strong>70-80%</strong></li>
+<li>Token 成本降低 <strong>50-60%</strong>（結合 semantic cache）</li>
+</ul>
+<h3>4.2 多模型路由策略</h3>
+<p><strong>任務分類與路由</strong>（已有 llm-router.yaml 基礎）：</p>
+<ul>
+<li><strong>研究 / 深度分析</strong>：Claude Opus（長上下文、推理品質）</li>
+<li><strong>批次簡評 / 摘要</strong>：Gemini（成本效益）</li>
+<li><strong>結構化輸出 / 快速任務</strong>：GPT-4o（速度、JSON 輸出）</li>
+<li><strong>本地簡評</strong>（已有 Ollama）：Qwen / Gemma（離線、零成本）</li>
+</ul>
+<p><strong>LiteLLM 整合建議</strong>：</p>
+<ul>
+<li>將 <code>tools/llm_router.py</code> 升級為 LiteLLM Router</li>
+<li>配置 fallback：Claude 不可用 → GPT → Gemini → 本地模型</li>
+<li>監控：記錄每個 task_type 的模型選擇與成本</li>
+</ul>
+<h3>4.3 效能監控與診斷</h3>
+<p><strong>新增監控指標</strong>：</p>
+<ol>
+<li><strong>Cache hit rate</strong>（per task_type）</li>
+<li><strong>Model latency P50/P95/P99</strong>（per backend）</li>
+<li><strong>Cost per task</strong>（input + output tokens × price）</li>
+<li><strong>Batching efficiency</strong>（padding overhead %）</li>
+</ol>
+<p><strong>診斷工具</strong>：</p>
+<ul>
+<li><code>tools/token_usage_audit.py</code> 擴充：加入 cache metrics</li>
+<li><code>check-health.ps1</code> 新增：[Token 優化健康度] 區塊</li>
+</ul>
+<p><strong>告警規則</strong>：</p>
+<ul>
+<li>Cache hit rate <60% → ntfy 警告</li>
+<li>Daily token cost >閾值 → priority=4 通知</li>
+<li>P99 latency >2s → 檢查 backend 狀態</li>
+</ul>
+<p>---</p>
+<h2>五、參考來源與延伸閱讀</h2>
+<h3>Prompt Caching</h3>
+<ul>
+<li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">Anthropic Prompt Caching - Official Docs</a></li>
+<li><a href="https://dev.to/whoffagents/claude-prompt-caching-in-2026-the-5-minute-ttl-change-thats-costing-you-money-4363">Claude Prompt Caching in 2026: The 5-Minute TTL Change</a></li>
+<li><a href="https://tokenmix.ai/blog/prompt-caching-guide">Prompt Caching Guide 2026: Save 50-95% on AI API Costs</a></li>
+<li><a href="https://tianpan.co/blog/2026-04-09-semantic-caching-llm-production">Semantic Caching for LLM Production</a></li>
+<li><a href="https://dev.to/debmckinney/top-llm-gateways-that-support-semantic-caching-in-2026-3dho">Top LLM Gateways That Support Semantic Caching in 2026</a></li>
+</ul>
+<h3>多模型路由</h3>
+<ul>
+<li><a href="https://www.getmaxim.ai/articles/top-5-llm-router-solutions-in-2026/">Top 5 LLM Router Solutions in 2026</a></li>
+<li><a href="https://github.com/lm-sys/RouteLLM">RouteLLM - GitHub</a></li>
+<li><a href="https://www.jenova.ai/en/resources/gpt-vs-claude-vs-gemini">GPT vs Claude vs Gemini: Complete AI Model Comparison for 2026</a></li>
+<li><a href="https://docs.litellm.ai/docs/proxy/auto_routing">LiteLLM Auto Routing Documentation</a></li>
+</ul>
+<h3>生產效能優化</h3>
+<ul>
+<li><a href="https://opsera.ai/resources/report/ai-coding-impact-2026-benchmark-report/">AI Coding Impact 2026 Benchmark Report - Opsera</a></li>
+<li><a href="https://github.blog/ai-and-ml/github-copilot/the-road-to-better-completions-building-a-faster-smarter-github-copilot-with-a-new-custom-model/">GitHub Copilot Performance Improvements</a></li>
+<li><a href="https://www.getmaxim.ai/articles/top-7-performance-bottlenecks-in-llm-applications-and-how-to-overcome-them/">Top 7 Performance Bottlenecks in LLM Applications</a></li>
+<li><a href="https://www.glukhov.org/llm-performance/">LLM Performance in 2026: Benchmarks, Bottlenecks & Optimization</a></li>
+</ul>
+<p>---</p>
+<p><strong>研究結論</strong>：</p>
+<p>AI 輔助開發系統的 optimization 階段核心在於「<strong>Token 經濟學 + 模型選擇 + 系統工程</strong>」三位一體。Prompt Caching 可節省 50-95% 成本（實際 70-80%），多模型路由降低 40-70% 支出，但須對抗命中率下降、誤路由、系統複雜度上升等挑戰。生產環境效能瓶頸往往不在模型速度，而在 KV cache 記憶體、檢索延遲、batching 效率與基礎設施架構。Daily-Digest-Prompt 系統可透過重組 prefix 結構、整合 LiteLLM Router、擴充 token 監控三大策略，將 Token 成本與延遲降至 baseline 的 30-40%。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Vite 靜態網站增量部署與 Git 自動化工作流程最佳實踐（2026）">
+  <title>Vite 靜態網站增量部署與 Git 自動化工作流程最佳實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Vite 靜態網站增量部署與 Git 自動化工作流程最佳實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Vite</span><span class="tag">靜態網站</span><span class="tag">部署優化</span><span class="tag">CI/CD</span><span class="tag">GitHub Actions</span><span class="tag">增量同步</span><span class="tag">Git workflow</span><span class="tag">建置優化</span><span class="tag">前端工程</span><span class="tag">知識庫同步</span><span class="tag">Edge Computing</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Vite 靜態網站增量部署與 Git 自動化工作流程深度研究</h1>
+<p><strong>研究日期</strong>: 2026-04-22</p>
+<p><strong>研究等級</strong>: Standard</p>
+<p><strong>來源數量</strong>: 14</p>
+<h2>摘要</h2>
+<p>本研究深入探討 Vite 靜態網站的建置優化、增量部署策略、Git 自動化工作流程以及知識庫增量同步的最佳實踐。研究發現，2026 年的現代靜態網站部署已形成以下核心架構：<strong>Vite 建置優化 + GitHub Actions CI/CD + Git diff-based 增量處理 + Edge CDN 分發</strong>。</p>
+<h2>一、Vite 建置效能優化</h2>
+<h3>1.1 核心建置策略</h3>
+<p>Vite 在生產環境使用 <strong>Rolldown</strong>（新一代打包器）預配置優化，相較 Webpack 可產生：</p>
+<ul>
+<li><strong>更小的 bundle size</strong>：平均 130 KB vs 150 KB (Webpack)</li>
+<li><strong>更快的建置時間</strong>：企業級應用需採用多層優化策略</li>
+</ul>
+<h3>1.2 快取優化三層架構</h3>
+<p>#### Layer 1: HTTP 快取（Browser Cache）</p>
+<pre><code>
+// Vite dev server 實作
+- 預打包依賴：hard caching
+- 原始碼：fast 304 responses
+- 利用 HTTP headers 快取轉換後的模組
+</code></pre>
+<p><strong>實務注意</strong>：本地開發環境需確保 Chrome DevTools Network 面板未勾選「Disable Cache」。</p>
+<p>#### Layer 2: 持久化建置快取（Persistent Build Cache）</p>
+<pre><code>
+// vite.config.js
+export default {
+  cacheDir: '.vite-cache', // 確保跨建置持久化
+  build: {
+    rollupOptions: {
+      // 手動 chunk 分組提升快取命中率
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            return 'vendor'; // 穩定依賴獨立 chunk
+          }
+        }
+      }
+    }
+  }
+}
+</code></pre>
+<p><strong>關鍵優化</strong>：使用 <code>manualChunks</code> 將穩定的 library 群組為獨立 vendor chunks，大幅減少初始載入時間並提升<strong>跨部署快取命中率</strong>。</p>
+<p>#### Layer 3: Server Warming（預熱）</p>
+<pre><code>
+// vite.config.js
+export default {
+  server: {
+    warmup: {
+      clientFiles: ['./src/components/ExpensiveComponent.vue']
+    }
+  }
+}
+</code></pre>
+<p>頻繁使用的檔案預先載入並快取，請求時立即回應。</p>
+<h3>1.3 程式碼分割（Code Splitting）</h3>
+<p>Vite 內建自動程式碼分割，但可進一步優化：</p>
+<pre><code>
+// 動態 import() 按需載入
+const LazyComponent = () =&gt; import('./components/Heavy.vue')
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>減少初始 bundle size</li>
+<li>加快建置與載入時間</li>
+<li>僅載入使用者需要的模組</li>
+</ul>
+<h3>1.4 瀏覽器相容性目標（2026）</h3>
+<pre><code>
+// vite.config.js - 預設
+export default {
+  build: {
+    target: 'baseline-widely-available' // 2026-01-01 Baseline
+    // 實際目標: ['chrome111', 'edge111', 'firefox114', 'safari16.4']
+  }
+}
+</code></pre>
+<h3>1.5 進階優化：Nx + Vite 智慧快取</h3>
+<p>Nx 的智慧快取結合 Vite 的高速打包，可建立<strong>極速建置管線</strong>：</p>
+<ul>
+<li>快取未變更模組的建置結果</li>
+<li>分散式快取（團隊共享）</li>
+<li>增量建置（僅建置變更部分）</li>
+</ul>
+<p>---</p>
+<h2>二、GitHub Pages 部署策略</h2>
+<h3>2.1 部署方法演進</h3>
+<p>2026 年推薦使用 <strong>GitHub Actions</strong> 自動化部署（Vite 需建置步驟，無法直接部署）。</p>
+<p>#### 方法一：Artifacts-based 部署（推薦）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>✅ 不 commit dist 資料夾（保持 repo 乾淨）</li>
+<li>✅ 利用 GitHub Actions artifacts</li>
+<li>✅ 自動化 CI/CD 流程</li>
+</ul>
+<pre><code>
+# .github/workflows/deploy.yml
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
+</code></pre>
+<p>#### 方法二：gh-pages 分支部署</p>
+<p>手動將 <code>dist/</code> 內容推送至 <code>gh-pages</code> 分支（適用簡單專案）。</p>
+<h3>2.2 Base Path 配置（關鍵）</h3>
+<p>若部署至子目錄（如 <code>https://username.github.io/repo</code>），必須設定：</p>
+<pre><code>
+// vite.config.js
+export default {
+  base: '/repo/' // 對應 GitHub repo 名稱
+}
+</code></pre>
+<h3>2.3 增量部署的限制</h3>
+<p><strong>重要發現</strong>：搜尋結果顯示，截至 2026 年，Vite 與 GitHub Pages 的整合<strong>並未提供內建的「增量部署」功能</strong>。</p>
+<p>現有部署模式為：</p>
+<ol>
+<li><strong>全量建置</strong> (<code>npm run build</code>)</li>
+<li><strong>全量部署</strong> (上傳整個 <code>dist/</code> 資料夾)</li>
+</ol>
+<p><strong>替代方案</strong>：</p>
+<ul>
+<li>使用 <strong>Git diff-based</strong> 流程（僅觸發變更檔案的重新建置）</li>
+<li>結合 <strong>CDN 快取策略</strong>（未變更的檔案由 CDN 快取，實際上達到增量分發效果）</li>
+</ul>
+<p>---</p>
+<h2>三、CI/CD 自動化最佳實踐（2026）</h2>
+<h3>3.1 GitHub Actions 的優勢</h3>
+<p><strong>2026 年重大改進</strong>：</p>
+<ul>
+<li>🚀 <strong>Job 容量擴增 3 倍</strong></li>
+<li>💰 <strong>價格下調</strong></li>
+<li>📦 <strong>22,000+ Marketplace Actions</strong></li>
+</ul>
+<p>這些改進消除了自建 CI 伺服器的大部分理由。</p>
+<h3>3.2 安全最佳實踐</h3>
+<p>#### 關鍵安全原則（2026 必備）</p>
+<ol>
+<li><strong>Pin Actions to Full SHA</strong></li>
+</ol>
+<p>   ```yaml</p>
+<p>   - uses: actions/checkout@a81bbbf8298c0fa03ea29cdc473d45769f953675 # v4.2.0</p>
+<p>   ```</p>
+<ol>
+<li><strong>使用 OIDC 取代靜態憑證</strong>（2026 推薦方法）</li>
+</ol>
+<p>   ```yaml</p>
+<p>   permissions:</p>
+<p>     id-token: write # 啟用 OIDC</p>
+<p>   ```</p>
+<ol>
+<li><strong>最小權限原則</strong></li>
+</ol>
+<p>   ```yaml</p>
+<p>   permissions:</p>
+<p>     contents: read</p>
+<p>     pages: write</p>
+<p>     id-token: write</p>
+<p>   ```</p>
+<h3>3.3 多平台部署選項</h3>
+<p>#### 平台比較（2026）</p>
+<p>| 平台 | 優勢 | 適用場景 |</p>
+<p>|------|------|---------|</p>
+<p>| <strong>Vercel</strong> | 自動建置預覽、Edge 網路、零配置 | 專業專案、團隊協作 |</p>
+<p>| <strong>Netlify</strong> | 強大 CI/CD、表單處理、函數支援 | 全功能靜態網站 |</p>
+<p>| <strong>Cloudflare Pages</strong> | 全球 CDN、Workers 整合、免費額度高 | 高流量網站 |</p>
+<p>| <strong>GitHub Pages</strong> | 免費、與 GitHub 深度整合 | 開源專案、個人網站 |</p>
+<p>| <strong>AWS S3 + CodePipeline</strong> | 企業級、完整控制、S3 儲存 | 企業專案 |</p>
+<p>#### Vercel 部署範例</p>
+<pre><code>
+# Git push → 自動觸發部署
+- Vercel 自動偵測 Vite 專案
+- 自動執行 build
+- 自動部署到 Edge 網路
+- 提供 Preview URL（PR 時）
+</code></pre>
+<h3>3.4 Edge Computing 趨勢（2026）</h3>
+<p><strong>新興趨勢</strong>：</p>
+<ul>
+<li><strong>Edge 網路部署</strong>：內容更靠近使用者，延遲降低</li>
+<li><strong>AI 整合</strong>：自動優化與個性化</li>
+<li><strong>增強協作功能</strong>：改善團隊工作流程</li>
+</ul>
+<p>---</p>
+<h2>四、知識庫增量同步最佳實踐</h2>
+<h3>4.1 增量同步的核心價值</h3>
+<p><strong>定義</strong>：僅傳輸與更新自上次同步後變更的資料。</p>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>⚡ 高效率（適合大量資料與頻繁變更）</li>
+<li>📉 減少資料傳輸量</li>
+<li>🔄 降低系統負擔</li>
+</ul>
+<h3>4.2 實作方法</h3>
+<p>#### 方法一：changedDate 屬性追蹤（推薦）</p>
+<pre><code>
+// 實體啟用 changedDate
+entity.changedDate = new Date()
+
+// 同步時過濾
+const changedObjects = objects.filter(obj =&gt;
+  obj.changedDate &gt; lastSyncDate
+)
+</code></pre>
+<p>#### 方法二：Git-Native Diff 快取（2026 現代實踐）</p>
+<p><strong>核心機制</strong>：</p>
+<pre><code>
+# 僅處理變更檔案
+git diff --name-only $lastCommit $currentCommit | \
+  xargs -I {} processFile {}
+</code></pre>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>避免昂貴的全量掃描</li>
+<li>追蹤 Git 歷史即可判斷變更</li>
+<li>適合程式碼倉庫與文件庫</li>
+</ul>
+<h3>4.3 Amazon Bedrock Knowledge Base 案例</h3>
+<p>AWS Bedrock 的知識庫同步即採用<strong>增量模式</strong>：</p>
+<ul>
+<li>僅處理新增、修改、刪除的文件</li>
+<li>自動偵測 S3 變更</li>
+<li>支援排程同步</li>
+</ul>
+<h3>4.4 實作挑戰</h3>
+<p><strong>增量同步的缺點</strong>：</p>
+<ul>
+<li>⚠️ 實作複雜度高</li>
+<li>⚠️ 需精確偵測資料變更</li>
+<li>⚠️ 需處理衝突與合併邏輯</li>
+</ul>
+<p><strong>建議</strong>：</p>
+<ul>
+<li>小型專案（<1000 筆）：全量同步即可</li>
+<li>大型專案（>10000 筆）：投資增量同步機制</li>
+</ul>
+<p>---</p>
+<h2>五、Git Diff-Based 增量處理工作流程</h2>
+<h3>5.1 核心概念</h3>
+<p><strong>原理</strong>：使用 <code>git diff</code> 偵測變更檔案，僅建置/測試變更的模組及其依賴。</p>
+<h3>5.2 Maven 實作範例（gitflow-incremental-builder）</h3>
+<pre><code>
+# 比較 feature branch 與 develop
+git diff origin/develop..HEAD --name-only
+
+# 僅建置變更的 Maven 模組
+mvn clean install -am -pl changed-modules
+</code></pre>
+<p><strong>效益</strong>：</p>
+<ul>
+<li>大幅縮短 CI 時間（僅建置變更部分）</li>
+<li>適用 Git Flow / Feature Branch 工作流程</li>
+</ul>
+<h3>5.3 Git 2.54 的改進（2026）</h3>
+<p>#### Histogram Diff 演算法優化</p>
+<ul>
+<li>修正「compaction 階段」的輸出品質問題</li>
+<li>避免 change group 跨越 anchor lines</li>
+<li>產生更緊湊、更符合預期的 diff 輸出</li>
+</ul>
+<p>#### Incremental Multi-Pack Indexes (MIDX)</p>
+<ul>
+<li>支援 MIDX 壓縮（合併較小的 MIDX 層）</li>
+<li>保持鏈中的層數可控</li>
+<li>使增量 MIDX 在長期倉庫中可行</li>
+</ul>
+<p><strong>實務意義</strong>：這些改進使 Git diff-based 工作流程更高效、更可靠。</p>
+<p>---</p>
+<h2>六、整合方案：D:\Source\daily-digest-prompt 知識庫同步優化</h2>
+<h3>6.1 當前任務分析</h3>
+<p><strong>任務描述</strong>：</p>
+<blockquote>知識庫同步更新 Vite 網站並推送 GitHub</blockquote>
+<blockquote>從 RAG 知識庫（localhost:3000）篩選佛學/思維/哲學/AI/資訊相關知識（排除報告類及專案優化類），執行增量同步到 d:\\source\\knowledge\\ Vite 網站（python sync_knowledge.py），依 sync-log.json 加速增量同步，逐次優化網站 UX（搜尋、分類、閱讀體驗），完成後 git commit & push 到 GitHub。</blockquote>
+<h3>6.2 優化方案（P0-P2）</h3>
+<p>#### P0: 增量同步機制強化</p>
+<p><strong>現狀問題</strong>：</p>
+<ul>
+<li><code>sync_knowledge.py</code> 是否已實作增量同步？</li>
+<li><code>sync-log.json</code> 的格式與使用方式是否最佳化？</li>
+</ul>
+<p><strong>建議改進</strong>：</p>
+<pre><code>
+# sync_knowledge.py 增量邏輯
+import json
+from pathlib import Path
+
+# 讀取上次同步狀態
+with open('sync-log.json') as f:
+    last_sync = json.load(f)
+    last_sync_time = last_sync.get('last_sync_time')
+
+# 僅查詢變更筆記
+changed_notes = fetch_notes_after(last_sync_time)
+
+# 更新 sync-log.json
+sync_log = {
+    'last_sync_time': datetime.now().isoformat(),
+    'synced_count': len(changed_notes),
+    'synced_ids': [note['id'] for note in changed_notes]
+}
+</code></pre>
+<p>#### P1: Vite 建置優化</p>
+<p><strong>建議配置</strong>：</p>
+<pre><code>
+// vite.config.js
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  base: '/knowledge/', // GitHub Pages 子目錄
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['vue', 'vue-router'], // 穩定依賴
+          'ui': ['@/components/ui'] // UI 元件
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600 // 調整警告閾值
+  },
+  server: {
+    warmup: {
+      clientFiles: ['./src/main.js', './src/App.vue']
+    }
+  },
+  cacheDir: '.vite-cache' // 持久化快取
+})
+</code></pre>
+<p>#### P2: GitHub Actions 自動化部署</p>
+<p><strong>建議 Workflow</strong>：</p>
+<pre><code>
+# .github/workflows/deploy-knowledge.yml
+name: Deploy Knowledge Base
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'sync-log.json'
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Vite site
+        run: npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages
+          path: dist
+</code></pre>
+<p><strong>關鍵優化</strong>：</p>
+<ul>
+<li>✅ <code>paths</code> 過濾：僅 <code>src/</code>、<code>public/</code>、<code>sync-log.json</code> 變更時觸發</li>
+<li>✅ 使用 <code>npm ci</code>（比 <code>npm install</code> 快且可靠）</li>
+<li>✅ Node.js cache 加速依賴安裝</li>
+<li>✅ OIDC 認證（安全）</li>
+</ul>
+<p>---</p>
+<h2>七、實務檢查清單</h2>
+<h3>7.1 Vite 建置優化檢查</h3>
+<ul>
+<li>[ ] 設定 <code>base</code> 路徑（GitHub Pages 子目錄）</li>
+<li>[ ] 配置 <code>manualChunks</code>（穩定依賴獨立 chunk）</li>
+<li>[ ] 啟用 <code>server.warmup</code>（頻繁使用檔案）</li>
+<li>[ ] 設定 <code>cacheDir</code>（持久化快取）</li>
+<li>[ ] 檢查 DevTools 未啟用「Disable Cache」</li>
+</ul>
+<h3>7.2 增量同步檢查</h3>
+<ul>
+<li>[ ] <code>sync-log.json</code> 記錄 <code>last_sync_time</code></li>
+<li>[ ] 查詢僅取變更筆記（<code>WHERE updated_at > ?</code>）</li>
+<li>[ ] 處理刪除筆記（軟刪除或硬刪除）</li>
+<li>[ ] 記錄同步統計（筆數、耗時）</li>
+</ul>
+<h3>7.3 GitHub Actions 安全檢查</h3>
+<ul>
+<li>[ ] Pin actions 到 full SHA</li>
+<li>[ ] 使用 OIDC 取代靜態 token</li>
+<li>[ ] 設定最小權限 <code>permissions</code></li>
+<li>[ ] 不在 workflow 中硬編碼敏感資訊</li>
+</ul>
+<h3>7.4 部署驗證</h3>
+<ul>
+<li>[ ] 本地執行 <code>npm run build</code> 無錯誤</li>
+<li>[ ] 檢查 <code>dist/</code> 檔案結構</li>
+<li>[ ] 驗證 GitHub Pages 設定（Settings → Pages）</li>
+<li>[ ] 測試部署後網站可訪問</li>
+</ul>
+<p>---</p>
+<h2>八、關鍵結論與建議</h2>
+<h3>8.1 核心架構（2026 最佳實踐）</h3>
+<pre><code>
+RAG 知識庫 (localhost:3000)
+    ↓ [增量查詢: changedDate 或 Git diff]
+sync_knowledge.py
+    ↓ [寫入 d:\source\knowledge\]
+Vite 建置 (npm run build)
+    ↓ [最佳化: manualChunks + cache]
+GitHub Actions CI/CD
+    ↓ [安全: OIDC + 最小權限]
+GitHub Pages / Vercel / Cloudflare
+    ↓ [分發: Edge CDN]
+使用者 (全球)
+</code></pre>
+<h3>8.2 投資報酬率分析</h3>
+<p>| 優化項目 | 實作難度 | 效益 | 優先級 |</p>
+<p>|---------|---------|------|-------|</p>
+<p>| <code>manualChunks</code> 快取優化 | 低 | 高（減少 50%+ 重複載入） | <strong>P0</strong> |</p>
+<p>| GitHub Actions 自動化 | 中 | 高（省時、避免人為錯誤） | <strong>P0</strong> |</p>
+<p>| 增量同步機制 | 高 | 中-高（視資料量） | P1 |</p>
+<p>| OIDC 安全認證 | 低 | 中（安全提升） | P1 |</p>
+<p>| Server warming | 低 | 低-中（開發體驗提升） | P2 |</p>
+<h3>8.3 立即可行動作項目</h3>
+<ol>
+<li><strong>檢查 <code>sync_knowledge.py</code> 是否已實作增量同步</strong></li>
+</ol>
+<p>   - 若未實作 → 加入 <code>changedDate</code> 過濾</p>
+<p>   - 若已實作 → 驗證 <code>sync-log.json</code> 格式</p>
+<ol>
+<li><strong>建立 GitHub Actions Workflow</strong></li>
+</ol>
+<p>   - 複製上述 <code>deploy-knowledge.yml</code></p>
+<p>   - 測試部署流程</p>
+<ol>
+<li><strong>優化 <code>vite.config.js</code></strong></li>
+</ol>
+<p>   - 加入 <code>manualChunks</code> 配置</p>
+<p>   - 設定正確 <code>base</code> 路徑</p>
+<ol>
+<li><strong>安全審查</strong></li>
+</ol>
+<p>   - 確認無靜態 token 寫入 workflow</p>
+<p>   - 啟用 OIDC 認證</p>
+<p>---</p>
+<h2>九、參考資料</h2>
+<h3>Vite 建置優化</h3>
+<ul>
+<li><a href="https://vite.dev/guide/build">Building for Production | Vite</a></li>
+<li><a href="https://vite.dev/config/build-options">Build Options | Vite</a></li>
+<li><a href="https://vite.dev/guide/performance">Performance | Vite</a></li>
+<li><a href="https://dev.to/perisicnikola37/optimize-vite-build-time-a-comprehensive-guide-4c99">Optimize Vite Build Time: A Comprehensive Guide</a></li>
+<li><a href="https://ndlab.blog/posts/part7-5-vite-build-optimization">Part 7.5 — Build Optimization with Vite: Code Splitting & Env Handling</a></li>
+<li><a href="https://medium.com/@gilad437/supercharge-your-frontend-builds-a-complete-guide-to-nx-vite-caching-strategies-88caef1da98d">Supercharge Your Frontend Builds: Nx + Vite Caching Strategies</a></li>
+</ul>
+<h3>GitHub Pages 部署</h3>
+<ul>
+<li><a href="https://vite.dev/guide/static-deploy">Deploying a Static Site | Vite</a></li>
+<li><a href="https://savaslabs.com/blog/deploying-vite-github-pages-single-github-action">Deploying Vite to GitHub Pages with a Single GitHub Action</a></li>
+<li><a href="https://github.com/marketplace/actions/vite-github-pages-deployer">Vite Github Pages Deployer · Actions · GitHub Marketplace</a></li>
+</ul>
+<h3>CI/CD 自動化</h3>
+<ul>
+<li>[Build a CI/CD Pipeline in 20 Min with GitHub Actions [2026]](https://tech-insider.org/github-actions-ci-cd-pipeline-tutorial-2026/)</li>
+<li><a href="https://dev.to/_d7eb1c1703182e3ce1782/github-actions-complete-guide-build-your-first-cicd-pipeline-in-2026-6m6">GitHub Actions Complete Guide: Build Your First CI/CD Pipeline in 2026</a></li>
+<li><a href="https://github.blog/developer-skills/github/a-beginners-guide-to-ci-cd-and-automation-on-github/">A beginner's guide to CI/CD and automation on GitHub</a></li>
+</ul>
+<h3>增量同步</h3>
+<ul>
+<li><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/kb-data-source-sync-ingest.html">Sync your data with your Amazon Bedrock knowledge base</a></li>
+<li><a href="https://docs.mendix.com/refguide/mobile/best-practices/incremental-synchronization/">Incremental Synchronization | Mendix Documentation</a></li>
+<li><a href="https://www.stacksync.com/blog/real-time-data-synchronization-best-practices-with-stacksync">Database Real-Time Synchronization: Best Practices with Stacksync</a></li>
+</ul>
+<h3>Git Workflow</h3>
+<ul>
+<li><a href="https://dev.to/_d7eb1c1703182e3ce1782/git-workflow-best-practices-the-developers-guide-for-2026-4gl0">Git Workflow Best Practices: The Developer's Guide for 2026</a></li>
+<li><a href="https://github.blog/open-source/git/highlights-from-git-2-54/">Highlights from Git 2.54 - The GitHub Blog</a></li>
+<li><a href="https://github.com/gitflow-incremental-builder/gitflow-incremental-builder">gitflow-incremental-builder</a></li>
+</ul>
+<p>---</p>
+<p><strong>標籤</strong>: Vite, 靜態網站, 增量部署, GitHub Actions, CI/CD, 知識庫同步, Git workflow, 建置優化, Edge Computing</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

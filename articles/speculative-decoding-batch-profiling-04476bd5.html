@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Speculative Decoding 的 Batch Profiling 與 Scheduler 設計 深度研究報告">
+  <title>Speculative Decoding 的 Batch Profiling 與 Scheduler 設計 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Speculative Decoding 的 Batch Profiling 與 Scheduler 設計 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">Speculative Decoding</span><span class="tag">2026</span><span class="tag">研究報告</span><span class="tag">vLLM</span><span class="tag">SGLang</span><span class="tag">TensorRT-LLM</span><span class="tag">LLM推理優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Speculative Decoding 的 Batch Profiling 與 Scheduler 設計：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>Speculative Decoding 透過 draft model 預先生成候選 tokens 並由 target model 批次驗證，可顯著降低 LLM 推理延遲與成本。本研究綜合 vLLM、SGLang、TensorRT-LLM 官方文件與生產實務案例，揭示三大核心發現：（1）高併發場景下 Speculative Decoding 仍可提升效能，打破「僅適用低 QPS」假設；（2）draft token acceptance rate 是評估效益的關鍵指標，需動態調整 draft tokens 數量以維持穩定增益；（3）生產部署必須使用與實際工作負載匹配的資料集進行 benchmark，通用基準不足以指導調參。研究同時揭示學術界發現但工業界文件未提及的 output equivalence 問題，以及針對 coding agents 等 decode-heavy 工作負載的專屬調參策略（6-8 draft heads vs. 一般語言模型的 3-4）。對於 daily-digest 類自動化任務，建議優先採用 EAGLE 或 N-Gram 方法，並建立 acceptance rate 監控機制以確保長期效益。</p>
+<h2>研究背景與動機</h2>
+<p>LLM 推理的計算成本主要來自 autoregressive decoding 過程中的序列依賴性——每個 token 必須等待前一個 token 生成完成。Speculative Decoding 透過引入輕量 draft model 平行生成多個候選 tokens，再由 target model 一次性驗證，可將多次序列推理合併為單次批次計算，從而降低延遲與成本。</p>
+<p>然而，何時開啟 Speculative Decoding 才能真正降低 TTFT（Time To First Token）、TPOT（Time Per Output Token）與單位 token 成本？不同推理框架（vLLM、SGLang、TensorRT-LLM）的 scheduler、lookahead、draft token window 設計有何差異？如何為特定工作負載（如 coding agents、daily-digest）建立可重現的 batch profiling 與調參流程？這些問題直接影響生產環境的部署決策，但工業界文件與學術研究之間存在明顯資訊落差。</p>
+<p>本研究以官方文件與一線技術部落格為主，針對 7 個高可信度來源進行多來源交叉比對，目標是提供從理論到生產的完整調參指南。</p>
+<h2>核心技術解析</h2>
+<h3>1. Speculative Decoding 在高併發場景下的效能表現</h3>
+<p>傳統認知認為 Speculative Decoding 僅適用於低 QPS（Queries Per Second）場景，因為高併發會增加 batch size 進而壓縮 GPU 記憶體空間。然而，Red Hat 在 vLLM + EAGLE3 的實驗中發現，即使在 200 concurrent requests 的高併發場景下，仍可達成 +20.7% 輸出吞吐量、+20.3% 延遲降低與 TTFT P95 改善 +10.8% [Red Hat, 2026]。vLLM 官方文件亦指出，高 QPS/吞吐優先的場景可使用 EAGLE 或 PARD 方法 [vLLM Docs, 2024]。SGLang 社群討論則提出動態 Speculative Decoding 需求，在高 batch size 時自動停用 SPD 以降低記憶體壓力 [SGLang Tutorial, 2024]。</p>
+<p><strong>三角佐證</strong>：3 個來源（✅）一致指出高併發場景下 Speculative Decoding 仍可提升效能，但需動態管理 batch size 與記憶體壓力。</p>
+<h3>2. Draft Token Acceptance Rate 作為核心評估指標</h3>
+<p>Acceptance rate 是評估 Speculative Decoding 效益的關鍵指標。Red Hat 實驗顯示，3 draft tokens 配置下可達成 35.6% acceptance rate 與 2.07 mean acceptance length [Red Hat, 2026]。Baseten 在生產部署經驗中強調，監控 acceptance rate 下降即表示效能增益消失，需立即調整 draft tokens 數量或切換方法 [Baseten, 2024]。OpenReview 論文揭示，ragged tensor 問題（同 batch 序列接受不同數量 draft tokens）會破壞 position IDs/attention masks/KV-cache 對齊，導致 acceptance 不穩定 [OpenReview, 2024]。AWS 文章進一步指出，num_speculative_tokens 需基於 batch size 與 acceptance rate 動態調整 [AWS, 2024]。</p>
+<p><strong>三角佐證</strong>：4 個來源（✅）一致強調 acceptance rate 為核心指標，且需動態調整以維持穩定增益。</p>
+<h3>3. 工作負載匹配的 Benchmark 策略</h3>
+<p>Baseten 在生產部署經驗中明確指出：「生產部署前必須用與生產輸入輸出高度匹配的資料進行基準測試，而非通用基準」[Baseten, 2024]。AWS 針對 coding agents（decode-heavy workload，產生遠多於消耗的 token）建議使用 6-8 draft heads，而非一般語言模型的 3-4 heads [AWS, 2024]。Red Hat 在 SWE-bench 程式碼工作負載下測得成本降低 19.4%/1M output tokens，驗證了工作負載特異性的重要性 [Red Hat, 2026]。</p>
+<p><strong>三角佐證</strong>：3 個來源（✅）一致強調必須使用與實際工作負載匹配的資料集進行 benchmark。</p>
+<h3>4. Draft Tokens 數量的動態調整策略</h3>
+<p>Draft tokens 數量並非越多越好。Red Hat 實驗顯示 3 draft tokens 為最佳配置 [Red Hat, 2026]，AWS 指出過低會限制加速、過高會增加 draft 計算浪費 [AWS, 2024]，Baseten 建議基於 batch size 與 acceptance rate 動態調整 [Baseten, 2024]。</p>
+<p><strong>三角佐證</strong>：3 個來源（✅）一致指出 draft tokens 數量需動態調整，不存在通用最佳值。</p>
+<h3>5. 框架選擇：vLLM、SGLang 與 TensorRT-LLM 的差異</h3>
+<p>三大框架都支援多種 Speculative Decoding 方法（EAGLE/Draft Model/NGram/Lookahead），但實作細節存在差異：</p>
+<ul>
+<li><strong>vLLM</strong>：支援 EAGLE/MTP/Draft Model（高效能）與 N-Gram/Suffix Decoding（輕量），低 QPS/延遲優先建議 EAGLE 或 Draft Model，資源受限環境建議 N-Gram [vLLM Docs, 2024]。注意 Pipeline parallelism 與 speculative decoding 不相容（vllm≤0.15.0）。</li>
+<li><strong>TensorRT-LLM</strong>：支援 4 種機制（Draft Model/Multiple Decoding Heads/NGram/Lookahead），Lookahead 使用固定 2D window 雙分支架構，有明確配置參數（window_size, ngram_size, verification_set_size）[TensorRT-LLM Docs, 2024]。Two-model speculation 不支援 overlap scheduler。</li>
+<li><strong>SGLang</strong>：支援 EAGLE-2/3/MTP/Draft Model/NGRAM/Lookahead，但 Lookahead 不執行 cache warm-up（不支援且效能提升不一致）[SGLang Tutorial, 2024]。DeepSeek 模型部署可達 1.4× 吞吐量提升。</li>
+</ul>
+<p><strong>三角佐證</strong>：3 個來源（✅）一致顯示三大框架支援範圍相似，但 Lookahead 實作存在差異（TensorRT-LLM 更成熟，SGLang 不建議使用）。</p>
+<h2>關鍵洞見</h2>
+<h3>洞見 1：Batch Speculative Decoding 的 Output Equivalence 問題（⚠️ 待驗證）</h3>
+<p>OpenReview 論文揭示，Batch 實作的核心問題在於 ragged tensor（同 batch 序列接受不同數量 draft tokens，破壞 position IDs/attention masks/KV-cache 對齊），現有多數 batch 實作違反 output equivalence（與標準 autoregressive 產出不同 token 序列）[OpenReview, 2024]。這是學術界發現但工業界文件（vLLM/TensorRT-LLM/SGLang 官方文件）均未提及的關鍵問題，可能影響生產環境的輸出穩定性。</p>
+<p><strong>驗證狀態</strong>：⚠️ 待驗證（僅見於單一學術論文，需更多來源或實驗驗證）</p>
+<h3>洞見 2：Coding Agents 需要更多 Draft Heads（⚠️ 待驗證）</h3>
+<p>AWS 文章指出，coding agents 為 decode-heavy workload，需要 6-8 draft heads（相比一般語言模型的 3-4 heads）[AWS, 2024]。這對 daily-digest 類任務（同樣屬於 decode-heavy）具有直接指導意義，但僅見於單一來源。</p>
+<p><strong>驗證狀態</strong>：⚠️ 待驗證（僅見於 AWS Trainium 文章，需驗證是否適用於其他硬體平台）</p>
+<h3>洞見 3：動態 Speculative Decoding 尚未標準化（⚠️ 待驗證）</h3>
+<p>SGLang 社群要求在高 batch size 時自動停用 SPD 以降低記憶體壓力 [SGLang Tutorial, 2024]，但此功能尚未標準化實作，目前需手動管理。這可能是未來框架演進方向。</p>
+<p><strong>驗證狀態</strong>：⚠️ 待驗證（僅見於社群討論，非官方功能）</p>
+<h3>洞見 4：Draft/Target Model 應在同一 GPU 執行（⚠️ 待驗證）</h3>
+<p>Baseten 經驗指出，Draft/Target model 應在同一 GPU 協調執行，跨 GPU 資源競爭會抵銷效能增益 [Baseten, 2024]。這是生產部署的硬體配置關鍵決策，但未見其他來源驗證。</p>
+<p><strong>驗證狀態</strong>：⚠️ 待驗證（僅見於單一工業實務案例）</p>
+<h3>洞見 5：N-Gram 與 Suffix Decoding 在資源受限環境的應用（✅）</h3>
+<p>vLLM 官方文件與 TensorRT-LLM 官方文件均指出，N-Gram 與 Suffix Decoding 在資源受限環境下可作為輕量替代方案（最小開銷）[vLLM Docs, 2024; TensorRT-LLM Docs, 2024]。</p>
+<p><strong>驗證狀態</strong>：✅（雙源驗證）</p>
+<h3>洞見 6：程式碼工作負載的成本降低量化（⚠️ 待驗證）</h3>
+<p>Red Hat 實驗顯示，Speculative Decoding 可在程式碼工作負載（SWE-bench）下降低單位 token 成本達 19.4%/1M output tokens [Red Hat, 2026]。這是成本效益的量化數據，但需更多來源驗證。</p>
+<p><strong>驗證狀態</strong>：⚠️ 待驗證（僅見於單一實驗）</p>
+<h2>實務應用建議</h2>
+<h3>1. 選擇適合的 Speculative Decoding 方法</h3>
+<ul>
+<li><strong>低 QPS、延遲優先</strong>：EAGLE 或 Draft Model（vLLM/TensorRT-LLM）</li>
+<li><strong>高 QPS、吞吐優先</strong>：EAGLE 或 PARD（vLLM）</li>
+<li><strong>資源受限環境</strong>：N-Gram 或 Suffix Decoding（最小開銷）</li>
+<li><strong>Coding agents / daily-digest</strong>：EAGLE + 6-8 draft heads（需驗證硬體平台相容性）</li>
+</ul>
+<h3>2. 建立工作負載匹配的 Benchmark 流程</h3>
+<p>不要依賴通用基準（如 ShareGPT），必須收集實際生產流量的 prompt/output 比例、長度分佈與 QPS 模式，建立專屬 benchmark 資料集。關鍵步驟：</p>
+<ol>
+<li>收集至少 1000 筆生產 prompt-output pairs</li>
+<li>分析 decode/encode ratio（decode-heavy vs. encode-heavy）</li>
+<li>依工作負載選擇 draft heads（3-4 vs. 6-8）與 draft tokens 數量（2-5）</li>
+<li>在模擬生產 QPS 的條件下測試 TTFT、TPOT 與 acceptance rate</li>
+</ol>
+<h3>3. 監控 Draft Token Acceptance Rate</h3>
+<p>建立持續監控機制：</p>
+<ul>
+<li><strong>警戒線</strong>：acceptance rate < 20%（效能增益可能消失）</li>
+<li><strong>動作</strong>：降低 draft tokens 數量或切換方法（如從 Draft Model 降級至 N-Gram）</li>
+<li><strong>指標</strong>：記錄 acceptance rate、mean acceptance length 與 TPOT 變化趨勢</li>
+</ul>
+<h3>4. 硬體配置注意事項</h3>
+<ul>
+<li>Draft/Target model 部署在同一 GPU（避免跨 GPU 資源競爭）</li>
+<li>確認框架版本相容性（vLLM ≤0.15.0 不支援 Pipeline parallelism + Speculative Decoding）</li>
+<li>TensorRT-LLM 的 Two-model speculation 會自動停用 overlap scheduler</li>
+</ul>
+<h3>5. 驗證 Output Equivalence（風險管理）</h3>
+<p>在生產部署前執行小規模 A/B 測試，驗證 Speculative Decoding 輸出與標準 autoregressive 輸出的一致性（特別是 batch size > 1 的場景），以排除 OpenReview 論文揭示的 output equivalence 問題。</p>
+<h2>與現有知識的連結</h2>
+<p>本研究揭示的動態 acceptance rate 監控與工作負載匹配 benchmark 策略，與既有的 LLM 推理優化知識體系（KV-cache 管理、continuous batching、PagedAttention）形成互補：</p>
+<ul>
+<li><strong>KV-cache 優化</strong>：Speculative Decoding 會增加 KV-cache 壓力（draft tokens 需暫存），需與 PagedAttention 協同設計</li>
+<li><strong>Continuous batching</strong>：動態 batch size 調整需考慮 Speculative Decoding 的記憶體開銷，SGLang 社群要求的「高 batch size 時自動停用 SPD」正是此方向</li>
+<li><strong>成本優化</strong>：本研究量化的 19.4% 成本降低（程式碼工作負載）可與 prompt caching、結構化輸出等技術疊加，形成多層次成本控制策略</li>
+</ul>
+<p>對於 daily-digest 專案的具體應用，可將 Speculative Decoding 與既有的 auto-task 排程機制整合：</p>
+<ul>
+<li>Phase 0 預計算時評估當日 auto-task 數量與預估 decode 量</li>
+<li>Decode-heavy 任務（如研究報告生成）動態啟用 EAGLE + 6-8 heads</li>
+<li>Encode-heavy 任務（如資料抓取）維持標準 autoregressive</li>
+<li>在 state/token-usage-real.json 中追蹤 acceptance rate 與 TPOT 變化</li>
+</ul>
+<h2>未來展望</h2>
+<h3>短期（3-6 個月）</h3>
+<ol>
+<li><strong>框架標準化</strong>：vLLM/SGLang/TensorRT-LLM 可能統一 Lookahead 實作與 dynamic SPD 介面</li>
+<li><strong>硬體支援</strong>：AWS Trainium、Google TPU 等專用晶片對 Speculative Decoding 的原生支援將提升效能上限</li>
+<li><strong>監控工具</strong>：預期出現專門追蹤 acceptance rate 與 TPOT 的可觀測性工具（如 Prometheus exporter）</li>
+</ol>
+<h3>中期（6-12 個月）</h3>
+<ol>
+<li><strong>Output Equivalence 修復</strong>：學術界揭示的 ragged tensor 問題可能促使工業界修正 batch 實作</li>
+<li><strong>自適應調參</strong>：基於強化學習的 draft tokens 數量與方法選擇（依即時 QPS、batch size、acceptance rate 自動調整）</li>
+<li><strong>成本模型精細化</strong>：從「降低 X% 成本」進化為「每 1M tokens 節省 $Y，但增加 Z% GPU 記憶體」的多維度權衡</li>
+</ol>
+<h3>長期（12+ 個月）</h3>
+<ol>
+<li><strong>統一推理引擎</strong>：可能出現整合 Speculative Decoding、KV-cache 優化、continuous batching 的統一推理引擎（類似 vLLM 的下一代）</li>
+<li><strong>跨模態擴展</strong>：Speculative Decoding 從純文字擴展至多模態（影像 token、音訊 token 的 draft-verify 機制）</li>
+<li><strong>端到端優化</strong>：從 tokenization → draft → verify → detokenization 的全流程優化，可能出現針對特定領域（code/dialogue/reasoning）的專用 draft models</li>
+</ol>
+<h2>完整書目</h2>
+<ol>
+<li>Red Hat Developer. (2026). Performance improvements with speculative decoding in vLLM for gpt-oss. https://developers.redhat.com/articles/2026/04/16/performance-improvements-speculative-decoding-vllm-gpt-oss (retrieved 2026-04-21)</li>
+</ol>
+<ol>
+<li>vLLM Project. (2024). Speculative Decoding - vLLM Official Documentation. https://docs.vllm.ai/en/latest/features/speculative_decoding/ (retrieved 2026-04-21)</li>
+</ol>
+<ol>
+<li>NVIDIA. (2024). Speculative Sampling - TensorRT-LLM Advanced Features. https://nvidia.github.io/TensorRT-LLM/advanced/speculative-decoding.html (retrieved 2026-04-21)</li>
+</ol>
+<ol>
+<li>Baseten. (2024). How we built production-ready speculative decoding with TensorRT-LLM. https://www.baseten.co/blog/how-we-built-production-ready-speculative-decoding-with-tensorrt-llm/ (retrieved 2026-04-21)</li>
+</ol>
+<ol>
+<li>OpenReview. (2024). Batch Speculative Decoding Done Right. https://openreview.net/forum?id=eM51kSFkoG (retrieved 2026-04-21)</li>
+</ol>
+<ol>
+<li>SGLang. (2024). SGLang Speculative Decoding Tutorial. https://company.hpc-ai.com/blog/sglang-speculative-decoding-tutorial (retrieved 2026-04-21)</li>
+</ol>
+<ol>
+<li>Amazon Web Services. (2024). Accelerating decode-heavy LLM inference with speculative decoding on AWS Trainium and vLLM. https://aws.amazon.com/blogs/machine-learning/accelerating-decode-heavy-llm-inference-with-speculative-decoding-on-aws-trainium-and-vllm/ (retrieved 2026-04-21)</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
