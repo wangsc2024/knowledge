@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LangGraph 深度研究報告 — Graph-based Stateful Multi-Agent 工作流框架（2026）">
+  <title>LangGraph 深度研究報告 — Graph-based Stateful Multi-Agent 工作流框架（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LangGraph 深度研究報告 — Graph-based Stateful Multi-Agent 工作流框架（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">LangGraph</span><span class="tag">Multi-agent框架</span><span class="tag">LangChain</span><span class="tag">狀態機</span><span class="tag">工作流引擎</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LangGraph 深度研究報告 — Graph-based Stateful Multi-Agent 工作流框架（2026）</h1>
+<h2>概述</h2>
+<p>LangGraph 是 LangChain 官方推出的低階 Agent 協調框架，核心定位為「建構有韌性的長時程、有狀態 Agent」。有別於 CrewAI 的角色扮演封裝、AutoGen 的對話式多方協調，LangGraph 提供<strong>圖式狀態機（Graph-based State Machine）原語</strong>，讓開發者對控制流程擁有完全精確的控制權，適合需要可靠性與可觀測性的生產環境。最新版本 v1.1.9（2026-04-21），GitHub Stars 29,900，發版頻率約每週一版。</p>
+<h2>技術架構</h2>
+<p>LangGraph 採用有向圖（Directed Graph）作為執行模型，三大核心要素：</p>
+<p><strong>(1) State（狀態）</strong></p>
+<p>以 TypedDict 或 Pydantic Model 定義的共享狀態物件，持有整個流程的「記憶」。每個欄位可指定 Reducer（如 <code>add_messages</code> 累加而非覆寫），精細控制更新語義。</p>
+<p><strong>(2) Nodes（節點）</strong></p>
+<p>接受 State 並回傳 State 更新的 Python 函式或 LangChain Runnable，執行 LLM 呼叫、工具執行、資料處理等實際工作。</p>
+<p><strong>(3) Edges（邊）</strong></p>
+<p>定義 Node 間的轉移，分為無條件邊（固定路徑）與條件邊（根據 State 動態決定下一 Node）。底層採訊息傳遞演算法，支援真正的迴圈圖（非 DAG），解決 LLM → 工具呼叫 → 反省 → 再 LLM 的 Agent 迴圈需求。</p>
+<p>最新版本亦提供 <strong>Functional API</strong>，以 <code>@entrypoint</code> / <code>@task</code> 裝飾器定義流程，降低圖模型學習門檻。</p>
+<h2>工作流核心能力</h2>
+<ul>
+<li><strong>條件邊（Conditional Edges）</strong>：根據 State 值動態路由，實現 if/else 分支</li>
+<li><strong>迴圈支援</strong>：允許 Node 之間形成迴圈，原生支援「重試 / 反省 / 工具迴圈」</li>
+<li><strong>並行分支（Fan-out/Fan-in）</strong>：同一節點觸發多條平行路徑，再匯聚結果</li>
+<li><strong>子圖（Subgraph）</strong>：可重用子圖，支援多 Agent 階層架構</li>
+<li><strong>靜態斷點</strong>：<code>interrupt_before</code> / <code>interrupt_after</code> 在特定 Node 前後自動暫停等待人工介入</li>
+<li><strong>動態中斷</strong>：<code>interrupt()</code> 函式在 Node 內部任意位置暫停，完整儲存執行狀態，待人工輸入後精確恢復</li>
+<li><strong>時間旅行除錯</strong>：透過 Checkpoint 回溯任意歷史狀態重新執行</li>
+<li><strong>Swarm 模式</strong>（<code>langgraph-swarm-py</code>）：Agent 動態將控制權移交最專精的其他 Agent，無需中央協調器</li>
+</ul>
+<h2>AI 整合機制</h2>
+<ul>
+<li><strong>LLM 呼叫</strong>：任何 LangChain 相容的 LLM（OpenAI、Anthropic、Groq、Bedrock 等）可直接作為 Node</li>
+<li><strong>Tool Calling</strong>：內建 <code>ToolNode</code>，自動解析 LLM 回傳的 <code>tool_calls</code> 並執行，結果回送 LLM 繼續推理</li>
+<li><strong>ReAct 模式</strong>：<code>create_react_agent()</code> 工廠函式，一行建立標準 Reason + Act 迴圈 Agent</li>
+<li><strong>MCP 整合</strong>：Model Context Protocol 工具作為<strong>原生串流圖節點</strong>（CrewAI/AutoGen 僅視為可呼叫函式），支援完整串流</li>
+<li><strong>多 Agent 協調</strong>：Supervisor 模式（中央 LLM 決定派遣）與 Swarm 模式（自主移交控制）並存</li>
+<li><strong>成本效率</strong>：平均每任務 4.2 次 LLM 呼叫（CrewAI 6.1 次、AutoGen 22.7 次），每任務成本約 $0.08（AutoGen $0.45），差距 5-6 倍</li>
+<li><strong>LangSmith 整合</strong>：每次 LLM 呼叫、Tool 執行均自動記錄 Trace，支援評估與回歸測試</li>
+</ul>
+<h2>持久化與狀態管理</h2>
+<p>每個執行步驟（super-step）後，Checkpointer 自動將完整 State 快照儲存至持久層（支援記憶體、SQLite、PostgreSQL）。以 <code>thread_id</code> 為游標：重用同一 <code>thread_id</code> 從上次斷點繼續。帶來三大能力：</p>
+<ol>
+<li><strong>故障恢復</strong>：Agent 崩潰後從最後 Checkpoint 自動恢復</li>
+<li><strong>多輪對話記憶</strong>：跨次對話保留完整 State</li>
+<li><strong>時間旅行除錯</strong>：回溯任意 Checkpoint 重新執行</li>
+</ol>
+<h2>部署與維運</h2>
+<ul>
+<li><strong>開源自架</strong>：MIT 授權，<code>pip install langgraph</code> 直接整合進任何 Python 應用</li>
+<li><strong>LangGraph Platform（商業版）</strong>：託管執行環境，提供 API 端點、任務佇列、橫向擴展、視覺化 Studio</li>
+<li><strong>雲端整合</strong>：AWS Bedrock、Azure 官方整合方案</li>
+<li>受信任企業：Klarna、LinkedIn、Replit、Elastic、Coinbase、Workday</li>
+</ul>
+<h2>與 daily-digest-prompt 的連結</h2>
+<p>本系統與 LangGraph 有六個具體對應點：</p>
+<ol>
+<li><strong>Workflow Forge 替代</strong>：目前 PowerShell FSM 狀態機（<code>Set-FsmState</code>）可用 LangGraph Conditional Edge + Checkpoint 替代，提供原生故障恢復而非手工 Zombie 偵測</li>
+<li><strong>Autonomous Harness 強化</strong>：<code>tools/autonomous_harness.py</code> 多輪任務迴圈可用 <code>StateGraph + interrupt()</code> 重構，天然支援 <code>human_review_queue</code>（取代 <code>state/human-review-queue.json</code> 手動協調）</li>
+<li><strong>Todoist 三階段並行化</strong>：<code>run-todoist-agent-team.ps1</code> Phase 1 Query → Phase 2 N 並行執行 → Phase 3 Assemble，可對應 LangGraph Fan-out/Fan-in 圖，替代 <code>Start-Job</code> 並行</li>
+<li>*<em>持久化取代 state/</em>.json**：大量 JSON 檔案（<code>token-budget-state</code>、<code>workflow-state</code>、<code>ntfy-lock</code> 等）充當手工 Checkpoint，LangGraph Checkpointer 可統一管理跨次執行狀態</li>
+<li><strong>interrupt() 對應 Human Review Queue</strong>：<code>state/human-review-queue.json</code> 人工審核流程可直接用 <code>interrupt()</code> 原語實現，不需自製 lock/flag 機制</li>
+<li><strong>Shadow Observation 串流監控</strong>：LangGraph 串流能力支援 <code>llama-workflow-shadow</code> 即時差異偵測，取代輪詢式 JSONL 寫入</li>
+</ol>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>生產級可靠性：原生 Checkpoint 持久化 + 故障自動恢復 + 時間旅行除錯，遠優於手工 <code>state/*.json</code> 管理</li>
+<li>成本效率最高：平均每任務 4.2 次 LLM 呼叫，比 AutoGen 省 5-6 倍，適合每日高頻執行場景</li>
+<li>MCP 一等公民整合：MCP 工具視為原生圖節點且支援完整串流</li>
+<li>完整人機協作原語：<code>interrupt()</code> 天然替代複雜的 <code>human-review-queue.json + lock</code> 機制</li>
+<li>MIT 開源 + 活躍社群：週頻發版，29.9k Stars，大廠生產驗證</li>
+</ul>
+<p><strong>缺點 / 限制</strong>：</p>
+<ul>
+<li>學習曲線最陡：需理解 Graph/Node/Edge/Reducer/Checkpointer 等多層抽象，遷移現有 PowerShell 腳本成本高</li>
+<li>Python 生態依賴：本系統以 PowerShell 為主調度層，LangGraph 需 Python 常駐服務，整合需額外橋接層</li>
+<li>LangSmith 商業依賴：完整觀測性需依賴 LangSmith（商業服務），自架環境需自建替代方案</li>
+</ul>
+<h2>社群狀態</h2>
+<ul>
+<li>Stars：29,900 | Forks：5,100 | 最近更新：2026-04-21</li>
+<li>最新版本：v1.1.9（2026-04-21，發版頻率約每週一版）</li>
+<li>主要語言：Python（99.4%）</li>
+<li>生產採用：Klarna、LinkedIn、Replit、Elastic、Coinbase、Workday</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>https://github.com/langchain-ai/langgraph（官方 Repo，v1.1.9）</li>
+<li>https://www.langchain.com/langgraph（官方定位頁）</li>
+<li>https://blog.premai.io/langgraph-deep-dive-state-machines-tools-and-human-in-the-loop/（深度架構分析）</li>
+<li>https://lushbinary.com/blog/langgraph-vs-crewai-vs-autogen-ai-agent-framework-comparison/（三框架比較含 Benchmark）</li>
+<li>https://medium.com/data-science-collective/architecting-human-in-the-loop-agents-interrupts-persistence-and-state-management-in-langgraph-fa36c9663d6f（持久化與 HITL 機制）</li>
+<li>https://dev.to/ottoaria/langgraph-in-2026-build-multi-agent-ai-systems-that-actually-work-3h5（2026 年現狀）</li>
+<li>https://aws.amazon.com/blogs/machine-learning/build-multi-agent-systems-with-langgraph-and-amazon-bedrock/（AWS Bedrock 整合）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

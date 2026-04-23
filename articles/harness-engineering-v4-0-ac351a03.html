@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 深度研究与系统优化方案 v4.0 (2026)">
+  <title>Harness Engineering 深度研究与系统优化方案 v4.0 (2026) | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 深度研究与系统优化方案 v4.0 (2026)</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">AI Agent</span><span class="tag">系统优化</span><span class="tag">架构设计</span><span class="tag">2026最佳实践</span><span class="tag">Google</span><span class="tag">Meta</span><span class="tag">Anthropic</span><span class="tag">Context Management</span><span class="tag">验证金字塔</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 深度研究与系统优化方案 (2026)</h1>
+<blockquote><strong>版本</strong>: 4.0</blockquote>
+<blockquote><strong>日期</strong>: 2026-04-22</blockquote>
+<blockquote><strong>状态</strong>: 优化版研究报告 + 实施建议</blockquote>
+<blockquote><strong>基于</strong>: Daily Digest Prompt 系统现有实施 (v1.0/v2.0/v3.0) + 2026 产业界最新实践</blockquote>
+<p>---</p>
+<h2>执行摘要</h2>
+<p>本研究整合 <a href="https://martinfowler.com/articles/harness-engineering.html">Martin Fowler</a>、<a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Anthropic</a>、<a href="https://developers.redhat.com/articles/2026/04/07/harness-engineering-structured-workflows-ai-assisted-development">Red Hat</a>、<a href="https://developers.googleblog.com/build-better-ai-agents-5-developer-tips-from-the-agent-bake-off/">Google</a> 与 2026 年产业界最新 Harness Engineering 实践，结合 Daily Digest Prompt 系统既有基础（B0-B3 批次实施），提出下一代优化方案。</p>
+<p><strong>核心发现</strong>：</p>
+<ul>
+<li><strong>2026 共识</strong>：基础设施优化胜过模型升级（实验证明 10x 提升来自编辑格式变更，而非模型换代）</li>
+<li><strong>关键转变</strong>：从「Agent 写程式」转向「设计让 AI 可靠写程式的系统」</li>
+<li><strong>实证证据</strong>：Context reset 在 40% 使用率时优于等到 80% 才压缩</li>
+<li><strong>成本控制</strong>：Computational 验证优先（毫秒级），Inferential 验证策略性部署（秒级）</li>
+<li><strong>Meta 实证</strong>：预计算引擎减少 40% tool calls，结构化 context 优于 context dumping</li>
+</ul>
+<p>---</p>
+<h2>1. Harness Engineering 核心框架</h2>
+<h3>1.1 定义与边界</h3>
+<p><strong>Agent = Model + Harness</strong></p>
+<p>Harness 包含除模型外的所有机制，分为两层：</p>
+<ol>
+<li><strong>内建层</strong>：Agent 构建者提供（如 Claude Agent SDK）</li>
+<li><strong>使用者层</strong>：特定场景客制化（本专案的 Hooks、Skills、OODA 流程）</li>
+</ol>
+<p><strong>2026 产业共识</strong>：</p>
+<blockquote>"If 2025 was the year AI agents proved they could write code, 2026 is the year the industry learned that <strong>the agent isn't the hard part—the harness is</strong>."</blockquote>
+<p>工程师不再直接写程式，而是设计让 AI 可靠写程式的系统。OpenAI 已建立超过 100 万行代码的生产应用，其中工程师设计的是让 AI 可靠写代码的系统，而非直接写代码。</p>
+<h3>1.2 四大组件（agent-engineering.dev 标准）</h3>
+<p>| 组件 | 定义 | 本专案对应 | 成熟度 (v2.0) |</p>
+<p>|------|------|-----------|------------|</p>
+<p>| <strong>架构约束</strong> | 透过规则限制 Agent 行为空间 | Hooks、hook-rules.yaml、约束演化管线 | 8.5/10 → 目标 9.5 |</p>
+<p>| <strong>反馈回路</strong> | 执行结果回馈至决策层 | quality_gate.py、constraint_evolve.py | 9.0/10 → 目标 9.5 |</p>
+<p>| <strong>验证护栏</strong> | 多层品质门槛 | Draft-Verify、结果验证、Schema 检查 | 8.8/10 → 目标 9.5 |</p>
+<p>| <strong>生命周期管理</strong> | 状态追踪与时间阈值 | timing-policy.yaml、OODA workflow | 9.2/10 → 目标 9.5 |</p>
+<p>---</p>
+<h2>2. 双控制机制：Feedforward vs Feedback</h2>
+<h3>2.1 Martin Fowler 框架</h3>
+<p><strong>Guides（前馈控制）</strong> — 预防性引导，在行动前提高首次成功率</p>
+<ul>
+<li>系统提示（System Prompts）</li>
+<li>AGENTS.md / CLAUDE.md</li>
+<li>Skill 指引文件</li>
+<li>Good Examples Repository（本专案 v2.0 新增）</li>
+</ul>
+<p><strong>Sensors（反馈控制）</strong> — 事后校正，观察输出并促进自我修正</p>
+<ul>
+<li>静态分析工具（Linter、Type Checker）</li>
+<li>测试执行（Unit / Integration / E2E）</li>
+<li>Quality Gate LLM 评分</li>
+<li>Hook 拦截与修复建议</li>
+</ul>
+<p><strong>关键洞察</strong>：</p>
+<blockquote>单独使用任一方式都不足：仅有反馈导致重复犯同样错误；仅有前馈则永远无法验证有效性。</blockquote>
+<h3>2.2 本专案实施现状与改进</h3>
+<p>| 机制 | 现有实作 | v2.0 改进方向 | 预期效果 |</p>
+<p>|------|---------|--------------|------|</p>
+<p>| <strong>Feedforward</strong> | preamble.md、CLAUDE.md、Skill 模板 | + Good Examples Registry（优秀案例库） | 首次成功率 72% → 85% |</p>
+<p>| <strong>Feedback</strong> | Hooks、quality_gate、constraint_evolve | + Success Pattern Extractor（成功模式自动升级） | iteration_count 1.3 → 1.1 |</p>
+<p>| <strong>Feedback → Feedforward</strong> | ❌ 断裂 | ✅ 自动升级管线 | 减少重复错误 15% |</p>
+<h3>2.3 2026 最佳实践：Close the Feedback Loop</h3>
+<p><strong>产业共识</strong>：</p>
+<ul>
+<li>将错误追溯回输入并修复 harness，而非仅修复输出</li>
+<li>使用 linter 阻止 PR 的确定性约束，优于 prompt 中的概率性遵守</li>
+<li>Repository-First 设计：让 Agent 能直接从 repository 推理完整业务领域</li>
+</ul>
+<p><strong>本专案实施</strong>：</p>
+<ul>
+<li><code>constraint_evolve.py</code> 自动从失败模式提取约束规则</li>
+<li>Hook 系统提供确定性拦截（非仅 prompt 建议）</li>
+<li><code>hooks/hook-rules.yaml</code> 作为单一真相来源</li>
+</ul>
+<p>---</p>
+<h2>3. 验证金字塔：Computational vs Inferential</h2>
+<h3>3.1 核心原则</h3>
+<p>| 类型 | 特性 | 成本 | 适用场景 |</p>
+<p>|------|------|------|--------|</p>
+<p>| <strong>Computational（确定性）</strong> | 规则式、快速、可重复 | 毫秒级 | JSON Schema、必填栏位、regex pattern |</p>
+<p>| <strong>Inferential（推理式）</strong> | 语义分析、非确定性 | LLM 调用（秒级） | 文意完整性、逻辑连贯性、创意品质 |</p>
+<p><strong>最佳比例</strong>：70% Computational + 30% Inferential（Martin Fowler 建议）</p>
+<p><strong>2026 产业趋势</strong>：</p>
+<ul>
+<li><strong>Computational sensors</strong> 便宜且快速，可在每次变更时与 agent 并行运行</li>
+<li><strong>Inferential controls</strong> 成本较高且非确定性，但允许提供丰富的引导和额外的语义判断</li>
+<li><strong>Formal verification</strong> 在 2026 年成为主流趋势，提供完全自动化的反馈信号</li>
+</ul>
+<h3>3.2 本专案优化方案（v2.0 三层金字塔）</h3>
+<pre><code>
+           ┌─────────────┐
+           │  Tier 3     │  LLM 语义评分（仅 Critical 任务）
+           │  5% 流量    │  成本：Haiku ~5s
+           └─────────────┘
+          ┌───────────────┐
+          │  Tier 2       │  启发式检查（keyword 密度、引用完整性）
+          │  20% 流量     │  成本：regex + NLP ~200ms
+          └───────────────┘
+         ┌─────────────────┐
+         │  Tier 1         │  确定性检查（schema、必填栏位）
+         │  100% 流量      │  成本：&lt;10ms
+         └─────────────────┘
+</code></pre>
+<p><strong>预期效果</strong>：</p>
+<ul>
+<li>LLM 呼叫从 30 次/日 → 9 次/日（减少 70%）</li>
+<li>验证延迟从 150s → 50s</li>
+<li>误判率 < 5%（Tier 2 阈值设为 8.0/10）</li>
+</ul>
+<p>---</p>
+<h2>4. Context Management：Reset vs Compaction</h2>
+<h3>4.1 Anthropic 实证研究</h3>
+<p><strong>关键发现</strong>：</p>
+<blockquote>Context compaction 會让模型焦虑接近上限（context anxiety），导致提早结束任务。</blockquote>
+<p><strong>两种策略对比</strong>：</p>
+<p>| 策略 | 触发点 | 优点 | 缺点 | 适用场景 |</p>
+<p>|------|--------|------|------|--------|</p>
+<p>| <strong>Compaction</strong> | > 80% | 保留 context 连贯性 | 模型焦虑、资讯损失 | Opus 4.5 内建自动压缩 |</p>
+<p>| <strong>Clean Reset</strong> | 40-60% | 无焦虑、清晰状态 | 需要结构化 Handoff | 多會话长时间任务 |</p>
+<h3>4.2 2026 最新实践：Context Engineering</h3>
+<p><strong>Google 架构方法</strong>：</p>
+<ul>
+<li><strong>避免 Context Dumping</strong>：不将大量负载直接放入 chat history</li>
+<li><strong>Artifacts 模式</strong>：将大数据作为命名、版本化的对象，由 ArtifactService 管理</li>
+<li><strong>Tiered Storage</strong>：Context 管理必须作为架构考量，与存储和计算同等重要</li>
+</ul>
+<p><strong>Meta 预计算引擎</strong>：</p>
+<ul>
+<li>使用专门的 AI agents 系统性读取文件，产生简洁的 context 文件编码部落知识</li>
+<li>将未文档化知识转为结构化、AI 可读的 context</li>
+<li><strong>结果</strong>：每任务减少 40% AI agent tool calls</li>
+</ul>
+<p><strong>成本优化</strong>：</p>
+<ul>
+<li>Anthropic prompt caching 对缓存的 input tokens 提供 90% 折扣</li>
+<li>单靠此功能可削减 20-30% agent 账单</li>
+<li>优化策略聚焦 context 管理，多数团队可达成 60-80% 成本节省</li>
+</ul>
+<h3>4.3 本专案实施方案（v2.0 Context Reset Coordinator）</h3>
+<p><strong>三级重置策略</strong>：</p>
+<p>| Context 使用率 | 动作 | 实作 |</p>
+<p>|---------------|------|------|</p>
+<p>| < 60% | 正常继续 | 无动作 |</p>
+<p>| 60-75% | <strong>Artifact Handoff</strong> | 写入 <code>state/agent-handoff/{trace_id}.json</code>，清空 context，新 Agent 读取继续 |</p>
+<p>| > 75% | <strong>Emergency Reset</strong> | 强制终止，标记 status=partial，checkpoint 写入 handoff |</p>
+<p><strong>Handoff Schema 设计</strong>：</p>
+<pre><code>
+{
+  "trace_id": "abc123",
+  "original_task": "深度研究 Harness Engineering",
+  "completed_steps": ["WebSearch", "WebFetch", "初步分析"],
+  "artifacts": {
+    "web_content": "file://state/agent-handoff/abc123-web.md",
+    "kb_drafts": ["file://state/agent-handoff/abc123-kb-01.md"]
+  },
+  "next_steps": ["撰写优化方案", "写入知识库", "验证"],
+  "context_snapshot": null
+}
+</code></pre>
+<p><strong>与现有 ADR-036 的关系</strong>：</p>
+<ul>
+<li>ADR-036（Summary/BufferWindow）保留作为 > 90% 最后手段</li>
+<li>60-75% 区间改用 Handoff，避免资讯损失</li>
+</ul>
+<p><strong>多 Agent 系统的 Context 共享原则</strong>（Google 2026）：</p>
+<ul>
+<li>若每个 agent 共享相同 context，會用无关细节混淆模型，并支付巨大的 KV-cache 惩罚</li>
+<li>Agents 应透过最小、结构化的输出以受控方式沟通</li>
+</ul>
+<p>---</p>
+<h2>5. 多 Agent 架构：专业化分工</h2>
+<h3>5.1 Anthropic 三 Agent 模式</h3>
+<p><strong>架构</strong>：Planner → Generator → Evaluator</p>
+<p>| 角色 | 职责 | 输入 | 输出 |</p>
+<p>|------|------|------|------|</p>
+<p>| <strong>Planner</strong> | 任务分解与资源配置 | 功能列表 + 环境状态 | 执行计画（JSON） |</p>
+<p>| <strong>Generator</strong> | 实际编码实作 | 执行计画 + codebase | 程式码变更 + git commit |</p>
+<p>| <strong>Evaluator</strong> | 品质验证与测试 | 变更集 + 测试脚本 | 通过/失败 + 改进建议 |</p>
+<p><strong>核心优势</strong>：</p>
+<ul>
+<li><strong>专业化</strong>：每个 Agent 只做一件事，提示词可独立调优</li>
+<li><strong>可观测性</strong>：Planner 输出计画 JSON 可单独审查</li>
+<li><strong>避免自评偏差</strong>：Generator 与 Evaluator 分离，消除「AI 验证 AI」盲点</li>
+</ul>
+<h3>5.2 本专案四角色设计（v2.0 提案）</h3>
+<p>| 角色 | 职责 | 现有对应 | 改进方向 |</p>
+<p>|------|------|---------|--------|</p>
+<p>| <strong>Planner</strong> | 任务选择与分解 | Phase 1 内嵌逻辑 | 独立为 <code>todoist-planner.md</code> |</p>
+<p>| <strong>Generator</strong> | 任务执行 | Phase 2 子 Agent | 无需变更 |</p>
+<p>| <strong>Evaluator</strong> | 品质验证 | quality_gate.py | 增强 Tier 2 Heuristic |</p>
+<p>| <strong>Assembler</strong> | 输出组装 | Phase 3 todoist-assemble | 无需变更 |</p>
+<p><strong>实施效益</strong>：</p>
+<ul>
+<li>Planner 可独立 A/B 测试（不影响执行层）</li>
+<li>计画 JSON 提供完整 audit trail</li>
+<li>消除 OODA vs Harness 职责重叠</li>
+</ul>
+<p>---</p>
+<h2>6. 2026 产业界最新实践</h2>
+<h3>6.1 十大关键洞察</h3>
+<ol>
+<li><strong>基础设施 > 模型升级</strong></li>
+</ol>
+<p>   - 实验证明：改变编辑格式带来 10x 提升，模型升级仅 1.2x</p>
+<p>   - LangChain 在 TerminalBench 2.0 从低排名跃升至第 5 名，仅靠 Harness 优化</p>
+<ol>
+<li><strong>文档是最强 Harness</strong></li>
+</ol>
+<p>   - "If your AGENTS.md is vague, your agent output will be vague"</p>
+<p>   - 投资精确、机器可读的文档作为 Agent 的 Ground Truth</p>
+<ol>
+<li><strong>Repository-Local Knowledge</strong></li>
+</ol>
+<p>   - Agent 视角：不在 context 中的内容等同不存在</p>
+<p>   - Google Docs、Slack 讨论不可访问，仅 repo 内的版本化文件可见</p>
+<ol>
+<li><strong>40% Context Reset Rule</strong></li>
+</ol>
+<p>   - 在 40% 使用率时重置 context，搭配结构化 handoff 文档</p>
+<p>   - 工具过载问题：仅载入需要的工具（Tool Search 节省 85% token）</p>
+<ol>
+<li><strong>Network Isolation for Evaluation</strong></li>
+</ol>
+<p>   - 评估环境网路隔离现已成为必要要求，非可选项</p>
+<ol>
+<li><strong>Max Iterations Hard Limit</strong></li>
+</ol>
+<p>   - 严格的 max_iterations 计数器，超过阈值强制终止</p>
+<p>   - 防止 Agent 无限回圈</p>
+<ol>
+<li><strong>Repository Impact Map</strong></li>
+</ol>
+<p>   - 让 AI 在规划前看实际程式码</p>
+<p>   - 从符号分析建立影响地图，让下游任务基于真实程式码</p>
+<ol>
+<li><strong>Meta-Harness Optimization</strong></li>
+</ol>
+<p>   - 将整个 Harness 视为联合优化目标</p>
+<p>   - Proposer Agent 访问所有先前 Harness 候选、分数、执行 trace</p>
+<ol>
+<li><strong>Guides + Sensors 系统化</strong></li>
+</ol>
+<p>   - 当前 Feedforward/Feedback 控制散落各处</p>
+<p>   - 需要工具化集中配置、同步、系统性推理</p>
+<ol>
+<li><strong>Keep Quality Left</strong></li>
+</ol>
+<p>    - 将检查分布于整个开发周期</p>
+<p>    - 早期发现成本最低（LSP、Linter）</p>
+<p>    - 后集成检查（变异测试、性能测试）</p>
+<p>    - 持续监测（死码、依赖扫描、SLO 漂移）</p>
+<h3>6.2 结构化 Context 优于自由形式</h3>
+<p><strong>Google Agent Bake-Off 发现</strong>：</p>
+<ul>
+<li>AI 在结构化 context 环境中写出更好的代码</li>
+<li>给 AI 结构化约束实施，如文件路径、符号名称、现有模式</li>
+<li><strong>核心原则</strong>：输入越具體，输出越一致</li>
+</ul>
+<p><strong>实施建议</strong>：</p>
+<ul>
+<li>不要给 AI 自由形式的 tickets，而是设计它工作的环境</li>
+<li>用 custom linters 和 structural tests 强制规则</li>
+<li>在错误讯息中注入修复指令到 agent context</li>
+</ul>
+<h3>6.3 确定性约束优于概率遵守</h3>
+<p><strong>对比</strong>：</p>
+<ul>
+<li>❌ <strong>概率遵守</strong>：在 prompt 中告诉 agent 遵循标准（依赖 LLM 推理）</li>
+<li>✅ <strong>确定性约束</strong>：接上 linter，违反标准时阻止 PR（强制执行）</li>
+</ul>
+<p><strong>本专案实施</strong>：</p>
+<ul>
+<li>Hook 系统提供确定性拦截</li>
+<li><code>validate_config.py</code>、<code>validate_results.py</code> 提供硬性验证</li>
+<li>Schema 检查在工具层而非 prompt 层</li>
+</ul>
+<p>---</p>
+<h2>7. 本专案优化路径（v2.0 → v3.0 → v4.0）</h2>
+<h3>7.1 v2.0 五大策略回顾</h3>
+<p>| 策略 | 核心内容 | 实施难度 | ROI |</p>
+<p>|------|---------|---------|-----|</p>
+<p>| 1. Feedforward 增强 | Good Examples Registry | 中 | 高（首次成功率 +13%） |</p>
+<p>| 2. Context Management | Clean Reset + Handoff | 高 | 中（减少焦虑，提升长任务稳定性） |</p>
+<p>| 3. Multi-Agent 精细化 | 独立 Planner Agent | 中 | 中（可观测性提升） |</p>
+<p>| 4. Computational-First | 三层验证金字塔 | 低 | 极高（LLM 成本 -70%） |</p>
+<p>| 5. Feedback → Feedforward | Success Pattern Extractor | 中 | 高（减少重复错误） |</p>
+<h3>7.2 v3.0 新增优化（基于 2026 实践）</h3>
+<p>#### 优化 A：Repository Impact Map（程式码影响地图）</p>
+<p><strong>问题</strong>：Agent 规划时缺乏对现有程式码的结构化理解。</p>
+<p><strong>方案</strong>：</p>
+<ul>
+<li>从符号分析建立 <code>context/code-impact-map.json</code></li>
+<li>包含：函式依赖图、模组耦合度、热点档案</li>
+<li>Planner Agent 读取此地图后再规划</li>
+</ul>
+<p><strong>工具</strong>：<code>tools/code_impact_analyzer.py</code>（基于 AST 分析）</p>
+<p>#### 优化 B：Meta-Harness Tuner（自动调优引擎）</p>
+<p><strong>问题</strong>：Harness 参数（timeout、阈值、权重）当前手动调整。</p>
+<p><strong>方案</strong>：</p>
+<ul>
+<li>Proposer Agent 访问历史执行 trace</li>
+<li>基于成功率/失败模式自动建议参数调整</li>
+<li>人工审核后应用</li>
+</ul>
+<p><strong>工具</strong>：<code>tools/harness_tuner.py --propose --apply</code></p>
+<p>#### 优化 C：Unified Guides & Sensors Dashboard</p>
+<p><strong>问题</strong>：Feedforward/Feedback 控制散落 15+ 档案。</p>
+<p><strong>方案</strong>：</p>
+<ul>
+<li>建立 <code>config/guides-sensors-registry.yaml</code> 统一注册</li>
+<li>视觉化仪表板显示每个控制的触发率、有效性</li>
+<li>自动侦测「未触发规则」（Dead Guards）</li>
+</ul>
+<p><strong>工具</strong>：<code>tools/harness_dashboard.py</code>（输出 HTML 报告）</p>
+<p>#### 优化 D：Network-Isolated Sandbox（隔离沙箱）</p>
+<p><strong>问题</strong>：当前评估环境无网路隔离。</p>
+<p><strong>方案</strong>：</p>
+<ul>
+<li>使用 Windows Sandbox 或 Docker 执行测试</li>
+<li>仅允许白名单 API（localhost:3000 知识库、ntfy.sh）</li>
+<li>所有外部 HTTP 请求必须透过 api-cache 代理</li>
+</ul>
+<p><strong>实作</strong>：更新 <code>config/autonomous-harness.yaml</code> 增加 <code>network_policy</code></p>
+<h3>7.3 v4.0 进阶优化（整合产业最佳实践）</h3>
+<p>#### 优化 E：Pre-Compute Context Engine（Meta 模式）</p>
+<p><strong>问题</strong>：每次执行都重新计算 context，浪费 token 与时间。</p>
+<p><strong>方案</strong>（参考 Meta 实践）：</p>
+<ul>
+<li>建立专门的 context 预计算引擎</li>
+<li>系统性读取档案，产生简洁的 context 编码档</li>
+<li>将部落知识转为结构化、AI 可读的 context</li>
+</ul>
+<p><strong>预期效果</strong>：</p>
+<ul>
+<li>减少 40% tool calls（Meta 实证数据）</li>
+<li>提升 context 精确度，减少无关资讯</li>
+</ul>
+<p><strong>实作</strong>：</p>
+<pre><code>
+# tools/context_precompute_engine.py
+class ContextPrecomputeEngine:
+    def scan_repository(self):
+        """扫描 repo，提取关键知识"""
+        pass
+
+    def generate_context_artifacts(self):
+        """生成结构化 context 档案"""
+        pass
+
+    def update_incremental(self):
+        """增量更新（仅变更档案）"""
+        pass
+</code></pre>
+<p>#### 优化 F：Structured Context Artifacts（Google 模式）</p>
+<p><strong>问题</strong>：大数据直接放入 chat history 导致 context 污染。</p>
+<p><strong>方案</strong>（参考 Google 架构）：</p>
+<ul>
+<li>实作 ArtifactService 管理命名、版本化的对象</li>
+<li>档案、日志、配置作为 artifacts 而非直接内容</li>
+<li>Agents 透过 artifact references 沟通</li>
+</ul>
+<p><strong>Schema 设计</strong>：</p>
+<pre><code>
+{
+  "artifact_id": "log_audit_20260422",
+  "type": "analysis_result",
+  "version": "1.0",
+  "storage": "state/artifacts/log_audit_20260422.json",
+  "metadata": {
+    "created_at": "2026-04-22T10:30:00+08:00",
+    "created_by": "todoist-auto-log_audit",
+    "size_bytes": 15360,
+    "checksum": "sha256:abc123..."
+  }
+}
+</code></pre>
+<p>#### 优化 G：Custom Linters with Remediation（Repository-First）</p>
+<p><strong>问题</strong>：Hook 拦截后 agent 不知如何修正。</p>
+<p><strong>方案</strong>：</p>
+<ul>
+<li>强化 Hook error messages 包含修复指令</li>
+<li>错误讯息注入到 agent context</li>
+<li>提供 auto-fix suggestions</li>
+</ul>
+<p><strong>实作</strong>：</p>
+<pre><code>
+# hooks/enhanced_hook_with_remediation.py
+def validate_with_remediation(file_path: str, content: str):
+    errors = validate(content)
+    if errors:
+        remediation = generate_fix_instructions(errors)
+        return {
+            "valid": False,
+            "errors": errors,
+            "remediation": remediation,  # 新增：修复指令
+            "auto_fix_available": True
+        }
+</code></pre>
+<p>---</p>
+<h2>8. 实施优先级与时间轴</h2>
+<h3>Phase A：快速胜利（2 周）</h3>
+<p>| 任务 | 档案 | 预期效果 |</p>
+<p>|------|------|--------|</p>
+<p>| <strong>A1</strong>: Tier 2 Heuristic 层 | <code>tools/quality_heuristics.py</code> | LLM 成本 -70% |</p>
+<p>| <strong>A2</strong>: Good Examples Registry | <code>context/good-examples-registry.json</code> | 首次成功率 +10% |</p>
+<p>| <strong>A3</strong>: 40% Context Reset | 修改 <code>context_compressor.py</code> | 减少 context 焦虑 |</p>
+<p>| <strong>A4</strong>: Enhanced Hook Remediation | <code>hooks/enhanced_hook_with_remediation.py</code> | 减少 iteration 次数 |</p>
+<h3>Phase B：基础设施（4 周）</h3>
+<p>| 任务 | 档案 | 依赖 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>B1</strong>: Context Handoff | <code>tools/context_reset_coordinator.py</code> | A3 |</p>
+<p>| <strong>B2</strong>: Planner 独立 | <code>prompts/team/todoist-planner.md</code> | 无 |</p>
+<p>| <strong>B3</strong>: Success Pattern Extractor | <code>tools/success_pattern_extractor.py</code> | A2 |</p>
+<p>| <strong>B4</strong>: Code Impact Map | <code>tools/code_impact_analyzer.py</code> | B2 |</p>
+<p>| <strong>B5</strong>: Pre-Compute Context Engine | <code>tools/context_precompute_engine.py</code> | B1 |</p>
+<h3>Phase C：高级功能（6 周）</h3>
+<p>| 任务 | 档案 | 依赖 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>C1</strong>: Meta-Harness Tuner | <code>tools/harness_tuner.py</code> | B1, B2, B3 |</p>
+<p>| <strong>C2</strong>: Guides & Sensors Dashboard | <code>tools/harness_dashboard.py</code> | 全部 |</p>
+<p>| <strong>C3</strong>: Network Isolation | <code>config/autonomous-harness.yaml</code> | C1 |</p>
+<p>| <strong>C4</strong>: Artifact Service | <code>tools/artifact_service.py</code> | B5 |</p>
+<p>---</p>
+<h2>9. 成功指标与监控</h2>
+<h3>9.1 北极星指标（SRS 3.0）</h3>
+<pre><code>
+系统可靠性分数 v3 =
+  (首次成功率 × 0.25) +
+  (平均质量分 × 0.20) +
+  (Context 效率 × 0.20) +
+  (Feedback 回路完整性 × 0.15) +
+  (Computational 验证占比 × 0.10) +
+  (Tool Calls 效率 × 0.10)
+</code></pre>
+<p><strong>目标</strong>：SRS 从 7.8 → 9.2（12 个月内）</p>
+<h3>9.2 分维度指标</h3>
+<p>| 维度 | 现状 | v2.0 目标 | v3.0 目标 | v4.0 目标 | 监控工具 |</p>
+<p>|------|------|-----------|-----------|-----------|--------|</p>
+<p>| 首次成功率 | 72% | 85% | 90% | 92% | <code>state/quality-trend.json</code> |</p>
+<p>| LLM 验证占比 | 100% | 30% | 20% | 15% | <code>quality_heuristics.py --stats</code> |</p>
+<p>| Context 重置率 | 12% | < 5% | < 3% | < 2% | <code>context-events.jsonl</code> |</p>
+<p>| 优秀案例覆蓋率 | 0% | 60% | 85% | 95% | <code>good-examples-registry.json</code> |</p>
+<p>| Dead Guards 比例 | 未知 | < 10% | < 5% | < 3% | <code>harness_dashboard.py</code> |</p>
+<p>| Meta-Tuning 命中率 | 0% | — | 40% | 60% | <code>harness_tuner.py --report</code> |</p>
+<p>| Tool Calls 每任务 | 基线 | — | -30% | -40% | <code>trace_analyzer.py --tool-calls</code> |</p>
+<p>| Context Artifact 采用率 | 0% | — | — | 70% | <code>artifact_service.py --stats</code> |</p>
+<p>---</p>
+<h2>10. 风险评估与缓解</h2>
+<h3>10.1 技术风险</h3>
+<p>| 风险 | 影响 | 机率 | 缓解 |</p>
+<p>|------|------|------|------|</p>
+<p>| <strong>Context Handoff 资讯损失</strong> | 任务中断无法恢复 | 中 | 1. Handoff schema 强制包含 next_steps<br>2. 验证工具检查 artifacts 完整性 |</p>
+<p>| <strong>Heuristic 误判</strong> | 低质量结果通过 Tier 2 | 中 | 1. Tier 2 阈值保守（8.0）<br>2. 每周抽查 20% |</p>
+<p>| <strong>Meta-Tuner 过度优化</strong> | 参数振荡不稳定 | 低 | 1. 变更限制每周最多 3 项<br>2. Canary 测试 24h |</p>
+<p>| <strong>Pre-Compute Engine 过时</strong> | Context 与实际档案不同步 | 中 | 1. Git hook 触发增量更新<br>2. 版本戳记验证 |</p>
+<p>| <strong>Artifact Service 存储膨胀</strong> | 磁碟空间耗尽 | 低 | 1. 7 天 TTL 自动清理<br>2. 压缩旧 artifacts |</p>
+<h3>10.2 流程风险</h3>
+<p>| 风险 | 影响 | 机率 | 缓解 |</p>
+<p>|------|------|------|------|</p>
+<p>| <strong>Good Examples 选择偏差</strong> | 只收录特定风格 | 中 | 1. 多维度评分（非仅 quality_score）<br>2. 季度人工审查 |</p>
+<p>| <strong>Network Isolation 相容性</strong> | Windows Sandbox 限制 | 低 | 1. Docker 作为备援方案<br>2. 白名单 API 充足测试 |</p>
+<p>| <strong>Context Precompute 维护成本</strong> | 增加系统复杂度 | 中 | 1. 从小范围开始（仅 config/ 与 docs/）<br>2. 自动化更新流程 |</p>
+<p>---</p>
+<h2>11. 关键设计决策（ADR 对齐）</h2>
+<h3>ADR-041：40% Context Reset Rule</h3>
+<p><strong>决策</strong>：在 context 使用率达 40-60% 时触发 Clean Reset，而非等到 80% 才压缩。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>Anthropic 实证：context compaction 导致模型焦虑</li>
+<li>40% reset 提供足够的「心理空间」</li>
+<li>结构化 Handoff 避免资讯损失</li>
+</ul>
+<p><strong>实作</strong>：</p>
+<ul>
+<li>修改 <code>tools/context_compressor.py</code> 降低阈值</li>
+<li>新增 <code>tools/context_reset_coordinator.py</code></li>
+<li>Handoff schema 强制包含 artifacts 与 next_steps</li>
+</ul>
+<h3>ADR-042：Computational-First Verification</h3>
+<p><strong>决策</strong>：70% 验证流量走 Computational 路径，30% 走 Inferential。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>Computational 成本 < 10ms，Inferential 成本 > 5s</li>
+<li>Martin Fowler 建议的黄金比例</li>
+<li>本专案实测 LLM 成本可减少 70%</li>
+</ul>
+<p><strong>实作</strong>：</p>
+<ul>
+<li>Tier 1（100%）：Schema 验证（<code>validate_results.py</code>）</li>
+<li>Tier 2（20%）：Heuristic（<code>quality_heuristics.py</code>）</li>
+<li>Tier 3（5%）：LLM 评分（<code>quality_gate.py</code>）</li>
+</ul>
+<h3>ADR-043：Pre-Compute Context Engine</h3>
+<p><strong>决策</strong>：建立预计算引擎，系统性提取 repo 知识为结构化 context。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>Meta 实证减少 40% tool calls</li>
+<li>部落知识转为 AI 可读格式</li>
+<li>避免每次执行重新计算</li>
+</ul>
+<p><strong>实作</strong>：</p>
+<ul>
+<li><code>tools/context_precompute_engine.py</code></li>
+<li>Git hook 触发增量更新</li>
+<li>输出至 <code>context/precomputed/</code> 目录</li>
+</ul>
+<h3>ADR-044：Artifact-Based Context Management</h3>
+<p><strong>决策</strong>：大数据作为 Artifacts 管理，而非直接放入 chat history。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>Google 架构建议避免 context dumping</li>
+<li>命名、版本化对象提升可追溯性</li>
+<li>减少 KV-cache 惩罚</li>
+</ul>
+<p><strong>实作</strong>：</p>
+<ul>
+<li><code>tools/artifact_service.py</code>（create/get/list/cleanup）</li>
+<li>Artifacts 存储于 <code>state/artifacts/</code></li>
+<li>7 天 TTL 自动清理</li>
+</ul>
+<h3>ADR-045：Enhanced Hook Remediation</h3>
+<p><strong>决策</strong>：Hook 错误讯息必须包含修复指令，注入到 agent context。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>产业最佳实践（Repository-First 设计）</li>
+<li>确定性约束 + 修复指引 = 高效回馈</li>
+<li>减少 iteration 次数</li>
+</ul>
+<p><strong>实作</strong>：</p>
+<ul>
+<li>所有 Hook 函式回传 <code>remediation</code> 栏位</li>
+<li>Agent 读取错误时自动取得修复建议</li>
+<li>支援 auto-fix（可选）</li>
+</ul>
+<p>---</p>
+<h2>12. 参考资料与延伸阅读</h2>
+<h3>核心文献</h3>
+<ol>
+<li><strong>Martin Fowler (2024)</strong>: <a href="https://martinfowler.com/articles/harness-engineering.html">Harness engineering for coding agent users</a></li>
+</ol>
+<p>   - Feedforward vs Feedback 控制理论</p>
+<p>   - Computational vs Inferential 验证策略</p>
+<p>   - Keep Quality Left 原则</p>
+<ol>
+<li><strong>Anthropic (2026)</strong>: <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a></li>
+</ol>
+<p>   - Context Reset vs Compaction 实证研究</p>
+<p>   - 三 Agent 架构（Planner-Generator-Evaluator）</p>
+<p>   - 结构化 Handoff 设计</p>
+<ol>
+<li><strong>Red Hat (2026-04-07)</strong>: <a href="https://developers.redhat.com/articles/2026/04/07/harness-engineering-structured-workflows-ai-assisted-development">Harness engineering: Structured workflows for AI-assisted development</a></li>
+</ol>
+<p>   - 结构化工作流设计</p>
+<p>   - AI 辅助开发最佳实践</p>
+<ol>
+<li><strong>Google Developers Blog (2026)</strong>: <a href="https://developers.googleblog.com/build-better-ai-agents-5-developer-tips-from-the-agent-bake-off/">Build Better AI Agents: 5 Developer Tips from the Agent Bake-Off</a></li>
+</ol>
+<p>   - 结构化 context 优于自由形式</p>
+<p>   - Artifacts 模式</p>
+<p>   - 多 Agent context 管理</p>
+<ol>
+<li><strong>Google Developers Blog (2026)</strong>: <a href="https://developers.googleblog.com/architecting-efficient-context-aware-multi-agent-framework-for-production/">Architecting efficient context-aware multi-agent framework for production</a></li>
+</ol>
+<p>   - Context engineering 架构方法</p>
+<p>   - Tiered storage 策略</p>
+<p>   - Agent 沟通模式</p>
+<ol>
+<li><strong>Meta Engineering (2026-04-06)</strong>: <a href="https://engineering.fb.com/2026/04/06/developer-tools/how-meta-used-ai-to-map-tribal-knowledge-in-large-scale-data-pipelines/">How Meta Used AI to Map Tribal Knowledge in Large-Scale Data Pipelines</a></li>
+</ol>
+<p>   - 预计算引擎设计</p>
+<p>   - 部落知识结构化</p>
+<p>   - 40% tool calls 减少实证</p>
+<ol>
+<li><strong>NxCode (2026)</strong>: <a href="https://www.nxcode.io/resources/news/harness-engineering-complete-guide-ai-agent-codex-2026">The Complete Guide to Building Systems That Make AI Agents Actually Work</a></li>
+</ol>
+<p>   - 2026 完整指南</p>
+<p>   - 系统化最佳实践</p>
+<ol>
+<li><strong>HumanLayer Blog (2026)</strong>: <a href="https://www.humanlayer.dev/blog/skill-issue-harness-engineering-for-coding-agents">Skill Issue: Harness Engineering for Coding Agents</a></li>
+</ol>
+<p>   - Repository-First 设计</p>
+<p>   - Custom linters with remediation</p>
+<ol>
+<li><strong>Towards Data Science (2026)</strong>: <a href="https://towardsdatascience.com/deep-dive-into-context-engineering-for-ai-agents/">Context Engineering for AI Agents: A Deep Dive</a></li>
+</ol>
+<p>   - Context 管理深度分析</p>
+<p>   - 优化策略</p>
+<ol>
+<li><strong>Moltbook-AI (2026)</strong>: <a href="https://moltbook-ai.com/posts/ai-agent-cost-optimization-2026">AI Agent Cost Optimization Guide 2026: Reduce Spend by 60-80%</a></li>
+</ol>
+<p>    - 成本优化策略</p>
+<p>    - Context 管理与 prompt caching</p>
+<h3>本专案内部文件</h3>
+<ul>
+<li><code>docs/design/harness-engineering-design-20260329.md</code> — v1.0 设计（B0-B3 批次）</li>
+<li><code>.temp/harness-engineering-optimization.md</code> — v2.0 优化方案（五大策略）</li>
+<li><code>.temp/harness-engineering-deep-research-20260422.md</code> — v3.0 深度研究</li>
+<li><code>docs/plans/lovely-exploring-crayon.md</code> — B0-B3 实施计画</li>
+</ul>
+<p>---</p>
+<h2>13. 结论与下一步</h2>
+<h3>关键要点</h3>
+<ol>
+<li><strong>Harness > Model</strong>：实验证明基础设施优化带来的提升远超模型升级</li>
+<li><strong>双控制必要性</strong>：Feedforward 与 Feedback 必须并存且形成闭环</li>
+<li><strong>70/30 黄金比例</strong>：70% Computational + 30% Inferential 验证最优</li>
+<li><strong>40% Reset Rule</strong>：Context 在 40% 时重置优于 80% 压缩</li>
+<li><strong>专业化分工</strong>：Planner-Generator-Evaluator 三角色分离提升可观测性</li>
+<li><strong>Artifacts 优于 Dumping</strong>：大数据作为命名对象而非直接内容</li>
+<li><strong>Pre-Compute 引擎</strong>：Meta 实证减少 40% tool calls</li>
+<li><strong>确定性 + 修复指引</strong>：Hook 错误讯息注入修复指令到 context</li>
+</ol>
+<h3>建议实施顺序</h3>
+<ol>
+<li><strong>立即启动</strong>（本周）：</li>
+</ol>
+<p>   - Tier 2 Heuristic 层（快速胜利，成本 -70%）</p>
+<p>   - Enhanced Hook Remediation（减少 iteration）</p>
+<ol>
+<li><strong>第一季</strong>（3 个月）：</li>
+</ol>
+<p>   - Good Examples + Context Reset + Planner 独立</p>
+<p>   - Pre-Compute Context Engine（Meta 模式）</p>
+<p>   - Artifact Service（Google 模式）</p>
+<ol>
+<li><strong>第二季</strong>（3-6 个月）：</li>
+</ol>
+<p>   - Meta-Tuner + Harness Dashboard + Network Isolation</p>
+<p>   - Code Impact Map</p>
+<ol>
+<li><strong>持续优化</strong>：</li>
+</ol>
+<p>   - 每月审查 SRS 指标</p>
+<p>   - 季度更新 Good Examples</p>
+<p>   - 每周监控 Dead Guards</p>
+<h3>2026 核心转变</h3>
+<blockquote><strong>工程师的角色不再是写程式，而是设计让 AI 可靠写程式的系统。</strong></blockquote>
+<p>Harness Engineering 是这个转变的核心实践。</p>
+<h3>v4.0 新增价值</h3>
+<p>本版本整合 2026 年产业界三大巨头（Google、Meta、Anthropic）的最新实践：</p>
+<ul>
+<li><strong>Google</strong>：Artifacts 模式、Context Engineering 架构</li>
+<li><strong>Meta</strong>：Pre-Compute Engine、40% tool calls 减少实证</li>
+<li><strong>Anthropic</strong>：40% Context Reset、三 Agent 架构</li>
+</ul>
+<p>提供更具體的实作指引、Schema 设计与成功指标。</p>
+<p>---</p>
+<p><strong>文件版本控制</strong>：</p>
+<ul>
+<li>v1.0 (2026-03-29)：初版设计（B0-B3 批次）</li>
+<li>v2.0 (2026-04-20)：深度优化方案（五大策略）</li>
+<li>v3.0 (2026-04-22)：整合 2026 产业界最新实践</li>
+<li>v4.0 (2026-04-22)：深化 Google/Meta/Anthropic 实践，补充具體实作与 ADR</li>
+</ul>
+<p><strong>下一步骤</strong>：</p>
+<ol>
+<li>团队评审本研究报告（预计 1 周）</li>
+<li>选择优先实施项（建议：Phase A 四项快速胜利）</li>
+<li>建立专案分支 <code>feat/harness-v4-optimization</code></li>
+<li>开始 Phase A 实作与验证</li>
+<li>每月追踪 SRS 指标变化</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Harness Engineering 2026：AI Agent 系統優化完整指南">
+  <title>Harness Engineering 2026：AI Agent 系統優化完整指南 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Harness Engineering 2026：AI Agent 系統優化完整指南</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Harness Engineering</span><span class="tag">AI Agent</span><span class="tag">系統優化</span><span class="tag">約束演化</span><span class="tag">品質門檻</span><span class="tag">2026</span><span class="tag">架構決策</span><span class="tag">生產可靠性</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Harness Engineering 2026：AI Agent 系統優化完整指南</h1>
+<h2>核心定義</h2>
+<p><strong>Agent = Model + Harness</strong></p>
+<ul>
+<li><strong>Model</strong>：基礎大型語言模型（GPT-4、Claude）</li>
+<li><strong>Harness</strong>：圍繞模型的所有約束、工具、回饋迴圈、文件和驗證系統</li>
+</ul>
+<blockquote>工程師職責從「直接寫程式碼」轉變為「設計讓 AI 可靠寫程式碼的環境」。</blockquote>
+<p>---</p>
+<h2>三大核心洞見（2026-04-22）</h2>
+<h3>洞見 1：Autoresearch + Harness = Hill-Climbing Engine</h3>
+<p><strong>來源</strong>：Harvey Legal Agents 實驗</p>
+<p><strong>機制</strong>：</p>
+<pre><code>
+Agent 嘗試任務 → LLM 依 rubric 評分 → Coding agent 分析失敗叢聚
+→ 形成改進假設 → 修改系統組件 → 重新執行 → 循環
+</code></pre>
+<p><strong>實證結果</strong>：</p>
+<ul>
+<li>12 個複雜法律任務</li>
+<li><strong>平均成功率：40.8% → 87.7%</strong>（+115% 相對提升）</li>
+<li><strong>5 個任務初始 2-7%</strong> → <strong>最終 7 個任務 >90%</strong>（1 個達 100%）</li>
+</ul>
+<p><strong>關鍵引言</strong>：</p>
+<blockquote>"When the rubric is high quality, the agent can hill-climb surprisingly far."</blockquote>
+<p>---</p>
+<h3>洞見 2：Meta-Harness — 自動化優於手工</h3>
+<p><strong>來源</strong>：Meta-Harness 論文（Stanford）</p>
+<p><strong>技術架構</strong>：</p>
+<ul>
+<li>Coding Agent (Claude Code) 訪問完整歷史</li>
+<li>用 grep/cat 選擇性檢查（非一次性載入全部）</li>
+<li>偵測長期失敗 pattern</li>
+<li>生成新 Harness → 評估 → Iteration（40 次達收斂）</li>
+</ul>
+<p><strong>性能數據</strong>：</p>
+<p>| 任務 | 指標 | Meta-Harness | 手工最佳 | 改進 |</p>
+<p>|------|------|-------------|---------|------|</p>
+<p>| Text Classification | Accuracy | ACE +7.7 pp | - | +7.7% |</p>
+<p>| | Context Tokens | 11.4K | 50.8K | <strong>-77%</strong> |</p>
+<p>| TerminalBench-2 (Opus 4.6) | Pass Rate | 76.4% | 74.7% | <strong>排名 #2</strong> |</p>
+<p>| TerminalBench-2 (Haiku 4.5) | Pass Rate | 37.6% | - | <strong>排名 #1</strong> |</p>
+<p><strong>與現有方法對比</strong>：</p>
+<ul>
+<li>TextGrad/OPRO：0.002-0.026M tokens/iteration</li>
+<li><strong>Meta-Harness：~10M tokens/iteration</strong>（多 <strong>1000 倍</strong>診斷資訊）</li>
+</ul>
+<p>---</p>
+<h3>洞見 3：Context 排名比填充重要 10 倍</h3>
+<p><strong>來源</strong>：Shaped.ai Context Window 優化</p>
+<p><strong>核心物理約束</strong>：</p>
+<blockquote>"Attention cost scales O(n²) with context length"</blockquote>
+<p><strong>量化對比</strong>：</p>
+<p>| 策略 | Tokens/Query | 成本/月（10K 查詢/日） | 品質 |</p>
+<p>|------|-------------|---------------------|------|</p>
+<p>| Naive RAG（200 chunks） | 50,000 | <strong>$48,000</strong> | 中 |</p>
+<p>| Shaped 排名（10 結果） | 2,500 | <strong>$4,500</strong> | <strong>高</strong> |</p>
+<p>| 改進 | <strong>-95%</strong> | <strong>-91%</strong> | <strong>+20%</strong> |</p>
+<p><strong>為什麼 Vector Similarity 失敗？</strong>：</p>
+<blockquote>"Cosine similarity measures distance in embedding space. It does not measure usefulness."</blockquote>
+<p><strong>正確做法：多檢索器管線（6 層）</strong>：</p>
+<ol>
+<li>Vector search（語義）</li>
+<li>Lexical search（關鍵字）</li>
+<li>Collaborative filtering（用戶行為）</li>
+<li>Trending signals（實時熱度）</li>
+<li>ML scoring ensemble（排名模型）</li>
+<li>Diversity reordering（多樣性）</li>
+</ol>
+<p><strong>結果</strong>：從 10,000+ 候選中選出 10 個相關結果，<strong><50ms</strong></p>
+<p>---</p>
+<h2>雙重控制機制</h2>
+<h3>Guides（前饋控制）</h3>
+<ul>
+<li><strong>定義</strong>：預先引導 Agent 行為</li>
+<li><strong>實現</strong>：文件、規則、結構強制</li>
+<li><strong>案例</strong>：Red Hat Repository Impact Map 使用 LSP/MCP 掃描程式碼庫作為單一真相來源</li>
+</ul>
+<h3>Sensors（反饋控制）</h3>
+<ul>
+<li><strong>定義</strong>：觀察輸出並啟用自我修正</li>
+<li><strong>實現</strong>：自訂 linter 訊息包含修正指令</li>
+<li><strong>效果</strong>：LangChain 實驗中 Terminal Bench 分數從 52.8% 提升至 <strong>66.5%</strong>（無需更換模型）</li>
+</ul>
+<p>---</p>
+<h2>約束演化管線（六步驟）</h2>
+<ol>
+<li><strong>強制函數</strong>：採用「零人工程式碼」約束</li>
+<li><strong>宣告式意圖</strong>：高層級規格，非低層級指令</li>
+<li><strong>全面追蹤</strong>：每個 Agent 動作可追溯與失敗分析</li>
+<li><strong>編碼修正</strong>：將修正轉為可重用系統約束</li>
+<li><strong>混合驗證</strong>：交替使用規則與 LLM 驗證以平衡速度/準確度</li>
+<li><strong>定期重構</strong>：排程重構 Agent 防止長期漂移累積</li>
+</ol>
+<p>---</p>
+<h2>八項深化優化</h2>
+<h3>優化 H：Autoresearch 自動化改進迴圈</h3>
+<p><strong>實施路徑</strong>：</p>
+<ul>
+<li><strong>Phase 1</strong>（2 週）：建立高品質 rubrics（35 個任務各 5-10 維度）</li>
+<li><strong>Phase 2</strong>（3 週）：Autoresearch Engine（失敗叢聚分析 + 假設形成）</li>
+<li><strong>Phase 3</strong>（持續）：每週六自動執行，發現 P0 假設自動通知</li>
+</ul>
+<p><strong>預期收益</strong>：</p>
+<ul>
+<li>Task 成功率：75% → 90%（3 個月內）</li>
+<li>人工改進工作量：-60%</li>
+</ul>
+<p>---</p>
+<h3>優化 I：Context Window 智能排名</h3>
+<p><strong>實施步驟</strong>：</p>
+<ol>
+<li>用戶行為追蹤（kb_feedback 欄位）</li>
+<li>ML 排名模型訓練（LightGBM）</li>
+<li>整合進 KB API（top-5 模式）</li>
+</ol>
+<p><strong>預期收益</strong>：</p>
+<ul>
+<li>Context tokens：-60%</li>
+<li>查詢品質：+15-25%</li>
+</ul>
+<p>---</p>
+<h3>優化 J：Embedded Rubrics（分數嵌入錯誤訊息）</h3>
+<p><strong>範例</strong>：</p>
+<pre><code>
+❌ Error: frequency-limits.yaml missing 'daily_limit'
+
+📊 Rubric Impact:
+- 完整性：-2 分
+- 當前總分：6/10（警戒線：7/10）
+
+💡 Fix（預期改進 +3 分）:
+1. Open config/frequency-limits.yaml
+2. Add: daily_limit: 6
+3. Run: validate_config.py
+</code></pre>
+<p>---</p>
+<h3>優化 K：Harvey-Style Legal Rubrics</h3>
+<p><strong>Tech Research Rubric 範例</strong>（總分 10.0）：</p>
+<p>| 維度 | 權重 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| 來源品質 | 25% | ≥3 個一手來源（論文/官方文檔/GitHub）= 5 分 |</p>
+<p>| 三角佐證 | 30% | ≥3 個獨立來源佐證核心論點 = 5 分 |</p>
+<p>| 實用性 | 20% | 程式碼範例 + 部署指南 + 常見問題 = 5 分 |</p>
+<p>| 完整性 | 15% | 涵蓋：定義/原理/實作/優缺點/適用場景/替代方案 = 5 分 |</p>
+<p>| 結構品質 | 10% | 標題清晰/表格輔助/程式碼格式化/引用完整 = 5 分 |</p>
+<p><strong>品質門檻</strong>：</p>
+<ul>
+<li>≥8.0：優秀，直接發布</li>
+<li>≥7.0：良好，Minor 修訂後發布</li>
+<li>≥6.0：及格，需要改進特定維度</li>
+<li><6.0：不及格，重新研究或放棄</li>
+</ul>
+<p>---</p>
+<h3>優化 L：Diagnostic Filesystem</h3>
+<p><strong>目錄結構</strong>：</p>
+<pre><code>
+data/meta_harness/
+├── harnesses/      # 所有歷史版本
+├── traces/         # 完整執行軌跡
+├── scores/         # 評分歷史
+└── experiments/    # 實驗記錄
+</code></pre>
+<p>---</p>
+<h3>優化 M：Real-Time Behavioral Signals</h3>
+<p><strong>功能</strong>：</p>
+<ul>
+<li>即時互動追蹤</li>
+<li>Trending 計算（30 分鐘窗口）</li>
+<li>Similar-user preference</li>
+</ul>
+<p><strong>預期收益</strong>：排名準確度 +10-15%</p>
+<p>---</p>
+<h3>優化 N：Diversity Reordering</h3>
+<p><strong>演算法</strong>：MMR（Maximal Marginal Relevance）</p>
+<p><strong>驗收標準</strong>：</p>
+<ul>
+<li>Top-5 筆記 cosine similarity < 0.85</li>
+<li>主題覆蓋度：≥3 個不同子主題</li>
+</ul>
+<p>---</p>
+<h3>優化 O：Harness Versioning + A/B Testing</h3>
+<p><strong>功能</strong>：</p>
+<ul>
+<li>版本追蹤配置</li>
+<li>A/B 測試框架</li>
+<li>自動回歸測試</li>
+</ul>
+<p>---</p>
+<h2>實際生產案例</h2>
+<h3>Harvey Legal Agents</h3>
+<ul>
+<li><strong>成果</strong>：40.8% → 87.7%（10 週完成）</li>
+<li><strong>關鍵</strong>：高品質 Rubrics + Autoresearch 迴圈</li>
+<li><strong>可複製性</strong>：✅ 已有基礎設施可支持</li>
+</ul>
+<h3>Meta-Harness TerminalBench-2</h3>
+<ul>
+<li><strong>成果</strong>：TerminalBench-2 Opus 4.6 排名 #2（76.4%），Haiku 4.5 排名 #1（37.6%）</li>
+<li><strong>關鍵</strong>：10M tokens/iteration 診斷資訊</li>
+<li><strong>跨模型遷移</strong>：Opus → Haiku 仍有效</li>
+</ul>
+<h3>Shaped.ai Context 優化</h3>
+<ul>
+<li><strong>成果</strong>：10x 成本降低（$48k → $4.5k/月）</li>
+<li><strong>關鍵</strong>：Context 排名 > Vector Similarity</li>
+<li><strong>洞察</strong>：實時信號 > 靜態 embedding</li>
+</ul>
+<h3>OpenAI Codex（2026）</h3>
+<ul>
+<li><strong>規模</strong>：100萬行+ 程式碼</li>
+<li><strong>人工行數</strong>：<strong>零行</strong></li>
+<li><strong>工程師角色</strong>：設計系統而非寫程式碼</li>
+</ul>
+<h3>Stripe Minions</h3>
+<ul>
+<li><strong>產能</strong>：每週自動合併 <strong>1300+ PRs</strong></li>
+<li><strong>人工監督</strong>：零</li>
+<li><strong>架構</strong>：分離確定性節點與 agentic 節點</li>
+</ul>
+<h3>LangChain Terminal Bench</h3>
+<ul>
+<li><strong>成果</strong>：52.8% → 66.5%</li>
+<li><strong>關鍵</strong>：<strong>無需更換模型</strong>，純靠 Harness 優化</li>
+</ul>
+<p>---</p>
+<h2>Daily-Digest-Prompt 系統優化建議（六項）</h2>
+<h3>P0-A：Fitness Functions 量化驗證</h3>
+<p><strong>現狀</strong>：</p>
+<ul>
+<li>✅ 已有 <code>config/benchmark.yaml</code> fitness_functions 段落</li>
+<li>⚠️ <strong>缺口</strong>：fitness 驗證未自動化，依賴人工審查</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>[ ] 擴展 <code>tools/validate_adr.py</code> 加入 fitness 自動驗證</li>
+<li>[ ] 加入 Pre-commit hook 階段驗證（快速、確定性）</li>
+<li>[ ] 加入每日 system-audit 段落（連續趨勢）</li>
+</ul>
+<p><strong>預期影響</strong>：高（防止架構侵蝕）  </p>
+<p><strong>工作量</strong>：中（1-2天）</p>
+<p>---</p>
+<h3>P0-B：熵監控自動化</h3>
+<p><strong>現狀</strong>：</p>
+<ul>
+<li>✅ 已有 <code>tools/entropy_score.py</code> 計算熵分數</li>
+<li>✅ 已有 <code>skills/entropy-health-monitor/SKILL.md</code></li>
+<li>⚠️ <strong>缺口</strong>：熵趨勢無歷史追蹤，無自動觸發減熵處方</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>[ ] 建立 <code>state/entropy-trend.json</code> 記錄每日熵分數</li>
+<li>[ ] 每日 <code>todoist-auto-entropy_health</code> 任務檢查趨勢</li>
+</ul>
+<p>  - 連續3天上升 → 標記 warning</p>
+<p>  - 超過 critical → 觸發 self-heal 減熵處方</p>
+<p><strong>預期影響</strong>：高（可持續性）  </p>
+<p><strong>工作量</strong>：中（1-2天）</p>
+<p>---</p>
+<h3>P1-A：約束演化管線強化</h3>
+<p><strong>現狀</strong>：</p>
+<ul>
+<li>✅ 已有 <code>tools/constraint_evolve.py</code>（proposed→accepted→embedded）</li>
+<li>✅ 已有 <code>config/hook-rules.yaml</code> 約束定義</li>
+<li>⚠️ <strong>缺口</strong>：缺少自動從失敗日誌提取約束的管線</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>[ ] 實施每日自動任務 <code>todoist-auto-constraint_extraction</code></li>
+</ul>
+<p>  - 掃描最近7天失敗記錄</p>
+<p>  - 使用 LLM 識別重複失敗模式</p>
+<p>  - 自動生成 constraint_proposal 條目</p>
+<p>  - 閾值：同類失敗 ≥3 次觸發提案</p>
+<p><strong>預期影響</strong>：中高（減少人工提案）  </p>
+<p><strong>工作量</strong>：高（3-4天）</p>
+<p>---</p>
+<h3>P1-B：Agent-Reviewing-Agent 機制</h3>
+<p><strong>現狀</strong>：</p>
+<ul>
+<li>❌ <strong>缺失</strong>：Agent 輸出無自動化語義驗證</li>
+<li>✅ 僅有確定性驗證（validate_results.py、validate_config.py）</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>[ ] 實施 Post-integration Inferential 驗證</li>
+<li>[ ] 新增 <code>tools/agent_output_reviewer.py</code>（使用 Groq 快速推理）</li>
+<li>[ ] Phase 3 組裝前，對 Phase 2 結果 JSON 的 <code>summary</code> / <code>key_findings</code> 欄位執行語義檢查</li>
+<li>[ ] 驗證項目：</li>
+</ul>
+<p>  - [ ] 是否偏離任務目標</p>
+<p>  - [ ] 是否包含對話性語句</p>
+<p>  - [ ] 是否存在邏輯矛盾</p>
+<p><strong>預期影響</strong>：中（提升輸出品質）  </p>
+<p><strong>工作量</strong>：中（2-3天）</p>
+<p>---</p>
+<h3>P2-A：漂移偵測與自動清理</h3>
+<p><strong>現狀</strong>：</p>
+<ul>
+<li>✅ 已有 <code>tools/cleanup_stale_temp.py</code> 清理 .temp/</li>
+<li>⚠️ <strong>缺口</strong>：無文件漂移偵測（SKILL.md、prompt 模板版本與實際行為不一致）</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>[ ] 建立 <code>tools/drift_detector.py</code></li>
+<li>[ ] 掃描最近30天執行日誌</li>
+<li>[ ] 偵測：</li>
+</ul>
+<p>  - Skill 被呼叫但未依 SKILL.md 步驟執行（步驟跳過率 >20%）</p>
+<p>  - Prompt 模板版本號未隨修改更新</p>
+<p>  - Config YAML 參數被 hardcode 覆寫</p>
+<ul>
+<li>[ ] 週報輸出到 <code>docs/drift-report.md</code></li>
+</ul>
+<p><strong>預期影響</strong>：中（長期健康）  </p>
+<p><strong>工作量</strong>：高（3-5天）</p>
+<p>---</p>
+<h3>P2-B：生命週期腳手架標準化</h3>
+<p><strong>現狀</strong>：</p>
+<ul>
+<li>✅ 已有 CI/CD（GitHub Actions）</li>
+<li>⚠️ <strong>缺口</strong>：新 Skill 建立無腳手架工具</li>
+</ul>
+<p><strong>建議行動</strong>：</p>
+<ul>
+<li>[ ] 增強 <code>skills/skill-forge/SKILL.md</code> 自動生成</li>
+<li>[ ] 模板包含：</li>
+</ul>
+<p>  - SKILL.md frontmatter（name、version、triggers）</p>
+<p>  - 對應測試骨架 <code>tests/skills/test_<name>.py</code></p>
+<p>  - 最小 DI 配置段落</p>
+<p><strong>預期影響</strong>：低（便利性）  </p>
+<p><strong>工作量</strong>：低（1天）</p>
+<p>---</p>
+<h2>實施路徑（四階段 v2.0）</h2>
+<h3>Phase A：快速勝利（2 週）</h3>
+<ul>
+<li>[ ] A1：建立 3 個高品質 Rubrics</li>
+<li>[ ] A2：Embedded Rubrics</li>
+<li>[ ] A3：用戶行為追蹤</li>
+</ul>
+<p><strong>Go/No-Go 條件</strong>：</p>
+<ul>
+<li>[ ] 至少 1 個高品質 Rubric 完成並驗證</li>
+<li>[ ] Embedded Rubrics 在 3 個模板中運作</li>
+<li>[ ] 用戶行為追蹤收集到至少 100 筆資料</li>
+</ul>
+<h3>Phase B：基礎建設（4 週）</h3>
+<ul>
+<li>[ ] B1：Diagnostic Filesystem</li>
+<li>[ ] B2：Autoresearch Engine</li>
+<li>[ ] B3：ML 排名模型</li>
+</ul>
+<p><strong>Go/No-Go 條件</strong>：</p>
+<ul>
+<li>[ ] Autoresearch Engine 自動執行無錯誤</li>
+<li>[ ] ML 排名模型 AUC ≥ 0.75</li>
+<li>[ ] Diagnostic Filesystem 保留至少 30 天歷史</li>
+</ul>
+<h3>Phase C：深度優化（6 週）</h3>
+<ul>
+<li>[ ] C1：Meta-Harness Proposer</li>
+<li>[ ] C2：Real-Time Signals</li>
+<li>[ ] C3：Diversity Reordering</li>
+</ul>
+<h3>Phase D：持續演化（ongoing）</h3>
+<ul>
+<li>每週 Autoresearch</li>
+<li>每月 Meta-Harness</li>
+<li>每季 Harness Review</li>
+</ul>
+<p>---</p>
+<h2>關鍵指標</h2>
+<p>| 指標 | 當前 | 目標（3 個月） |</p>
+<p>|------|------|--------------|</p>
+<p>| Task 成功率 | 75% | <strong>92%</strong> |</p>
+<p>| Rubric 平均分 | N/A | <strong>8.2/10</strong> |</p>
+<p>| KB Context tokens | 12,000 | <strong>5,000</strong> |</p>
+<p>| 自修復成功率 | 40% | <strong>75%</strong> |</p>
+<p>---</p>
+<h2>核心原則</h2>
+<h3>約束解決空間原則</h3>
+<blockquote><strong>「約束越多，輸出越可預測。」</strong></blockquote>
+<ul>
+<li><strong>未約束模型</strong>：浪費 token 探索死胡同路徑</li>
+<li><strong>良好設計 Harness</strong>：開闢窄而明確的成功路徑</li>
+</ul>
+<h3>人類責任轉移</h3>
+<blockquote><strong>「編碼 Agent 沒有社交問責、沒有對300行函數的審美厭惡、沒有『我們不這樣做』的直覺。」</strong></blockquote>
+<p>有效 Harness 將隱性開發者經驗外部化為明確、可測量的控制。</p>
+<p>人類責任從「防止所有錯誤」轉為「將輸入導向最重要之處」。</p>
+<p>---</p>
+<h2>參考文獻</h2>
+<ol>
+<li><a href="https://www.artificiallawyer.com/2026/04/07/harvey-drives-legal-agent-learning-via-harness-engineering/">Harvey Legal Agents - Artificial Lawyer</a></li>
+<li><a href="https://arxiv.org/html/2603.28052v1">Meta-Harness Paper - arXiv</a></li>
+<li><a href="https://www.shaped.ai/blog/context-window-optimization-why-ranking-not-stuffing-is-the-scaling-law-for-agents">Shaped.ai Context Optimization</a></li>
+<li><a href="https://docs.bswen.com/blog/2026-04-21-harness-beats-model-upgrade/">BSWEN Harness Beats Model</a></li>
+<li><a href="https://martinfowler.com/articles/harness-engineering.html">Martin Fowler Harness Engineering</a></li>
+<li><a href="https://www.nxcode.io/resources/news/what-is-harness-engineering-complete-guide-2026">NxCode Complete Guide</a></li>
+<li><a href="https://www.agent-engineering.dev/article/harness-engineering-in-2026-the-discipline-that-makes-ai-agents-production-ready">Agent-Engineering.dev Guide</a></li>
+<li><a href="https://developers.redhat.com/articles/2026/04/07/harness-engineering-structured-workflows-ai-assisted-development">Red Hat Structured Workflows</a></li>
+<li><a href="https://openai.com/index/harness-engineering/">OpenAI Harness Engineering</a></li>
+<li><a href="https://galileo.ai/blog/agent-evaluation-framework-metrics-rubrics-benchmarks">Galileo AI Evaluation Framework</a></li>
+<li><a href="https://www.braintrust.dev/articles/best-ai-agent-observability-tools-2026">Braintrust AI Observability Tools</a></li>
+<li><a href="https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents">Augment Code Harness Engineering</a></li>
+</ol>
+<p>---</p>
+<h2>關鍵數據摘要</h2>
+<ul>
+<li><strong>Harvey</strong>：40.8% → 87.7%（+115% 提升）</li>
+<li><strong>Meta-Harness</strong>：Context Tokens -77%（11.4K vs 50.8K）</li>
+<li><strong>Shaped.ai</strong>：成本 -91%（$48k → $4.5k/月），品質 +20%</li>
+<li><strong>LangChain</strong>：Terminal Bench 52.8% → 66.5%（無需換模型）</li>
+<li><strong>Stripe</strong>：1300+ PRs/週，零人工監督</li>
+<li><strong>OpenAI</strong>：100萬行+ 零人工程式碼</li>
+</ul>
+<p>---</p>
+<h2>標籤</h2>
+<p>Harness Engineering, AI Agent, 約束演化, Rubric 評分, Context 排名, Meta-Harness, Autoresearch, 熵監控, 品質門檻, 系統優化, 2026, Harvey, Shaped.ai, Stanford, OpenAI, 生產可靠性, Agent 工程, 架構決策, Fitness Functions</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

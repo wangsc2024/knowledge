@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="視覺豐富文件 RAG 的應用實作：Parsing-free 檢索、頁面級證據與引用對齊 深度研究報告">
+  <title>視覺豐富文件 RAG 的應用實作：Parsing-free 檢索、頁面級證據與引用對齊 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>視覺豐富文件 RAG 的應用實作：Parsing-free 檢索、頁面級證據與引用對齊 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">視覺豐富文件 RAG 的應用實作：Parsing-free 檢索、頁面級證據與引用對齊</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>視覺豐富文件 RAG 的應用實作：Parsing-free 檢索、頁面級證據與引用對齊：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>視覺豐富文件 RAG 的核心難題，不在於「能不能把 PDF 餵給模型」，而在於如何在保留版面、圖表、頁面定位與可驗證引用的前提下，仍把成本與維運複雜度控制在可接受範圍。現有來源顯示，主流路線已分成三類。第一類是 layout-aware parsing，先把標題、表格、清單與層級結構抽出，再生成較高保真的 chunks；Google Document AI Layout Parser 是代表例子 [來源：Process documents with Layout Parser, 2026]。第二類是 parsing-free 視覺檢索，直接把頁面當影像嵌入與檢索，VisRAG 即主張這能避免 OCR 與 parsing 的資訊損失 [來源：OpenBMB/VisRAG, 2025]。第三類是混合式實作，把抽取文字、頁面影像與檢索規劃一起使用；OpenAI PDF file inputs 與 Azure agentic retrieval 都朝這個方向演進 [來源：File inputs, 2026；Agentic retrieval in Azure AI Search, 2026]。</p>
+<p>真正可落地的共識有三個。其一，rich document RAG 不能只依賴純文字 chunk，否則表格、圖示與跨欄版面會被壓平 [來源：File inputs, 2026；Process documents with Layout Parser, 2026；OpenBMB/VisRAG, 2025]。其二，可驗證答案需要明確的來源定位能力；Anthropic 已把 PDF citations 做成頁碼範圍輸出，Azure answer synthesis 也把 citation-backed answer 產品化 [來源：Citations - Claude API Docs, 2026；Use answer synthesis for citation-backed responses in Azure AI Search, 2026]。其三，複雜問題常需要多子查詢並行與結果重排，單查詢難以穩定涵蓋跨頁、跨圖表問題 [來源：Agentic retrieval in Azure AI Search, 2026；Use answer synthesis for citation-backed responses in Azure AI Search, 2026；Process documents with Layout Parser, 2026]。</p>
+<p>對 daily-digest-prompt 或個人知識庫而言，最佳方案不是單押某一種處理法，而是建立「router + evidence map + citation layer」三段式混合架構。可抽取文字且版面穩定的文件走 layout-aware parser；表格密集、掃描頁、投影片或圖像主導頁面改走 parsing-free 檢索；最終答案層則一律輸出來源對齊資料，至少保留頁碼、區塊索引或可回映的 ref_id。這樣做的價值，不只是提高答對率，更是讓系統能回放、稽核與逐步優化。</p>
+<h2>研究背景與動機</h2>
+<p>傳統 RAG 大多假設知識來源是線性文字，因此只要切 chunk、做 embedding、取 top-k 即可。但真實文件知識庫裡，財報、簡報、政策文件、研究論文、產品規格書與掃描 PDF 常含有表格、註解、雙欄排版、頁首頁尾與圖表。這些資訊在單純 OCR 後往往失去順序與語義邊界，造成檢索結果看似有字，實際卻缺少可回答問題的結構。</p>
+<p>OpenAI 在 PDF file inputs 文件中明示，系統會同時把抽取文字與每頁影像放入模型上下文，原因正是圖表與版面資訊可能不在純文字裡 [來源：File inputs, 2026]。Google 的 Layout Parser 則從前處理角度出發，強調 chunk 應保留 layout hierarchy 與 contextual information，避免後續 retrieval 僅看到被壓平的字串 [來源：Process documents with Layout Parser, 2026]。另一方面，VisRAG 進一步質疑「先 parsing 再 retrieval」本身是否就是資訊損失來源，於是改採頁面影像直接嵌入與檢索 [來源：OpenBMB/VisRAG, 2025]。這些訊號共同指向一件事：文件 RAG 已從 text pipeline 問題，轉成 document representation 問題。</p>
+<h2>核心技術解析</h2>
+<p>第一條主線是文件表示。Layout-aware parsing 的優勢，是能把標題、段落、表格、清單與頁面結構轉成相對可控的 metadata 與 chunks，較容易與既有向量資料庫、重排器與引用 UI 整合 [來源：Process documents with Layout Parser, 2026]。缺點是 parsing 品質高度受文件樣式影響，一旦遇到掃描頁、複雜表格或跨頁圖示，容易失真。Parsing-free 路線則直接避免這個問題。VisRAG 主張把文件直接當影像嵌入，可最大化保留原始頁面資訊，特別適合圖表、投影片與複雜版面 [來源：OpenBMB/VisRAG, 2025]。但這也意味著基礎設施、索引成本與推理路徑較重，且生態成熟度仍落後於 parser-based 工具鏈。這個對比有 3 個以上來源支持，可標為已驗證。</p>
+<p>第二條主線是證據對齊與引用。Anthropic 的 citations 文件已把 PDF、plain text 與 custom content 的引用格式明確區分；對 PDF 會輸出 1-indexed 頁碼範圍，對 custom content 則回傳 block index [來源：Citations - Claude API Docs, 2026]。Azure answer synthesis 也能回傳 citation-backed responses，並以 ref_id 型式讓答案對齊來源 [來源：Use answer synthesis for citation-backed responses in Azure AI Search, 2026]。這代表產品層已不再接受「只給答案、不給證據」的黑箱 RAG。對實作端來說，citation layer 應視為架構一級公民，而非最後再補的 UI 細節。這個主張可由 Anthropic、Azure 與 agentic retrieval 文件交叉支持，標為已驗證。</p>
+<p>第三條主線是查詢規劃。Azure agentic retrieval 說明，複雜問題會先被分解成多個 focused subqueries，平行執行後再做 semantic reranking 與結果合併 [來源：Agentic retrieval in Azure AI Search, 2026]。這對視覺豐富文件特別重要，因為使用者問題往往同時涉及定義、圖表數據、附表例外與跨頁條款。若只做單查詢，很容易只召回其中一段。多查詢並行因此不是豪華功能，而是提升召回率與引用完整度的必要設計。這個主張至少得到 Azure 兩份文件與 Google chunking 理路支持，標為已驗證。</p>
+<p>第四條主線是成本邊界。OpenAI 明示 PDF 輸入會把抽取文字與頁面影像都算入上下文，token 成本因此顯著提高 [來源：File inputs, 2026]。Azure 也明確指出 answer synthesis 會增加 Azure OpenAI token 費用 [來源：Use answer synthesis for citation-backed responses in Azure AI Search, 2026]。因此，把整份文件直接丟進模型，適合小型單次問答或高價值分析，不適合作為大型知識庫預設路徑。更合理的實作，是先用 parser 或視覺 retriever 篩出少量候選頁，再把頁面影像與摘錄文字餵給生成模型。這個洞見可由 OpenAI、Azure 與 VisRAG 的架構選擇共同支持，標為已驗證。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>混合式 router 是最穩健方案：可抽取文字且版面規律的文件走 layout-aware parsing；視覺訊號密集頁面再切換到頁面影像檢索。狀態：✅。</li>
+<li>若目標是可稽核知識庫，citation 必須納入資料模型。至少需要 answer_span 到 source_ref 再到 page/block 的映射。狀態：✅。</li>
+<li>多查詢並行對 rich document RAG 特別重要。它不只是提升召回率，也能把圖表、正文與附錄的來源一起帶回。狀態：✅。</li>
+<li>OpenAI 的 PDF 雙路上下文適合做最後一哩推理，但不應取代外部檢索層。狀態：✅。</li>
+<li>產品化趨勢已從檢索 chunk 走向 citation-backed answer。狀態：✅。</li>
+<li>純掃描 PDF 的最佳路線仍未完全收斂；無可抽取文字時，官方 citation 能力仍有缺口。狀態：⚠️。</li>
+</ol>
+<h2>實務應用建議</h2>
+<ol>
+<li>在文件 ingestion 階段建立 document_router，先判斷是否可抽取文字、表格比例、影像密度與頁面結構，再決定走 parser-based 或 parsing-free path。</li>
+<li>在索引層統一保留 page_number、section_path、block_id、rendered_image_ref。即使生成模型暫時不用，後續 citation、debug 與重新排序都會依賴這些欄位。</li>
+<li>在回答層強制輸出 evidence map。若使用 Azure 或 Anthropic 官方能力，可直接沿用其 citation 格式；若自行組裝，至少要輸出可回跳來源的頁碼與片段鍵。</li>
+<li>把 OpenAI PDF 直餵模式留給高價值、低頻、人工互動式任務；批量知識庫問答仍以外部檢索縮小上下文為主，避免成本失控。</li>
+<li>對 daily-digest-prompt 可先做最小可行版：parser 產生 text+layout chunks，另存頁面截圖；檢索後把候選頁摘要與頁面圖一起交給支援 vision 的模型，再輸出 citations。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本主題與知識庫內既有的多模態推理、文件 ingestion 與 RAG 品質治理研究可直接串接。前一輪研究已指出，多模態 RAG 的瓶頸不在「塞更多上下文」，而在 cross-modal retrieval、reranking 與 evidence fusion。這次續研把焦點收斂到文件場景，補上最實用的一塊：如何在 rich document ingestion 與 answer grounding 之間建立可驗證的證據鏈。對本 repo 而言，這意味著未來的 KB 匯入流程不只要寫入 contentText，還應逐步擴充頁碼、來源區塊與可能的頁面影像參照。</p>
+<h2>未來展望</h2>
+<p>接下來最值得追蹤的，不是誰的文件問答 benchmark 再高幾分，而是三個工程層演進。第一，parser router 是否能自動學會何時切換到 parsing-free。第二，citation schema 是否會在各平台間逐漸收斂，降低跨供應商整合成本。第三，rich document RAG 的評估是否會從 answer correctness 進一步擴展到 evidence completeness、citation precision 與 page localization quality。若這三點成熟，文件 RAG 才會從「能回答」走到「能信任、能除錯、能維運」。</p>
+<h2>完整書目</h2>
+<ul>
+<li>OpenAI. (2026). File inputs. OpenAI Developers. https://developers.openai.com/api/docs/guides/file-inputs</li>
+<li>Anthropic. (2026). Citations - Claude API Docs. Anthropic. https://platform.claude.com/docs/en/build-with-claude/citations</li>
+<li>Google Cloud. (2026). Process documents with Layout Parser. Google Cloud Documentation. https://docs.cloud.google.com/document-ai/docs/layout-parse-chunk</li>
+<li>Microsoft. (2026). Agentic retrieval in Azure AI Search. Microsoft Learn. https://learn.microsoft.com/en-us/azure/search/agentic-retrieval-overview</li>
+<li>Microsoft. (2026). Use answer synthesis for citation-backed responses in Azure AI Search. Microsoft Learn. https://learn.microsoft.com/en-us/azure/search/agentic-retrieval-how-to-answer-synthesis</li>
+<li>OpenBMB. (2025). VisRAG 2.0 / OpenBMB/VisRAG. GitHub. https://github.com/OpenBMB/VisRAG</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

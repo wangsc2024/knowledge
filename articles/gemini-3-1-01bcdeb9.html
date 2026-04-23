@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gemini 3.1 多模態記憶整合深度研究報告">
+  <title>Gemini 3.1 多模態記憶整合深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Gemini 3.1 多模態記憶整合深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">Gemini 3.1</span><span class="tag">多模態記憶</span><span class="tag">Agent 架構</span><span class="tag">2026</span><span class="tag">研究報告</span><span class="tag">MCP</span><span class="tag">Embedding 2</span><span class="tag">Deep Research Max</span><span class="tag">Context Editing</span><span class="tag">Memory Tool</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Gemini 3.1 多模態記憶整合：Embedding 2、Deep Research Max 與長任務 Agent 記憶架構</h1>
+<p><strong>研究日期</strong>：2026-04-22</p>
+<p><strong>研究層級</strong>：Deep（階段 2-4）</p>
+<p><strong>來源數量</strong>：8（官方文件 6 篇、技術文章 1 篇、學術論文 1 篇）</p>
+<p>---</p>
+<h2>執行摘要</h2>
+<p>本研究揭示 2026 年 AI 長任務代理記憶架構的三大匯流：Google 的 <strong>Gemini Embedding 2 統一多模態向量空間</strong>（2026-03）成為 <strong>Deep Research Max</strong>（2026-04）的記憶基座，透過 MCP（Model Context Protocol）整合專業資料流與工具定義，將研究代理從 web searcher 升級為可導航知識庫的自主系統。Anthropic 的 <strong>context editing + memory tool</strong> 雙層架構實證 <strong>39% 複雜任務效能提升</strong>，透過 client-side file-based memory 與 server-side context editing 實現 <strong>just-in-time retrieval</strong>，保持 active context 專注於當前任務。OpenAI 的 <strong>Agents SDK sandbox harness</strong>（2026-04）引入 <strong>模型原生 harness</strong> 與 <strong>憑證-執行環境分離</strong>，為長任務 agent 建立安全邊界。三大廠商路線在「統一向量空間作為記憶層」達成共識（3 獨立來源佐證），但在持久化策略（client-side vs. embedding space vs. workspace manifest）與安全模式（ZDR vs. sandbox vs. MCP）呈現設計分歧。本研究對照 daily-digest-prompt 的 continuity/KB/RAG 流程，萃取可落地的多模態記憶模式，並量化效能基線：latency -70%、複雜任務 +39%、DeepSearchQA 93.3%。</p>
+<p>---</p>
+<h2>核心發現</h2>
+<h3>1. 統一多模態向量空間：記憶基座的共識 ✅</h3>
+<p>Gemini Embedding 2 是業界首個原生多模態 embedding 模型，將 Text（8192 tokens）、Image（6 張/請求）、Video（120 秒）、Audio、PDF 映射至單一 3072 維向量空間。IBM 技術文章將此機制歸類為「Multimodal RAG 最先進路徑」：文字查詢可直接檢索相關多模態資料。Nature Communications 論文的 Reminisce 系統實證此架構在資源受限行動裝置上的可行性。</p>
+<p>關鍵機制：Matryoshka Representation Learning（MRL）讓 Gemini Embedding 2 動態縮放維度（預設 3072，可降維平衡效能與儲存成本），為部分客戶降低 70% latency。</p>
+<h3>2. Just-in-time Context Retrieval：長任務記憶核心模式 ✅</h3>
+<p>Anthropic Memory tool 官方文件將此模式定義為「按需提取記憶而非前置載入全部資訊，保持 active context 專注於當前相關內容」。Context editing 文件補充理論基礎：「Context 是有限資源，無關內容會降低模型專注力」。Anthropic 實測 memory tool + context editing 組合達 39% 效能提升（複雜多步驟任務）。</p>
+<h3>3. 三大廠商記憶持久化策略分歧</h3>
+<ul>
+<li><strong>Anthropic 路線</strong>：Client-side file-based（開發者自控儲存，/memories 目錄），強調隱私與 ZDR</li>
+<li><strong>Google 路線</strong>：Unified embedding space（隱式持久化），強調無縫整合</li>
+<li><strong>OpenAI 路線</strong>：Workspace manifest（檔案掛載 + 雲端儲存整合），強調靈活性</li>
+</ul>
+<h2>實務應用建議</h2>
+<ol>
+<li><strong>Just-in-time Retrieval 模式</strong>：將 daily-digest-prompt 的 continuity 改為按需載入，Phase 0 只載最近 1 筆</li>
+<li><strong>Coarse-to-Fine 兩階段 KB 檢索</strong>：先 semantic topK=20（低成本）→ retrieve topK=5（高精度）</li>
+<li><strong>MCP-like Tool Registry</strong>：統一外部資料源定義（todoist/pingtung-news/KB）</li>
+<li><strong>Context Editing 機制</strong>：Phase 3 assemble 前清除過時 results（>10 → 保留 5）</li>
+<li><strong>多模態 KB 擴展</strong>：整合 Gemini Embedding 2，支援螢幕截圖/podcast 音訊檢索</li>
+</ol>
+<h2>量化效能基線</h2>
+<ul>
+<li>Gemini Embedding 2：latency -70%</li>
+<li>Anthropic memory tool + context editing：複雜任務 +39%</li>
+<li>Deep Research Max：DeepSearchQA 93.3%（原 66.1%）、HLE 54.6%（原 46.4%）</li>
+</ul>
+<h2>來源清單</h2>
+<ol>
+<li>Deep Research Max: a step change for autonomous research agents (Google, 2026-04-21)</li>
+<li>Gemini Embedding 2: Our first natively multimodal embedding model (Google, 2026-03-10)</li>
+<li>Context editing - Claude API Docs (Anthropic, 2026)</li>
+<li>Memory tool - Claude API Docs (Anthropic, 2026)</li>
+<li>The next evolution of the Agents SDK (OpenAI, 2026-04-15)</li>
+<li>What is Multimodal RAG? (IBM, 2026)</li>
+<li>Ubiquitous memory augmentation via mobile multimodal embedding system (Nature, 2026)</li>
+<li>Gemini 3.1 Pro: A smarter model for your most complex tasks (Google, 2026-02-19)</li>
+</ol>
+<p>完整報告含詳細技術解析、三角佐證、分歧點分析、未來展望與完整書目，見 .temp/gemini-multimodal-memory-report-20260422.md。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

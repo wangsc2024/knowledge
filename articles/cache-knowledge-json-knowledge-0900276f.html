@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="cache/knowledge.json 修復與 Knowledge API 快取策略優化">
+  <title>cache/knowledge.json 修復與 Knowledge API 快取策略優化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>cache/knowledge.json 修復與 Knowledge API 快取策略優化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">系統優化</span><span class="tag">快取策略</span><span class="tag">cache-knowledge-fix</span><span class="tag">P0-CRITICAL</span><span class="tag">系統成功率</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>cache/knowledge.json 修復與 Knowledge API 快取策略優化</h1>
+<p><strong>日期</strong>：2026-04-22</p>
+<p><strong>優先級</strong>：P0-CRITICAL</p>
+<p><strong>影響範圍</strong>：系統成功率（當前 74%，目標 ≥ 90%）</p>
+<h2>摘要</h2>
+<p>當前系統 cache/knowledge.json 檔案缺失，導致 760 次 Knowledge API 呼叫全部 miss，cache_hit_ratio=0%，嚴重影響系統成功率（74% vs. 90% 門檻）。根因分析顯示：(1) 快取檔案需手動初始化，缺乏自動生成機制；(2) 無健康監控與修復流程；(3) TTL 設定為 32h，但未配合檔案產生機制。修復策略包含三層：立即修復（初始化腳本）、中期強化（健康監控）、長期治理（自動恢復）。預期可將 cache_hit_ratio 從 0% 提升至 60%+，系統成功率提升至 85%+。</p>
+<h2>關鍵洞見</h2>
+<h3>1. 根因三角分析</h3>
+<p><strong>根因 A：快取檔案初始化缺口</strong></p>
+<ul>
+<li>發現：cache 目錄下無 knowledge.json，但 cache-policy.yaml 已定義 TTL=1920min</li>
+<li>證據：ls cache/ 輸出無 knowledge.json；system-insight 顯示 760 次全 miss</li>
+<li>影響：每次 knowledge-query API 呼叫都直接打知識庫，無快取保護</li>
+</ul>
+<p><strong>根因 B：缺乏快取健康監控</strong></p>
+<ul>
+<li>發現：system-insight 監控其他快取，但未監控 knowledge 快取健康</li>
+<li>證據：cache_sources_broken: ["knowledge"]，但未觸發自動修復</li>
+<li>影響：檔案缺失後長時間未被偵測，累積 760 次 miss</li>
+</ul>
+<p><strong>根因 C：初始化與 TTL 設定脫節</strong></p>
+<ul>
+<li>發現：cache-policy.yaml 設定 TTL 32h，假設檔案已存在，但無對應初始化機制</li>
+<li>證據：api-cache SKILL.md 描述「若檔案不存在 -> 直接呼叫 API」，未說明如何首次建檔</li>
+<li>影響：首次執行或檔案誤刪後無法自動恢復</li>
+</ul>
+<h2>建議行動</h2>
+<h3>立即行動（P0）</h3>
+<ol>
+<li>建立快取初始化腳本 tools/initialize_knowledge_cache.py</li>
+<li>執行初始化</li>
+<li>驗證檔案建立</li>
+</ol>
+<h3>中期強化（P1）</h3>
+<ol>
+<li>加入健康監控（check-health.ps1）</li>
+<li>觀測 7 天命中率</li>
+</ol>
+<h3>長期治理（P2）</h3>
+<ol>
+<li>修改 knowledge-query 流程，確保 API 成功後寫入快取</li>
+<li>建立自動恢復機制（整合至 self-heal）</li>
+</ol>
+<h2>預期效益</h2>
+<ul>
+<li>cache_hit_ratio (knowledge): 0% → 60%+</li>
+<li>daily_success_rate: 74% → 85%+</li>
+<li>knowledge API 延遲: 200-500ms → <50ms</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
