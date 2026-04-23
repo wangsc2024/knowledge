@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Docling（docling-project/docling）GitHub 熱門 AI 開源專案研究：文件理解、結構化轉換與 RAG chunking 的高保真 ingestion 引擎（2026-04）">
+  <title>Docling（docling-project/docling）GitHub 熱門 AI 開源專案研究：文件理解、結構化轉換與 RAG chunking 的高保真 ingestion 引擎（2026-04） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Docling（docling-project/docling）GitHub 熱門 AI 開源專案研究：文件理解、結構化轉換與 RAG chunking 的高保真 ingestion 引擎（2026-04）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">Docling</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Docling（docling-project/docling）GitHub 熱門 AI 開源專案研究</h1>
+<p>本次研究：Docling（58.4k stars）— 把多格式文件轉成 AI-ready 結構化資料、並保留 layout、table 與 reading order 的 document intelligence 工具鏈 [來源：GitHub - docling-project/docling, 2026]。</p>
+<h2>專案概述</h2>
+<p>Docling 的定位不是單一 PDF 轉檔器，而是面向生成式 AI 的文件理解與轉換工具鏈。GitHub 頁面在 2026-04-23 顯示它已有 58.4k stars、4k forks、837 issues、169 個 releases，最新版本 <code>v2.90.0</code> 於 2026-04-17 發布；README 也同時強調其支援多格式文件、進階 PDF 理解、DoclingDocument、MCP server 與本地執行能力 [來源：GitHub - docling-project/docling, 2026]。外部社群活動頁面則顯示 Docling 在 2026-02 已被描述為開源 document AI 的事實標準之一，並提到其當時已超過 45k GitHub stars、每月下載量逾 150 萬次，且屬於 LF AI & Data 生態 [來源：Own Your Data: Unlocking Documents with Docling, 2026]。這代表它不是單點爆紅的 demo，而是快速進入工程團隊實際資料管線的基礎設施。</p>
+<h2>技術架構</h2>
+<p>Docling 的核心架構可概括為 <code>DocumentConverter -> format-specific backend/pipeline -> DoclingDocument -> export / serializer / chunker</code>。官方 architecture 文件指出，對每種文件格式，converter 會決定對應 backend 與 pipeline，且這些對映是可參數化的；轉換結果會落到 <code>DoclingDocument</code> 這個統一表示，再交給 export、serializer 或 chunker 往下游流程輸出 [來源：Architecture - Docling, 2026]。這個設計讓 Docling 不只是把文件「轉成文字」，而是把文件內容、版面、階層與 provenance 放進單一結構化中介層。</p>
+<p>在模型管線上，Docling 採多階段專用模型而非單顆萬能模型。官方 model catalog 顯示，其 layout stage 預設使用 <code>docling-layout-heron</code> 等 RT-DETR 系列模型偵測段落、表格、圖片與標題；OCR 層可切換 Tesseract、EasyOCR、RapidOCR、macOS Vision、SuryaOCR；表格結構則使用 <code>TableFormer</code> accurate/fast 模式；另外還有圖片分類、VLM full-page convert，以及 code/formula extraction 等 stage [來源：Model Catalog - Docling, 2026]。這種分段式設計的好處，是團隊可以依文件型態與硬體條件切換品質或速度，避免所有場景都被迫使用同一條昂貴的 VLM 路徑 [來源：Model Catalog - Docling, 2026; Architecture - Docling, 2026]。</p>
+<p><code>DoclingDocument</code> 是另一個關鍵設計。官方文件說明它保存 <code>texts</code>、<code>tables</code>、<code>pictures</code>、<code>key_value_items</code>，並用 <code>body</code>、<code>furniture</code>、<code>groups</code> 來表示正文、頁首頁尾與結構容器；閱讀順序則由 <code>body</code> tree 與節點順序來描述 [來源：Docling Document - Docling, 2026]。這使得下游系統不必只依賴平面 Markdown 還原語意，而能直接用層級、表格與 provenance 做 chunking、citation、visual grounding 或後續編輯。</p>
+<h2>功能特色</h2>
+<p>Docling 的第一個差異化，是它把「文件理解」放在「AI-ready output」之前。README 強調它不只支援 PDF、DOCX、PPTX、XLSX、HTML、圖片、音訊與 LaTeX，還能保留 page layout、reading order、table structure、code、formulas 與 image classification，並輸出 Markdown、HTML、WebVTT、DocTags 與 lossless JSON [來源：GitHub - docling-project/docling, 2026]。官方 quickstart 也把 <code>DocumentConverter().convert(...).document.export_to_markdown()</code> 當成基本使用模型，說明中介層與輸出層分離是其產品哲學的一部分 [來源：Quickstart - Docling, 2026]。</p>
+<p>第二個差異化，是它內建面向 RAG 的 chunking 能力。官方 chunking 文件指出 <code>HybridChunker</code> 會先做 hierarchical chunking，再依 tokenizer 拆分超長 chunk、合併同標題與 caption 下的過小 chunk，且可在表格跨 chunk 時重複表頭；Ryan Hepler 的實作文章也進一步說明，這種 chunking 方式會保留 heading hierarchy 與 caption metadata，使 embedding 比純文字切塊保留更多上下文 [來源：Chunking - Docling, 2026; Parse and Chunk Documents for AI With Docling, 2026]。相較於偏向「先轉 Markdown、剩下自己處理」的輕量工具，我判斷 Docling 更接近一個可直接銜接 RAG ingestion 的 document intelligence platform；這是基於官方架構、DoclingDocument 與 chunking 設計做出的工程推論，不是官方直接宣稱的排名 [來源：Architecture - Docling, 2026; Docling Document - Docling, 2026; Parse and Chunk Documents for AI With Docling, 2026]。</p>
+<h2>使用方式</h2>
+<p>官方 quickstart 的最短路徑如下 [來源：Quickstart - Docling, 2026]：</p>
+<pre><code>
+from docling.document_converter import DocumentConverter
+from docling.chunking import HybridChunker
+from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+from transformers import AutoTokenizer
+
+converter = DocumentConverter()
+doc = converter.convert('https://arxiv.org/pdf/2408.09869').document
+markdown = doc.export_to_markdown()
+
+chunker = HybridChunker(
+    tokenizer=HuggingFaceTokenizer(
+        tokenizer=AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2'),
+        max_tokens=256,
+    )
+)
+chunks = list(chunker.chunk(dl_doc=doc))
+</code></pre>
+<p>如果目標只是把單一檔案轉成 Markdown，上述模式已足夠；如果要處理表格密集、OCR 或圖片較多的 PDF，就應進一步調整 layout、OCR、TableFormer 與 VLM pipeline options，而不是只依賴預設值 [來源：Model Catalog - Docling, 2026]。</p>
+<h2>社群活躍度</h2>
+<p>Docling 的活躍度不只表現在星數。GitHub repo 頁面顯示它有 991 commits、169 releases，最新 release 與主 repo 都在 2026-04-17 更新 [來源：GitHub - docling-project/docling, 2026]。GitHub 組織頁面同時顯示 <code>docling-parse</code> 更新到 2026-04-18、<code>docling-serve</code> 與 <code>docling-core</code> 也都在 2026-04-17 左右活躍，代表專案已分化出 parser、API service、core types、graph、agent 等周邊模組，而不是單一 monorepo 停滯成長 [來源：Docling Project · GitHub, 2026]。社群提問也很密集，2026-03 到 2026-04 的 discussions 仍在討論 OCR accuracy、CLI page breaks、CUDA OOM、memory usage 與自訂 embeddings，顯示使用者已從「能不能跑」轉向「如何穩定上線」的成熟階段 [來源：docling-project docling · Discussions · GitHub, 2026]。</p>
+<h2>潛在應用</h2>
+<p>對 <code>daily-digest-prompt</code>，Docling 最直接的價值不在於取代既有所有 parser，而是作為高保真文件 ingestion 路由。第一，對 PDF、DOCX、PPTX 這類需要保留閱讀順序、表格與標題層級的文件，可優先用 Docling 轉成 Markdown 或 JSON，再進知識庫，避免普通轉檔把語意壓平成段落串 [來源：GitHub - docling-project/docling, 2026; Docling Document - Docling, 2026]。第二，若要做 RAG，HybridChunker 與 repeated table headers 可以讓 chunk 更適合 embeddings 與 citation 回溯，這點比先轉純文字再硬切 token 更穩定 [來源：Chunking - Docling, 2026; Parse and Chunk Documents for AI With Docling, 2026]。第三，因為官方明確支援 local execution、air-gapped environments 與多種 OCR/VLM engine，對敏感文件或內網場景也更容易做權限與資料邊界控制 [來源：GitHub - docling-project/docling, 2026; Own Your Data: Unlocking Documents with Docling, 2026]。</p>
+<h2>優缺點評估</h2>
+<p>優點方面，Docling 的強項很明確：它把 converter、結構化 document model、table understanding、OCR、chunking 與 agent/RAG integrations 打成一條完整管線，因此非常適合「文件品質決定 LLM 成果」的場景 [來源：Architecture - Docling, 2026; Model Catalog - Docling, 2026; Parse and Chunk Documents for AI With Docling, 2026]。另外，它同時提供 CLI、Python API、MCP server 與多框架整合，對研究原型與生產管線都相對友善 [來源：GitHub - docling-project/docling, 2026]。</p>
+<p>缺點也同樣清楚。第一，外部實作文章直接提醒 Docling 依賴較大、首次下載模型 artifacts 需要時間與磁碟空間，且要定期化運作並不輕量 [來源：Parse and Chunk Documents for AI With Docling, 2026]。第二，社群 issue 顯示多語與 OCR 還有現實邊界，例如 issue #2866 指出 EasyOCR 預下載流程目前只抓英語與拉丁模型，導致非英文文件在 offline / artifacts mode 失敗；issue #2887 則回報掃描文件 OCR 會把文字黏在一起 [來源：[BUG] docling-tools models download easyocr only downloads English/Latin models, causing failures for non-English documents, 2026; OCR is consistently missing spaces, 2026]。第三，社群 discussions 仍在持續討論 memory usage、CUDA OOM 與 OCR accuracy，表示把它當成服務化元件時，資源治理與 fallback 策略不能省略 [來源：docling-project docling · Discussions · GitHub, 2026]。</p>
+<h2>結論</h2>
+<p>如果把文件 ingestion 看成 RAG 與知識庫的上游品質閘門，Docling 是目前非常值得研究與導入的開源核心元件。它最有價值的不是「支援更多格式」這件事本身，而是用 <code>DoclingDocument</code> 和多 stage pipeline 把 layout、table、OCR、chunking 與 export 串成同一個工程語言 [來源：Architecture - Docling, 2026; Model Catalog - Docling, 2026; Docling Document - Docling, 2026]。對本專案最務實的做法，不是全面替換既有 parser，而是把 Docling 放進複雜文件的高保真路由，與既有輕量轉檔工具形成分流：普通文件走快速路徑，版面複雜、表格密集或需要 citation-friendly chunking 的文件走 Docling 路徑。這樣能最大化其結構保留優勢，也能控制部署與模型成本 [來源：Chunking - Docling, 2026; Parse and Chunk Documents for AI With Docling, 2026]。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Docling Project. (2026). GitHub - docling-project/docling: Get your documents ready for gen AI. https://github.com/docling-project/docling</li>
+<li>Docling Project. (2026). Architecture - Docling. https://docling-project.github.io/docling/concepts/architecture/</li>
+<li>Docling Project. (2026). Model Catalog - Docling. https://docling-project.github.io/docling/usage/model_catalog/</li>
+<li>Docling Project. (2026). Docling Document - Docling. https://docling-project.github.io/docling/concepts/docling_document/</li>
+<li>Docling Project. (2026). Quickstart - Docling. https://docling-project.github.io/docling/getting_started/quickstart/</li>
+<li>Docling Project. (2026). Chunking - Docling. https://docling-project.github.io/docling/concepts/chunking/</li>
+<li>Ryan Hepler. (2026). Parse and Chunk Documents for AI With Docling. https://www.ryanhepler.com/writing/parse-and-chunk-documents-for-ai-with-docling</li>
+<li>CfgMgmtCamp 2026 Ghent. (2026). Own Your Data: Unlocking Documents with Docling. https://cfp.cfgmgmtcamp.org/ghent2026/talk/9CV7CY/</li>
+<li>docling-project. (2026). [BUG] docling-tools models download easyocr only downloads English/Latin models, causing failures for non-English documents. https://github.com/docling-project/docling/issues/2866</li>
+<li>docling-project. (2026). OCR is consistently missing spaces. https://github.com/docling-project/docling/issues/2887</li>
+<li>docling-project. (2026). docling-project docling · Discussions · GitHub. https://github.com/docling-project/docling/discussions</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

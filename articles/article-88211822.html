@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="多模態大語言模型的跨域推理優化 深度研究報告">
+  <title>多模態大語言模型的跨域推理優化 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>多模態大語言模型的跨域推理優化 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">多模態大語言模型的跨域推理優化</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>多模態大語言模型的跨域推理優化：深度技術研究報告</h1>
+<h2>執行摘要</h2>
+<p>本研究以多模態大語言模型在異質資料上的跨域推理為核心，重新檢視現有研究計畫後，改以 arXiv、ACL Anthology、CVPR、Google Research、OpenReview 與 NVIDIA 官方技術資料補強證據鏈。整體結論很清楚：跨域推理的主要瓶頸，已不只是模型參數量，而是系統能否把文字、表格、圖表、圖像與版面結構一起納入檢索、壓縮與推理流程 [來源：Ask in Any Modality: A Comprehensive Survey on Multimodal Retrieval-Augmented Generation, 2025] [來源：RAG-Anything: All-in-One RAG Framework, 2025]。MuRAG、VisDoMRAG、RagVL 等工作共同顯示，只要外部多模態證據被正確檢索與融合，知識密集任務的正確率會明顯優於單純文字 RAG 或長上下文硬塞法 [來源：MuRAG: Multimodal Retrieval-Augmented Generator, 2022] [來源：VisDoM: Multi-Document QA with Visually Rich Elements Using Multimodal Retrieval-Augmented Generation, 2025] [來源：VLM Is a Strong Reranker, 2025]。另一方面，Qwen2-VL、Qwen2.5-VL 與 LaCo 說明效率優化的主軸已轉向動態解析度與視覺 token 壓縮，而不是固定縮圖或盲目增大 context [來源：Qwen2-VL, 2024] [來源：Qwen2.5-VL Technical Report, 2025] [來源：LaCo, 2025]。但 MMMU 仍證明，即使是強模型，在跨學科多模態推理上仍遠未達專家水準，因此 production 系統必須依賴檢索、reranking、query decomposition 與可驗證引用，而不能只信任模型裸推理 [來源：MMMU, 2024]。</p>
+<h2>研究背景與動機</h2>
+<p>多模態模型近兩年進步很快，但真實世界的跨域推理任務比 benchmark 更複雜。企業與研究資料通常不是純文字，而是混合了段落、表格、圖表、公式、掃描頁與示意圖；若系統只檢索正文文字，答案往往會忽略真正關鍵的證據 [來源：RAG-Anything: All-in-One RAG Framework, 2025] [來源：Build AI-Ready Knowledge Systems Using 5 Essential Multimodal RAG Capabilities, 2026]。ACL 2025 的 Multimodal RAG 綜述進一步指出，RAG 雖能緩解靜態訓練資料造成的過時知識與幻覺，但一旦進入多模態場景，難點就從「能不能取到資料」升級為「不同模態是否能被對齊、排序、融合並保持可驗證性」 [來源：Ask in Any Modality: A Comprehensive Survey on Multimodal Retrieval-Augmented Generation, 2025]。</p>
+<p>對本主題而言，研究價值不在於再找一個更大的視覺語言模型，而是理解跨域推理為何在文件、圖表與多來源資料環境中失真，以及怎樣的系統設計最能兼顧正確率、延遲與可部署性。這也是本報告把焦點放在三條主線上的原因：多模態檢索、視覺 token 效率、以及跨模態融合與 reranking。</p>
+<h2>核心技術解析</h2>
+<p>第一，多模態外部記憶已經從加分項變成基線能力。MuRAG 在 2022 年就證明，把圖文混合內容放進外部非參數記憶，能讓模型在需要同時檢索影像與文字證據的 WebQA 與 MultimodalQA 任務上，相對競品提升超過 10% 準確率 [來源：MuRAG: Multimodal Retrieval-Augmented Generator, 2022]。到 2025 年，RAG-Anything 更直接指出，現實知識庫本來就是多模態的，如果系統仍假設所有知識都能被扁平化成純文字，長文件與複雜文件的檢索就會系統性漏失 [來源：RAG-Anything: All-in-One RAG Framework, 2025]。這與 ACL 的總覽互相印證：多模態 RAG 的價值，不只是讓模型「看到圖片」，而是讓它能在推理時真正引用跨模態證據 [來源：Ask in Any Modality: A Comprehensive Survey on Multimodal Retrieval-Augmented Generation, 2025]。</p>
+<p>第二，效率優化的關鍵是管理視覺 token，而不是粗暴降低解析度。Qwen2-VL 用 Naive Dynamic Resolution 讓模型可以依輸入內容動態分配不同數量的視覺 token，再配合 M-RoPE 處理文字、影像與影片的位置資訊，說明「可變 token 預算」比固定解析度更合理 [來源：Qwen2-VL, 2024]。Qwen2.5-VL 進一步把這條路線推到原生動態解析度 ViT 與 Window Attention，目標是在保留原生解析度感知的同時，壓低計算負擔 [來源：Qwen2.5-VL Technical Report, 2025]。LaCo 則從 encoder 內部做 layer-wise 視覺 token 壓縮，實驗顯示能在維持表現下把訓練效率提升 20% 以上、推理吞吐提升 15% 以上 [來源：LaCo, 2025]。三者合起來透露一個明確方向：多模態推理的成本控制，最佳做法不是先把圖像縮小，而是讓模型在不同層次上自適應地刪除低價值 token。</p>
+<p>第三，單純把更多證據塞進長上下文，不如先做檢索排序與跨模態一致性融合。RagVL 把 VLM 直接訓練成圖像 reranker，先在 retrieval 階段把真正重要的圖像留下，再進入生成 [來源：VLM Is a Strong Reranker, 2025]。VisDoMRAG 則把文字 RAG 與視覺 RAG 並行處理，透過一致性約束的模態融合機制，在多文件、含表格與圖表的 QA 任務上，比單模態方法與長上下文 LLM baseline 高出 12% 到 20% [來源：VisDoM: Multi-Document QA with Visually Rich Elements Using Multimodal Retrieval-Augmented Generation, 2025]。NVIDIA 在 2026 年的工程指南也得出相似結論：Reasoning 與 Query Decomposition 對多跳與上下文豐富問題會帶來顯著收益，而 metadata filtering 能進一步改善延遲與精度 [來源：Build AI-Ready Knowledge Systems Using 5 Essential Multimodal RAG Capabilities, 2026]。這些結果共同支持一個實務判斷：跨域推理最怕的不是資訊不夠，而是資訊排序錯誤與模態融合失敗。</p>
+<p>第四，跨域推理仍然遠未被解決，尤其是在專業與跨學科場景。MMMU 收集 11.5K 題、30 個學科、183 個子領域與 32 種異質圖像類型，結果顯示即使是 GPT-4V，在這類專家級多模態理解與推理 benchmark 也只有 56% 準確率 [來源：MMMU, 2024]。這個結果與 Multimodal RAG 綜述中的觀察一致：真正困難的不是單輪圖片問答，而是需要外部知識、跨頁證據、圖文對齊與多步驟推理的複合任務 [來源：Ask in Any Modality: A Comprehensive Survey on Multimodal Retrieval-Augmented Generation, 2025]。因此，把更強的底模直接放進 production 並不足夠；如果沒有檢索、reranking、引用與可觀測性，模型在跨域任務上的失誤會被放大。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ 已驗證：多模態 RAG 對知識密集任務的提升是真實且穩定的，不是單一論文偶然結果。MuRAG、VisDoMRAG、RagVL、RAG-Anything 與 ACL 2025 survey 都支持「外部多模態證據能提升正確率與可驗證性」這個判斷。支持來源數：5。</li>
+<li>✅ 已驗證：效率優化的第一優先，不是縮小模型，而是降低無效的視覺 token 與文件處理成本。Qwen2-VL、Qwen2.5-VL、LaCo 與 NVIDIA NeMo Retriever 都指出動態解析度、token 壓縮、結構化抽取是主戰場。支持來源數：4。</li>
+<li>✅ 已驗證：跨模態 reranking 與一致性融合，比單純擴長上下文更能帶來實際收益。RagVL、VisDoMRAG、NVIDIA RAG Blueprint、ACL 2025 survey 都支持此點。支持來源數：4。</li>
+<li>✅ 已驗證：表格、圖表、版面與掃描文件是 production 場景的高價值資料，但也是 text-only 管線最容易失真的區域。RAG-Anything、VisDoM、NVIDIA 文件與 Qwen2.5-VL 一致指出這是系統瓶頸。支持來源數：4。</li>
+<li>✅ 已驗證：專家級跨學科多模態推理仍有明顯落差，因此「模型能力」不能取代「系統設計」。MMMU、ACL 2025 survey、MuRAG 與 VisDoM 共同支持此點。支持來源數：4。</li>
+<li>⚠️ 待持續驗證：對本 repo 最有價值的路線，不是訓練新模型，而是建立「多模態文件 ingestion → embedding/rerank → reasoning/decomposition → cited answer」的輕量工程管線。這是根據多個來源的共同趨勢所做的工程推論。支持來源數：2 份研究 + 2 份官方工程資料，屬高可信推論。</li>
+</ol>
+<h2>實務應用建議</h2>
+<ol>
+<li>先做多模態文件 ingestion 基線，而不是一開始就追求最重的 reasoning。對 PDF、表格、圖表與掃描頁建立穩定抽取與索引，這是後續所有優化的地基 [來源：Build AI-Ready Knowledge Systems Using 5 Essential Multimodal RAG Capabilities, 2026]。</li>
+<li>在 retrieval 階段加入 reranker，而不是把 top-k 全丟給生成模型。若場景含圖像或版面元素，優先考慮 VLM reranker 或 cross-modal hybrid retrieval [來源：VLM Is a Strong Reranker, 2025] [來源：RAG-Anything: All-in-One RAG Framework, 2025]。</li>
+<li>對高解析圖像與長文件使用動態 token 預算。若模型支援動態解析度或 token compression，應按任務難度與延遲預算調整，而非固定單一圖片大小 [來源：Qwen2-VL, 2024] [來源：Qwen2.5-VL Technical Report, 2025] [來源：LaCo, 2025]。</li>
+<li>對多文件、多跳問題啟用 reasoning 與 query decomposition，但只在高價值查詢上啟用，避免全量推高延遲與成本 [來源：VisDoM: Multi-Document QA with Visually Rich Elements Using Multimodal Retrieval-Augmented Generation, 2025] [來源：Build AI-Ready Knowledge Systems Using 5 Essential Multimodal RAG Capabilities, 2026]。</li>
+<li>把 benchmark 換成更接近真實文件任務的資料集。若場景是企業文件、財報、簡報與技術手冊，MMMU 可做能力上限參考，但 VisDoMBench 這類 visually rich document QA benchmark 更接近實務壓力點 [來源：MMMU, 2024] [來源：VisDoM: Multi-Document QA with Visually Rich Elements Using Multimodal Retrieval-Augmented Generation, 2025]。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本次研究與既有「Gemini 3.1 多模態記憶整合」及「Native Multimodal Architecture」研究互補。先前研究偏重統一表示空間、原生多模態訓練與長期記憶層設計；本次則補上另一個更貼近部署的層級：即使底模已有共享表示空間，若沒有正確的多模態 ingestion、retrieval、reranking 與 fusion，系統仍會在文件與跨域任務上失真。換句話說，統一 embedding space 解的是「表示」問題，而本報告處理的是「取回什麼、怎麼排序、怎麼融合」的工程問題。兩者結合，才接近可用的多模態知識系統。</p>
+<h2>未來展望</h2>
+<p>未來一年，多模態跨域推理的主戰場大概率會集中在三個方向。第一，retrieval unit 會更細，從段落級走向表格 cell、圖表區塊與版面元素級別；第二，token budget 會更動態，模型將依任務自動決定保留哪些視覺區塊；第三，評測會從單一圖片問答轉向長文件、多文件與代理式工作流，要求答案附帶更完整的引用與來源回溯 [來源：Roles of MLLMs in Visually Rich Document Retrieval for RAG: A Survey, 2025] [來源：RAG-Anything: All-in-One RAG Framework, 2025]。</p>
+<p>對本專案而言，下一個合理的深化方向不是再做一次廣義趨勢綜述，而是把這些結論落成實驗：選定一組 visually rich documents，分別比較 text-only RAG、multimodal embedding + rerank、以及 reasoning/query decomposition 的召回率、延遲與回答引用品質。這會比單看論文更能回答「daily-digest-prompt 應該投資哪一層」。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Hu, H., Verga, P., Chen, W., Cohen, W. W., & Chen, X. (2022). <em>MuRAG: Multimodal Retrieval-Augmented Generator</em>. Google Research / EMNLP. https://research.google/pubs/murag-multimodal-retrieval-augmented-generator/</li>
+<li>Wang, P., Bai, S., Tan, S., et al. (2024). <em>Qwen2-VL: Enhancing Vision-Language Model's Perception of the World at Any Resolution</em>. arXiv. https://arxiv.org/abs/2409.12191</li>
+<li>Bai, S., Chen, K., Liu, X., et al. (2025). <em>Qwen2.5-VL Technical Report</em>. arXiv. https://arxiv.org/abs/2502.13923</li>
+<li>Abootorabi, M. M., Zobeiri, A., Dehghani, M., et al. (2025). <em>Ask in Any Modality: A Comprehensive Survey on Multimodal Retrieval-Augmented Generation</em>. ACL Findings. https://aclanthology.org/2025.findings-acl.861/</li>
+<li>Chen, Z., Xu, C., Qi, Y., Jiang, X., & Guo, J. (2025). <em>VLM Is a Strong Reranker: Advancing Multimodal Retrieval-augmented Generation via Knowledge-enhanced Reranking and Noise-injected Training</em>. EMNLP Findings. https://aclanthology.org/2025.findings-emnlp.432/</li>
+<li>Suri, M., Mathur, P., Dernoncourt, F., Goswami, K., Rossi, R. A., & Manocha, D. (2025). <em>VisDoM: Multi-Document QA with Visually Rich Elements Using Multimodal Retrieval-Augmented Generation</em>. NAACL. https://aclanthology.org/2025.naacl-long.310/</li>
+<li>Guo, Z., Ren, X., Xu, L., Zhang, J., & Huang, C. (2025). <em>RAG-Anything: All-in-One RAG Framework</em>. arXiv. https://arxiv.org/abs/2510.12323</li>
+<li>Yue, X., Ni, Y., Zhang, K., et al. (2024). <em>MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark for Expert AGI</em>. CVPR 2024 Oral. https://cvpr.thecvf.com/virtual/2024/oral/32050</li>
+<li>Liu, J., Niu, L., Chen, W., Zhou, J., & Meng, F. (2025). <em>LaCo: Efficient Layer-wise Compression of Visual Tokens for Multimodal Large Language Models</em>. OpenReview / ICLR 2026 submission. https://openreview.net/forum?id=UDCiCnVGhq</li>
+<li>Sathyanarayanan, S., Bhattacharya, S., Kumar, P., Doshi, P., & Kulkarni, N. (2026). <em>Build AI-Ready Knowledge Systems Using 5 Essential Multimodal RAG Capabilities</em>. NVIDIA Technical Blog. https://developer.nvidia.com/blog/build-ai-ready-knowledge-systems-using-5-essential-multimodal-rag-capabilities/</li>
+<li>Kharwar, R., Hulseman, I., Varshney, T., Algarici, N., & Sodha, S. (2025). <em>NVIDIA NeMo Retriever Delivers Accurate Multimodal PDF Data Extraction 15x Faster</em>. NVIDIA Technical Blog. https://developer.nvidia.com/blog/nvidia-nemo-retriever-delivers-accurate-multimodal-pdf-data-extraction-15x-faster</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
