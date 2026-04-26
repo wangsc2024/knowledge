@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PowerShell 7 生產環境錯誤處理與自動恢復設計模式：結構化例外、重試策略與有限狀態機實踐（2026）">
+  <title>PowerShell 7 生產環境錯誤處理與自動恢復設計模式：結構化例外、重試策略與有限狀態機實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>PowerShell 7 生產環境錯誤處理與自動恢復設計模式：結構化例外、重試策略與有限狀態機實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">PowerShell</span><span class="tag">daily-digest</span><span class="tag">錯誤處理</span><span class="tag">FSM</span><span class="tag">重試策略</span><span class="tag">自動化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>PowerShell 7 生產環境錯誤處理與自動恢復設計模式：結構化例外、重試策略與有限狀態機實踐（2026）</h1>
+<h2>技術概述</h2>
+<p>PowerShell 7 的錯誤處理架構結合 .NET 例外系統與 PowerShell 特有的 ErrorRecord 模型，提供三層防護：結構化例外捕捉（try/catch/finally）、外部程序退出碼整合（$PSNativeCommandUseErrorActionPreference，7.4+ 穩定版）、以及有限狀態機（FSM）工作流程狀態追蹤。掌握這三層機制是建立生產可靠度的基礎，特別適用於以 pwsh 7 為執行環境的自動化管線（如 Windows Task Scheduler + Claude Code CLI 架構）。</p>
+<h2>核心概念與原理</h2>
+<h3>1. 三類錯誤分類</h3>
+<p>PowerShell 7 將錯誤分為三種類型 [來源: Microsoft Learn, 2026]：</p>
+<p>| 類型 | 行為 | 觸發來源 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Non-terminating</strong> | 輸出到錯誤流，腳本繼續 | Write-Error（預設）|</p>
+<p>| <strong>Statement-terminating</strong> | 停止當前陳述式，腳本繼續下一條 | 引擎錯誤、$PSCmdlet.ThrowTerminatingError()、.NET method exception |</p>
+<p>| <strong>Script-terminating</strong> | 展開完整 call stack，腳本停止 | throw 關鍵字、parse error、-ErrorAction Stop 升格 |</p>
+<p><strong>關鍵陷阱⚠️</strong>：try/catch <strong>只能捕捉 terminating errors</strong>。若要捕捉 non-terminating 錯誤（如 Write-Error），必須搭配 <code>-ErrorAction Stop</code>。</p>
+<h3>2. ErrorRecord 結構</h3>
+<p>catch 區塊內的 <code>$PSItem</code>（即 <code>$_</code>）是 ErrorRecord 物件，核心屬性 [來源: Microsoft Learn, KevinMarquette, 2026]：</p>
+<pre><code>
+catch {
+    $_.Exception.Message                   # 例外訊息字串
+    $_.Exception.InnerException            # 內層例外（包裝例外時）
+    $_.InvocationInfo.ScriptName           # 發生錯誤的腳本路徑
+    $_.InvocationInfo.ScriptLineNumber     # 錯誤行號
+    $_.ScriptStackTrace                    # 函式呼叫堆疊（PS 層）
+    $_.Exception.StackTrace                # .NET managed code 堆疊
+}
+</code></pre>
+<h3>3. 類型化例外與多重 Catch</h3>
+<p>優先使用類型化例外，讓 catch 精確比對；子類型必須排在父類型之前 [來源: Microsoft Learn, 2026]：</p>
+<pre><code>
+try {
+    Get-Item $path -ErrorAction Stop
+}
+catch [System.IO.FileNotFoundException] {
+    Write-Warning "找不到檔案: $path"
+}
+catch [System.IO.IOException] {
+    Write-Warning "IO 錯誤: $path"
+}
+catch {
+    # 未預期例外：記錄後重拋，保留 call stack
+    Write-Error "未預期例外: $($_.Exception.Message)"
+    throw  # 重拋保留原始 InvocationInfo
+}
+</code></pre>
+<p>⚠️ 避免空白 catch（swallowing exceptions）：靜默吞掉例外是最常見的除錯地獄根源。</p>
+<h3>4. $PSNativeCommandUseErrorActionPreference（PowerShell 7.4+）</h3>
+<p>外部程序（native commands：claude.exe、curl、python）不參與 PowerShell 的例外系統，只透過 <code>$LASTEXITCODE</code> 傳遞退出碼。PowerShell 7.4 穩定化了 <code>$PSNativeCommandUseErrorActionPreference</code> [來源: GitHub PR #18695; Matt Horgan's Blog]：</p>
+<pre><code>
+# 放在腳本頂部（需 PowerShell 7.4+）
+$PSNativeCommandUseErrorActionPreference = $true
+$ErrorActionPreference = 'Stop'
+
+try {
+    # non-zero exit code 會觸發 NativeCommandExitException
+    claude -p "task prompt" --output-format json
+}
+catch [System.Management.Automation.NativeCommandExitException] {
+    $exitCode = $_.Exception.ExitCode
+    Write-Error "Claude CLI 失敗，exit code=$exitCode: $($_.Exception.Message)"
+}
+</code></pre>
+<p><strong>7.3 vs 7.4 差異</strong>：7.3 為實驗性功能（需手動開啟），7.4 正式穩定，預設值仍為 <code>$false</code>（向後相容）。</p>
+<h3>5. $PSCmdlet.ThrowTerminatingError() — 指向函式而非 throw 行</h3>
+<p>在 Advanced Function 內，使用 <code>$PSCmdlet.ThrowTerminatingError()</code> 而非裸 <code>throw</code>，錯誤訊息會指向函式名稱而非 throw 行號，提供更有意義的錯誤定位 [來源: Microsoft Learn, Kirk Munro 建議, 2026]：</p>
+<pre><code>
+function Invoke-CriticalOperation {
+    [CmdletBinding()]
+    param([string]$Path)
+    process {
+        try {
+            # ... 業務邏輯
+        }
+        catch {
+            # 清理內部細節，讓呼叫者看到函式名稱而非行號
+            $PSCmdlet.ThrowTerminatingError($PSItem)
+        }
+    }
+}
+</code></pre>
+<p>Kirk Munro 建議模式：每個 Advanced Function 的 begin/process/end 區塊都包一層 try/catch。</p>
+<h2>最佳實踐與陷阱</h2>
+<h3>重試策略：指數退避 + Jitter</h3>
+<p>不是所有錯誤都應重試。可重試類型：網路錯誤、速率限制（429）、服務暫時不可用（503）。不可重試類型：認證失敗（401/403）、資源不存在（404）、業務邏輯錯誤 [來源: DEV Community, Retry Patterns 2026]。</p>
+<p><strong>生產級重試函式</strong>（帶指數退避 + Jitter）[來源: Daniel Schroeder's Blog; DEV Community 2026]：</p>
+<pre><code>
+function Invoke-WithRetry {
+    [CmdletBinding()]
+    param(
+        [scriptblock] $ScriptBlock,
+        [int] $MaxAttempts = 5,
+        [int] $BaseDelayMs = 1000,
+        [double] $BackoffMultiplier = 2.0,
+        [int] $MaxDelayMs = 30000,
+        [string[]] $NonRetryableErrors = @()
+    )
+    $attempt = 0
+    while ($true) {
+        try {
+            $attempt++
+            return (&amp; $ScriptBlock)
+        }
+        catch {
+            $errorMsg = $_.Exception.Message
+            # 不可重試錯誤直接拋出
+            foreach ($pattern in $NonRetryableErrors) {
+                if ($errorMsg -match $pattern) { throw }
+            }
+            if ($attempt -ge $MaxAttempts) {
+                Write-Error "已達最大重試次數 ($MaxAttempts)，最後錯誤: $errorMsg"
+                throw
+            }
+            # 指數退避 + Jitter（防止多實例重試碰撞）
+            $delay = [Math]::Min($BaseDelayMs * [Math]::Pow($BackoffMultiplier, $attempt - 1), $MaxDelayMs)
+            $jitter = Get-Random -Minimum 0 -Maximum ([int]($delay * 0.2))
+            Start-Sleep -Milliseconds ([int]($delay + $jitter))
+        }
+    }
+}
+
+# 使用範例：Todoist API 呼叫
+Invoke-WithRetry -ScriptBlock {
+    Invoke-RestMethod -Uri 'https://api.todoist.com/api/v1/tasks/filter?query=today' \
+        -Headers @{ Authorization = "Bearer $env:TODOIST_API_TOKEN" } -ErrorAction Stop
+} -MaxAttempts 5 -NonRetryableErrors @('401', '403', 'Unauthorized')
+</code></pre>
+<p><strong>Jitter 的重要性</strong>：若多個 Agent 實例同時失敗後以相同延遲重試，會形成 retry storm（重試風暴）。Jitter 在延遲基礎上加入 ±20% 隨機量，分散重試時機。[來源: DEV Community, Retry Patterns 2026]</p>
+<h3>作用域管理：全局 vs 每命令</h3>
+<p>⚠️ <strong>陷阱</strong>：在腳本頂部設 <code>$ErrorActionPreference = 'Stop'</code> 影響所有命令，包含 Write-Error 和第三方 cmdlet，可能造成意外中斷。</p>
+<p><strong>推薦做法</strong> [來源: Fortra Blog, 2025]：</p>
+<ul>
+<li>重要操作用 <code>-ErrorAction Stop</code>（per-command）</li>
+<li>全局設定改用 <code>$ErrorActionPreference = 'Continue'</code>（預設值）</li>
+<li>只在 CI/CD 腳本中用全局 Stop，此時「中止 = 預期行為」</li>
+</ul>
+<h3>常見陷阱清單</h3>
+<ol>
+<li>❌ 空白 catch 吞掉例外 → ✅ 至少 log 後重拋</li>
+<li>❌ 忽略 $LASTEXITCODE（外部程序失敗靜默繼續）→ ✅ 使用 <code>$PSNativeCommandUseErrorActionPreference=$true</code></li>
+<li>❌ catch 順序錯誤（父類型在前）→ ✅ 子類型優先</li>
+<li>❌ 全局 Stop 加 third-party cmdlet → ✅ per-command -ErrorAction Stop</li>
+<li>❌ 重試認證失敗 → ✅ NonRetryableErrors 過濾 401/403</li>
+</ol>
+<h2>有限狀態機（FSM）設計模式</h2>
+<p>PowerShell 7 不支援 PS5.1 的舊版 Workflow，但可用 <strong>Enum + Hashtable 轉換表</strong> 模式在純腳本環境實作 FSM [來源: Microsoft Learn hashtables, 4sysops enums]。</p>
+<h3>核心結構</h3>
+<pre><code>
+# 狀態定義（enum 提供型別安全與 IDE 自動補全）
+enum PipelineState { Idle; Fetching; Processing; Assembling; Done; Failed }
+
+# 轉換表：(CurrentState_Event) → NextState
+$transitions = @{
+    'Idle_start'           = [PipelineState]::Fetching
+    'Fetching_complete'    = [PipelineState]::Processing
+    'Fetching_error'       = [PipelineState]::Failed
+    'Processing_complete'  = [PipelineState]::Assembling
+    'Processing_error'     = [PipelineState]::Failed
+    'Assembling_complete'  = [PipelineState]::Done
+    'Assembling_error'     = [PipelineState]::Failed
+}
+
+function Set-FsmState {
+    param(
+        [ref] $CurrentState,
+        [string] $Event,
+        [hashtable] $TransitionTable,
+        [string] $StateFile = $null
+    )
+    $key = "$($CurrentState.Value)_$Event"
+    $nextState = $TransitionTable[$key]
+    if ($null -eq $nextState) {
+        throw "非法 FSM 轉換: $key（當前=$($CurrentState.Value), 事件=$Event）"
+    }
+    Write-Verbose "FSM: $($CurrentState.Value) --[$Event]--&gt; $nextState"
+    $CurrentState.Value = $nextState
+    # 持久化（防 Agent crash 後需殭屍偵測）
+    if ($StateFile) {
+        @{ state = "$nextState"; timestamp = (Get-Date -Format 'o') } |
+            ConvertTo-Json | Set-Content $StateFile -Encoding utf8
+    }
+}
+</code></pre>
+<h3>殭屍偵測（Zombie Detection）</h3>
+<p>長時間停在 running 狀態通常代表 Agent crash 或掛起 [來源: 本專案 run-todoist-agent-team.ps1 Set-FsmState 設計]：</p>
+<pre><code>
+function Test-ZombieState {
+    param([string]$StateFile, [int]$TimeoutMinutes = 120)
+    if (-not (Test-Path $StateFile)) { return $false }
+    $d = Get-Content $StateFile | ConvertFrom-Json
+    $elapsed = ([DateTimeOffset]::Now - [DateTimeOffset]::Parse($d.timestamp)).TotalMinutes
+    return ($d.state -eq 'running' -and $elapsed -gt $TimeoutMinutes)
+}
+
+# 使用：排程任務啟動前檢查
+if (Test-ZombieState -StateFile 'state\pipeline.json' -TimeoutMinutes 120) {
+    Write-Warning '殭屍狀態偵測：強制重置'
+    Remove-Item 'state\pipeline.json' -Force
+}
+</code></pre>
+<h3>FSM 執行迴圈（整合 try/catch）</h3>
+<pre><code>
+$state = [PipelineState]::Idle
+$stateRef = [ref] $state
+
+try {
+    Set-FsmState -CurrentState $stateRef -Event 'start' -TransitionTable $transitions -StateFile 'state\pipeline.json'
+    
+    # Phase 1: Fetching（帶重試）
+    try {
+        $data = Invoke-WithRetry { Invoke-RestMethod $todoistUri -Headers $headers -ErrorAction Stop }
+        Set-FsmState -CurrentState $stateRef -Event 'complete' -TransitionTable $transitions -StateFile 'state\pipeline.json'
+    } catch {
+        Set-FsmState -CurrentState $stateRef -Event 'error' -TransitionTable $transitions -StateFile 'state\pipeline.json'
+        throw
+    }
+    # Phase 2, 3...
+}
+catch {
+    Write-Error "管線失敗: $($_.Exception.Message)，最終狀態: $($stateRef.Value)"
+}
+</code></pre>
+<h2>與本專案關聯</h2>
+<ol>
+<li><strong>run-todoist-agent-team.ps1 的 Set-FsmState</strong>：已採用殭屍偵測（running>2h→timeout）+ 選擇性清理模式，直接對應上述 FSM 設計。</li>
+<li><strong>$PSNativeCommandUseErrorActionPreference</strong>：Invoke-LlmGate / Start-CursorCliJob 呼叫 <code>claude -p</code> 時使用 7.4+ 特性可統一捕捉 claude CLI 非零退出碼。</li>
+<li><strong>Invoke-WithRetry</strong>：可應用於 ntfy.sh 推送、Todoist API（429 速率限制）、KB import，搭配 NonRetryableErrors 過濾認證錯誤。</li>
+<li><strong>跨語言可觀測性</strong>：post_tool_logger.py 的 JSONL 日誌 + PowerShell <code>$_.InvocationInfo</code> 組成跨 PS + Python 的完整 call stack 追蹤鏈。</li>
+</ol>
+<h2>程式碼範例：完整管線守衛模板</h2>
+<pre><code>
+#Requires -Version 7.4
+Set-StrictMode -Version Latest
+$PSNativeCommandUseErrorActionPreference = $true
+
+function Invoke-PipelineWithGuard {
+    [CmdletBinding()]
+    param([string] $TaskKey, [scriptblock] $Pipeline)
+    
+    $startTime = Get-Date
+    $result = @{ task_key=$TaskKey; status='failed'; error='unexpected' }
+    
+    try {
+        $ErrorActionPreference = 'Stop'
+        &amp; $Pipeline
+        $result.status = 'success'
+        $result.Remove('error')
+    }
+    catch [System.Management.Automation.NativeCommandExitException] {
+        $result.error = "外部命令失敗 exit=$($_.Exception.ExitCode): $($_.Exception.Message)"
+    }
+    catch [System.IO.IOException] {
+        $result.error = "IO 錯誤: $($_.Exception.Message)"
+    }
+    catch {
+        $result.error = "$($_.Exception.GetType().Name): $($_.Exception.Message)"
+    }
+    finally {
+        $result.duration_seconds = [int](((Get-Date) - $startTime).TotalSeconds)
+        $result | ConvertTo-Json | Set-Content "results\todoist-auto-$TaskKey.json" -Encoding utf8
+    }
+}
+</code></pre>
+<h2>參考書目</h2>
+<ol>
+<li>Microsoft Docs Team (KevinMarquette 原著), "Everything you wanted to know about exceptions", Microsoft Learn, 2026-04-02. https://learn.microsoft.com/en-us/powershell/scripting/learn/deep-dives/everything-about-exceptions</li>
+<li>Microsoft Docs, "about_Error_Handling", PowerShell 7.6 Documentation. https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_error_handling</li>
+<li>Microsoft Docs, "about_Preference_Variables ($PSNativeCommandUseErrorActionPreference)", PowerShell 7.4. https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables</li>
+<li>Daniel Schroeder, "A PowerShell function to easily retry any code", Daniel Schroeder's Programming Blog. https://blog.danskingdom.com/A-PowerShell-function-to-easily-retry-any-code/</li>
+<li>Fortra, "PowerShell Best Practices: Error Handling", Automate Blog, 2025. https://automate.fortra.com/blog/powershell-error-handling</li>
+<li>Young Gao, "Retry Patterns That Work: Exponential Backoff, Jitter, and Dead Letter Queues", DEV Community, 2026. https://dev.to/young_gao/retry-patterns-that-actually-work-exponential-backoff-jitter-and-dead-letter-queues-75</li>
+<li>Matt Horgan, "Handling Native Applications in PowerShell 7.3+", Matt's Blog. https://matthorgan.xyz/blog/powershell-handling-native-applications/</li>
+<li>PowerShell Team, "PR #18695: Switch $PSNativeCommandUseErrorActionPreference to $true when feature is enabled", GitHub. https://github.com/PowerShell/PowerShell/pull/18695</li>
+<li>Microsoft Docs, "Everything you wanted to know about hashtables", Microsoft Learn. https://learn.microsoft.com/en-us/powershell/scripting/learn/deep-dives/everything-about-hashtable</li>
+<li>4sysops, "Using enums in PowerShell". https://4sysops.com/archives/using-enums-in-powershell/</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

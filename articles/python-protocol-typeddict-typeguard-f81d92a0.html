@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Python 靜態型別系統進階實踐：Protocol、TypedDict、TypeGuard 與型別檢查器選型（2026）">
+  <title>Python 靜態型別系統進階實踐：Protocol、TypedDict、TypeGuard 與型別檢查器選型（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Python 靜態型別系統進階實踐：Protocol、TypedDict、TypeGuard 與型別檢查器選型（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Python</span><span class="tag">型別系統</span><span class="tag">mypy</span><span class="tag">Protocol</span><span class="tag">TypedDict</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Python 靜態型別系統進階實踐：Protocol、TypedDict、TypeGuard 與型別檢查器選型（2026）</h1>
+<h2>技術概述</h2>
+<p>Python 的漸進式型別系統（Gradual Typing）自 PEP 484（Python 3.5，2015 年）引入以來，已演進為完整的靜態型別功能集。2026 年，核心機制包含：<strong>Protocol</strong>（PEP 544，結構式子型別）、<strong>TypedDict</strong>（PEP 589）、<strong>TypeGuard</strong>（PEP 647）、<strong>TypeIs</strong>（PEP 742，Python 3.13）、<strong>TypeVar 預設值</strong>（PEP 696）、<strong>ReadOnly</strong>（PEP 705）。</p>
+<p>這套系統解決的核心問題：<strong>讓 Python 在享有動態語言靈活性的同時，也能透過靜態分析提前發現型別錯誤</strong>。與 Java/C# 的名義型別系統（Nominal Typing）不同，Python 選擇結構式子型別——一個物件是否符合某型別，取決於它是否擁有所需的屬性與方法，而非繼承關係。[來源：PEP 544，2020]</p>
+<p>替代方案比較：Protocol（結構式靜態，無執行期負擔）vs ABC（名義式靜態+執行期）vs Pydantic（名義式執行期驗證，中等負擔）vs TypedDict（結構式靜態，無負擔）。</p>
+<h2>核心概念與原理</h2>
+<h3>Protocol：結構式子型別的靜態 duck typing</h3>
+<p><code>Protocol</code> 是 Python 型別系統中最強大的創新之一。根據官方規範，「Class Dog 是 Animal 的結構子型別，只要前者具有後者所有屬性與方法，且型別兼容」。與 ABC 的關鍵差異：繼承 ABC 必須明確聲明，但滿足 Protocol 只需「有正確的方法」——無需繼承關係。[來源：typing.python.org/protocols，2026]</p>
+<pre><code>
+from typing import Protocol, runtime_checkable
+
+class Saveable(Protocol):
+    def save(self) -&gt; None: ...
+
+class Database:
+    def save(self) -&gt; None:
+        print("Saved to DB")
+
+class FileStore:  
+    def save(self) -&gt; None:
+        print("Saved to file")
+
+def persist(storage: Saveable) -&gt; None:
+    storage.save()
+
+persist(Database())   # 通過型別檢查，無需繼承
+persist(FileStore())  # 通過型別檢查，無需繼承
+</code></pre>
+<p><strong>Protocol 組合</strong>：多個 Protocol 可透過多重繼承組合，但必須明確帶上 Protocol 基底類別。</p>
+<p><strong><code>@runtime_checkable</code></strong>：讓 Protocol 支援 <code>isinstance()</code> 檢查，但只檢查方法名稱存在性，不驗證簽名型別。[來源：Real Python，2025]</p>
+<p><strong>Protocol 屬性宣告的規範</strong>：實例屬性必須在類別層級宣告，而非 <code>__init__</code> 內部——這是常見錯誤來源：</p>
+<pre><code>
+class Logger(Protocol):
+    filename: str          # 類別層級宣告（正確）
+    def log(self, msg: str) -&gt; None: ...
+
+class BadLogger:
+    def __init__(self):
+        self.filename = "app.log"  # 型別檢查器無法識別（錯誤）
+</code></pre>
+<h3>TypedDict：帶型別的字典（零執行期負擔）</h3>
+<p><code>TypedDict</code> 允許為字典指定每個 key 的型別，完全不產生執行期負擔。Python 3.13 新增 <code>ReadOnly</code>（PEP 705）支援唯讀欄位：</p>
+<pre><code>
+from typing import TypedDict, ReadOnly, NotRequired
+
+class TaskResult(TypedDict):
+    agent: str
+    status: str
+    summary: str
+    kb_imported: NotRequired[bool]  # 可選欄位（PEP 655）
+
+class ImmutableConfig(TypedDict):
+    api_key: ReadOnly[str]   # 唯讀欄位（Python 3.13，PEP 705）
+    timeout: int
+</code></pre>
+<p><strong>TypedDict vs Pydantic 選型</strong>：TypedDict 適合內部 API 與受信任資料源（零執行期負擔）；Pydantic 適合外部 API 與使用者輸入（執行期驗證 + 自動型別轉換）。[來源：packetcoders.io，2025]</p>
+<h3>TypeGuard 與 TypeIs：使用者定義的型別縮窄</h3>
+<p>TypeGuard（PEP 647）與 TypeIs（PEP 742）的核心差異是<strong>負向分支（else）的行為</strong>：TypeGuard 只縮窄正向分支；TypeIs 正向與負向分支都縮窄（更直觀）。</p>
+<pre><code>
+from typing import TypeIs  # Python 3.13+ 或 typing_extensions
+
+def is_string(val: str | int) -&gt; TypeIs[str]:
+    return isinstance(val, str)
+
+def process(val: str | int) -&gt; None:
+    if is_string(val):
+        print(val.upper())   # val: str
+    else:
+        print(val + 1)       # val: int（TypeIs 能縮窄 else 分支）
+</code></pre>
+<p>官方文件明確建議：「使用者通常應優先選擇 TypeIs，其行為更加直觀。」標準庫的 <code>inspect.isgenerator</code>、<code>iscoroutine</code>、<code>isawaitable</code> 已改用 TypeIs。[來源：typing.python.org，2026；rednafi.com，2024；PEP 742，2022]</p>
+<h3>型別參數預設值（Python 3.13，PEP 696）</h3>
+<pre><code>
+from typing import TypeVar
+T = TypeVar("T", default=str)  # 預設型別為 str
+
+class Container[T = str]:      # 新語法（PEP 695 + PEP 696）
+    def __init__(self, value: T) -&gt; None:
+        self.value = value
+</code></pre>
+<h3>型別檢查器選型（2026 最新格局）</h3>
+<p>2026 年生態系新增 ty（Astral）與 Pyrefly（Meta）。規範符合度（pydevtools benchmark，2026-04）：</p>
+<ul>
+<li>pyright: 97.8%（Microsoft，VS Code 整合最佳）</li>
+<li>Zuban: 96.4%（新創，mypy 語義 + 編譯速度）</li>
+<li>Pyrefly: 87.8%（Meta，1.8M lines/sec）</li>
+<li>mypy: 58.3%（PSF 參考實作，文件最豐富）</li>
+<li>ty: 53.2%（Astral，alpha，uv 生態整合）</li>
+</ul>
+<p>速度：ty 比 mypy 快約 7 倍；Pyrefly 宣稱比 mypy 快 14 倍（理想環境）。</p>
+<p>選型建議（社群共識，HN 2024）：mypy 適合既有管線維護；pyright 適合 VS Code 整合；ty 在 uv 生態整合有優勢但 alpha 不建議 production；多工具並行（編輯器用 pyright/ty，CI 用 mypy）是常見策略。[來源：pydevtools.com，HN 2024]</p>
+<h2>最佳實踐</h2>
+<h3>1. mypy strict 漸進式導入策略</h3>
+<pre><code>
+# pyproject.toml
+[tool.mypy]
+strict = true
+show_error_codes = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["legacy_module.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["some_untyped_lib"]
+ignore_missing_imports = true
+</code></pre>
+<p>漸進遷移路徑：新增模組一律嚴格 → 修改舊模組補 type hints 後移除 override → CI 失敗立即修正，不累積技術債。[來源：careers.wolt.com，2024]</p>
+<h3>2. Protocol 設計原則</h3>
+<ul>
+<li>介面最小化：只宣告客戶端真正使用的方法</li>
+<li>讀寫分離：mutable 屬性易導致 invariance 問題，優先用 <code>@property</code> 標示唯讀</li>
+<li>避免過度依賴 <code>@runtime_checkable</code>：只做名稱檢查，不做簽名驗證</li>
+<li>重要實作類別加 explicit inheritance 讓 mypy 強制驗證</li>
+</ul>
+<h3>3. TypeIs 取代 TypeGuard</h3>
+<p>新代碼統一改用 TypeIs（Python 3.13+，或 <code>typing_extensions</code> 回填），避免 TypeGuard else 分支不縮窄的陷阱。標準庫已逐步採用 TypeIs。</p>
+<h3>4. CI 整合</h3>
+<pre><code>
+uv run mypy --config-file pyproject.toml hooks/ skills/ tools/
+</code></pre>
+<h3>5. TypedDict NotRequired</h3>
+<p>用 <code>NotRequired</code>（PEP 655）標示可選欄位，比 <code>Optional</code> 更語義清晰，且不會讓 type checker 誤認欄位存在但值可為 None。</p>
+<h2>陷阱與反例</h2>
+<h3>陷阱 1：Protocol 被意外滿足（Accidental Compliance）</h3>
+<p>Protocol 只看結構，不看意圖。越通用的 Protocol 越容易被意外滿足（例如 str 的 <code>encode()</code> 方法可能意外符合某個 Encoder Protocol）。規避：縮窄 Protocol 方法簽名，或改用 ABC 名義式約束。[來源：Real Python，2025]</p>
+<h3>陷阱 2：TypeGuard else 分支不縮窄</h3>
+<pre><code>
+from typing import TypeGuard
+
+def is_int(val: str | int) -&gt; TypeGuard[int]:
+    return isinstance(val, int)
+
+def process(val: str | int) -&gt; None:
+    if is_int(val):
+        pass  # int
+    else:
+        val.upper()  # mypy 報錯：int 沒有 upper()（else 分支是 str | int，不是 str）
+</code></pre>
+<p>TypeGuard 設計上只保證正向縮窄，負向不做假設。規避：改用 TypeIs。[來源：rednafi.com，2024；PEP 742，2022]</p>
+<h3>陷阱 3：mypy ignore_errors 全局靜默</h3>
+<p>全局 <code>ignore_errors = True</code> 讓 mypy 形同虛設。正確做法：用 <code># type: ignore[error-code]</code> 針對特定行抑制，搭配 <code>show_error_codes = true</code> 取得 error code。「never ever silence mypy by using ignore_errors = True」。[來源：careers.wolt.com，2024]</p>
+<h3>陷阱 4：過度解讀 mypy 58% 規範符合度</h3>
+<p>mypy 只符合 58.3% 的型別規範測試案例，但大多數失敗是複雜泛型邊緣情形。真實開發中選錯工具（如用 mypy 處理高度泛型 API 庫）才是主要痛點，而非 58% 本身的問題。[來源：sinon.github.io，2025；pydevtools.com，2026]</p>
+<h2>與本專案（daily-digest-prompt）關聯</h2>
+<h3>落地場景 1：tools/validate_results.py 加入 Protocol</h3>
+<p>本專案的 validate_results.py 驗證 results/todoist-auto-*.json 格式。可用 Protocol 定義 validator 介面，讓未來新增 validator 無需繼承：</p>
+<pre><code>
+from typing import Protocol
+
+class ResultValidator(Protocol):
+    def validate(self, data: dict) -&gt; list[str]: ...
+
+class SchemaValidator:
+    def validate(self, data: dict) -&gt; list[str]:
+        errors = []
+        for field in ["agent", "task_key", "status", "summary"]:
+            if field not in data:
+                errors.append(f"missing required field: {field}")
+        return errors
+
+def run_all_validators(data: dict, validators: list[ResultValidator]) -&gt; list[str]:
+    return [e for v in validators for e in v.validate(data)]
+</code></pre>
+<h3>落地場景 2：results/ JSON 的 TypedDict 化</h3>
+<p>本專案的 config/schemas/results-auto-task-schema.json 已有明確 schema，可對應為 TypedDict 在 Python 層早期捕捉缺失欄位：</p>
+<pre><code>
+from typing import TypedDict, NotRequired
+
+class AutoTaskResult(TypedDict):
+    agent: str
+    task_key: str
+    status: str
+    summary: str
+    done_cert: NotRequired[dict]
+    cli_exit_note_zh: NotRequired[str]
+    result_guard_zh: NotRequired[str]
+    kb_imported: NotRequired[bool]
+    error: NotRequired[str | None]
+</code></pre>
+<h3>落地場景 3：hooks/ 加入 mypy 覆蓋</h3>
+<p>本專案 hooks/ 有 529 個測試但 mypy 覆蓋不明。建議在 CI 中加入：<code>uv run mypy hooks/ tools/ --ignore-missing-imports --no-strict-optional</code>，逐步升到 strict 模式，消滅 Any 型別的擴散。</p>
+<h2>完整參考書目</h2>
+<ol>
+<li>Python Software Foundation（2020）. PEP 544 – Protocols: Structural subtyping. https://peps.python.org/pep-0544/ [2026-04-26] official</li>
+<li>typing.python.org（2026）. Protocols and structural subtyping. https://typing.python.org/en/latest/reference/protocols.html [2026-04-26] official</li>
+<li>typing.python.org（2026）. Type Narrowing. https://typing.python.org/en/latest/guides/type_narrowing.html [2026-04-26] official</li>
+<li>Python Software Foundation（2022）. PEP 742 – Narrowing types with TypeIs. https://peps.python.org/pep-0742/ [2026-04-26] official</li>
+<li>Real Python（2025）. Python Protocols: Leveraging Structural Subtyping. https://realpython.com/python-protocol/ [2026-04-26] blog</li>
+<li>Wolt Engineering（2024）. Professional-grade mypy configuration. https://careers.wolt.com/en/blog/tech/professional-grade-mypy-configuration [2026-04-26] blog</li>
+<li>Redowan Rafi（2024）. TypeIs does what I thought TypeGuard would do. https://rednafi.com/python/typeguard-vs-typeis/ [2026-04-26] blog</li>
+<li>pydevtools.com（2026）. How do mypy, pyright, and ty compare? https://pydevtools.com/handbook/explanation/how-do-mypy-pyright-and-ty-compare/ [2026-04-26] benchmark</li>
+<li>sinon.github.io / Edward Li（2025）. How Well Do New Python Type Checkers Conform? https://sinon.github.io/future-python-type-checkers/ [2026-04-26] benchmark</li>
+<li>packetcoders.io（2025）. TypedDict vs Pydantic. https://www.packetcoders.io/typeddict-vs-pydantic/ [2026-04-26] blog</li>
+<li>Hacker News 社群（2024）. Ask HN: Which Python type checker should I use? https://news.ycombinator.com/item?id=39416443 [2026-04-26] community</li>
+<li>docs.python.org 正體中文（2026）. typing — 支援型別提示. https://docs.python.org/zh-tw/3.13/library/typing.html [2026-04-26] official</li>
+<li>CSDN / fengdu78（2024）. Python 3.13 中的 7 个新类型特性. https://blog.csdn.net/fengdu78/article/details/144279244 [2026-04-26] blog</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

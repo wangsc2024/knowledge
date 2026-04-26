@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Flowise 深度研究報告：視覺化拖放 AI Agent 工作流建構平台 — AgentFlow V2 架構、MCP 整合與快速 RAG 原型設計（52.2k Stars, v3.1.2, 2026-04）">
+  <title>Flowise 深度研究報告：視覺化拖放 AI Agent 工作流建構平台 — AgentFlow V2 架構、MCP 整合與快速 RAG 原型設計（52.2k Stars, v3.1.2, 2026-04） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Flowise 深度研究報告：視覺化拖放 AI Agent 工作流建構平台 — AgentFlow V2 架構、MCP 整合與快速 RAG 原型設計（52.2k Stars, v3.1.2, 2026-04）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">Flowise</span><span class="tag">No-code工作流</span><span class="tag">AgentFlow V2</span><span class="tag">RAG</span><span class="tag">MCP</span><span class="tag">TypeScript</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Flowise 深度研究報告</h1>
+<p>視覺化拖放 AI Agent 工作流建構平台 — AgentFlow V2 架構、MCP 整合與快速 RAG 原型設計</p>
+<p>研究日期：2026-04-25</p>
+<p>研究類型：ai_workflow_github 自動任務</p>
+<p>子領域：No-code 工作流</p>
+<p>GitHub：FlowiseAI/Flowise | Stars：52.2k | Forks：24.2k | License：Apache 2.0 | 最新版本：v3.1.2（2026-04-14）</p>
+<p>---</p>
+<h2>概述</h2>
+<p>Flowise 是一個以 TypeScript 開發的開源 AI Agent 視覺化建構平台。核心理念是「Build AI Agents, Visually」，讓技術與非技術人員都能透過拖放畫布，把向量資料庫、LLM、工具節點串接成可部署的 RAG Pipeline 或 Agent Workflow，而無需撰寫應用程式碼。</p>
+<p>相較 n8n 的「通用自動化 + AI 疊加」定位，Flowise 從一開始就是 AI-first：每個節點都是 LangChain 生態系的直接視覺對應，最短 15 分鐘可跑起一個附有 RAG 的聊天機器人原型。2026 年 4 月發布的 v3.1.2 持續迭代 AgentFlow V2 架構，已成為 No-code AI 工作流領域的代表性標竿之一。</p>
+<p>---</p>
+<h2>技術架構</h2>
+<h3>Monorepo 結構（5 個 Package）</h3>
+<p>Flowise 採用 PNPM Workspace + Turborepo 管理的 Monorepo，按照 components → server → ui 的建構順序串接：</p>
+<p>| Package | 技術 | 職責 |</p>
+<p>|---------|------|------|</p>
+<p>| packages/server | Express.js | REST API + 執行引擎 |</p>
+<p>| packages/ui | React + ReactFlow | 拖放畫布前端 |</p>
+<p>| packages/components | TypeScript | 1000+ AI 提供者整合 |</p>
+<p>| packages/agentflow | React（模組化） | AgentFlow V2 有狀態工作流 UI |</p>
+<p>| packages/api-documentation | Swagger | API 文件 |</p>
+<p>語言組成：TypeScript 59.5%、JavaScript 28.6%，Runtime 需求 Node.js ≥18.15.0。</p>
+<h3>核心執行機制：NodesPool 動態插件系統</h3>
+<p>NodesPool 類別在伺服器啟動時，自動掃描並載入 flowise-components Package 中的所有節點實作（每個節點實作 INode 介面）。執行時依工作流圖的依賴順序，逐節點初始化、注入憑證、呼叫 AI 提供者，最終透過 SSE（Server-Sent Events）串流結果。這種設計讓新增自訂節點等同於新增一個 TypeScript 類別，無需修改執行引擎。</p>
+<h3>兩種工作流類型</h3>
+<p><strong>Chatflow（DAG 型）</strong>：使用廣度優先遍歷（buildChatflow()），無狀態、單輪或多輪對話，適合 RAG Q&A、文件問答、客服機器人。</p>
+<p><strong>Agentflow（有狀態序列型）</strong>：使用 executeAgentFlow() 序列執行，支援共享狀態（$flow.state）、分支、迴圈，適合多步驟 Agent 任務、Human-in-the-Loop 流程。</p>
+<p>---</p>
+<h2>工作流核心能力</h2>
+<h3>AgentFlow V2（2026 核心新架構）</h3>
+<p>V2 是 Flowise 最重要的架構演進，放棄依賴外部框架（LangChain Agent），改為原生開發 14 種專用節點：</p>
+<ul>
+<li>Start：工作流入口，初始化 $flow.state</li>
+<li>LLM：呼叫語言模型</li>
+<li>Agent：具備工具呼叫能力的 AI 代理</li>
+<li>Tool：外部工具（API/函數/MCP）</li>
+<li>Retriever：知識庫檢索</li>
+<li>HTTP：REST API 呼叫</li>
+<li>Condition：條件分支</li>
+<li>Loop / Iteration：迴圈與迭代</li>
+<li>Human Input：暫停等待人類輸入（HITL）</li>
+<li>Direct Reply：直接回覆不經 LLM</li>
+<li>Custom Function：JavaScript 自訂邏輯</li>
+<li>Execute Flow：呼叫子 Chatflow/AgentFlow（子工作流）</li>
+</ul>
+<p><strong>$flow.state 共享狀態機制</strong>：工作流執行期間的 Key-Value 儲存庫，必須在 Start 節點初始化。所有節點可跨分支讀寫，實現跨步驟資料持久化——類似本系統的 state/*.json 模式，但在視覺層直接操作。</p>
+<p><strong>多 Agent 協作（Supervisor/Worker 模式）</strong>：Supervisor Agent 可分解任務並委派給多個 Worker Agent，每個 Agent 可存取完整對話歷史，是視覺化工具中少數支援原生多 Agent 協調的實作。</p>
+<p><strong>子工作流嵌入（Execute Flow Node）</strong>：可在當前工作流內呼叫另一個完整 Chatflow 或 AgentFlow，實現模組化重用。</p>
+<p>---</p>
+<h2>AI 整合機制</h2>
+<h3>MCP（Model Context Protocol）原生支援</h3>
+<p>AgentFlow V2 將 MCP 工具作為工作流的一等公民（Tool Node），而非只作為 Agent 的附屬工具。官方提供 GitHub MCP、Atlassian Jira MCP、Brave Search MCP 等整合。自訂 MCP Server 可直接接入 Tool Node，無需修改 Flowise 核心。</p>
+<h3>RAG Pipeline 設計</h3>
+<p>標準 RAG 建構路徑：Document Loader → Text Splitter → Embeddings → Vector Store → Conversational Retrieval QA Chain</p>
+<p>支援的 Vector Store：Pinecone、Qdrant、Weaviate、Chroma 等。Document Loader 支援：PDF、DOCX、CSV、網頁、Notion Pages。</p>
+<h3>LLM 支援廣度</h3>
+<p>1000+ 節點覆蓋所有主流 LLM 提供者（OpenAI、Anthropic、Groq、Mistral、Ollama 本地模型等），通過憑證管理統一注入。</p>
+<p>---</p>
+<h2>部署與維運</h2>
+<p>部署選項：本機 NPX（npx flowise start）、Docker（最乾淨生產部署，10 分鐘完成）、Docker Compose + PostgreSQL（生產級認證與資料持久化）、Queue Mode（Redis + BullMQ 水平擴展）、Flowise Cloud（官方托管）、Railway/Render/HuggingFace Spaces（第三方平台快速部署）。</p>
+<p>資料持久化：TypeORM 支援 SQLite/PostgreSQL/MySQL；Blob 儲存支援 Local/S3/GCS/Azure Blob Storage。</p>
+<p>安全注意：預設無登入保護，需設定 FLOWISE_USERNAME / FLOWISE_PASSWORD 環境變數。</p>
+<p>---</p>
+<h2>與 daily-digest-prompt 的連結</h2>
+<ol>
+<li><strong>Phase 管線視覺化</strong>：Execute Flow Node 可把 Phase 0→1→2→3 的 Agent 呼叫鏈可視化，方便除錯特定 Phase 斷點。</li>
+</ol>
+<ol>
+<li><strong>RAG 知識庫橋接</strong>：Vector Store 節點可連接 localhost:3000 知識庫後端，讓 Flowise 工作流直接查詢/寫入 KB。</li>
+</ol>
+<ol>
+<li>*<em>$flow.state 對應 state/</em>.json**：本系統的手工 JSON 快照模式，對應 Flowise 的 $flow.state，提供有狀態 Agent 工作流的視覺化設計驗證。</li>
+</ol>
+<ol>
+<li>*<em>tools/</em>.py 透過 MCP 接入**：本系統 CLI 工具若包裝為 MCP Server，可直接插入 AgentFlow 作為 Tool Node，無需重寫。</li>
+</ol>
+<ol>
+<li><strong>Human Input Node ≈ human-review-queue.json</strong>：圖形化替代方案，適合 research_task 或 self_heal 的人工審核流程。</li>
+</ol>
+<ol>
+<li><strong>快速 POC 工具</strong>：新 auto-task 構想先在 Flowise 驗證 Node 串接邏輯，確認可行後再轉化為正式 Prompt + PowerShell 腳本。</li>
+</ol>
+<p>---</p>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：零程式碼快速原型（RAG 聊天機器人 15 分鐘可跑起）；AgentFlow V2 原生多 Agent（Supervisor/Worker、HITL、子工作流嵌套）；MCP 一等公民支援；1000+ 節點整合；Apache 2.0 授權（商業友好，無 Fair-Code 限制）；Docker Queue Mode 企業級水平擴展。</p>
+<p><strong>缺點 / 限制</strong>：非通用自動化工具（缺乏 n8n 的 400+ 業務系統整合）；TypeScript/Node.js 限制（Python 重度使用者有學習曲線）；視覺畫布複雜度上限（超過 30-50 個節點可讀性急降）；無 DAG 複雜依賴管理；預設無認證（生產環境需手動配置）；無原生排程機制（需搭配外部排程器）。</p>
+<p>---</p>
+<h2>社群狀態</h2>
+<p>Stars：52,200 | Forks：24,200 | License：Apache 2.0 | 最新版本：v3.1.2（2026-04-14）| 總 Releases：83 次（持續活躍）</p>
+<p>Discord 活躍社群 | 官方文件完整（docs.flowiseai.com）</p>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li>GitHub：https://github.com/FlowiseAI/Flowise</li>
+<li>官方文件：https://docs.flowiseai.com/</li>
+<li>AgentFlow V2：https://docs.flowiseai.com/using-flowise/agentflowv2</li>
+<li>DeepWiki 架構分析：https://deepwiki.com/FlowiseAI/Flowise</li>
+<li>比較分析：https://toolhalla.ai/blog/dify-vs-flowise-vs-langflow-2026</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

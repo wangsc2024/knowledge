@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Python 跨平台進程管理深度研究 — subprocess timeout、orphan 偵測與 Process Tree Kill 的生產實踐（2026）">
+  <title>Python 跨平台進程管理深度研究 — subprocess timeout、orphan 偵測與 Process Tree Kill 的生產實踐（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Python 跨平台進程管理深度研究 — subprocess timeout、orphan 偵測與 Process Tree Kill 的生產實踐（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Python</span><span class="tag">subprocess</span><span class="tag">進程管理</span><span class="tag">跨平台</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Python 跨平台進程管理深度研究 — subprocess timeout、orphan 偵測與 Process Tree Kill 的生產實踐（2026）</h1>
+<h2>技術概述</h2>
+<p>Python 的 <code>subprocess</code> 模組是啟動外部程式的核心機制，但在生產環境中，進程管理遠比 <code>subprocess.run()</code> 一行呼叫複雜得多。當父程式需要控制子進程的生命週期（啟動、監控、超時終止、樹狀清理），跨平台差異（Windows vs POSIX）成為最大的工程挑戰。本研究聚焦三個生產痛點：<strong>超時後的進程清理</strong>（timeout 不會自動 kill）、<strong>孤兒/殭屍進程偵測</strong>（子進程存活但父程式已死）、以及 <strong>Process Tree Kill</strong>（殺死進程及其所有後代）。這些問題在 Agent 編排系統、CI/CD pipeline、排程任務等場景中頻繁出現 [來源：Python 官方文件 subprocess, 2026][來源：Alexandra Zaharia, Kill subprocess children, 2021]。</p>
+<p>與替代方案的差異：<code>os.system()</code> 完全不提供進程控制能力，只回傳 exit code；<code>asyncio.create_subprocess_exec()</code> 提供非同步版本但 <code>communicate()</code> 的取消語義有已知缺陷（CPython Issue #139373）；<code>psutil</code> 是跨平台進程管理的業界標準補充庫，彌補 stdlib 在 Process Tree 操作上的空白 [來源：psutil 官方文件, 2026][來源：CPython Issue #139373, 2025]。</p>
+<p>---</p>
+<h2>核心概念與原理</h2>
+<h3>1. subprocess.run() 的 timeout 語義：「不殺只通知」</h3>
+<p><strong>核心主張</strong>：<code>subprocess.run(cmd, timeout=N)</code> 的 timeout 參數在超時時<strong>僅拋出 <code>TimeoutExpired</code> 例外，不會自動終止子進程</strong>。這是最常被誤解的行為 [來源：Python 官方文件 subprocess, 2026][來源：py4u.org subprocess timeout guide, 2026][來源：Eli Bendersky, Long-running child process, 2017]。</p>
+<pre><code>
+# 錯誤認知：以為 timeout 會自動 kill
+try:
+    subprocess.run(["long_task.exe"], timeout=30)
+except subprocess.TimeoutExpired:
+    pass  # 子進程仍在執行！
+</code></pre>
+<p>正確的超時處理必須使用 <code>Popen</code> 手動管理：</p>
+<pre><code>
+import subprocess
+
+def run_with_timeout(cmd, timeout_s=30):
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_s)
+        return stdout, stderr, proc.returncode
+    except subprocess.TimeoutExpired:
+        proc.kill()          # 必須手動 kill
+        stdout, stderr = proc.communicate()  # 清理殘留 I/O
+        return stdout, stderr, None
+</code></pre>
+<h3>2. terminate() vs kill() 的跨平台陷阱</h3>
+<p><strong>核心主張</strong>：<code>Popen.terminate()</code> 和 <code>Popen.kill()</code> 在 POSIX 和 Windows 上的語義完全不同，直接影響進程清理策略 [來源：Python 官方文件 subprocess, 2026][來源：psutil 官方文件, 2026][來源：py4u.org subprocess guide, 2026]。</p>
+<p>| 方法 | POSIX 行為 | Windows 行為 |</p>
+<p>|------|-----------|-------------|</p>
+<p>| <code>terminate()</code> | 發送 SIGTERM（可被捕獲，允許清理） | 呼叫 <code>TerminateProcess()</code>（立即強制終止） |</p>
+<p>| <code>kill()</code> | 發送 SIGKILL（不可捕獲，立即死亡） | 與 <code>terminate()</code> <strong>完全相同</strong> |</p>
+<p>| <code>send_signal(sig)</code> | 發送任意信號 | 僅支援 SIGTERM/CTRL_C_EVENT/CTRL_BREAK_EVENT |</p>
+<p><strong>關鍵洞察</strong>：Windows 上 <code>terminate()</code> 就是強制終止，沒有「優雅關閉」的概念。若需要在 Windows 上實作優雅關閉，必須使用 <code>CTRL_BREAK_EVENT</code>（需搭配 <code>CREATE_NEW_PROCESS_GROUP</code>）：</p>
+<pre><code>
+import subprocess, os, signal, sys
+
+if sys.platform == 'win32':
+    proc = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    os.kill(proc.pid, signal.CTRL_BREAK_EVENT)  # 模擬 Ctrl+Break
+else:
+    proc = subprocess.Popen(cmd)
+    proc.terminate()  # SIGTERM，允許清理
+</code></pre>
+<h3>3. Process Tree Kill：stdlib 的空白地帶</h3>
+<p><strong>核心主張</strong>：Python stdlib 的 <code>subprocess</code> 模組<strong>沒有內建機制殺死子進程的後代進程（process tree）</strong>，這是生產系統中孤兒進程的主要來源 [來源：Python 官方文件 subprocess, 2026][來源：Alexandra Zaharia, Kill subprocess children, 2021][來源：psutil Issue #2534, 2024]。</p>
+<p>#### POSIX 方案：Process Group + os.killpg()</p>
+<pre><code>
+import os, signal, subprocess
+
+proc = subprocess.Popen(cmd, start_new_session=True)
+try:
+    proc.wait(timeout=30)
+except subprocess.TimeoutExpired:
+    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    proc.wait(timeout=5)
+</code></pre>
+<p>Python 3.11+ 新增 <code>process_group</code> 參數：</p>
+<pre><code>
+proc = subprocess.Popen(cmd, process_group=0)
+</code></pre>
+<p>#### Windows 方案：psutil Process Tree（推薦）</p>
+<pre><code>
+import psutil
+
+def kill_process_tree(pid, timeout=5):
+    try:
+        parent = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return
+    children = parent.children(recursive=True)
+    for child in reversed(children):
+        try:
+            child.terminate()
+        except psutil.NoSuchProcess:
+            pass
+    parent.terminate()
+    gone, alive = psutil.wait_procs(children + [parent], timeout=timeout)
+    for p in alive:
+        try:
+            p.kill()
+        except psutil.NoSuchProcess:
+            pass
+</code></pre>
+<h3>4. uv.exe 在 Windows 上的孤兒問題（實證案例）</h3>
+<p><strong>核心主張</strong>：<code>uv.exe</code> 在 Windows 上不使用 Job Object 綁定子進程生命週期，導致 <code>Kill(uv_process)</code> 後 <code>python.exe</code> 子進程成為孤兒 [來源：astral-sh/uv Issue #11817, 2025][來源：astral-sh/uv Issue #8654, 2024][來源：puppetlabs PR #202, 同根因模式]。</p>
+<h3>5. asyncio subprocess 的 communicate() 取消陷阱</h3>
+<p><strong>核心主張（待驗證）</strong>：<code>asyncio.Process.communicate()</code> 被 <code>asyncio.wait_for()</code> 取消時，已讀入的 stdout/stderr 資料會<strong>永久丟失</strong> [來源：CPython Issue #139373, 2025]。</p>
+<p>建議的安全寫法（分離 I/O 與等待）：</p>
+<pre><code>
+io_task = asyncio.create_task(proc.communicate())
+try:
+    await asyncio.wait_for(asyncio.shield(proc.wait()), timeout=10)
+except asyncio.TimeoutError:
+    proc.kill()
+stdout, stderr = await io_task
+</code></pre>
+<p>---</p>
+<h2>最佳實踐</h2>
+<h3>1. 永遠用 list 形式傳遞命令，避免 shell injection</h3>
+<p><strong>情境</strong>：任何接受外部輸入的命令執行場景。</p>
+<p><strong>依據</strong>：CISA 2024 年將 OS Command Injection 列為必消除漏洞類別 [來源：CISA Secure by Design Alert, 2024][來源：Snyk, 2025][來源：SecureFlag, 2024]。</p>
+<p><strong>做法</strong>：<code>subprocess.run(["cmd", arg1, arg2])</code> 而非 <code>subprocess.run(f"cmd {arg1}", shell=True)</code>。</p>
+<p><strong>反例</strong>：<code>os.system(f"nslookup {hostname}")</code> — 攻擊者可注入 <code>; rm -rf /</code>。</p>
+<h3>2. 超時處理必須包含三步：terminate - wait - kill</h3>
+<p><strong>情境</strong>：任何可能 hang 的外部命令。</p>
+<p><strong>依據</strong>：Python 文件明確警告 timeout 不會自動終止進程 [來源：Python 官方文件, 2026]。</p>
+<h3>3. 生產系統必須處理 Process Tree，不只單一 PID</h3>
+<p><strong>情境</strong>：啟動的命令會 spawn 子進程（如 <code>uv run</code>、<code>npm start</code>）。</p>
+<p><strong>依據</strong>：stdlib 的 kill/terminate 只影響直接子進程 [來源：uv Issue #11817, 2025][來源：psutil 文件, 2026]。</p>
+<h3>4. Windows 進程管理需要額外的 creationflags</h3>
+<p><strong>情境</strong>：Windows 上需要優雅關閉或 process group 控制。</p>
+<p><strong>依據</strong>：Windows 的 <code>terminate()</code> 等同 <code>kill()</code> [來源：Python 官方文件, 2026]。</p>
+<h3>5. 使用 psutil.wait_procs() 批量等待進程終止</h3>
+<p><strong>情境</strong>：需要同時清理多個子進程。</p>
+<p><strong>依據</strong>：psutil 提供批量等待加 callback 機制 [來源：psutil 文件, 2026]。</p>
+<p>---</p>
+<h2>陷阱與反例</h2>
+<h3>陷阱 1：stdout=PIPE 不讀取導致死鎖</h3>
+<p>子進程寫滿 pipe buffer（Linux 64KB、Windows 4KB）後 block，父程式 wait 形成死鎖。必須用 <code>communicate()</code> [來源：Python 官方文件, 2026][來源：py4u.org, 2026][來源：Eli Bendersky, 2017]。</p>
+<h3>陷阱 2：WaitForExit(int) 兩階段完成語義（Windows）</h3>
+<p>回傳 true 後非同步輸出 handler 可能尚未清空 [來源：Microsoft Learn, .NET 10]。</p>
+<h3>陷阱 3：preexec_fn 在多執行緒環境 deadlock</h3>
+<p>Python 官方警告不安全，改用 <code>start_new_session=True</code> 或 <code>process_group=0</code> [來源：Python 官方文件, 2026]。</p>
+<h3>陷阱 4：Python 3.12 前 Windows shell 搜尋順序漏洞</h3>
+<p>3.12+ 修正只搜尋 <code>%COMSPEC%</code> 和 <code>%SystemRoot%\System32\cmd.exe</code> [來源：Python 官方文件, 2026]。</p>
+<p>---</p>
+<h2>與本專案關聯</h2>
+<h3>場景 1：FSM 殭屍偵測（F-02 Guard）</h3>
+<p>本專案 2026-04-25 修復 FSM zombie 問題：PID-aware 偵測死進程。Python 側可用 <code>psutil.pid_exists(pid)</code> 實現。</p>
+<h3>場景 2：uv run python 超時清理</h3>
+<p>所有 Python 工具通過 <code>uv run python -m tools.xxx</code> 執行。超時時必須殺整個進程樹。PowerShell 用 <code>$proc.Kill($true)</code>，Python 可用 <code>kill_process_tree()</code>。</p>
+<p>---</p>
+<h2>程式碼範例</h2>
+<pre><code>
+import subprocess, sys
+
+def safe_execute(cmd, timeout=60, grace=5):
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        start_new_session=(sys.platform != 'win32'),
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return stdout.decode(), stderr.decode(), proc.returncode
+    except subprocess.TimeoutExpired:
+        proc.terminate()
+        try:
+            stdout, stderr = proc.communicate(timeout=grace)
+            return stdout.decode(), stderr.decode(), proc.returncode
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+            return stdout.decode(), stderr.decode(), None
+</code></pre>
+<p>---</p>
+<h2>完整參考書目</h2>
+<ol>
+<li>Python Software Foundation. (2026). <em>subprocess — Subprocess management</em>. https://docs.python.org/3/library/subprocess.html [official]</li>
+<li>Giampaolo Rodola. (2026). <em>psutil documentation v7.2.3</em>. https://psutil.readthedocs.io/en/latest/ [official]</li>
+<li>Alexandra Zaharia. (2021). <em>Kill a Python subprocess and its children on timeout</em>. https://alexandra-zaharia.github.io/posts/kill-subprocess-and-its-children-on-timeout-python/ [blog]</li>
+<li>py4u.org. (2026). <em>Python Subprocess with Timeout: Large Output</em>. https://www.py4u.org/blog/python-subprocess-with-timeout-and-large-output-64k/ [blog]</li>
+<li>Eli Bendersky. (2017). <em>Interacting with a long-running child process</em>. https://eli.thegreenplace.net/2017/interacting-with-a-long-running-child-process-in-python/ [blog]</li>
+<li>CPython Contributors. (2025). <em>asyncio Process.communicate() unsafe to cancel — #139373</em>. https://github.com/python/cpython/issues/139373 [community]</li>
+<li>Simon Willison. (2024). <em>Running Python code in subprocess with time limit</em>. https://til.simonwillison.net/python/subprocess-time-limit [blog]</li>
+<li>astral-sh. (2025). <em>uv no Job Object on Windows — #11817</em>. https://github.com/astral-sh/uv/issues/11817 [community]</li>
+<li>CISA. (2024). <em>Secure by Design: Eliminating OS Command Injection</em>. https://www.cisa.gov/resources-tools/resources/secure-design-alert-eliminating-os-command-injection-vulnerabilities [official]</li>
+<li>Snyk. (2025). <em>Command injection in Python: prevention</em>. https://snyk.io/blog/command-injection-python-prevention-examples/ [benchmark]</li>
+<li>SecureFlag. (2024). <em>OS Command Injection in Python</em>. https://knowledge-base.secureflag.com/vulnerabilities/code_injection/os_command_injection_python.html [benchmark]</li>
+<li>astral-sh. (2024). <em>SIGINT propagation unreliable — #8654</em>. https://github.com/astral-sh/uv/issues/8654 [community]</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
