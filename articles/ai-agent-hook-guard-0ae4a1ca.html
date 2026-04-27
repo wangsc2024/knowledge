@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Agent Hook/Guard 工具護欄 2026：BodAIGuard SSRF、anywhere-agents PreToolUse 與授權架構實踐">
+  <title>AI Agent Hook/Guard 工具護欄 2026：BodAIGuard SSRF、anywhere-agents PreToolUse 與授權架構實踐 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI Agent Hook/Guard 工具護欄 2026：BodAIGuard SSRF、anywhere-agents PreToolUse 與授權架構實踐</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">hook-guard</span><span class="tag">security</span><span class="tag">PreToolUse</span><span class="tag">SSRF</span><span class="tag">BodAIGuard</span><span class="tag">anywhere-agents</span><span class="tag">authorization</span><span class="tag">ABAC</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent Hook/Guard 工具護欄 2026</h1>
+<h2>技術概述</h2>
+<p>AI Agent 的工具護欄（Guardrail）是在工具呼叫執行前攔截並評估請求的安全機制，2026 年已形成三個主流架構：<strong>BodAIGuard</strong>（YAML 驅動全通道防護）、<strong>anywhere-agents guard.py</strong>（PreToolUse 鉤子四閘門）與<strong>動態授權模型</strong>（ABAC 取代 RBAC）。這三者可組合部署，形成縱深防禦。</p>
+<h2>核心工具：BodAIGuard</h2>
+<p><strong>BodAIGuard</strong>（AxonLabsDev/BodAIGuard）是通用 AI Agent 護欄框架，特點：</p>
+<ul>
+<li><strong>規則規模</strong>：45 條封鎖規則 + 45 條確認規則，涵蓋 12 個類別</li>
+<li><strong>12 大類別</strong>：filesystem、database、network、email、git、process、secrets、packages、permissions、containers、deployment、prompt injection</li>
+<li><strong>五種執行通道</strong>：</li>
+</ul>
+<p>  1. Claude Code hooks（PreToolUse/PostToolUse）</p>
+<p>  2. HTTP proxy（攔截 API 呼叫，強制 <code>stream: false</code>）</p>
+<p>  3. MCP stdio proxy（包裝 Model Context Protocol 伺服器）</p>
+<p>  4. System prompt injection（嵌入護欄至 Agent 指令）</p>
+<p>  5. REST API（獨立評估服務）</p>
+<h3>SSRF 防護</h3>
+<pre><code>
+# ~/.bodaiguard/rules.yaml 範例
+actions:
+  network:
+    block:
+      - pattern: "absolute_url_in_proxy"
+        reason: "防止 SSRF：代理請求禁止絕對 URL"
+paths:
+  block:
+    - "~/sensitive-dir/**"
+</code></pre>
+<ul>
+<li>拒絕代理請求中的絕對 URL（大小寫不敏感，所有 HTTP 方法）</li>
+<li>移除 <code>proxy-authorization</code> 標頭，防止代理驗證 token 洩漏至目標 API</li>
+<li>符號連結解析 + 多路徑評估，防止路徑遍歷繞過</li>
+</ul>
+<h3>反提示注入（三層偵測）</h3>
+<p>| 層次 | 方法 | 延遲 |</p>
+<p>|------|------|------|</p>
+<p>| L1 regex | 模式比對 | ~0.1ms |</p>
+<p>| L2 heuristic | Base64 + 零寬字符解碼 | ~1ms |</p>
+<p>| L3 structural | 隱藏 HTML、注釋注入、不可見文字 | ~5ms |</p>
+<h3>安裝</h3>
+<pre><code>
+bodaiguard install hooks
+# → 修改 ~/.claude/settings.json，注入 PreToolUse + PostToolUse
+</code></pre>
+<p><strong>Fail-closed 原則</strong>：任何錯誤預設封鎖，不靜默放行。</p>
+<h2>anywhere-agents guard.py（PreToolUse 四閘門）</h2>
+<p><strong>anywhere-agents</strong>（yzhao062/anywhere-agents）提供可攜式 PreToolUse hook，部署至 <code>~/.claude/hooks/guard.py</code>：</p>
+<h3>四閘門架構</h3>
+<pre><code>
+PreToolUse hook (guard.py)
+├── Gate 1: Destructive Git/GitHub (Ask Gates)
+│   ├── 需確認：git push, git commit, git merge, git rebase
+│   ├── 需確認：git reset --hard, gh pr merge, gh pr create
+│   └── 靜默通過：git status, git diff, git log（唯讀操作）
+│
+├── Gate 2: Compound Command Shape (Deny Gates)
+│   ├── 攔截：cd /path &amp;&amp; destructive_command
+│   └── 無條件拒絕（無例外）
+│
+├── Gate 3: Writing-Style Enforcement (Deny Gates)
+│   ├── 目標：.md / .tex / .rst / .txt 檔案
+│   ├── 封鎖：~45 個 AI 語氣詞（delve、nuanced、pivotal 等）
+│   └── Write/Edit 含禁用詞 → 拒絕並列出違規詞
+│
+└── Gate 4: Banner/Status Gates (Deny Gates)
+    └── 防止靜默執行配置敏感操作
+</code></pre>
+<h3>配置與繞過</h3>
+<pre><code>
+// ~/.claude/settings.json
+{
+  "env": {
+    "AGENT_CONFIG_GATES": "off"  // 停用 Gate 3+4，Gate 1+2 不受影響
+  }
+}
+</code></pre>
+<p><strong>不對稱設計</strong>：破壞性/複合命令守衛始終啟動，風格/橫幅守衛可關閉，優先保護倉庫安全。</p>
+<h2>通用 Pre-Action Authorization 模式</h2>
+<pre><code>
+[Agent] → 嘗試工具呼叫
+    ↓
+[Hook/Interceptor] → 攔截請求
+    ↓
+[Policy Engine] → 評估規則（allow / deny / require_approval）
+    ↓
+[Action / Block]  ~40ms 額外延遲
+</code></pre>
+<p><strong>40+ 防護模式分類</strong>：</p>
+<ul>
+<li>filesystem：系統路徑、遞迴刪除</li>
+<li>network：非白名單域名</li>
+<li>data exports：批量讀取、PII 偵測</li>
+<li>code execution：eval 模式、子進程生成</li>
+<li>messaging：外部收件人、Agent 生成附件</li>
+</ul>
+<blockquote>重要：此層評估<strong>動作</strong>，不評估<strong>內容</strong>，與輸入/輸出過濾互補，非替代關係。</blockquote>
+<h2>為何 RBAC 不夠：轉向 ABAC 動態授權</h2>
+<p><strong>RBAC 失敗的兩種情境</strong>：</p>
+<ol>
+<li><strong>Confused Deputy 問題</strong>：Agent 繼承用戶的所有 scope（email + storage + GitHub + Slack），即使任務只需要其中一個</li>
+<li><strong>角色動態漂移</strong>：單次對話中 Agent 可能從「唯讀研究」轉為「可寫入程式碼執行」，靜態角色無法應對</li>
+</ol>
+<p><strong>混合架構（RBAC + ABAC）實踐</strong>：</p>
+<pre><code>
+RBAC（結構邊界）：定義允許的最大權限集
+    +
+ABAC（動態約束）：評估 who + what resource + context
+    ↓
+Authorization Fabric → ALLOW / DENY / REQUIRE_APPROVAL
+</code></pre>
+<p><strong>實施建議</strong>：</p>
+<pre><code>
+# Agent 授權設計原則
+agent_identity:
+  - 獨立 Agent 身份（分離 OAuth 憑證，非繼承用戶 token）
+  - 操作特定工具（narrow scope，非通用端點）
+  - 短效憑證（分鐘級，非天級）
+  - MCP 資源綁定 token（RFC 草案規範）
+
+audit_trail:
+  - 動作 → 授權規則的完整連結
+  - 策略引用稽核軌跡（不只記錄動作）
+</code></pre>
+<h2>與本專案的應用場景</h2>
+<p>| 場景 | 建議工具 | 整合點 |</p>
+<p>|------|---------|--------|</p>
+<p>| Claude Code hooks 強化 | BodAIGuard <code>bodaiguard install hooks</code> | <code>~/.claude/settings.json</code> |</p>
+<p>| 破壞性 git 操作防護 | anywhere-agents guard.py Gate 1+2 | <code>hooks/pre_bash_guard.py</code> 可吸收 Gate 2 邏輯 |</p>
+<p>| SSRF 防護（curl / fetch） | BodAIGuard network 規則 | <code>hooks/pre_bash_guard.py</code> 新增絕對 URL 偵測 |</p>
+<p>| Agent 動態授權 | ABAC 策略評估 | <code>tools/budget_guard.py</code> 可擴充任務範圍約束 |</p>
+<p>| 提示注入偵測 | BodAIGuard L1-L3 三層 | <code>hooks/hook_pipeline.py</code> 插入 prompt_injection_detector |</p>
+<h2>風險與注意事項</h2>
+<ol>
+<li><strong>延遲成本</strong>：Pre-action hook 約增加 40ms/呼叫，高頻工具（Bash）累積明顯</li>
+<li><strong>False Positive</strong>：writing-style gate 45 個封鎖詞可能誤封正當技術文件</li>
+<li><strong>繞過風險</strong>：<code>AGENT_CONFIG_GATES=off</code> 應限制為開發環境，不得進入排程腳本</li>
+<li><strong>Fail-open 陷阱</strong>：看門人邏輯出錯時，必須預設封鎖（fail-closed），而非靜默放行</li>
+<li><strong>規則維護</strong>：YAML 驅動規則需定期審查，舊規則可能與新工具版本衝突</li>
+</ol>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://github.com/AxonLabsDev/BodAIGuard">BodAIGuard GitHub</a>：YAML 驅動通用護欄框架</li>
+<li><a href="https://github.com/yzhao062/anywhere-agents">anywhere-agents GitHub</a>：PreToolUse 四閘門設計</li>
+<li><a href="https://dev.to/uu/pre-action-authorization-the-missing-security-layer-for-ai-agents-3l0p">Pre-Action Authorization for AI Agents</a>：授權層架構解析</li>
+<li><a href="https://tianpan.co/blog/2026-04-20-rbac-ai-agents-authorization">RBAC Is Not Enough for AI Agents</a>：ABAC 動態授權論證</li>
+<li><a href="https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html">OWASP AI Agent Security Cheat Sheet</a>：安全基線參考</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

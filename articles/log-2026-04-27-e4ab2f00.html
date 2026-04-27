@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 審查報告 - 2026-04-27">
+  <title>系統 Log 審查報告 - 2026-04-27 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 審查報告 - 2026-04-27</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">small-llm</span><span class="tag">phase_failure</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 審查報告 2026-04-27</h1>
+<h2>指紋狀態</h2>
+<ul>
+<li>本次全審（forced_reasons: phase_failure_today_ge_10(11), stale_last_audit_gte_4.0h）</li>
+<li>上次審查：2026-04-26T07:10:30+08:00</li>
+</ul>
+<h2>phase_failure（failure-stats）</h2>
+<p>最近一日 2026-04-27 的 phase_failure 為 11，低於前一日 2026-04-26（26），短期趨勢為改善。相較窗內高峰 2026-04-26（26 次）已回落。窗內 phase_failure 中位數為 9.5；最近一日相對中位數為「高於」中位數。</p>
+<p>近7天序列（由舊到新）：2026-04-24(7) → 2026-04-25(8) → 2026-04-26(26) → 2026-04-27(11)</p>
+<p>主要子分類：</p>
+<ul>
+<li>2026-04-26: agent_crash×23（主根因）、assembly_side_effects_missing×2、timeout×1</li>
+<li>2026-04-27: agent_crash×7、result_file_missing×3</li>
+</ul>
+<h2>問題分類</h2>
+<h3>🔴 嚴重</h3>
+<p>A. <strong>small-llm-team 持續跳過</strong>：run-small-llm-team.ps1 L167 使用 <code>uv run --project . python -c @'...'@ -- $freqYamlPath</code>，Python 收到 sys.argv=['<code>','--','path']，sys.argv[1]='--' → FileNotFoundError → frequency.yaml 解析失敗（LASTEXITCODE=1）→ 每輪跳過。已轉 backlog P1（id: backlog_log_audit_20260427_084037767924）</p>
+<h3>🟠 中優先</h3>
+<p>B. <strong>agent_crash 仍是主根因</strong>：今日7次，昨日高峰23次（上次report根因為codex使用上限至04/29-04/30）。今日已有改善但仍高於中位數。</p>
+<p>C. <strong>token-efficiency ntfy HTTP=400</strong>：run-token-efficiency.ps1 L206 ntfy URL='https://ntfy.sh'（無topic路徑），runaway session告警靜默丟失。已轉 backlog P2（id: backlog_log_audit_20260427_084037774067）</p>
+<p>D. <strong>Phase 0k workflow compliance 每輪略過</strong>：run-todoist-agent-team.ps1 L4546 <code>2>&1</code> 混入 uv VIRTUAL_ENV warning，ConvertFrom-Json失敗（Unexpected character: w at pos 0）→ 每輪略過。已轉 backlog P2（id: backlog_log_audit_20260427_084037781067）</p>
+<h3>🟡 改善建議</h3>
+<p>E. SelfHealRequest processed_at schema mismatch（non-blocking，上次已記錄）</p>
+<p>F. result_file_missing 今日3次（fail-safe 有缺口）</p>
+<h3>🟢 正常</h3>
+<ul>
+<li>autonomous-runtime=normal（無殭屍降級）</li>
+<li>Phase 1/3 對話性防護到位（planWriteTime×1, conversationalPattern×4）</li>
+<li>TIMEOUT: 70次（query-logs），屬正常波動範圍</li>
+<li>nul 誤報（子Agent false positive，grep 'null'中的substring，無實體nul檔）</li>
+</ul>
+<h2>修正結果</h2>
+<ul>
+<li>直接修正：0件（所有問題均在 run-*.ps1 禁直改範圍）</li>
+<li>backlog 寫入：3件（P1×1, P2×2）</li>
+<li>待追蹤：E/F 兩項</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
