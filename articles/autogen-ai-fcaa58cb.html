@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AutoGen 深度研究報告 - AI工作流自動化">
+  <title>AutoGen 深度研究報告 - AI工作流自動化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AutoGen 深度研究報告 - AI工作流自動化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">AutoGen</span><span class="tag">Multi-agent框架</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AutoGen 深度研究報告 - AI工作流自動化</h1>
+<h2>概述</h2>
+<p>AutoGen（microsoft/autogen）是 Microsoft Research 開源的 Python 多 Agent 框架，定位為<strong>對話式多 Agent 協作</strong>的核心抽象。截至 2026-04-28，GitHub 累計 57.5k Stars、8.7k Forks，MIT 授權，需 Python 3.10+。</p>
+<p><strong>重要現況</strong>：v0.4.5 發佈後，AutoGen 已進入<strong>維護模式（maintenance mode）</strong>——不再接受新功能，交由社群維護。Microsoft 已將企業級支援遷移至 Microsoft Agent Framework（AutoGen + Semantic Kernel 合流），官方建議新專案直接採用後者。</p>
+<h2>技術架構</h2>
+<p>AutoGen v0.4 採三層設計：Core Layer（事件驅動基礎）→ AgentChat Layer（高層 API）→ Extensions Layer（第三方整合）。</p>
+<p><strong>Core Layer</strong>：純事件驅動（async/await），代理人之間透過非同步訊息通訊，支援 event-driven 和 request/response 雙模式。設計目標是長執行、可暫停/恢復的 Agent 工作流。</p>
+<p><strong>AgentChat Layer</strong>：面向快速開發的高層 API，維持與 v0.2 相近的抽象層次，提供 AssistantAgent（核心對話 Agent）、UserProxyAgent（人類代理，帶 HITL 介面）、RoundRobinGroupChat（循環輪換發言）、SelectorGroupChat（由 LLM 動態選擇下一個發言 Agent）。</p>
+<p><strong>Extensions Layer</strong>：可插拔元件，包含 OpenAIChatCompletionClient、Azure Code Executor、MCP Server 工具整合等。</p>
+<h2>工作流核心能力</h2>
+<p><strong>Agent 通訊模型</strong>：AutoGen 的本質是「對話式 Agent 協作」——Agent 之間交換自然語言訊息，透過多輪對話達成任務共識，而非預定義的 DAG 圖或角色分工。這與 LangGraph（圖結構）和 CrewAI（角色分工）形成架構三角。</p>
+<p><strong>Teams 抽象</strong>：RoundRobinGroupChat 讓所有 Agent 依序發言（適合辯論/評審場景）；SelectorGroupChat 由 LLM 判斷最佳下一發言人（適合路由和專業分工）。</p>
+<p><strong>Code Execution</strong>：原生 DockerCommandLineCodeExecutor 和本機執行器，Agent 可自動產生並執行 Python/Shell 程式碼，獲取輸出後繼續推理——這是 AutoGen 的核心差異化能力，適合 research + coding 混合工作流。</p>
+<p><strong>Human-in-the-Loop（HITL）</strong>：UserProxyAgent 天然支援中斷等待人類輸入，可在任何對話輪次插入人工審核，無需額外配置。</p>
+<p><strong>狀態持久化</strong>：v0.4 支援儲存/恢復任務進度，Agent 中斷後可從中間狀態恢復。</p>
+<h2>AI 整合機制</h2>
+<p><strong>多模型後端</strong>：AutoGen v0.4 通過 autogen_ext 支援 OpenAI、Azure OpenAI、Anthropic Claude、Gemini、本地 Ollama 等後端，統一透過 ChatCompletionClient 抽象。</p>
+<p><strong>MCP 工具整合</strong>：Extensions Layer 提供 MCP Server 客戶端，Agent 可呼叫任何 MCP Tool，包括本系統 tools/*.py 如果包裝為 MCP Server 後可被 AutoGen Agent 直接呼叫。</p>
+<p><strong>OpenTelemetry 可觀測性</strong>：內建 OTel 整合，支援訊息追蹤、指標收集與視覺化流程圖，可接入現有 Langfuse/Phoenix 等可觀測性平台。</p>
+<h2>部署與維運</h2>
+<p><strong>AutoGen Studio</strong>：官方無程式碼 GUI，可在瀏覽器中拖曳組裝 Agent 團隊、測試工作流、視覺化對話流，適合快速原型驗證。</p>
+<p><strong>本機部署</strong>：pip install autogen-agentchat，無需容器（對比 Flowise 的 Node.js 環境）。</p>
+<p><strong>分散式執行</strong>：Core Layer 支援跨組織邊界的分散式 Agent 網路，但需要自建協調層。</p>
+<h2>與 daily-digest-prompt 的連結</h2>
+<p>本系統元件對應分析：</p>
+<ul>
+<li>run-todoist-agent-team.ps1 Phase 管線 → SelectorGroupChat 取代 PS1 協調邏輯（中等可行性，需重寫）</li>
+<li>tools/*.py CLI 工具鏈 → 封裝為 MCP Server 供 AutoGen Tool 呼叫（高可行性，MCP 天然整合）</li>
+<li>Human Review Queue → UserProxyAgent 天然 HITL 介面（高可行性，直接替代）</li>
+<li>state/*.json 手工快照 → v0.4 原生狀態持久化（中等可行性，格式差異需適配）</li>
+<li>claude -p 呼叫鏈 → AssistantAgent + Claude backend（高可行性，autogen_ext Anthropic 客戶端）</li>
+</ul>
+<p><strong>最大差距</strong>：AutoGen 的對話式模型產生大量 LLM 往返，token 消耗約 24,200 tokens/query（vs LangGraph 12,400），成本約 /usr/bin/bash.35/query，本系統每日 35 個自動任務若全遷移成本顯著提升。</p>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>原生 Code Execution 能力最強（Docker + 本機雙模式），適合研究型 Agent</li>
+<li>對話式 Agent 協作模式最自然，Group Debate / Consensus 場景最佳</li>
+<li>AutoGen Studio 降低實驗門檻（無程式碼原型）</li>
+<li>MCP 整合 + OpenTelemetry 可觀測性成熟</li>
+<li>跨語言（Python + .NET）支援，企業 .NET 系統可接入</li>
+</ul>
+<p><strong>缺點</strong>：</p>
+<ul>
+<li>已進入維護模式：未來不再有新功能，企業用戶應評估遷移至 Microsoft Agent Framework</li>
+<li>Token 消耗最高（約 2x LangGraph）：對話輪次多，成本高</li>
+<li>成本 \/usr/bin/bash.35/query，本系統場景成本不友善</li>
+<li>生產可靠性 70% uptime（文獻記載），不如 LangGraph 成熟度</li>
+<li>v0.2→v0.4 API 遷移有約 20% 相容性問題歷史記錄</li>
+</ul>
+<h2>效能基準（2026）</h2>
+<p>| 指標 | LangGraph | CrewAI | AutoGen |</p>
+<p>|------|-----------|--------|---------|</p>
+<p>| Token/query | 12,400 | 12,400 | 24,200 |</p>
+<p>| 延遲 (10-step) | 1.2s | 1.5s | 2.1s |</p>
+<p>| 成本/query | \/usr/bin/bash.10-0.18 | \/usr/bin/bash.12 | \/usr/bin/bash.35 |</p>
+<p>| 生產可靠性 | 最成熟 | 穩固 | 待改善 |</p>
+<h2>社群狀態</h2>
+<p>Stars：57,500 | Forks：8,700 | 最近更新：2026（維護模式，社群管理）</p>
+<p>License：MIT（程式碼）/ CC-BY-4.0（文件）</p>
+<p><strong>繼承框架</strong>：Microsoft Agent Framework（microsoft/agent-framework）v1.0 整合 AutoGen + Semantic Kernel，提供企業支援。</p>
+<h2>參考來源</h2>
+<ul>
+<li>GitHub microsoft/autogen（Stars: 57.5k, MIT）</li>
+<li>AutoGen 官方文件 https://microsoft.github.io/autogen/stable/</li>
+<li>AutoGen v0.4 reimagined - Microsoft Research Blog</li>
+<li>LLM Agent Frameworks Comparison 2026 - dasroot.net</li>
+<li>CrewAI vs LangGraph vs AutoGen - DataCamp</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

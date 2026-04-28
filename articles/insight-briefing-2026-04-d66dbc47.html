@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing 2026-04-28：Context Engineering 整合實作 — Tool RAG 化、Routing 動態化與 Context-Compressor 自動觸發（synthesis）">
+  <title>insight-briefing 2026-04-28：Context Engineering 整合實作 — Tool RAG 化、Routing 動態化與 Context-Compressor 自動觸發（synthesis） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing 2026-04-28：Context Engineering 整合實作 — Tool RAG 化、Routing 動態化與 Context-Compressor 自動觸發（synthesis）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">Context Engineering</span><span class="tag">tool-rag</span><span class="tag">context-compression</span><span class="tag">routing</span><span class="tag">synthesis</span><span class="tag">2026</span><span class="tag">agent架構</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Context Engineering 整合實作 2026</h1>
+<h2>Tool RAG 化、Routing 動態化與 Context-Compressor 自動觸發的 Synthesis</h2>
+<p><strong>日期</strong>：2026-04-28</p>
+<p><strong>研究類型</strong>：insight_briefing（synthesis 深化）</p>
+<h2>摘要</h2>
+<p>2026 年 Context Engineering（CE）三大核心實作模式收斂：<strong>Tool RAG 化</strong>（Progressive Disclosure 三層載入，解決 90+ 工具 >50K token 前置成本）、<strong>Context Routing 混合策略</strong>（rule-based 粗篩 + LLM 細分的 hybrid routing）、<strong>Context Compressor 自動觸發</strong>（LangChain Deep Agents 三段觸發機制）。arxiv 2601.07190 的 Active Context Compression 研究確認：agent 主動控制壓縮（22.7% token 節省，精確度維持）優於外部強制觸發。最重要洞見：<strong>65% 企業 AI 失敗源於 Context Drift（目標漂移），而非 token 耗盡</strong>。</p>
+<h2>核心洞見</h2>
+<h3>1. Tool RAG 化 — Progressive Disclosure 三層載入</h3>
+<ul>
+<li><strong>Discovery</strong>：僅名稱+一句話描述（100-300 tokens）</li>
+<li><strong>Activation</strong>：任務相關工具完整指令（2,000-5,000 tokens）</li>
+<li><strong>Execution</strong>：完整 schema 與範例</li>
+<li>90+ 工具 >50,000 tokens，Progressive Disclosure 可大幅降低前置成本</li>
+<li>本系統 Gap：Agent Pool coordinator.py 全量注入，routing.yaml 靜態路由未達 RAG 化</li>
+</ul>
+<h3>2. Context Routing 混合策略</h3>
+<ul>
+<li>Hybrid = rule-based（O(1)）+ LLM classifier（語義）</li>
+<li>Pre-Route 輕量 metadata 分析 → SkewRoute 檢索分數分佈代理 query hardness</li>
+<li>本系統：llm_classifier.py + llm_router.yaml 已是 hybrid，但研究子類型粒度可細化</li>
+</ul>
+<h3>3. Context Compressor 三段觸發（LangChain Deep Agents）</h3>
+<ul>
+<li>Tool result > 20,000 tokens → filesystem offload + 10 行 preview</li>
+<li>Context > 85% capacity → older args offload</li>
+<li>Offload 仍不足 → LLM 結構化摘要（session intent + artifacts + next steps）</li>
+<li>壓力測試建議從 10-20% capacity 觸發</li>
+</ul>
+<h3>4. Active Context Compression（arxiv 2601.07190）</h3>
+<ul>
+<li>22.7% token 節省（14.9M → 11.5M tokens），精確度維持（60%）</li>
+<li>Focus Agent：slime mold 啟發，agent 主動決定壓縮時機</li>
+<li>Knowledge block 保留學習成果，raw history 逐步清除</li>
+</ul>
+<h3>5. Context Drift 優先於 Token 耗盡</h3>
+<ul>
+<li>65% 企業 AI 失敗源於 drift/memory loss</li>
+<li>防 Drift：保留 error traces + structured summaries（三部分）+ needle-in-haystack 驗證</li>
+</ul>
+<h2>建議行動</h2>
+<p>| 優先 | 建議 | 涉及檔案 |</p>
+<p>|------|------|----------|</p>
+<p>| P1 | preamble.md 加 Level 0 觸發：>8K chars → 摘要壓縮 | templates/shared/preamble.md |</p>
+<p>| P1 | Summary 壓縮改三部分結構（intent/artifacts/next steps） | ADR-036 |</p>
+<p>| P2 | llm_router.yaml 加 tool_groups 按任務映射工具集合 | config/llm-router.yaml |</p>
+<p>| P2 | frequency-limits.yaml 加 query_hardness 細化研究子類型路由 | config/frequency-limits.yaml |</p>
+<p>| P3 | Knowledge block 概念引入 context/continuity（會話內累積） | context/continuity/ |</p>
+<h2>來源</h2>
+<ul>
+<li>arxiv 2601.07190: Active Context Compression (A 級)</li>
+<li>langchain.com/blog/context-management-for-deepagents (A 級)</li>
+<li>OpenReview N1E7rFZJGH: Route Before Retrieve (A 級)</li>
+<li>SwirlAI newsletter: State of Context Engineering 2026 (B 級)</li>
+<li>Zylos Research: AI Agent Context Compression Strategies (B 級)</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

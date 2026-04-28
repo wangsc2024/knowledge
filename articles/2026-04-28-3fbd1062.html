@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-04-28">
+  <title>系統優化落實報告 2026-04-28 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-04-28</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span><span class="tag">MigrationWatch</span><span class="tag">ntfy-fix</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-04-28</h1>
+<p><strong>來源</strong>：系統 Log 審查報告 2026-04-28（KB noteId: 67016df3）</p>
+<p><strong>方案數</strong>：2 個，全部驗收通過</p>
+<p><strong>Commit</strong>：4703562</p>
+<p>---</p>
+<h2>方案 A：MigrationWatch PSObject null-guard</h2>
+<p><strong>目標</strong>：修復每輪 todoist-team 執行時 <code>[MigrationWatch] Exception: The property 'task_key' cannot be found on this object</code></p>
+<p><strong>根本原因</strong>：<code>state/quality-trend.json</code> 有聚合摘要條目（date/avg_score 格式，無 task_key），<code>Where-Object { $_.task_key -eq $watchTask }</code> 在 PS7 中遇到無此屬性的 PSCustomObject 時拋出異常。</p>
+<p><strong>修改</strong>：<code>run-todoist-agent-team.ps1</code> L9154/L9162</p>
+<ul>
+<li>Before: <code>Where-Object { $_.task_key -eq $watchTask }</code></li>
+<li>After: <code>Where-Object { $null -ne $_ -and $_.PSObject.Properties['task_key'] -ne $null -and $_.task_key -eq $watchTask }</code></li>
+<li>同步：L9190 MigrationWatch ntfy URL <code>https://ntfy.sh</code> → <code>https://ntfy.sh/wangsc2025</code></li>
+</ul>
+<p><strong>驗收</strong>：✓ 消除每輪 ERROR log；✓ 57任務一致性通過；✓ 1278 tests 通過（4 pre-existing 失敗非本次引入）</p>
+<p>---</p>
+<h2>方案 B：ntfy runaway session 告警 HTTP=400 修復</h2>
+<p><strong>目標</strong>：修復 <code>run-token-efficiency.ps1</code> runaway session 偵測時 ntfy 告警 HTTP=400 靜默失效</p>
+<p><strong>根本原因</strong>：curl URL 為 <code>https://ntfy.sh</code>（無 topic 路徑），即使 JSON payload 含 topic 欄位，ntfy.sh 根端點回傳 HTTP=400。</p>
+<p><strong>修改</strong>：<code>run-token-efficiency.ps1</code> L209/L236/L303</p>
+<ul>
+<li>Before: <code>"https://ntfy.sh"</code></li>
+<li>After: <code>"https://ntfy.sh/$NtfyTopic"</code></li>
+</ul>
+<p><strong>驗收</strong>：✓ URL 明確帶 topic；✓ runaway/caveman drift/podcast guard 三路告警均修復</p>
+<p>---</p>
+<h2>已移 backlog 的高風險方案</h2>
+<p>（本次無高風險方案，均為低風險 P2/低 effort）</p>
+<h2>測試結果</h2>
+<ul>
+<li>YAML 語法：全部通過</li>
+<li>pytest 1278/1282 通過（4 pre-existing failures：response-economy.yaml + harness_b3_batch）</li>
+<li>validate_config --check-auto-tasks：57/57 ✅</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
