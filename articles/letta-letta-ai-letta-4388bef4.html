@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Letta（letta-ai/letta）— MemGPT 繼承者：OS 記憶模型、V1 Agent Loop 與 Skill Learning 全景研究（2026）">
+  <title>Letta（letta-ai/letta）— MemGPT 繼承者：OS 記憶模型、V1 Agent Loop 與 Skill Learning 全景研究（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Letta（letta-ai/letta）— MemGPT 繼承者：OS 記憶模型、V1 Agent Loop 與 Skill Learning 全景研究（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">Letta</span><span class="tag">MemGPT</span><span class="tag">Agent記憶</span><span class="tag">有狀態Agent</span><span class="tag">OS記憶模型</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Letta（letta-ai/letta）— MemGPT 繼承者：長期記憶 Agent 架構全景研究（2026）</h1>
+<p><strong>專案</strong>：letta-ai/letta | <strong>Stars</strong>：22.4k | <strong>Forks</strong>：2.4k | <strong>授權</strong>：Apache-2.0 | <strong>版本</strong>：v0.16.7（2026-03-31）</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p>Letta（前身為 MemGPT）是由加州大學伯克利分校（UC Berkeley）Sky Computing Lab 孵化、現已獨立商業化的有狀態 Agent 平台。其核心命題是：<strong>「Agent 不只使用記憶，Agent 活在記憶裡面」</strong>。與 LangChain、LangGraph 等以工具鏈為中心的框架不同，Letta 採用操作系統（OS）啟發的記憶模型，讓 Agent 像作業系統一樣主動管理哪些資料留在「RAM」（上下文視窗）、哪些頁入頁出「磁碟」（外部向量儲存）。</p>
+<p>這一設計使 Letta 能維持跨越 500+ 輪互動的長期任務一致性，遠超傳統 RAG 基線在約 50 輪後資訊碎裂的瓶頸 [來源：TokenMix Blog, 2026]。MemGPT 的最活躍開發現已遷至 Letta，MemGPT 套件仍作為開源參考實作保留。截至 2026 年 4 月，Letta Code 在 Terminal-Bench 上榮登「#1 模型無關開源 Coding Agent」，標誌著 Letta 從記憶框架演進為完整 Agent 平台。</p>
+<p>---</p>
+<h2>二、技術架構</h2>
+<h3>2.1 三層記憶體系（OS 啟發）</h3>
+<p>Letta 的核心差異化在於<strong>三層記憶體系</strong> [來源：Vectorize.io, 2026]：</p>
+<p>| 層次 | 類比 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>Core Memory</strong> | RAM | 永遠在 context window 中；儲存使用者 profile、當前任務狀態；Agent 可直接讀寫（self-edit） |</p>
+<p>| <strong>Recall Memory</strong> | 磁碟快取 | 可搜尋的歷史對話（向量 + 全文 + 混合搜尋）；由 Agent 主動 tool call 讀取 |</p>
+<p>| <strong>Archival Memory</strong> | 冷儲存 | 長期語意向量庫；Agent 透過 tool call 主動 query；容量近乎無限 |</p>
+<p>這種分層讓 Agent 突破 context window 固定上限，實現「記憶按需頁入、上下文保持精簡」。Agent 不是被動接收塞進 prompt 的資料，而是<strong>主動決策哪些記憶值得保留、何時檢索</strong> [來源：DEV Community, 2026]。</p>
+<h3>2.2 V1 Agent Loop — 從 MemGPT 到原生推理架構</h3>
+<p>2025-2026 年間 Letta 完成最重要的架構轉型 [來源：Letta 官方部落格「Rearchitecting Letta's Agent Loop」, 2026]：</p>
+<p><strong>MemGPT 舊架構問題</strong>：</p>
+<ul>
+<li>一切動作（含回訊息）都透過 tool call 執行（<code>send_message</code> tool）</li>
+<li>注入特殊參數 <code>thinking</code>（思維鏈）與 <code>request_heartbeat</code>（繼續執行訊號）</li>
+<li>Agent 預設終止，除非 <code>request_heartbeat=true</code></li>
+<li>強制 prompt engineering 替代模型原生能力</li>
+</ul>
+<p><strong>Letta V1 新架構</strong>：</p>
+<ul>
+<li>依賴模型原生 reasoning tokens 與 assistant message 直接生成</li>
+<li>廢棄 <code>heartbeat</code> 機制與 <code>send_message</code> tool</li>
+<li>Agent 保持「in-distribution」：與現代 LLM post-training pattern 對齊</li>
+<li>支援 OpenAI Responses API encrypted reasoning（Claude Extended Thinking 等）</li>
+</ul>
+<p><strong>設計動機</strong>：「現代 LLM 已針對 agentic pattern 進行 post-training，Agent 架構應跟隨模型訓練分佈，而非對抗它。」</p>
+<p>演進路徑：ReAct（格式化 prompt 推理）→ MemGPT（tool-based 有狀態）→ <strong>Letta V1（原生模型能力）</strong></p>
+<h3>2.3 Context Repositories 與 Skill Learning（2026 新特性）</h3>
+<p>[來源：Letta Code 官方部落格, 2026]</p>
+<ol>
+<li><strong>Context Repositories</strong>：對 Agent 記憶的 git-based 版本化管理；程式化控制 context 更新；提供完整記憶歷史回溯能力</li>
+<li><strong>Skill Learning</strong>：Agent 完成任務後能自動從對話提取「技能」存為 <code>.md</code> 檔（如「生成 DB migration」、「建立 PostHog dashboard」）；可加入 git 版本管理；後續相似任務中自動復用</li>
+</ol>
+<p>這兩個特性讓 Letta 朝向「<strong>會自我改善的 Agent 平台</strong>」演進。</p>
+<p>---</p>
+<h2>三、功能特色與競品比較</h2>
+<h3>與 Mem0、Zep 的核心差異</h3>
+<p>| 面向 | Letta | Mem0 | Zep |</p>
+<p>|------|-------|------|-----|</p>
+<p>| <strong>角色</strong> | 完整 Agent Runtime | 輕量記憶 SDK | 記憶即服務 |</p>
+<p>| <strong>記憶控制</strong> | Agent 主動 self-edit | 系統被動萃取 | 研究級混合架構 |</p>
+<p>| <strong>整合方式</strong> | 整個 Runtime | 插入現有框架 | 插入現有框架 |</p>
+<p>| <strong>鎖定程度</strong> | 高（重寫 Agent Loop） | 低 | 中 |</p>
+<p>| <strong>GitHub Stars</strong> | ~22.4k | ~48k | N/A |</p>
+<p>| <strong>LongMemEval</strong> | 未公布 | 49.0% | 未公布 |</p>
+<p>[來源：Vectorize.io 2026；TokenMix Blog 2026；DEV Community 2026]</p>
+<h3>與 LangGraph（LangMem）的比較</h3>
+<p>LangGraph 2025 年推出 LangMem SDK，加入 episodic/semantic/procedural 三類記憶。最大差異：LangMem 有<strong>procedural memory</strong>（Agent 自我更新 system instruction），Letta 目前沒有。但 LangMem 與 LangChain 緊密耦合，非 LangGraph 用戶採用代價高 [來源：Vectorize.io, 2026]。</p>
+<h3>Letta Code vs Claude Code、Cursor</h3>
+<p>Letta Code 差異化：<strong>跨 session 代碼庫記憶</strong>。<code>/init</code> 命令讓 Agent 分析本機代碼庫後重寫 system prompt；<code>/search</code> 讓 Agent 查詢過去對話的向量記憶。Terminal-Bench 上 Letta Code 達「可對比 Gemini CLI、Claude Code、Codex」的水準，最大優勢是<strong>模型無關性（model-agnostic）</strong> [來源：Letta Code 官方部落格, 2026]。</p>
+<p>---</p>
+<h2>四、使用方式</h2>
+<h3>快速啟動（CLI 方式）</h3>
+<pre><code>
+# 安裝 Letta Code CLI
+npm install -g @letta-ai/letta-code
+
+# 初始化代碼庫記憶
+letta-code /init
+
+# 搜尋歷史對話記憶
+letta-code /search "DB migration pattern"
+</code></pre>
+<h3>Python SDK 方式</h3>
+<pre><code>
+from letta import create_client
+
+client = create_client()
+
+# 建立有狀態 Agent（記憶自動持久化跨 session）
+agent = client.create_agent(
+    name="my-stateful-agent",
+    memory_blocks=[
+        {"label": "human", "value": "使用者偏好 Python，目前開發 FastAPI 後端"},
+        {"label": "persona", "value": "我是一個記憶管理型助手"}
+    ]
+)
+
+# 跨 session 互動（Core Memory 自動持久）
+response = client.send_message(
+    agent_id=agent.id,
+    message="繼續上次討論的 API 設計"
+)
+</code></pre>
+<h3>部署選項</h3>
+<ul>
+<li><strong>自架（Self-hosted）</strong>：<code>pip install letta</code>，SQLite/Postgres 後端，免費，Apache-2.0</li>
+<li><strong>Managed Cloud</strong>：$20-$200/月，含 ADE（Agent Development Environment）視覺化除錯工具</li>
+</ul>
+<p>---</p>
+<h2>五、社群活躍度</h2>
+<p>截至 2026 年 4 月：</p>
+<ul>
+<li><strong>22.4k stars</strong>，<strong>2.4k forks</strong>，100+ 貢獻者（觀測日：2026-04-29）</li>
+<li><strong>176 個 releases</strong>，7,463 commits，v0.16.7（2026-03-31），高頻持續更新</li>
+<li><strong>近 90 天</strong>：letta-code 獨立 repo 建立，反映重心轉移至 Coding Agent</li>
+<li>Discord、GitHub Discussions 持續活躍</li>
+</ul>
+<p>社群評價分歧：研究導向用戶評價架構優雅、記憶管理透明；生產導向用戶抱怨本機 LLM 支援問題（GitHub Issues 原文：「pure torture」），非 OpenAI 模型 90% 錯誤率，以及記憶 self-edit 破壞 prompt caching 的延遲問題 [來源：社群評測彙整, 2026]。</p>
+<p>---</p>
+<h2>六、潛在應用（daily-digest-prompt 視角）</h2>
+<h3>場景 A：自動任務 Agent 跨輪記憶升級（P1，本月可導入）</h3>
+<p><strong>問題</strong>：<code>context/continuity/auto-task-*.json</code> 格式簡單（max 5 runs），跨任務類型知識無法共享。</p>
+<p><strong>Letta 落地</strong>：每個 task_type 對應一個 Letta Agent（持久化 Agent ID 存 <code>config/letta-agents.yaml</code>）；Core Memory 儲存任務模式摘要；Archival Memory 自動索引所有研究報告 KB note，跨任務語意查詢。Agent 可查詢「3 個月前研究的 LangGraph 架構的具體細節」而非依賴 KB 隨機搜尋命中。</p>
+<h3>場景 B：Letta Code 整合至代碼審查（P2）</h3>
+<p><code>letta-code /init</code> 指向 <code>D:\Source\daily-digest-prompt</code>，讓 Agent 建立代碼庫記憶；<code>arch_evolution</code>、<code>harness_review</code> 任務可直接查詢歷史代碼修改記憶，避免重複建立上下文。落地步驟：<code>npm install -g @letta-ai/letta-code</code> → <code>/init</code> → 修改 <code>run-system-audit-team.ps1</code> 在 Phase 1 前呼叫 Letta Code search。</p>
+<h3>場景 C：研究連續性無限擴展（P2）</h3>
+<p>目前 continuity 上限 5 runs。用 Letta Archival Memory 替換，支援無限期追蹤所有研究歷史與語意查詢（「之前研究過哪些 Agent 框架的記憶架構？」），比 JSON 陣列更具探索性。</p>
+<p>---</p>
+<h2>七、優缺點評估</h2>
+<h3>優點</h3>
+<ol>
+<li><strong>最完整的記憶管理自主性</strong>：Agent 主動控制記憶頁入/頁出，比被動向量注入更透明可控 [來源：DEV Community, 2026]</li>
+<li><strong>長期連續性（500+ rounds）</strong>：在長對話任務一致性遠超 RAG baseline（後者 ~50 輪後資訊碎裂）[來源：TokenMix Blog, 2026]</li>
+<li><strong>V1 架構對齊現代 LLM</strong>：原生 reasoning token 支援，相容 Claude Extended Thinking、OpenAI Responses API [來源：Letta 官方部落格, 2026]</li>
+<li><strong>Skill Learning 自我改善</strong>：技能以 git 版本化管理，首個 OSS 框架展示「週運行後任務效能可測量提升」</li>
+</ol>
+<h3>缺點</h3>
+<ol>
+<li><strong>高鎖定成本</strong>：採用 Letta 等於採用整個 Agent Runtime，遷移需重寫 Agent Loop（社群估計 2-6 週）[來源：Vectorize.io, 2026]</li>
+<li><strong>本機 LLM 支援脆弱</strong>：GitHub Issues 回報 90% 非 OpenAI/Anthropic 模型錯誤率；小型模型難以完成記憶 self-management [來源：社群評測, 2026]</li>
+<li><strong>記憶 self-edit 破壞 prompt caching</strong>：每次 Core Memory 更新使 Anthropic/OpenAI prompt cache 失效，帶來額外延遲與費用 [來源：社群評測, 2026]</li>
+<li><strong>Python-first 限制</strong>：其他語言只能透過 REST API 存取，JS/TS 生態整合受限</li>
+</ol>
+<h3>不適用情境</h3>
+<ul>
+<li>短對話場景（分鐘至小時級），三層記憶開銷不合算</li>
+<li>需要快速生產部署的團隊（建議先用 Mem0 或 LangMem）</li>
+<li>本機 Ollama 用戶（模型能力不足時 memory self-edit 失敗率過高）</li>
+</ul>
+<p>---</p>
+<h2>書目（完整引用）</h2>
+<ol>
+<li>letta-ai（2026）。letta-ai/letta — GitHub Repository (v0.16.7)。https://github.com/letta-ai/letta。取用日：2026-04-29。<strong>source_type: official</strong></li>
+<li>Letta 官方（2026）。Rearchitecting Letta's Agent Loop: Lessons from ReAct, MemGPT, & Claude Code。https://www.letta.com/blog/letta-v1-agent。取用日：2026-04-29。<strong>source_type: official</strong></li>
+<li>Letta 官方（2026）。Letta Code: A Memory-First Coding Agent。https://www.letta.com/blog/letta-code。取用日：2026-04-29。<strong>source_type: official</strong></li>
+<li>Vectorize.io（2026）。Mem0 vs Letta (MemGPT): AI Agent Memory Compared (2026)。https://vectorize.io/articles/mem0-vs-letta。取用日：2026-04-29。<strong>source_type: comparison</strong></li>
+<li>TokenMix Blog（2026）。Mem0 vs Letta vs MemGPT 2026: AI Agent Memory Layer Comparison。https://tokenmix.ai/blog/ai-agent-memory-mem0-vs-letta-vs-memgpt-2026。取用日：2026-04-29。<strong>source_type: comparison</strong></li>
+<li>DEV Community（NebulAgg）（2026）。Top 6 AI Agent Memory Frameworks for Devs (2026)。https://dev.to/nebulagg/top-6-ai-agent-memory-frameworks-for-devs-2026-1fef。取用日：2026-04-29。<strong>source_type: community</strong></li>
+<li>Vectorize.io（2026）。Best LangChain Memory Alternatives for AI Agents in 2026。https://vectorize.io/articles/langchain-memory-alternatives。取用日：2026-04-29。<strong>source_type: comparison</strong></li>
+<li>阿里云創業者平台（2026）。GitHub-letta-ai/letta：letta（前身为MemGPT）是一个使用记忆创建LLM服务的框架。https://startup.aliyun.com/info/1089663.html。取用日：2026-04-29。<strong>source_type: community</strong></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
