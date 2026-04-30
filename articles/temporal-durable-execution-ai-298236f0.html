@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Temporal 深度研究報告 — 持久執行（Durable Execution）AI Agent 工作流引擎：Event History 架構、LangGraph 整合模式與 daily-digest-prompt 落地方案（19.9K Stars, MIT, 2026）">
+  <title>Temporal 深度研究報告 — 持久執行（Durable Execution）AI Agent 工作流引擎：Event History 架構、LangGraph 整合模式與 daily-digest-prompt 落地方案（19.9K Stars, MIT, 2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Temporal 深度研究報告 — 持久執行（Durable Execution）AI Agent 工作流引擎：Event History 架構、LangGraph 整合模式與 daily-digest-prompt 落地方案（19.9K Stars, MIT, 2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">Temporal</span><span class="tag">工作流引擎+AI</span><span class="tag">持久執行</span><span class="tag">DurableExecution</span><span class="tag">EventSourcing</span><span class="tag">LangGraph整合</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Temporal 深度研究報告</h1>
+<h2>概述</h2>
+<p>Temporal（temporalio/temporal）是 Uber Cadence 的繼承者，由原 Cadence 核心開發者於 Temporal Technologies 建立，定位為「持久執行（Durable Execution）平台」。與 n8n/Flowise 等視覺化 No-code 平台不同，Temporal 面向工程師，解決的核心問題是：在分散式系統中，如何讓長時間執行、多步驟的業務邏輯在遭遇伺服器崩潰、網路中斷、部署更新時，仍能保證執行至完成。2024-2026 年間，Temporal 從傳統業務流程協調器大幅擴展至 AI Agent 編排領域，成為「程式碼驅動型 AI 工作流」的生產標準之一。OpenAI Codex 即是以 Temporal 為底層執行每日數百萬 AI 請求的真實案例。</p>
+<h2>技術架構</h2>
+<p>Temporal 採用事件溯源（Event Sourcing）作為核心持久化機制。每個 Workflow Execution 都維護一條 append-only 事件歷史（Event History），任何時刻都可透過重播（replay）此歷史重建完整執行狀態。架構由三個核心元件組成：</p>
+<ul>
+<li><strong>Temporal Cluster</strong>：包含 History Service（分片儲存 Workflow 狀態）、Matching Service（管理 Task Queue）、Frontend Service（gRPC 入口）</li>
+<li><strong>Worker Process</strong>：用戶端的執行環境，透過 SDK 長輪詢 Task Queue，執行 Workflow 和 Activity 程式碼</li>
+<li><strong>SDK 層</strong>：支援 Python、Go、Java、TypeScript、.NET（Beta）、Ruby（Pre-release）</li>
+</ul>
+<p>Workflow vs Activity 設計分離是最關鍵的架構原則：</p>
+<ul>
+<li><strong>Workflow</strong>：純確定性邏輯（orchestration），禁止 I/O 或副作用，負責狀態管理與決策流</li>
+<li><strong>Activity</strong>：所有非確定性操作（LLM 呼叫、HTTP API、資料庫寫入），自動具備 RetryPolicy 能力</li>
+</ul>
+<p>這個分離讓系統在 Worker 崩潰後，能夠從 Event History 重播 Workflow 並跳過已完成的 Activity，完全避免重複執行副作用。</p>
+<h2>工作流核心能力</h2>
+<ul>
+<li><strong>自動重試與退避策略</strong>：Activity 層可設定 RetryPolicy（最大重試次數、退避倍率、錯誤類型白名單），適配 LLM rate limit 和 transient failure</li>
+<li><strong>Signal（訊號機制）</strong>：外部系統或人類可透過 Signal 向運行中的 Workflow 注入狀態變更，實現 Human-in-the-Loop（HITL）</li>
+<li><strong>Continue-As-New</strong>：超長鏈式 Workflow（如持續對話 Agent）可用此機制重置 Event History 防止記憶體過載</li>
+<li><strong>Temporal Nexus（2026 GA）</strong>：跨命名空間工作流連接，支援多租戶 Agent 系統</li>
+<li><strong>Multi-Region Replication（2026 GA）</strong>：99.99% SLA，跨區域高可用</li>
+</ul>
+<h2>AI 整合機制</h2>
+<p>Temporal 針對 AI Agent 場景的核心整合模式為三層 Activity 分工：</p>
+<pre><code>
+@activity.defn
+async def agent_tool_planner(prompt: str) -&gt; AgentDecision:
+    response = await openai_client.chat.completions.create(...)
+    return parse_json_response(response)
+
+@activity.defn
+async def dynamic_tool_activity(tool_name: str, args: dict) -&gt; ToolResult:
+    return await tool_registry[tool_name](**args)
+
+@workflow.defn
+class AgentWorkflow:
+    @workflow.run
+    async def run(self, initial_prompt: str):
+        history = ConversationHistory()
+        while True:
+            decision = await workflow.execute_activity(agent_tool_planner, ...)
+            if decision.next == "done":
+                break
+            result = await workflow.execute_activity(dynamic_tool_activity, ...)
+            history.append(result)
+</code></pre>
+<p>2026 年整合生態圈：OpenAI Agents SDK（Public Preview）、Pydantic AI、Vercel AI SDK、Google ADK、Langfuse（可觀測性）、Braintrust（AI 監控）均已有官方 Temporal 整合。</p>
+<p>與 LangGraph 的互補關係是業界共識：LangGraph 處理 Agent 推理邏輯與工具路由，Temporal 提供持久執行保障。生產架構模式：工作流超過 30 秒或涉及 3+ 外部系統時，LangGraph Agent 包裹在 Temporal Workflow 內執行。</p>
+<h2>部署與維運</h2>
+<ul>
+<li><strong>自託管</strong>：temporalite（本機開發）或 docker-compose（含 PostgreSQL/Cassandra 後端）</li>
+<li><strong>Temporal Cloud</strong>：完全託管，支援 AWS 和 Google Cloud（2026 新增）</li>
+<li><strong>可觀測性</strong>：原生 Web UI 提供工作流執行歷史視覺化、Activity 重試記錄、時間軸除錯；Langfuse 整合提供 LLM 層級追蹤</li>
+<li><strong>版本管理</strong>：透過 workflow.patched() API 實現 Workflow 代碼的滾動升級（不中斷在途執行）</li>
+</ul>
+<h2>與 daily-digest-prompt 的連結</h2>
+<ol>
+<li><strong>殭屍鎖問題</strong>：Temporal 的 Worker 心跳（Heartbeat）機制可作為進程存活監控替代方案，消除 179.7min 殭屍鎖事故類型</li>
+<li><strong>FSM zombie on system restart</strong>：Temporal 的 Workflow Execution State 由伺服器維護，Worker 重啟後自動恢復，避免 FSM 殘留 running 狀態</li>
+<li><strong>自動任務 timeout 管理</strong>：RetryPolicy + Activity timeout 可取代現有 timeouts.yaml 手動調整，透過 exponential backoff 自動適應</li>
+<li><strong>HITL 需求</strong>：Todoist 任務執行中需人工確認的場景，可透過 Temporal Signal 原生實現，取代現有的 ntfy 通知 + 手動重啟流程</li>
+</ol>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>持久執行保障（Event History replay）是業界最成熟實作，生產穩定性遠超自建 FSM</li>
+<li>Workflow-as-code 讓狀態邏輯在版本控制中可讀、可測試、可回溯</li>
+<li>原生 HITL（Signal）+ 多語言 SDK + 豐富 AI 生態系整合</li>
+<li>2026 年 Nexus + Multi-Region 讓企業級部署門檻大幅降低</li>
+<li>MIT 授權，可完全自託管</li>
+</ul>
+<p><strong>缺點 / 限制</strong>：</p>
+<ul>
+<li>引入額外基礎設施（Temporal Cluster），對現有 Windows + pwsh 環境有遷移摩擦</li>
+<li>Workflow 確定性限制（禁止隨機、系統時間等）需要開發者改變思維模式</li>
+<li>Event History 有 50MB 上限，超長 Agent 對話需搭配 Continue-As-New</li>
+<li>與現有 PowerShell + Phase 管線整合需要 Python SDK 橋接，非零遷移成本</li>
+</ul>
+<h2>社群狀態</h2>
+<p>Stars：19.9k | Forks：1.5k | 最近更新：2026-04-29（v1.31.0）</p>
+<p>語言：Go 99.5% | 授權：MIT | 發布：164 次（活躍維護）</p>
+<p>Replay 2026 大會：2026-05-05~07，Moscone Center</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://temporal.io/solutions/ai">Temporal for AI Solutions</a></li>
+<li><a href="https://temporal.io/blog/build-resilient-agentic-ai-with-temporal">Build Resilient Agentic AI with Temporal</a></li>
+<li><a href="https://learn.temporal.io/tutorials/ai/durable-ai-agent/">Durable AI Agent Tutorial</a></li>
+<li><a href="https://cordum.io/blog/temporal-vs-langgraph">Temporal vs LangGraph Production Decision Guide</a></li>
+<li><a href="https://github.com/temporalio/temporal">temporalio/temporal GitHub</a></li>
+<li><a href="https://www.kunalganglani.com/blog/temporal-workflow-engine-guide">Temporal Workflow Engine Guide 2026</a></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
