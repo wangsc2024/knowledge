@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統審查報告 - 2026-04-30 Phase2 partial">
+  <title>系統審查報告 - 2026-04-30 Phase2 partial | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統審查報告 - 2026-04-30 Phase2 partial</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">自動化</span><span class="tag">品質評估</span><span class="tag">partial</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統審查報告 - 2026-04-30 21:06</h1>
+<h2>執行摘要</h2>
+<p>| 項目 | 值 |</p>
+<p>|------|-----|</p>
+<p>| Phase 2 <code>status</code> | <strong>partial</strong> |</p>
+<p>| 原因 | <code>results/audit-dim1-5.json</code>、<code>audit-dim2-6.json</code>、<code>audit-dim3-7.json</code>、<code>audit-dim4.json</code> 於 <code>results/</code> <strong>皆不存在</strong>（Glob 驗證 0 筆），無法進行規格書加權合併 |</p>
+<p>| 參照基線 | <code>state/last-audit.json</code>（時間戳 <code>2026-04-30 21:02:58</code>）|</p>
+<p>| 參照加權總分／等級 | <strong>84.09／A</strong>（<strong>非</strong>本輪重算，僅作對照） |</p>
+<p>| 自動修正（Step 4） | <strong>0</strong>（缺 Phase 1 子項／證據，未執行程式／YAML／設定變更） |</p>
+<p>| 審模型／工具 | Cursor Agent；circuit breaker：<code>state/api-health.json</code> 未更新（本步依規範 skip） |</p>
+<h2>與連續記憶對照（`context/continuity/system-audit.json`）</h2>
+<ul>
+<li><strong>前次同日程記錄</strong> <code>records["2026-04-30"]</code>：<code>health_score</code> 84.09、<code>grade</code> A、<code>trend_vs_prev</code> declined、<code>consecutive_decline_count</code> 1。</li>
+<li><strong>本輪</strong>：無新 <code>health_score</code>（Phase 1 缺席）；若僅對照數值視為 <strong>stable</strong> vs 同日上一輪，<code>consecutive_decline_count</code> 設 <strong>0</strong>（未再創新低分）。</li>
+</ul>
+<h2>ADR／arch-decision（7.6 雙軌）</h2>
+<ul>
+<li><strong><code>context/adr-registry.json</code></strong>：<code>status=Accepted</code> 且 <code>implementation_status=immediate_fix</code> → <strong>220</strong> 筆（<code>uv run python</code> 計數）。</li>
+<li><strong><code>status=Deferred</code></strong> → <strong>305</strong> 筆（同上）。</li>
+<li><strong><code>context/arch-decision.json</code></strong>：<code>action=immediate_fix</code> 且對應 registry 亦为 Accepted/immediate_fix 者 <strong>1</strong> 筆，<code>execution_status=success</code> → <strong>不重設 pending</strong>，不發 <strong>7.6d</strong> ntfy。</li>
+<li><strong>備註</strong>：多數 registry <code>immediate_fix</code> 無對應 <code>arch-decision</code> 列；<strong>未</strong>對 218 筆 <code>missing_arch_entry</code> 做任何 <code>arch-decision.json</code> 寫入（無列可 patch）。</li>
+</ul>
+<p>✅ ADR 落實追蹤（narrow 檢視）：上述 <strong>dual-track immediate_fix</strong> 已全部 <code>success</code>。</p>
+<h2>各維度（沿用基線快照，非本輪審計）</h2>
+<p>| 維度 key | 分數 |</p>
+<p>|----------|------|</p>
+<p>| 1_information_security | 76 |</p>
+<p>| 2_system_architecture | 85 |</p>
+<p>| 3_system_quality | 89 |</p>
+<p>| 4_system_workflow | 87 |</p>
+<p>| 5_technology_stack | 79 |</p>
+<p>| 6_system_documentation | 87 |</p>
+<p>| 7_system_completeness | 88 |</p>
+<p>加權式（規格，<code>skills/system-audit/SKILL.md</code> 僅 stub v1.1.0 無細節，公式來自組裝 prompt）：<code>(D1×20+D2×18+D3×18+D4×15+D5×10+D6×10+D7×9)/100</code> — <strong>本輪未代入新子項資料</strong>。</p>
+<h2>關鍵發現（程序面）</h2>
+<ol>
+<li><strong>P0</strong>：Phase 1 產物遺失或路徑錯誤 → Phase 2 無法達到 <code>status=success</code> 契約。</li>
+<li><strong>P2</strong>：請確認 <code>run-system-audit-team.ps1</code> 或維度 Agent 是否在非預設目錄寫入 JSON，或提早觸發清理。</li>
+</ol>
+<h2>修正記錄（本次自動修正）</h2>
+<ul>
+<li>無（0 項）。</li>
+</ul>
+<h2>建議清單（人工）</h2>
+<ol>
+<li>重新跑 Phase 1 四 Agent，並在 Phase 2 啟動前 <code>Glob results/audit-dim*.json</code> 確認四檔存在。</li>
+<li>完成後再以本模板重跑 Step 2 加權與全文 38 子項表格。</li>
+</ol>
+<h2>趨勢分析</h2>
+<p>無新分數可比；見連續記憶區段。</p>
+<p>---</p>
+<p><em>報告路径：<code>docs/系統審查報告_20260430_210628.md</code></em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

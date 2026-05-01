@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MCP 安全 2026：Tool Poisoning、Remote MCP 信任邊界與 Runtime 防禦 深度研究報告">
+  <title>MCP 安全 2026：Tool Poisoning、Remote MCP 信任邊界與 Runtime 防禦 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>MCP 安全 2026：Tool Poisoning、Remote MCP 信任邊界與 Runtime 防禦 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">MCP安全</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>MCP 安全 2026：Tool Poisoning、Remote MCP 信任邊界與 Runtime 防禦</h1>
+<h2>執行摘要</h2>
+<p>MCP 相較一般 function calling 的新增風險，不在於「多了一個呼叫工具的介面」而已，而在於它把工具定義、工具輸出、跨伺服器組合與授權流程，全部變成模型執行路徑的一部分。這使攻擊面從單次函式呼叫，擴張成整個 session 的資料流與信任鏈。第一個研究問題的答案是：MCP 最獨特的攻擊面有三個。其一，tool response 是執行期資料，若來自 open-world 或不受信任 server，就可能把惡意指令直接注入模型上下文，形成 tool poisoning [來源：MCP Tool Poisoning, 2026]。其二，remote MCP 需要額外處理 OAuth audience/resource 綁定、同意頁、redirect URI、state 與 token 驗證，這些在傳統本地 function calling 中通常不存在 [來源：MCP Authorization Specification, 2025-06-18；MCP Security Best Practices, 2025-06-18]。其三，風險是組合性的，單一工具看似安全，但只要同一 session 同時擁有私有資料讀取、open-world 輸入與外送能力，就可能形成資料外洩鏈 [來源：Tool Annotations as Risk Vocabulary, 2026；Model Context Protocol Schema Reference - ToolAnnotations, 2025-06-18]。</p>
+<p>第二個研究問題的答案是：2025-2026 的官方規範與公開案例已收斂出一個明確結論，單靠模型對齊或 prompt engineering 不足以防禦 MCP 風險。學術論文指出，prompt injection 是建在模型之上的應用漏洞，且現有防禦整體仍不足 [來源：The Instruction Hierarchy, 2024；Formalizing and Benchmarking Prompt Injection Attacks and Defenses, 2023]。官方規範則把重點放在 deterministic guardrails：禁止 token passthrough、要求 resource indicator、限制 scope、做 consent 與 state 驗證、對 open-world 工具提高審查 [來源：MCP Security Best Practices, 2025-06-18；MCP Authorization Specification, 2025-06-18]。因此可操作的防禦分層應至少包含：模型層的指令優先級與拒絕策略、client/host 層的 taint propagation 與人工批准、gateway/server 層的 OAuth 驗證與 outbound credential control、以及網路層的 prompt scanning [來源：使用提示注入保护企业生成式 AI 应用, 2026-04-27；在 Azure API 管理中安全访问 MCP 服务器, 2026-02-03]。</p>
+<p>第三個研究問題的答案是：若要在生產環境部署 remote MCP，最佳做法不是在 OAuth、tool annotations、runtime scanning、human approval 之間二選一，而是把它們組成可遞進升級的控制鏈。OAuth 應先把 token 的 audience 綁到特定 MCP server，並把 scope 壓到最小；tool annotations 則只能做風險詞彙與 UX 輔助，不能作為硬保證；runtime scanning 用來偵測 prompt injection、SSRF、資料污染與異常上下文；human approval 則應聚焦於高風險寫入、跨邊界外送與權限升高操作 [來源：Get started with custom connectors using remote MCP, 2026-04-30；Model Context Protocol Schema Reference - ToolAnnotations, 2025-06-18；Security Advisory: SSRF, Indirect Prompt Injection, and sandbox bypass in @modelcontextprotocol/server-puppeteer, 2026-03-21]。總結來說，MCP 在 2026 年可安全上線，但前提是把它視為「分散式信任邊界系統」，而不是「比較方便的 function calling」。</p>
+<h2>研究背景與動機</h2>
+<p>MCP 在 2025-2026 快速成為工具整合的共通協定，原因很直接：它把資料源、工具與 agent host 之間的介面標準化，讓開發者能以較低成本接上搜尋、儲存、版本控制、瀏覽器與企業 SaaS。然而標準化本身也會放大風險外溢。一旦生態系統把第三方 server、遠端授權與多工具串接變成預設模式，攻擊者就不再只需要攻擊模型，而可以改攻擊 server 輸出、OAuth 流程、tool metadata 與 session 組合。這也是為什麼 OWASP 已把 MCP Tool Poisoning 具體化成獨立攻擊類型 [來源：MCP Tool Poisoning, 2026]。</p>
+<p>本題重要之處，在於企業很容易把 MCP 誤判成單純的連接器層。若採用這種心智模型，就會忽略 runtime content、token audience 與多工具會話的組合風險。現有缺口不是大家不知道 prompt injection，而是很多團隊仍把它當成輸入清洗問題，沒有把權限、來源、上下文污染與出站控制綁在一起看。這正是 remote MCP 上線前必須補課的地方。</p>
+<h2>核心技術解析</h2>
+<h3>一、MCP 的新增信任邊界：從 connect-time 審查轉向 runtime 審查</h3>
+<p>OWASP 對 MCP Tool Poisoning 的定義點出核心：問題不是工具描述本身，而是工具回應會在執行期直接回流進 LLM 上下文，而這條 runtime 通道沒有與 connect-time 等價的審查 [來源：MCP Tool Poisoning, 2026]。Instruction Hierarchy 論文也明講，indirect prompt injection 典型來源就是 browsing 或 tool use 的第三方輸入 [來源：The Instruction Hierarchy, 2024]。換句話說，MCP 把「工具輸出」從普通資料提升成了安全關鍵輸入。這與一般 function calling 的差別是，傳統函式呼叫常把工具視為受信邏輯元件；MCP 則更像多租戶、多伺服器、多資料域的上下文交換系統。</p>
+<p>這也是 <code>openWorldHint</code> 值得重視的原因，但必須正確理解。官方 schema 明示 ToolAnnotations 都只是 hints，不能拿來對不受信任 server 做安全決策 [來源：Model Context Protocol Schema Reference - ToolAnnotations, 2025-06-18]。因此 <code>openWorldHint</code> 的最佳用途，不是讓 client 覺得某工具「安全」或「危險」，而是當作 taint signal：只要工具會接觸外部不受信資料，就要把後續 session 視為已污染，對寫入、發信、上傳、shell 與跨服務同步動作提高門檻 [來源：Tool Annotations as Risk Vocabulary, 2026]。</p>
+<h3>二、remote MCP 的授權面：resource audience、consent 與 token handling</h3>
+<p>MCP Authorization Specification 對 remote MCP 的要求比一般 API wrapper 更嚴。它要求 client 在 authorization request 與 token request 中都帶入 <code>resource</code> 參數，且必須對應目標 MCP server 的 canonical URI [來源：MCP Authorization Specification, 2025-06-18]。這代表 token 不應是模糊用途，而應與特定 server 綁定。Security Best Practices 更直接把 token passthrough 定義為 anti-pattern，因為它會繞過 server 端的稽核、限流、audience 驗證與責任歸屬 [來源：MCP Security Best Practices, 2025-06-18]。</p>
+<p>這裡有一個容易忽略的細節：MCP 的風險不只來自 token 洩漏，還來自 consent 錯配。官方安全文件把 confused deputy 寫成明確攻擊流，要求 proxy 端做 per-client consent、精確 redirect URI 驗證與單次 state 驗證 [來源：MCP Security Best Practices, 2025-06-18]。若沒有這些控制，使用者過去對某第三方 API 的合法同意，可能被攻擊者藉由惡意 redirect URI 重用。這種問題在本地 function calling 幾乎不存在，但 remote MCP 必須把它視為一等公民風險。</p>
+<h3>三、工具註解、runtime scanning 與 human approval 的角色分工</h3>
+<p>2026 年的實務共識是：annotations 幫你描述風險，但不能代替 enforcement；掃描與人工批准則要根據風險狀態動態升級。MCP 官方 blog 把註解定位成 risk vocabulary，並強調真正危險的是組合，而不是單一工具 [來源：Tool Annotations as Risk Vocabulary, 2026]。Issue #711 進一步提案增加 <code>privateHint</code>、<code>sensitiveHint</code>、<code>maliciousActivityHint</code> 與 <code>attribution</code>，本質上是在補足「風險可傳遞」與「來源可歸因」這兩個缺口 [來源：[SPEC] Annotations for MCP Requests and Responses (security/privacy), 2025-06-11]。</p>
+<p>另一方面，Microsoft 的路線很清楚地展示了兩個實作面。第一，Foundry 的 OAuth identity passthrough 讓 agent 以使用者本人身分去發現與調用工具，但同時要求租戶匹配且不支援跨租戶 token exchange [來源：为模型上下文协议（MCP）工具设置身份验证, 2026-04-11]。第二，APIM 與 Global Secure Access 提供 gateway/network 層控制：前者可安全注入下游 OAuth token，後者可在提示進模型前就阻擋惡意 prompt [來源：在 Azure API 管理中安全访问 MCP 服务器, 2026-02-03；使用提示注入保护企业生成式 AI 应用, 2026-04-27]。這些做法與 Anthropic 對 agent 的建議並不衝突；Anthropic 同樣強調 sandbox、checkpoint 與 human feedback [來源：Building Effective AI Agents, 2024]。差別只在控制點落在哪一層。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ 支持來源數：5。MCP 的首要風險不是工具本身，而是工具輸出重新成為模型指令解讀材料。若忽略 runtime content，就會低估 tool poisoning。反方觀點：若所有工具都來自自營封閉環境，風險可降，但只要混入第三方或 open-world server，結論仍成立。</li>
+</ol>
+<ol>
+<li>✅ 支持來源數：4。Tool annotations 只能協助風險分類與 UX，不是安全憑證。把 <code>readOnlyHint</code> 或 <code>openWorldHint</code> 當成「可放心執行」的證明是錯誤用法。反方觀點：在強信任企業內網，annotations 可承載更多政策，但仍需要 deterministic enforcement。</li>
+</ol>
+<ol>
+<li>✅ 支持來源數：5。remote MCP 的最小安全單位不是「使用者已登入」，而是「此 token 是否明確簽發給此 MCP server、此 scope 是否只覆蓋必要行為」。反方觀點：小型內部工具可先走簡化授權，但之後補 audience 分離通常代價更高。</li>
+</ol>
+<ol>
+<li>✅ 支持來源數：6。模型層防禦只能降低成功率，不能替代 host/runtime 層控制。論文與官方實務都指向同一結論：必須有掃描、沙箱、人工批准與審計。反方觀點：低風險唯讀查詢場景可降低批准頻率，但不代表可取消控制。</li>
+</ol>
+<ol>
+<li>⚠️ 支持來源數：2。MCP 下一輪真正的安全成熟度，可能取決於跨工具的 taint propagation 標準化，而非更多靜態 metadata。反方觀點：這仍是基於社群提案的推論，尚未成為穩定規範。</li>
+</ol>
+<h2>實務應用建議</h2>
+<p>第一，remote MCP 佈署時先做工具分級，而不是一股腦開放。把工具分成唯讀閉域、唯讀開域、可寫閉域、可寫開域四級。唯讀閉域可預設低摩擦；只要是開域或可寫，就要求更嚴的審查與審計。落地步驟是先補齊每個 tool 的 annotations 與實際權限表，再在 host 端實作風險矩陣。風險是 metadata 失真，因此不可只依 annotations，還要交叉比對真實 capability。</p>
+<p>第二，OAuth 一律以 server audience 與最小 scopes 為核心。若採 direct remote MCP，就照 spec 帶 <code>resource</code> 並禁用 token passthrough；若採 gateway 模式，則把下游 token 管理集中到 APIM 或等價 broker。落地步驟是：檢查每個 connector 是否有明確 audience、scope、consent UI、redirect URI 白名單與 state 驗證。風險是為了方便而重用共享 token，這通常會毀掉審計鏈。</p>
+<p>第三，把 runtime scanning 與 taint state 做成同一條控制鏈。當 open-world 工具、檔案抓取、瀏覽器或 email 讀取工具返回內容後，先掃 prompt injection 或敏感資料訊號，再把 session 標記為 tainted；一旦 tainted，所有寫入、外送、shell、repo push、Webhook、HTTP POST 等行為都要求批准。風險是誤報增加，但比起高權限工具自動外送，這是合理取捨。</p>
+<p>第四，對高風險操作保留 human approval，不要幻想完全自治。批准點應放在跨邊界資料搬運、破壞性寫入、權限擴張與外部通訊，不必放在每一次查詢。落地上可用兩級制：普通批准針對 destructive tool，升級批准針對 tainted session 中的 exfiltration-capable tool。風險是流程變慢，但這正是對高風險面應付的成本。</p>
+<p>第五，server implementation 安全要單獨治理。Puppeteer server 的公開 advisory 顯示，MCP 風險常是 spec 風險與實作漏洞的疊加，而不是二選一 [來源：Security Advisory: SSRF, Indirect Prompt Injection, and sandbox bypass in @modelcontextprotocol/server-puppeteer, 2026-03-21]。因此上線前應把 server 套件視同一般高權限後端：做依賴盤點、弱點掃描、sandbox 與維護狀態審查。</p>
+<h2>與現有知識的連結</h2>
+<p>本研究與本專案近期多個脈絡直接相連。先前「Agentic Coding 能力評估 2026」已指出 context poisoning 與 always-load vs lazy-load 是 agent 成敗關鍵；MCP 安全研究把這個問題從應用層再往下延伸到協定層。另一條是記憶與上下文治理，例如 Mem0、Letta、Graphiti 等研究強調來源與時序；MCP 的 taint propagation、attribution 與 sensitive hints，本質上是在工具鏈中複製同一個治理問題。對本 repo 而言，這也呼應 <code>deep-research</code> workflow 對三角佐證、品質閘門與 deterministic controls 的偏好：安全不能靠單一模型判斷兜底。</p>
+<h2>未來展望</h2>
+<p>接下來最值得追蹤的，不是「會不會再有新的 prompt injection 名稱」，而是 MCP 生態是否能把信任、敏感度、來源與惡意訊號標準化地穿越工具邊界。若 <code>maliciousActivityHint</code>、<code>attribution</code>、更細緻的 securitySchemes 與 runtime response annotations 逐步落地，client 就能把 tainted state 做成可互通政策，而不只是各家私有實作。另一個待解問題是評測：目前缺少公開、可重現的大型 remote MCP 攻防資料集，導致很多討論仍停在規範與案例層。未來若能結合 session-level benchmark、真實 server 實作與多工具會話評測，MCP 安全才會真正從概念成熟走向工程成熟。</p>
+<h2>完整書目</h2>
+<ul>
+<li>Model Context Protocol. (2025-06-18). MCP Authorization Specification. https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization （取用日期：2026-05-01；source_type: official）</li>
+<li>Model Context Protocol. (2025-06-18). MCP Security Best Practices. https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices （取用日期：2026-05-01；source_type: official）</li>
+<li>Model Context Protocol. (2025-06-18). Schema Reference - ToolAnnotations. https://modelcontextprotocol.io/specification/2025-06-18/schema （取用日期：2026-05-01；source_type: official）</li>
+<li>Anthropic Support. (2026-04-30). Get started with custom connectors using remote MCP. https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp （取用日期：2026-05-01；source_type: official）</li>
+<li>Microsoft Learn. (2026-04-11). 为模型上下文协议（MCP）工具设置身份验证. https://learn.microsoft.com/zh-cn/azure/foundry/agents/how-to/mcp-authentication （取用日期：2026-05-01；source_type: official）</li>
+<li>Microsoft Learn. (2026-02-03). 在 Azure API 管理中安全访问 MCP 服务器. https://learn.microsoft.com/zh-cn/azure/api-management/secure-mcp-servers （取用日期：2026-05-01；source_type: official）</li>
+<li>Microsoft Learn. (2026-04-27). 使用提示注入保护企业生成式 AI 应用. https://learn.microsoft.com/zh-cn/entra/global-secure-access/how-to-ai-prompt-injection-protection （取用日期：2026-05-01；source_type: official）</li>
+<li>OWASP Foundation. (2026). MCP Tool Poisoning. https://owasp.org/www-community/attacks/MCP_Tool_Poisoning （取用日期：2026-05-01；source_type: official）</li>
+<li>Hungerford, O., Morrow, S., & Chang, L. (2026-03-16). Tool Annotations as Risk Vocabulary: What Hints Can and Can't Do. https://blog.modelcontextprotocol.io/posts/2026-03-16-tool-annotations/ （取用日期：2026-05-01；source_type: blog）</li>
+<li>Anthropic Research. (2024-12-19). Building Effective AI Agents. https://www.anthropic.com/research/building-effective-agents （取用日期：2026-05-01；source_type: blog）</li>
+<li>Wallis, J., et al. (2024). The Instruction Hierarchy: Training LLMs to Prioritize Privileged Instructions. https://arxiv.org/pdf/2404.13208 （取用日期：2026-05-01；source_type: academic）</li>
+<li>Liu, Y., Jia, Y., Geng, R., Jia, J., & Gong, N. Z. (2023). Formalizing and Benchmarking Prompt Injection Attacks and Defenses. https://arxiv.org/pdf/2310.12815 （取用日期：2026-05-01；source_type: academic）</li>
+<li>joergmichno. (2026-03-21). Security Advisory: SSRF, Indirect Prompt Injection, and sandbox bypass in @modelcontextprotocol/server-puppeteer. https://github.com/modelcontextprotocol/servers/issues/3662 （取用日期：2026-05-01；source_type: community）</li>
+<li>SamMorrowDrums. (2025-06-11). [SPEC] Annotations for MCP Requests and Responses (security/privacy). https://github.com/modelcontextprotocol/modelcontextprotocol/issues/711 （取用日期：2026-05-01；source_type: community）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

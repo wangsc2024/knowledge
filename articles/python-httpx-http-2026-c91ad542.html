@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Python httpx 非同步 HTTP 客戶端生產實踐 2026：連接池管理、重試策略、逾時配置與 AI Agent 工作流 API 可靠度設計">
+  <title>Python httpx 非同步 HTTP 客戶端生產實踐 2026：連接池管理、重試策略、逾時配置與 AI Agent 工作流 API 可靠度設計 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Python httpx 非同步 HTTP 客戶端生產實踐 2026：連接池管理、重試策略、逾時配置與 AI Agent 工作流 API 可靠度設計</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">httpx</span><span class="tag">Python</span><span class="tag">async</span><span class="tag">HTTP</span><span class="tag">連接池</span><span class="tag">重試策略</span><span class="tag">AI-Agent</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Python httpx 非同步 HTTP 客戶端生產實踐 2026</h1>
+<p><strong>研究日期</strong>：2026-04-30  </p>
+<p><strong>作者</strong>：daily-digest tech_research  </p>
+<p><strong>適用版本</strong>：httpx 0.27+（2026-04）  </p>
+<p>---</p>
+<h2>技術概述</h2>
+<p>httpx 是基於 <code>httpcore</code> 傳輸層的現代 Python HTTP 客戶端，同時支援同步（<code>Client</code>）與非同步（<code>AsyncClient</code>）操作介面，從根本上解決了 <code>requests</code> 只能同步、<code>aiohttp</code> 只能非同步的分裂問題。其主要技術特性：</p>
+<ul>
+<li><strong>完整 HTTP/2 支援</strong>（multiplexing + header compression），需 <code>pip install 'httpx[http2]'</code></li>
+<li><strong>預設 5 秒超時</strong>（安全預設，相較於 <code>requests</code> 的無限等待）</li>
+<li><strong>完整型別標註</strong>（Type hints，IDE 友好）</li>
+<li><strong>相容三種非同步後端</strong>：asyncio、trio、anyio</li>
+<li><strong>requests-compatible API</strong>，遷移成本低</li>
+</ul>
+<p>適用場景：FastAPI/ASGI 框架的 API 呼叫、AI Agent 工具函式（tool calls）、多 API 並行批次請求、爬蟲。</p>
+<p>與主要替代方案的差異：</p>
+<p>| 特性 | httpx | requests | aiohttp |</p>
+<p>|------|-------|----------|---------|</p>
+<p>| Native async | ✅ | ❌ | ✅ |</p>
+<p>| HTTP/2 | ✅ | ❌ | ❌ |</p>
+<p>| 同步介面 | ✅ | ✅ | ❌ |</p>
+<p>| 超高並發（>300）效能 | ⚠️ | N/A | ✅ |</p>
+<p>| 與 requests API 相容 | ✅ | — | ❌ |</p>
+<p>[來源：fooish.com Python httpx 教學, 2026; Oxylabs HTTPX vs Requests vs AIOHTTP 比較]</p>
+<p>---</p>
+<h2>核心概念與原理</h2>
+<h3>1. 傳輸架構（Transport Layer）</h3>
+<p>httpx 架構分三層：</p>
+<ol>
+<li><code>httpx.AsyncClient</code> / <code>httpx.Client</code> — 高層公共 API，處理重定向、Cookie、認證</li>
+<li><code>httpcore</code>（底層傳輸）— 管理 HTTP/1.1 連接池和 HTTP/2 多路複用</li>
+<li><code>asyncio</code> / <code>trio</code> socket — 實際網路 IO</li>
+</ol>
+<p><code>AsyncHTTPTransport</code> 是預設非同步傳輸實作，<code>HTTPTransport</code> 是同步版本。兩者均支援 <code>retries</code> 參數進行底層<strong>網路層級</strong>重試（連接失敗、逾時），但不處理 HTTP 狀態碼（如 429）的應用層重試。</p>
+<p>[來源：Python httpx 官方文件 Transports, 2026]</p>
+<h3>2. 連接池管理（Connection Pooling）</h3>
+<p>httpx 透過 <code>httpx.Limits</code> 控制三個連接池參數：</p>
+<ul>
+<li><strong><code>max_keepalive_connections=20</code></strong>：允許的 keep-alive 連接數（default 20）</li>
+<li><strong><code>max_connections=100</code></strong>：最大總連接數，超過則進入等待佇列（default 100）</li>
+<li><strong><code>keepalive_expiry=5</code></strong>：空閒 keep-alive 連接的存活秒數（default 5s）</li>
+</ul>
+<p>連接池的設計目標是重用 TCP 連接，避免每次請求的 TCP handshake 和 TLS negotiation 開銷。<code>PoolTimeout</code>（從 <code>httpx.Timeout</code> 的 pool 參數設定）在無法及時從池取得連接時拋出。</p>
+<p><strong>核心原則</strong>：<em>不要在熱路徑（hot loop）內建立 Client</em>。每次 <code>async with httpx.AsyncClient()</code> 都會建立全新連接池，無法重用舊連接，連接建立成本高昂。</p>
+<p>[來源：Python httpx 官方文件 Clients — "Creating an AsyncClient is expensive", 2026]</p>
+<h3>3. 四維超時系統（Timeout System）</h3>
+<p>httpx 的超時分成四個獨立階段，每個階段都可獨立配置：</p>
+<p>| 超時類型 | 說明 | 例外類型 |</p>
+<p>|---------|------|--------|</p>
+<p>| <strong>Connect</strong> | 建立 socket 連接的等待時間 | <code>ConnectTimeout</code> |</p>
+<p>| <strong>Read</strong> | 等待回應資料塊的間隔時間 | <code>ReadTimeout</code> |</p>
+<p>| <strong>Write</strong> | 發送請求資料塊的等待時間 | <code>WriteTimeout</code> |</p>
+<p>| <strong>Pool</strong> | 從連接池取得連接的等待時間 | <code>PoolTimeout</code> |</p>
+<p><strong>預設行為</strong>：所有階段共用 5 秒總逾時（<code>httpx.Timeout(5.0)</code>）。</p>
+<p>細粒度設定方式：</p>
+<pre><code>
+# 不同階段設定不同超時
+timeout = httpx.Timeout(30.0, connect=5.0, pool=10.0)
+# 30s read/write，5s connect，10s pool 等待
+client = httpx.AsyncClient(timeout=timeout)
+</code></pre>
+<p>注意：<code>httpx.TimeoutException</code> 是所有超時例外的父類，可一次捕捉所有類型。</p>
+<p>[來源：Python httpx 官方文件 Timeouts — "HTTPX is careful to enforce timeouts everywhere by default", 2026]</p>
+<h3>4. AsyncClient 生命週期管理</h3>
+<p>兩種管理方式：</p>
+<pre><code>
+# ✅ 推薦：context manager，自動 aclose()
+async with httpx.AsyncClient() as client:
+    response = await client.get(url)
+
+# ⚠️ 需手動管理：開發者負責 aclose()
+client = httpx.AsyncClient()
+try:
+    response = await client.get(url)
+finally:
+    await client.aclose()  # 不可省略！
+</code></pre>
+<p>在 Streaming 手動模式下，<code>Response.aclose()</code> 同樣必須呼叫，否則 TCP 連接留置不釋放。</p>
+<p>[來源：Python httpx 官方文件 Async Support, 2026; GitHub Issues #1155 e2b-dev/E2B]</p>
+<h3>5. HTTP/2 多路複用</h3>
+<p>啟用 <code>http2=True</code> 後，httpx 可在單一 TCP 連接上同時發起多個請求（stream multiplexing + header compression）：</p>
+<ul>
+<li>需要伺服器支援 ALPN 協商，否則自動 fallback 到 HTTP/1.1</li>
+<li>基準測試：HTTP/2 模式比 HTTP/1.1 快 ~17%（1000 requests benchmark: 8.5s vs 10.22s）</li>
+<li>但 aiohttp（HTTP/1.1）在高並發場景仍快 httpx HTTP/2 兩倍以上（針對非 HTTP/2 服務器）</li>
+</ul>
+<p>[來源：Oxylabs HTTPX vs Requests vs AIOHTTP 比較, 2025]</p>
+<p>---</p>
+<h2>最佳實踐</h2>
+<h3>1. 應用層級單一客戶端（Single Client Instance）</h3>
+<p><strong>情境</strong>：長時間運行的 AI Agent 服務或 FastAPI 應用  </p>
+<p><strong>建議</strong>：在 lifespan 事件或模組層級建立單一 AsyncClient</p>
+<pre><code>
+# FastAPI lifespan 最佳實踐
+from contextlib import asynccontextmanager
+import httpx
+from fastapi import FastAPI
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 啟動：建立共享客戶端
+    app.state.http_client = httpx.AsyncClient(
+        limits=httpx.Limits(
+            max_keepalive_connections=20,
+            max_connections=100,
+            keepalive_expiry=30,
+        ),
+        timeout=httpx.Timeout(30.0, connect=10.0),
+    )
+    yield
+    # 關閉：正確釋放連接
+    await app.state.http_client.aclose()
+
+app = FastAPI(lifespan=lifespan)
+</code></pre>
+<p><strong>依據</strong>：官方文件明確指出「Creating an AsyncClient is expensive」，並推薦 lifespan 模式。</p>
+<p><strong>反例</strong>：在 request handler 內 <code>async with httpx.AsyncClient()</code>，每次請求重建連接池。</p>
+<p>[來源：Python httpx 官方文件 Clients; BetterStack httpx guide, 2026]</p>
+<h3>2. 結構化超時配置策略</h3>
+<p>依 API 類型選用不同超時預算：</p>
+<p>| API 類型 | connect | read | 備註 |</p>
+<p>|---------|---------|------|------|</p>
+<p>| 本地 KB API | 3s | 30s | localhost，TCP 連接快 |</p>
+<p>| 外部 LLM API（如 Claude） | 5s | 120s | 考慮 cold start |</p>
+<p>| ntfy 通知 | 5s | 10s | 快速失敗為佳 |</p>
+<p>| 爬蟲/外部站點 | 5s | 30s | 一般建議 |</p>
+<p><strong>絕對禁止 <code>timeout=None</code></strong>：在 AI Agent 工作流中，上游服務偶爾無回應，無限等待會讓整個 Phase 掛起，造成 Task Scheduler 0x41301 殭屍狀態。</p>
+<p>[來源：dasroot.net 2026-02; Python httpx 官方文件 Timeouts]</p>
+<h3>3. httpx-retries 聲明式重試（網路層）</h3>
+<p><code>httpx-retries</code> 透過 <code>RetryTransport</code> 插入重試邏輯，處理連接失敗等網路層錯誤：</p>
+<pre><code>
+from httpx_retries import Retry, RetryTransport
+
+retry = Retry(total=3, backoff_factor=0.5)
+# total=3：最多重試 3 次
+# backoff_factor=0.5：{0.5s, 1.0s, 2.0s} 退避延遲
+
+async with httpx.AsyncClient(
+    transport=RetryTransport(retry=retry)
+) as client:
+    response = await client.get("https://api.example.com/data")
+</code></pre>
+<p><strong>依據</strong>：網路層重試（<code>ConnectError</code>、<code>ConnectTimeout</code>）與應用層重試（HTTP 429、503）分開處理，職責明確。</p>
+<p>[來源：httpx-retries 官方文件, will-ockmore.github.io]</p>
+<h3>4. tenacity + httpx 處理 HTTP 429 Rate Limit</h3>
+<p>httpx-retries 不處理 HTTP 狀態碼，需用 tenacity 在應用層處理：</p>
+<pre><code>
+import asyncio
+import random
+import httpx
+from tenacity import (
+    retry, stop_after_attempt,
+    wait_exponential, retry_if_exception_type
+)
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=0.5, min=1, max=30),
+    retry=retry_if_exception_type(httpx.HTTPStatusError),
+)
+async def api_call_with_retry(
+    client: httpx.AsyncClient, url: str
+) -&gt; dict:
+    response = await client.get(url)
+    if response.status_code == 429:
+        # 優先讀取 Retry-After header
+        retry_after = float(response.headers.get("Retry-After", 1.0))
+        jitter = random.uniform(0, 0.5)
+        await asyncio.sleep(retry_after + jitter)
+        response.raise_for_status()  # 觸發 tenacity retry
+    response.raise_for_status()
+    return response.json()
+</code></pre>
+<p>重試策略原則（2026 生產建議）：</p>
+<ul>
+<li>重試條件：HTTP 429、500、502、503、504 + <code>ConnectError</code> + <code>TimeoutException</code></li>
+<li><strong>不重試</strong>：401、403、400（客戶端錯誤）</li>
+<li>Base delay: 0.5s，指數係數: 2.0，最大: 30s</li>
+<li>加 jitter（全隨機）防止 retry storm</li>
+<li>優先讀取 <code>Retry-After</code> header，勿用固定延遲</li>
+</ul>
+<p>[來源：Fastio AI Agent Retry Patterns 2026; dasroot.net 2026-02]</p>
+<h3>5. asyncio.gather 並行請求模式</h3>
+<pre><code>
+async def fetch_all(urls: list[str]) -&gt; list[dict]:
+    async with httpx.AsyncClient(
+        limits=httpx.Limits(max_connections=50, max_keepalive_connections=20)
+    ) as client:
+        tasks = [
+            client.get(url, timeout=httpx.Timeout(30.0, connect=5.0))
+            for url in urls
+        ]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+    # 過濾例外
+    return [
+        r.json() for r in responses
+        if not isinstance(r, Exception)
+    ]
+</code></pre>
+<p><strong>效能收益</strong>：5 個各需 2 秒的請求，並行執行總耗時 ~2 秒 vs 循序 10 秒（5x 加速）。</p>
+<p>[來源：dailypypy.org 正體中文 httpx 教學; oneuptime.com 2026-02]</p>
+<p>---</p>
+<h2>陷阱與反例</h2>
+<h3>陷阱一：熱路徑建立多個客戶端（P0 — 最常見）</h3>
+<pre><code>
+# ❌ 反例：每次呼叫重建連接池
+async def bad_approach(url: str) -&gt; dict:
+    async with httpx.AsyncClient() as client:  # 每次都是全新連接池
+        return (await client.get(url)).json()
+
+# ✅ 正解：Client 提升到模組層級或 lifespan
+_shared_client: httpx.AsyncClient | None = None
+
+def get_client() -&gt; httpx.AsyncClient:
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=5.0),
+        )
+    return _shared_client
+</code></pre>
+<p><strong>成因</strong>：<code>AsyncClient</code> 建立成本高（初始化 httpcore ConnectionPool、SSL context 驗證、後端事件循環綁定）。在高頻路徑重複建立完全抵銷連接複用效能收益，且可能造成 fd 洩漏。</p>
+<p>[來源：Python httpx 官方文件 Clients — "Creating an AsyncClient is expensive"; GitHub Discussion #2444]</p>
+<h3>陷阱二：忘記 aclose() 造成資源洩漏</h3>
+<p><strong>失敗模式</strong>：手動建立 <code>AsyncClient</code>（不用 <code>async with</code>）但沒有在 exception path 呼叫 <code>aclose()</code>，導致 TCP 連接和 fd 洩漏。</p>
+<p><strong>真實案例</strong>：GitHub Issue #1155 (e2b-dev/E2B) — httpx.AsyncClient 在 sandbox 強制終止時未關閉，生產環境出現連接池洩漏，需要定期重啟服務修復。</p>
+<p><strong>規避方法</strong>：永遠使用 <code>async with</code>，或確保 <code>finally</code> 區塊中呼叫 <code>aclose()</code>。</p>
+<p>[來源：GitHub Issues #1155 e2b-dev/E2B, 2024; httpx 官方文件 Async Support]</p>
+<h3>陷阱三：超高並發場景 ReadError（>300 concurrent）</h3>
+<p>在 300 concurrent / 1000 total requests 的壓力測試中，httpx 出現隨機 <code>httpx.ReadError</code>，且只在高負載下非確定性地觸發，難以重現和除錯。aiohttp 在相同場景下無此問題。</p>
+<p><strong>根因</strong>：httpx 的 <code>AsyncHTTPTransport</code> 使用 httpcore 的連接池，在極高並發下連接競爭（pool contention）超過 <code>max_connections</code> 上限，請求被迫等待並最終 ReadError。</p>
+<p><strong>規避策略</strong>（按優先級）：</p>
+<ol>
+<li>降低並發數：<code>asyncio.Semaphore(50)</code> 限制最大並行請求數</li>
+<li>調高 <code>max_connections</code>：<code>httpx.Limits(max_connections=200, max_keepalive_connections=50)</code></li>
+<li>超高並發（>300）場景改用 aiohttp + <code>TCPConnector(limit=N)</code></li>
+</ol>
+<p>[來源：miguel-mendez-ai.com 高並發測試報告, 2024; GitHub Issue #838 encode/httpx — "HTTPX AsyncClient slower than aiohttp?"]</p>
+<h3>陷阱四：timeout=None 導致 AI Agent 無限掛起</h3>
+<pre><code>
+# ❌ 危險：無超時限制
+response = await client.get(llm_api_url, timeout=None)
+</code></pre>
+<p><strong>失敗場景</strong>：LLM API 上游服務偶發無回應，<code>timeout=None</code> 讓整個 Agent Phase 永久掛起，造成 Windows Task Scheduler 進入 0x41301「Running」殭屍狀態，後續排程被阻塞。</p>
+<p><strong>規範</strong>：所有外部 API 呼叫均設置明確超時值，絕不使用 <code>timeout=None</code>。</p>
+<p>[來源：Python httpx 官方文件 Timeouts; 本專案 zombie-lock-subprocess-hang 事故記錄]</p>
+<p>---</p>
+<h2>與本專案關聯</h2>
+<p>本專案 <code>tools/*.py</code> 目前大量使用 Bash <code>curl</code> 發送 HTTP 請求（KB API、ntfy、Todoist API），存在以下系統性問題：</p>
+<ol>
+<li>每次 <code>curl</code> 都啟動新進程（~10-50ms overhead）、無連接複用</li>
+<li>重試邏輯散落各處，無統一策略</li>
+<li>超時設定不一致（部分用 <code>--max-time</code>，部分未設）</li>
+<li>錯誤處理依賴 exit code 而非結構化例外</li>
+</ol>
+<p><strong>落地場景一：KB API 呼叫統一化</strong></p>
+<p>建立 <code>tools/http_client.py</code> 工廠函式，供 <code>research_saturation_analyzer.py</code>、<code>ntfy_dedup.py</code> 等工具共享：</p>
+<pre><code>
+# tools/http_client.py — 可執行片段（官方文件 + httpx-retries 整合驗證）
+import httpx
+from httpx_retries import Retry, RetryTransport
+
+
+def make_kb_client() -&gt; httpx.AsyncClient:
+    """建立 KB API 用的 AsyncClient（含重試 + 連接池）。"""
+    return httpx.AsyncClient(
+        base_url="http://localhost:3000",
+        timeout=httpx.Timeout(30.0, connect=5.0),
+        limits=httpx.Limits(
+            max_keepalive_connections=10,
+            max_connections=50,
+            keepalive_expiry=30,
+        ),
+        transport=RetryTransport(Retry(total=3, backoff_factor=0.5)),
+        headers={"Content-Type": "application/json"},
+        http2=False,  # 本地 API 不支援 HTTP/2
+    )
+
+
+def make_ntfy_client() -&gt; httpx.AsyncClient:
+    """建立 ntfy.sh 用的 AsyncClient（快速失敗策略）。"""
+    return httpx.AsyncClient(
+        base_url="https://ntfy.sh",
+        timeout=httpx.Timeout(10.0, connect=5.0),  # ntfy 要快速失敗
+        transport=RetryTransport(Retry(total=2, backoff_factor=1.0)),
+    )
+</code></pre>
+<p><strong>落地場景二：研究飽和度分析工具非同步化</strong></p>
+<p><code>tools/research_saturation_analyzer.py</code> 每次執行需查詢 KB API，遷移到 <code>httpx.AsyncClient</code> 後可並行查多個搜尋關鍵字，預計降低 30-50% 執行時間。</p>
+<p>---</p>
+<h2>完整參考書目</h2>
+<p>| # | 機構/作者 | 年份 | 標題 | URL | source_type |</p>
+<p>|---|---------|------|------|-----|------------|</p>
+<p>| 1 | encode/httpx | 2026 | Async Support — HTTPX | https://www.python-httpx.org/async/ | official |</p>
+<p>| 2 | encode/httpx | 2026 | Resource Limits — HTTPX | https://www.python-httpx.org/advanced/resource-limits/ | official |</p>
+<p>| 3 | encode/httpx | 2026 | Timeouts — HTTPX | https://www.python-httpx.org/advanced/timeouts/ | official |</p>
+<p>| 4 | encode/httpx | 2026 | Clients — HTTPX | https://www.python-httpx.org/advanced/clients/ | official |</p>
+<p>| 5 | Will Ockmore | 2025 | HTTPX Retries Library | https://will-ockmore.github.io/httpx-retries/ | official |</p>
+<p>| 6 | BetterStack Community | 2026 | Getting Started with HTTPX: Python's Modern HTTP Client | https://betterstack.com/community/guides/scaling-python/httpx-explained/ | blog |</p>
+<p>| 7 | OneUptime | 2026-02-03 | How to Use httpx for Async HTTP Requests | https://oneuptime.com/blog/post/2026-02-03-python-httpx-async-requests/view | blog |</p>
+<p>| 8 | Miguel Mendez | 2024-10-20 | Httpx vs Aiohttp: Handling High-Concurrency Requests in Async Python | https://miguel-mendez-ai.com/2024/10/20/aiohttp-vs-httpx | benchmark |</p>
+<p>| 9 | dasroot.net | 2026-02 | Implementing Retry & Timeout Strategies in AI APIs | https://dasroot.net/posts/2026/02/implementing-retry-timeout-strategies-ai-apis/ | blog |</p>
+<p>| 10 | Fastio | 2026 | AI Agent Retry Patterns - Exponential Backoff Guide 2026 | https://fast.io/resources/ai-agent-retry-patterns/ | blog |</p>
+<p>| 11 | fooish.com | 2026 | Python httpx：高效能的次世代同步與非同步 HTTP 用戶端（中文）| https://www.fooish.com/python/httpx.html | blog/zh |</p>
+<p>| 12 | dailypypy.org | 2026 | httpx：Python 新世代 HTTP 客戶端完全攻略（正體中文）| https://dailypypy.org/learn/python-httpx/ | blog/zh |</p>
+<p>| 13 | encode/httpx GitHub | 2023 | Issue #838: HTTPX AsyncClient slower than aiohttp? | https://github.com/encode/httpx/issues/838 | community |</p>
+<p>| 14 | e2b-dev/E2B GitHub | 2024 | Issue #1155: httpx client connection pool leaks on sandbox kill | https://github.com/e2b-dev/E2B/issues/1155 | community |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
