@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MCP taint propagation 2026：跨工具資料流標記、政策引擎與執行隔離 深度研究報告">
+  <title>MCP taint propagation 2026：跨工具資料流標記、政策引擎與執行隔離 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>MCP taint propagation 2026：跨工具資料流標記、政策引擎與執行隔離 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">MCP taint propagation 2026：跨工具資料流標記、政策引擎與執行隔離</span><span class="tag">2026</span><span class="tag">研究報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>MCP taint propagation 2026：跨工具資料流標記、政策引擎與執行隔離</h1>
+<h2>執行摘要</h2>
+<p>本報告回答三個研究問題：第一，MCP 之所以會出現「跨工具 taint propagation」，而不僅是單一 tool poisoning，是因為模型上下文在多個 MCP server 與多個 tool 之間形成<strong>共享狀態</strong>：任何來自不可信 descriptor、tool output 或遠端資源的片段，都可能在後續推理中被轉寫成另一個工具的參數或呼叫序列，造成信任邊界「橫向移動」而非僅垂直注入 [來源：Securing the Model Context Protocol: Defending LLMs Against Tool Poisoning and Adversarial Attacks, 2025]。第二，2025–2026 的官方規範與多篇安全論文，在授權、metadata 驗證與 runtime guardrail 上已形成部分共識：OAuth 2.1、RFC 8707 的 resource parameter、audience 驗證、禁止 token passthrough、短生命週期 token 與 PKCE 等，被寫入 MCP Authorization 與 Security Best Practices 文件 [來源：Authorization - Model Context Protocol (2025-11-25), 2025]；研究社群則補上 capability attestation、雙向取樣缺乏來源認證、以及多 server 信任傳播等協定層缺口 [來源：Breaking the Protocol: Security Analysis of the Model Context Protocol Specification and Prompt Injection Vulnerabilities in Tool-Integrated LLM Agents, 2026]。第三，在生產環境落地時，應把 <strong>capability 分類、OAuth scope 最小化、resource／audience 綁定、runtime monitoring（含參數可見性與決策追蹤）、以及 STDIO／本機行程隔離</strong> 串成一條可操作防線，而不是只依賴「使用者按一次同意」 [來源：Security Best Practices - Model Context Protocol, 2025]。</p>
+<p>核心結論共五點：（1）taint 的單位應以「資料流進入 agent state 的通道」界定，而非僅以 tool 名稱界定。（2）OAuth 的 resource／audience 驗證是把信任域收斂在單一 MCP server 的結構性控制點。（3）Tool poisoning、shadowing、rug pull 等語意層攻擊，需要 signing、semantic vetting 與 runtime heuristics 並行 [來源：Securing the Model Context Protocol: Defending LLMs Against Tool Poisoning and Adversarial Attacks, 2025]。（4）STDIO 啟動模型若將 command／args 暴露給不可信輸入，會把整條 agent 供應鏈拉高到 RCE 等級 [來源：MCP STDIO Command Injection: Full Vulnerability Advisory, 2026]。（5）中文產業與監管敘事已把「代理式 AI 最小權限」視為合規底線，與 MCP 工具鏈風險敘事互相強化 [來源：OpenClaw養龍蝦AI｜私隱公署：授予代理式AI任務所需最小權限 - HK01, 2026]。</p>
+<h2>研究背景與動機</h2>
+<p>當 LLM 透過 MCP 同時掛載檔案系統、瀏覽器、企業 API 與本機命令列時，<strong>單一惡意工具</strong>已不足以描述真實威脅模型：模型會在單一對話狀態中累積多來源證據，並在後續步驟「合法地」呼叫另一個看起來無害的工具，卻把先前被污染的語境轉成具副作用的行為。官方文件已將 confused deputy、本機 MCP server 被攻破、以及 scope 膨脹列為核心風險 [來源：Security Best Practices - Model Context Protocol, 2025]，但規範層仍大量依賴 client 與操作者的實作品質；研究論文則指出協定層仍缺乏完整的 capability attestation 與訊息來源鑑別 [來源：Breaking the Protocol: Security Analysis of the Model Context Protocol Specification and Prompt Injection Vulnerabilities in Tool-Integrated LLM Agents, 2026]。因此，本研究聚焦「taint 如何跨工具傳播」以及「政策引擎＋執行隔離」如何填補規範與實務之間的縫隙，並對照本專案既有的 MCP 安全深度研究筆記，形成可延續的知識鏈。</p>
+<h2>核心技術解析</h2>
+<h3>子題一：協定層信任邊界與 OAuth 綁定</h3>
+<p>MCP Authorization 要求 client 使用 RFC 8707 的 resource parameter，server 必須驗證 token audience，且不得把 access token 原封轉傳給下游 [來源：Authorization - Model Context Protocol (2025-06-18), 2025]。2025-11-25 版更明確限制 token 不得出現在 query string、要求短生命週期與 refresh rotation [來源：Authorization - Model Context Protocol (2025-11-25), 2025]。這些條款在工程上把「哪一個 MCP server 有權代表使用者行動」寫成可驗證的不變量，<strong>直接壓縮 taint 外溢到其他 trust domain 的機率</strong>。Security Best Practices 亦將 scope 最小化、逐步升權與危險模式揭露列為必要操作文化 [來源：Security Best Practices - Model Context Protocol, 2025]。</p>
+<h3>子題二：Tool poisoning 與多工具語意攻擊面（學術視角）</h3>
+<p>ArXiv 2512.06556 將攻擊分類為 tool poisoning、shadowing、rug pull，並提出 manifest signing、semantic vetting、runtime heuristic guardrails 的分層防禦 [來源：Securing the Model Context Protocol: Defending LLMs Against Tool Poisoning and Adversarial Attacks, 2025]。ArXiv 2601.17549 進一步以大量情境實驗指出，在 MCP 架構下攻擊成功率相對非 MCP 整合顯著放大，並以 MCPSec 將成功率自 52.8% 降至 12.4% 且額外延遲中位數約 8.3ms [來源：Breaking the Protocol: Security Analysis of the Model Context Protocol Specification and Prompt Injection Vulnerabilities in Tool-Integrated LLM Agents, 2026]。ArXiv 2603.22489 以 STRIDE／DREAD 檢視五個 MCP 元件後，認定 tool poisoning 是 client 端最關鍵風險，並建議 static metadata analysis、decision path tracking 與行為異常偵測 [來源：Model Context Protocol Threat Modeling and Analyzing Vulnerabilities to Prompt Injection with Tool Poisoning, 2026]。三篇論文共同支持：<strong>若沒有執行期可觀測性，靜態同意無法對抗語意層組合攻擊</strong>。</p>
+<h3>子題三：STDIO、供應鏈與「組態即命令」風險（官方＋產業）</h3>
+<p>官方安全最佳實踐已提醒 one-click 本機 server 設定必須揭露即將執行的命令，並建議沙箱與最小權限 [來源：Security Best Practices - Model Context Protocol, 2025]。OX Security 的 advisory 說明 STDIO configuration-to-command execution 路徑如何把不可信輸入映射到實際行程參數，並指出純輸入過濾仍可能被 args 層繞過 [來源：MCP STDIO Command Injection: Full Vulnerability Advisory, 2026]。中文轉述報導亦反映社群已將此類問題理解為「架構性」而非單一產品臭蟲 [來源：Anthropic MCP 協議被指存在設計缺陷，伺服器可被誘導執行任意代碼 - IT之家, 2026]。此子題與子題一、二交會：<strong>即使 OAuth 正確，若本機啟動鏈可被篡改，taint 仍可直接變成任意程式執行</strong>。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅（支持來源數 5）真正要標記與稽核的是進入 agent state 的 taint 流，而非僅標記「某 tool 是否惡意」；反方觀點可能認為過細標記會拖慢互動，但證據顯示缺乏決策追蹤時使用者無法審計模型的跨步組合 [來源：Model Context Protocol Threat Modeling and Analyzing Vulnerabilities to Prompt Injection with Tool Poisoning, 2026]。</li>
+<li>✅（4）政策引擎的最小單位應是 capability＋scope＋data sink（寄信、寫檔、執行 shell），而不是 tool 字串；與 OAuth incremental consent 方向一致 [來源：Authorization - Model Context Protocol (2025-11-25), 2025]。</li>
+<li>✅（4）resource parameter 與 audience validation 是限制 taint 在單一 server trust domain 的關鍵控制；忽略時等於允許 confused deputy 跨資源誤用 [來源：Authorization - Model Context Protocol (2025-06-18), 2025]。</li>
+<li>✅（4）若只做 pre-approval，仍可能被 rug pull 或執行期組合行為繞過，因此核准必須延伸到 runtime [來源：Securing the Model Context Protocol: Defending LLMs Against Tool Poisoning and Adversarial Attacks, 2025]。</li>
+<li>✅（3）多數現行客戶端缺乏 parameter visibility 與 decision trace，使 tainted context 難以被使用者或稽核者還原；此與論文對 client 實作落差的實證一致 [來源：Model Context Protocol Threat Modeling and Analyzing Vulnerabilities to Prompt Injection with Tool Poisoning, 2026]。</li>
+<li>⚠️（2）MCPSec、manifest signing 與 runtime anomaly detection 可能收斂為標準化路線，但目前仍屬研究導向，尚未內建於 MCP 官方規範文本；採納前需評估營運成本與誤判率 [來源：Breaking the Protocol: Security Analysis of the Model Context Protocol Specification and Prompt Injection Vulnerabilities in Tool-Integrated LLM Agents, 2026]。</li>
+</ol>
+<h2>實務應用建議</h2>
+<ol>
+<li><strong>建立 capability 分級表</strong>：以「讀取／寫入／對外通訊／執行程式」四象限為軸，為每個 MCP server 與 tool 對應分級；落地步驟為盤點現有 MCP 清單→對照 OAuth scope→標示資料 sink；風險為分級過粗導致過度放行，需每季重審。</li>
+<li><strong>強制 resource／audience 測試</strong>：在 CI 以負向測試確認 client 不會在錯誤 audience 下送出 token；風險為與舊版 IdP 相容性，可採 feature flag。</li>
+<li><strong>執行期「參數可見性」介面</strong>：在呼叫高風險工具前，顯示解析後的完整參數與來源訊息片段；風險為 UX 摩擦，可用風險分數閾值觸發。</li>
+<li><strong>STDIO 啟動硬化</strong>：預設拒絕可變更的 command template、改以 allowlist 行程與唯讀組態目錄；參考官方「揭露即將執行的命令」要求 [來源：Security Best Practices - Model Context Protocol, 2025]。</li>
+<li><strong>與企業治理對齊</strong>：把代理式 AI 的最小權限原則寫入內部政策，對照隱私與資安稽核問題清單 [來源：OpenClaw養龍蝦AI｜私隱公署：授予代理式AI任務所需最小權限 - HK01, 2026]。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本專案 <code>context/research-registry.json</code> 已登錄「MCP 安全 2026：Tool Poisoning、Remote MCP 信任邊界與 Runtime 防禦」等條目；本次主題在其上<strong>往橫向延伸</strong>，把論述重心從「單一工具是否可信」轉為「多工具共享狀態下的 taint 傳播與政策引擎」。與 <code>daily-digest-prompt</code> 的 Agent 管線亦相呼應：自動任務大量依賴工具呼叫與結果 JSON，若未來引入 MCP 作為外掛能力，應沿用本報告的分層控制敘事，避免把工具授權簡化成單一布林值。</p>
+<h2>未來展望</h2>
+<p>仍未完全解決的問題包括：官方是否會提出訊息層級的 provenance／taint 標準欄位；MCPSec 類中介在高效能場景的部署形態；以及中文原生技術規範與實務案例仍偏少，需補強在地化證據鏈。下次可深化的方向是「具體 policy engine schema 與現有 OAuth client library 的整合測試矩陣」。</p>
+<h2>完整書目</h2>
+<ol>
+<li>Model Context Protocol. (2025). <em>Security Best Practices - Model Context Protocol</em>. official. https://modelcontextprotocol.io/specification/2025-06-18/basic/security_best_practices （取用日期：2026-05-01）</li>
+<li>Model Context Protocol. (2025). <em>Authorization - Model Context Protocol (2025-06-18)</em>. official. https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization （取用日期：2026-05-01）</li>
+<li>Model Context Protocol. (2025). <em>Authorization - Model Context Protocol (2025-11-25)</em>. official. https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization （取用日期：2026-05-01）</li>
+<li>Invariant Labs et al. (2025). <em>Securing the Model Context Protocol: Defending LLMs Against Tool Poisoning and Adversarial Attacks</em>. academic. https://arxiv.org/abs/2512.06556 （取用日期：2026-05-01）</li>
+<li>Authors per arXiv entry. (2026). <em>Breaking the Protocol: Security Analysis of the Model Context Protocol Specification and Prompt Injection Vulnerabilities in Tool-Integrated LLM Agents</em>. academic. https://arxiv.org/abs/2601.17549 （取用日期：2026-05-01）</li>
+<li>Authors per arXiv entry. (2026). <em>Model Context Protocol Threat Modeling and Analyzing Vulnerabilities to Prompt Injection with Tool Poisoning</em>. academic. https://arxiv.org/abs/2603.22489 （取用日期：2026-05-01）</li>
+<li>OX Security. (2026). <em>MCP STDIO Command Injection: Full Vulnerability Advisory</em>. blog. https://www.ox.security/blog/mcp-supply-chain-advisory-rce-vulnerabilities-across-the-ai-ecosystem/ （取用日期：2026-05-01）</li>
+<li>IT之家. (2026). <em>Anthropic MCP 協議被指存在設計缺陷，伺服器可被誘導執行任意代碼</em>. community. https://m.ithome.com/html/940797.htm （取用日期：2026-05-01）</li>
+<li>HK01. (2026). <em>OpenClaw養龍蝦AI｜私隱公署：授予代理式AI任務所需最小權限</em>. community. https://www.hk01.com/article/60330880 （取用日期：2026-05-01）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

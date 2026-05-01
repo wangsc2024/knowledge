@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="httpx 傳輸層重試與連線池：長生命週期 AsyncClient 取代腳本 curl（2026-05-01 技術研究）">
+  <title>httpx 傳輸層重試與連線池：長生命週期 AsyncClient 取代腳本 curl（2026-05-01 技術研究） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>httpx 傳輸層重試與連線池：長生命週期 AsyncClient 取代腳本 curl（2026-05-01 技術研究）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">httpx</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>httpx 傳輸層重試與連線池：以長生命週期 AsyncClient 取代腳本 curl 的生產模式（2026）</h1>
+<blockquote>任務脈絡：接續 <code>context/continuity/auto-task-tech_research.json</code> 建議的「RetryTransport + 統一 HTTP 工廠」；對齊本日 <code>todoist-history</code> 中 <code>kb_system_optimize</code>（<code>Test-NetConnection</code> preflight）、<code>log_audit</code>／<code>system_insight</code> 對外部 HTTP 與 KB 管線可靠度需求。</blockquote>
+<h2>技術概述</h2>
+<p>本主題處理的是 <strong>Python 非同步管線如何把「可重試的網路失敗」與「可預期的連線資源上限」拆開建模</strong>。httpx 同時提供高階 <code>AsyncClient</code> API 與底層 <code>HTTPTransport</code>／<code>AsyncHTTPTransport</code>；官方明確區分「連線層重試」與「讀到 HTTP 回應後的語意重試」責任邊界 [來源: Transports - HTTPX, 2026 文件抓取日]。在 <code>daily-digest-prompt</code> 這類 <strong>PowerShell 7 先 orchestrate、<code>uv run python</code> 再呼叫本機 KB（<code>localhost:3000</code>）與 ntfy</strong> 的架構中，常見反模式是每支工具各自 <code>subprocess</code>/<code>curl</code>：每次冷啟動 TLS、難以集中設定逾時與重試、也不利於把 <code>429/503</code> 與 <code>ConnectTimeout</code> 分類處理。改為單例或長生命週期 <code>AsyncClient</code> + 明確 <code>httpx.Limits</code>，可把「連線池內排隊」變成可觀測的 <code>PoolTimeout</code>，而不是隨機的 shell 失敗碼。若還需要對 <strong>HTTP 狀態碼</strong> 做退避，官方建議補上泛用重試工具（如 tenacity）或第三方 <code>httpx-retries</code> 的 <code>RetryTransport</code> [來源: Transports - HTTPX, 2026；API - HTTPX Retries, 2026]。</p>
+<h2>核心概念與原理</h2>
+<h3>1) 兩種「重試」不可混用</h3>
+<p><code>HTTPTransport(retries=N)</code>（非同步則 <code>AsyncHTTPTransport(retries=N)</code>）只在 <strong><code>httpx.ConnectError</code> 或 <code>httpx.ConnectTimeout</code></strong> 時重送請求；一旦已經拿到回應（含 <code>503</code>），就不屬於這條路徑 [來源: Transports - HTTPX, 2026]。Stack Overflow 上常見的踩雷是誤用同步 <code>HTTPTransport</code> 搭配 <code>AsyncClient</code>（缺少 async context），以及以為 <code>retries=3</code> 會自動重試 POST 的 5xx——實際上必須改用 <code>AsyncHTTPTransport</code> 並理解其僅涵蓋連線層 [來源: Stack Overflow #77694820, 2023–2025]。若要預設重試 <code>429/502/503/504</code> 並尊重 <code>Retry-After</code>，<code>httpx-retries</code> 的 <code>Retry</code> 預設 <code>status_forcelist</code> 與 <code>respect_retry_after_header=True</code> 即對齊此缺口 [來源: API - HTTPX Retries, 2026]。</p>
+<h3>2) 連線池參數是「反壓力閥」不是越大越好</h3>
+<p><code>httpx.Limits</code> 三個核心欄位：<code>max_keepalive_connections</code>（預設 20）、<code>max_connections</code>（預設 100）、<code>keepalive_expiry</code>（預設 5 秒）——來自官方 Resource Limits 頁 [來源: Resource Limits - HTTPX, 2026]。StatusCodeFYI 的連線池指南補充工程直覺：冷啟動 TLS 可能佔 <strong>約 80–220ms</strong>（DNS+TCP+TLS 1.3），因此 pool 的價值在「重用」；並建議 <strong>idle timeout 設得比上游 keep-alive 更短</strong>（範例：ALB 60s → client 55s），避免「伺服器已關閉閒置連線、客戶端池仍握著半死 socket」[來源: Connection Pooling Guide, StatusCodeFYI, 2026]。中文工程筆記亦歸納：<code>PoolTimeout</code> 多半來自 <code>max_connections</code> 上限或連線未釋放（未消耗 response body），解法通常是調整 <code>Limits</code> 或修正 <code>async with</code> 生命週期 [來源: 突破Python HTTP瓶颈：HTTPX连接池与资源管理实战指南, 2026]。</p>
+<h3>3) 多主機場景：維持單一 AsyncClient 是維護者建議</h3>
+<p>encode/httpx Discussion #3671 中，維護者對「執行期才知道的 ~10 個 host、每個 host 大量請求」場景的回答是：<strong>用單一 client</strong>；若撞到連線上限會以 timeout 形式顯性化 [來源: GitHub Discussion #3671, 2025]。這與「每個 host 一支 <code>curl</code> 子行程」相反：後者把池化責任丟給 OS 行程與檔案描述符上限，難以在 Python 層做一致的 <code>limits</code>/<code>event_hooks</code> 監測。</p>
+<h3>4) 0.28 版遷移對「工具 CLI + Agent」的實際影響</h3>
+<p>httpx <code>0.28.0</code>（2024-11-28）收斂 SSL 參數（<code>verify</code> 字串路徑、<code>cert</code> 等 deprecated/removed）、移除 <code>proxies</code>／<code>app</code> 等舊參數，並修正 <code>params={}</code> 與既有 query string 的合併語意 [來源: encode/httpx Release 0.28.0, 2024]。對本 repo 這種大量 <code>tools/*.py</code> CLI 的專案，代表：<strong>升級 httpx 必須跑完整測試矩陣</strong>（<code>uv run pytest</code>），而不是只依賴「import 成功」。</p>
+<h3>5) `RetryTransport` 預設與 idempotent 方法</h3>
+<p><code>httpx-retries</code> 預設僅對 <strong>HEAD/GET/PUT/DELETE/OPTIONS/TRACE</strong> 啟用重試迴圈；若要把 <code>POST</code> 納入，必須顯式擴充 <code>allowed_methods</code>，否則仍是一次送達 [來源: API - HTTPX Retries, 2026]。這與 REST 安全語意一致：避免對非冪等寫入自動重放。對 KB <code>POST /api/import</code> 這類寫入，應優先依賴 <code>externalKey</code>／merge 策略（見 <code>skills/knowledge-query/SKILL.md</code>）搭配「應用層只重試可判定為安全」的條件，而不是盲目把 <code>POST</code> 加進 retry list。</p>
+<h2>最佳實踐</h2>
+<ol>
+<li><strong>長生命週期 client</strong>：在 async CLI 入口建立一次 <code>AsyncClient(limits=..., timeout=httpx.Timeout(...))</code>，用 <code>async with</code> 包住整段 batch，而不是「每個 API 函式內 <code>async with AsyncClient()</code>」——後者等於放棄連線複用（延遲與檔案描述符成本與官方多主機建議相衝）[來源: GitHub Discussion #3671, 2025；Resource Limits, 2026]。</li>
+<li><strong>分層重試</strong>：底層 <code>AsyncHTTPTransport(retries=1|2)</code> 處理 flaky network；上層用 <code>RetryTransport</code> 或 tenacity 處理 <strong>429/503 + Retry-After</strong> 與業務可重試條件 [來源: Transports - HTTPX, 2026；API - HTTPX Retries, 2026]。</li>
+<li><strong><code>keepalive_expiry</code> 對齊上游</strong>：內網 KB、本機 ntfy 若走反向代理，請對照代理 idle timeout；參考「client idle < server idle」原則 [來源: StatusCodeFYI Connection Pooling Guide, 2026]。</li>
+<li><strong>逾時四象限</strong>：對 KB <code>POST /api/import</code> 這類「寫入＋JSON 序列化」請求，將 <code>read</code> 設得比 <code>connect</code> 寬鬆，避免把慢速 payload 誤判成連線問題；<code>pool</code> 獨立設定可在高併發時更快暴露 <code>PoolTimeout</code> 而非掛死 [來源: GitCode 博客 HTTPX 超时控制表, 2026]。</li>
+<li><strong>觀測</strong>：啟用 httpx logging 或包一層 <code>BaseTransport</code> 以記錄每次請求耗時與 status（官方 Transport 包裝範例見 Transports 文件）[來源: Transports - HTTPX, 2026]。</li>
+</ol>
+<h2>陷阱與反例</h2>
+<ul>
+<li><strong>誤以為 <code>HTTPTransport(retries)</code> 會重試 5xx</strong>：官方與社群答案一致——拿到 response 後不會因 503 自動重試；需要 tenacity 或 <code>httpx-retries</code> [來源: Transports - HTTPX, 2026；Stack Overflow #77694820, 2025 回答]。</li>
+<li><strong>同步 Transport 配 AsyncClient</strong>：SO 題主最初組合會炸在非 async context；正解是 <code>AsyncHTTPTransport</code> [來源: Stack Overflow #77694820, 2023 已採納答案]。</li>
+<li><strong>高併發 + 大 body 的 ReadError／ReadTimeout</strong>：GitHub discussions 有多則非決定性案例（大 POST、並發下 <code>ReadTimeout</code> 升級後出現）；此類屬 <strong>待驗證⚠️</strong> 的環境相依問題，落地時應以「固定 workload 基準＋semaphore 限流」驗證，不宜直接把 httpx 換成 aiohttp 僅憑單一第三方 benchmark 宣稱（社群基準專案存在，但測試條件與本 repo 差異大）[來源: encode/httpx Discussions #2932/#3067 等索引, 2024–2025；gfx/benchmark-python-httpx-vs-aiohttp 專案存在性]。</li>
+</ul>
+<h2>與本專案（daily-digest-prompt）的落地場景</h2>
+<ol>
+<li><strong><code>skills/knowledge-query/SKILL.md</code> 路徑</strong>：今日管線已多次 <code>curl</code> <code>localhost:3000</code>；中長期可抽 <code>tools/http_kb_client.py</code>：<code>AsyncClient(base_url=..., transport=RetryTransport(...), limits=httpx.Limits(max_connections=20, max_keepalive_connections=10))</code>，供 <code>kb_semantic_cache</code> 與 import 前 hybrid search 共用，對齊 continuity 建議的工廠化方向。</li>
+<li><strong>與 <code>kb_system_optimize</code> 的 <code>Test-NetConnection</code> 並行</strong>：preflight 解的是「埠不可達」；httpx 解的是「埠可達但連線抖動／5xx 風暴」。兩層合併才符合今日 history 裡「降級 false positive CRITICAL」＋「HTTP 可靠度」並存目標（見 <code>state/todoist-history.json</code> 2026-05-01 <code>kb_system_optimize</code> 摘要敘述）。</li>
+</ol>
+<h2>程式碼範例</h2>
+<pre><code>
+# 節錄自官方文件與 httpx-retries 文件，組合示意（非本 repo 現況程式碼）
+import httpx
+from httpx_retries import RetryTransport, Retry
+
+retry = Retry(total=5, backoff_factor=0.5, respect_retry_after_header=True)
+transport = RetryTransport(
+    transport=httpx.AsyncHTTPTransport(retries=1),
+    retry=retry,
+)
+timeout = httpx.Timeout(10.0, connect=5.0, pool=5.0)
+limits = httpx.Limits(max_connections=50, max_keepalive_connections=10, keepalive_expiry=55.0)
+
+async def main():
+    async with httpx.AsyncClient(transport=transport, timeout=timeout, limits=limits) as client:
+        r = await client.post("http://localhost:3000/api/search/hybrid", json={"query": "health", "topK": 3})
+        r.raise_for_status()
+        return r.json()
+</code></pre>
+<ul>
+<li>來源合成：<code>AsyncHTTPTransport(retries=...)</code> 語意見 [Transports - HTTPX, 2026]；<code>RetryTransport</code>/<code>Retry</code> 見 [API - HTTPX Retries, 2026]。</li>
+</ul>
+<h2>完整參考書目</h2>
+<ol>
+<li>Encode HTTPX 專案貢獻者群。2026（文件抓取日 2026-05-01）。<em>Transports</em>。https://www.python-httpx.org/advanced/transports/ — <code>source_type: official</code> — <code>language: en</code></li>
+<li>Encode HTTPX 文件。2026。<em>Resource Limits</em>。https://www.encode.io/httpx/advanced/resource-limits/ — <code>official</code> — <code>en</code></li>
+<li>Encode HTTPX（GitHub Releases）。2024-11-28。<em>Version 0.28.0</em>。https://github.com/encode/httpx/releases/tag/0.28.0 — <code>official</code> — <code>en</code></li>
+<li>will-ockmore。2026。<em>API - HTTPX Retries</em>。https://will-ockmore.github.io/httpx-retries/api/ — <code>official</code>（第三方套件官方文件）— <code>en</code></li>
+<li>lovelydinosaur（httpx maintainer）。2025-09-18。<em>Best practice for AsyncClient usage across multiple unknown hosts #3671</em>。https://github.com/encode/httpx/discussions/3671 — <code>community</code> — <code>en</code></li>
+<li>Diego L; Barnabus。2023–2025。<em>How can I implement retry policy with httpx in Python?</em> Stack Overflow。https://stackoverflow.com/questions/77694820/how-can-i-implement-retry-policy-with-httpx-in-python — <code>community</code> — <code>en</code></li>
+<li>StatusCodeFYI。2026。<em>Connection Pooling for HTTP Clients: Best Practices and Pitfalls</em>。https://statuscodefyi.com/guides/connection-pooling-guide/ — <code>blog</code> — <code>en</code></li>
+<li>咎岭娴Homer（GitCode 博客）。2026-02-05。<em>突破Python HTTP瓶颈：HTTPX连接池与资源管理实战指南</em>。https://blog.gitcode.com/dd42ce3548e31baca6a0111f18318130.html — <code>blog</code> — <code>zh</code></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
