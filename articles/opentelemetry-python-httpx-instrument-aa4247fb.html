@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenTelemetry Python 官方 httpx instrument 與 HTTP Semantic Conventions 雙軌稽核（2026-05-02 技術研究）">
+  <title>OpenTelemetry Python 官方 httpx instrument 與 HTTP Semantic Conventions 雙軌稽核（2026-05-02 技術研究） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>OpenTelemetry Python 官方 httpx instrument 與 HTTP Semantic Conventions 雙軌稽核（2026-05-02 技術研究）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">OpenTelemetry</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>OpenTelemetry Python 官方 httpx instrument 與 HTTP Semantic Conventions 雙軌稽核（Agent 熱路徑）</h1>
+<h2>技術概述</h2>
+<p>本主題銜接既有「httpx Event Hooks + AsyncClient」研究，改從<strong>標準化分散式追蹤</strong>視角說明：當 <code>tools/</code> 與排程 Agent 以 httpx 呼叫 <code>localhost:3000</code>（KB）與 ntfy 時，除了自訂 <code>event_hooks</code> 寫 JSONL，尚可並行採用 <strong><code>opentelemetry-instrumentation-httpx</code></strong> 產出符合 <strong>HTTP Semantic Conventions</strong> 的 client span，使延遲、重試、錯誤類型與後端 Tempo／Azure Monitor 等可對齊。與純 httpx hooks 的差異在於：OTel 關心 <strong>span 生命週期、屬性命名空間、取樣與與 log 的 trace 關聯</strong>；hooks 則擅長<strong>應用層稽核（例如 leaf_hash、payload 大小）</strong>。兩者可分工：transport 層交給官方 instrument，業務欄位留在 JSONL 或 <code>LoggingHandler</code> 注入的 trace_id [來源:OpenTelemetry HTTPX Instrumentation,2026][來源:HTTP semantic conventions declared stable,2023][來源:Semantic conventions for HTTP spans,2026]。</p>
+<h2>核心概念與原理</h2>
+<h3>1. Instrumentor 與 Transport 兩條路徑</h3>
+<p>官方文件提供 <strong>全域 <code>HTTPXClientInstrumentor().instrument()</code></strong> 與 <strong>單例 <code>instrument_client(client)</code></strong>，以及不透過 monkey-patch、改以 <code>SyncOpenTelemetryTransport</code>／<code>AsyncOpenTelemetryTransport</code> 包一層底層 <code>HTTPTransport</code>／<code>AsyncHTTPTransport</code> 的模式 [來源:OpenTelemetry HTTPX Instrumentation,2026]。原理是：在 httpx 送出請求前建立 <code>SpanKind.CLIENT</code> 的 span，於收到標頭或錯誤時結束；<code>request_hook</code>／<code>response_hook</code>（及 async 變體）在「span 已建立後」與「span 將結束前」回呼，參數是 <strong>transport 層的 RequestInfo／ResponseInfo</strong>，而非高階 <code>httpx.Request</code> 物件——與 httpx 自己的 <code>event_hooks</code> 觸發點不同，兩者並用時須清楚邊界以免重複讀 body [來源:OpenTelemetry HTTPX Instrumentation,2026]。</p>
+<h3>2. HTTP Semantic Conventions 穩定版與遷移開關</h3>
+<p>OpenTelemetry 於 2023 將 HTTP semconv 標為 <strong>stable（v1.23.0）</strong>：<code>http.method</code>→<code>http.request.method</code>、<code>http.status_code</code>→<code>http.response.status_code</code>、<code>http.url</code>→<code>url.full</code>、<code>net.peer.<em></code>→<code>server.</em></code>／<code>client.<em></code> 與 <code>network.</em></code> 分離；並以環境變數 <strong><code>OTEL_SEMCONV_STABILITY_OPT_IN</code></strong> 控制僅發新屬性（<code>http</code>）、新舊並發（<code>http/dup</code>）或維持舊版預設，以利儀表板與告警規則漸進遷移 [來源:HTTP semantic conventions declared stable,2023][來源:Semantic conventions for HTTP spans,2026]。對 <strong>client span</strong>，規格要求 <code>http.request.method</code>、<code>server.address</code>、<code>server.port</code>、<code>url.full</code> 等欄位層級，並定義 <strong>重試／redirect</strong> 時 <code>http.request.resend_count</code> 的語意：每次實際重送遞增，便於區分「單次 API 呼叫」與「多次 on-wire 嘗試」[來源:Semantic conventions for HTTP spans,2026]。</p>
+<h3>3. 重複 span 與 async/sync hook 混用根因</h3>
+<p>歷史 issue #554 指出：早期實作在 <strong>同一 <code>httpx.Client</code> 重複請求</strong> 時，對 <code>_transport</code> <strong>重複包裝</strong>，導致第 n 次請求出現 n 層巢狀 span [來源:GitHub Issue HTTPX instrumentor wraps transport repeatedly,2021]。維護者後續以 <strong>wrapt／transport 層重構</strong>（PR #2909 等）改善與 httpx 版本的相容性 [來源:WebSearch opentelemetry httpx wrapt PR]。2024–2026 另有一條線：若 <strong>多個 <code>Client</code> 共用同一 <code>httpx.HTTPTransport()</code></strong> 再分別 <code>instrument_client</code>，transport 可能被加掛兩次而產生雙 span；社群 PR #3106 討論在 transport 上加 <strong><code>_is_instrumented_by_opentelemetry</code></strong> 旗標以避免重複 instrument，惟該 PR 已因 stale 關閉，代表行為仍須以「一 transport 只對應一條 instrument 鏈」自管 [來源:GitHub PR httpx add is_instrumented flag,2024–2026]。另：<strong>AsyncClient 必須使用 <code>async_request_hook</code>／<code>async_response_hook</code></strong>，否則同步 hook 在 async 路徑會出現未 await 的錯誤類型問題，PR #1920 即針對此修復 [來源:WebSearch opentelemetry httpx async hooks PR 1920]。</p>
+<h3>4. Logs 與 Traces 的 SDK 行為（Python 1.30）</h3>
+<p><code>opentelemetry-python</code> <strong>v1.30.0（2025-02-04）</strong> 明確：<strong>一律初始化 logs SDK</strong>；<code>OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED</code> 只控制是否掛上 stdlib <code>logging</code> 的 handler，而非整體 logs SDK 是否存在；並修正 logs body <code>None</code> 序列化以對齊 1.31+ 資料模型 [來源:GitHub Release open-telemetry/opentelemetry-python v1.30.0,2025]。這影響「想把 JSONL 管線改成 OTel Logs + OTLP」時的啟動順序與測試假設。</p>
+<h2>最佳實踐</h2>
+<ol>
+<li><strong>Client 單例化 + 單一路徑 instrument</strong>：在 Agent 長生命週期程式中，對 KB／ntfy 共用單一 <code>AsyncClient</code>，僅在工廠函式內呼叫一次 <code>instrument_client</code> 或啟用全域 <code>instrument()</code>，並避免與手動 <code>AsyncOpenTelemetryTransport</code> 疊床架屋 [來源:OpenTelemetry HTTPX Instrumentation,2026][來源:GitHub Issue #554,2021]。</li>
+<li><strong>先決定 semconv 模式</strong>：在過渡期對 staging 設 <code>OTEL_SEMCONV_STABILITY_OPT_IN=http/dup</code>，對 prod 設 <code>http</code>，並在 Grafana 查詢同時支援新舊欄位直到儀表板改版完成 [來源:HTTP semantic conventions declared stable,2023]。</li>
+<li><strong>敏感標頭顯式列出</strong>：以 <code>OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST</code> 等變數白名單擷取 header，搭配 <code>…SANITIZE_FIELDS</code> 遮罩 <code>set-cookie</code>、session 類欄位；文件強調「全抓 headers 有外洩風險」[來源:OpenTelemetry HTTPX Instrumentation,2026]。</li>
+<li><strong>health／metrics 端點排除</strong>：使用 <code>OTEL_PYTHON_HTTPX_EXCLUDED_URLS</code> 逗號分隔 regex，避免對 <code>/api/health</code> 等高頻低價值請求產生成本與 cardinality [來源:OpenTelemetry HTTPX Instrumentation,2026]。</li>
+<li><strong>雙軌：OTel trace + 既有 JSONL</strong>：Microsoft Learn（zh-tw）說明可透過 <strong>自訂 SpanProcessor</strong> 在 <code>OnEnd</code> 注入維度；對照本專案可把 <code>task_key</code>、<code>backend</code> 寫入 span attribute，同時保留 <code>hooks/post_tool_logger.py</code> 的 JSONL 供離線稽核，兩者以 <code>trace_id</code> 關聯 [來源:Microsoft Learn 在 Application Insights 中新增和修改 OpenTelemetry,2026]。</li>
+</ol>
+<h2>陷阱與反例</h2>
+<ul>
+<li><strong>重複包裝 transport</strong>：同 client 連續請求或共用 raw transport 導致 span 倍增——根因與緩解見 issue #554 與 PR #3106 討論；反例是「每支工具函式內都 <code>instrument_client</code>」[來源:GitHub Issue #554,2021][來源:GitHub PR #3106,2026]。</li>
+<li><strong>在 response_hook 內盲目讀滿 body</strong>：transport hook 拿到的是低階 stream，行為與 httpx 高階 response 讀取一致地受「是否已讀取」約束；大檔下重複讀或與 <code>raise_for_status</code> 順序錯置仍可能踩 httpx 已知討論（與前篇 KB 筆記互參）。此處 OTel 並未自動替你緩衝 body [來源:OpenTelemetry HTTPX Instrumentation,2026]。</li>
+<li><strong>忽略 4xx 語意與 span status</strong>：HTTP semconv 說明 client 端 4xx <strong>建議</strong>設 <code>Error</code>，但應用若把 404 當正常探測，需在 exporter 前以 processor 覆寫（Azure 文件展示 <code>Http4xxSuccessProcessor</code> 模式）；直接關閉 status 會讓 SLO 誤判 [來源:Semantic conventions for HTTP spans,2026][來源:Microsoft Learn 修改遙測,2026]。</li>
+</ul>
+<h2>與本專案（daily-digest-prompt）關聯</h2>
+<ul>
+<li><strong>場景 A</strong>：在 <code>uv run python</code> 呼叫 KB <code>POST /api/import</code> 的共用模組外，包一層 <code>HTTPXClientInstrumentor.instrument_client</code>，於 <code>async_response_hook</code> 寫入 <code>http.response.status_code</code> 與自訂 attribute <code>ddp.task_key</code>，與 <code>results/todoist-auto-*.json</code> 的驗證流程對齊，失敗 trace 可直接在 Tempo 用 <code>url.full</code> 篩 <code>localhost:3000</code> [來源:OpenTelemetry HTTPX Instrumentation,2026]。</li>
+<li><strong>場景 B</strong>：<code>run-todoist-agent-team.ps1</code> 觸發的子程序若未來改為長駐 Python runner，可啟用 <strong>OTel Logs SDK（1.30 行為）</strong> 將原本 <code>logs/structured/*.jsonl</code> 的欄位逐步雙寫 OTLP，仍保留 JSONL 7 天清理政策於 PS 層 [來源:GitHub Release v1.30.0,2025][來源:專案慣例 CLAUDE.md 日誌保留]。</li>
+</ul>
+<h2>程式碼範例（官方文件節錄 + 自訂註解）</h2>
+<pre><code>
+# 來源：OpenTelemetry HTTPX Instrumentation 官方文件（Read the Docs）節錄
+import httpx
+import asyncio
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+url = "https://example.com"
+HTTPXClientInstrumentor().instrument()  # 全域；若只用單一 AsyncClient 可改 instrument_client
+
+async def get(url: str):
+    async with httpx.AsyncClient() as client:
+        return await client.get(url)
+
+asyncio.run(get(url))
+</code></pre>
+<p>自寫驗證：對 <code>localhost:3000</code> 請求請改為工廠單例 + <code>OTEL_PYTHON_HTTPX_EXCLUDED_URLS=".*/api/health"</code> 以降低噪音。</p>
+<h2>完整參考書目</h2>
+<ol>
+<li>OpenTelemetry Python Contrib.（存取 2026-05-02）. <em>OpenTelemetry HTTPX Instrumentation</em>. Read the Docs. <code>https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/httpx/httpx.html</code> — official</li>
+<li>OpenTelemetry Project.（2023）. <em>HTTP semantic conventions declared stable</em>. OpenTelemetry Blog. <code>https://opentelemetry.io/blog/2023/http-conventions-declared-stable</code> — official</li>
+<li>OpenTelemetry.（存取 2026-05-02）. <em>Semantic conventions for HTTP spans</em>. Specification. <code>https://opentelemetry.io/docs/specs/semconv/http/http-spans/</code> — official</li>
+<li>xoob et al.（2021）. <em>HTTPX instrumentor wraps transport repeatedly</em> (Issue #554). GitHub. <code>https://github.com/open-telemetry/opentelemetry-python-contrib/issues/554</code> — community</li>
+<li>Kludex / Trylesinski.（2024–2026）. <em>httpx: add the is_instrumented flag to the transport</em> (PR #3106). GitHub. <code>https://github.com/open-telemetry/opentelemetry-python-contrib/pull/3106</code> — community</li>
+<li>open-telemetry/opentelemetry-python.（2025-02-04）. <em>Release v1.30.0</em>. GitHub. <code>https://github.com/open-telemetry/opentelemetry-python/releases/tag/v1.30.0</code> — official</li>
+<li>Microsoft.（更新 2026-04-15）. <em>在 Application Insights 中新增和修改 OpenTelemetry</em>. Microsoft Learn（zh-tw）. <code>https://learn.microsoft.com/zh-tw/azure/azure-monitor/app/opentelemetry-add-modify</code> — official（本地化文件）</li>
+<li>OpenTelemetry Python Contrib.（存取 2026-05-02）. <em>fix mixing of sync and non async hooks</em> (PR #1920). <code>https://github.com/open-telemetry/opentelemetry-python-contrib/pull/1920</code> — community</li>
+</ol>
+<p>---</p>
+<p><em>task_type: tech_research | topic 與 2026-05-02 當日 httpx+OTel 筆記去重；closed_task_ids 未在 todoist-history 命中故以專案棧補強。</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="httpx Event Hooks 與 AsyncClient 可觀測性（2026-05-02 技術研究）">
+  <title>httpx Event Hooks 與 AsyncClient 可觀測性（2026-05-02 技術研究） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>httpx Event Hooks 與 AsyncClient 可觀測性（2026-05-02 技術研究）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">httpx</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>httpx Event Hooks 與 AsyncClient 可觀測性：request／response 稽核與 KB／ntfy 熱路徑</h1>
+<h2>技術概述</h2>
+<p>HTTPX 在 <code>Client</code>／<code>AsyncClient</code> 層提供 <strong>兩個事件掛鉤</strong>：<code>request</code>（請求已組裝完畢、尚未送網路）與 <code>response</code>（已自網路取回、尚未交還呼叫端）。相較於在每個呼叫點手寫日誌，掛鉤把「記錄、監看、追蹤」收斂成<strong>客戶端全域策略</strong>，適合本專案對 <code>localhost:3000</code> 知識庫 API 與 <code>ntfy.sh</code> 推播這類<strong>固定基底 URL、高頻短請求</strong>的熱路徑做一致化稽核 [來源:Event Hooks - HTTPX,2026]。與「外層包裝每個 <code>get</code>/<code>post</code>」相比，掛鉤保證<strong>所有經由該 Client 實例出去的流量</strong>都會經過同一套邏輯；與 OpenTelemetry <code>HTTPXClientInstrumentor</code> 相比，掛鉤偏<strong>應用語意</strong>（例如寫入 <code>X-Trace-Id</code>、對 4xx 正文取樣），OTel 則偏<strong>分散式追蹤 span 生命週期</strong> [來源:opentelemetry-instrumentation-httpx PyPI 專案說明,2026]。</p>
+<h2>核心概念與原理</h2>
+<h3>1. 兩段生命週期與可修改性</h3>
+<p>官方文件將 <code>request</code> 定義為「準備完成後、送出前」，<code>response</code> 為「網路返回後、交還前」；掛鉤可讀寫 <code>Request</code>／<code>Response</code> 物件，例如替 <code>request.headers</code> 加上時間戳欄位 [來源:Event Hooks - HTTPX,2026]；encode 倉庫內 Markdown 源與官網敘述一致，便於版本對照 [來源:encode/httpx docs advanced event-hooks.md,2026]。中文技術鏡像（W3Cschool、BookStack）重述同一語意，利於團隊內非英文母語成員對齊「何時可改 header、何時尚未觸網」[來源:httpx 事件挂接_w3cschool,2022][來源:书栈网 httpx v0.28 Event Hooks,2026]。</p>
+<h3>2. 回應本體與串流：為何預設讀不到內文</h3>
+<p>官方 <strong>Note</strong> 明確寫：<code>response</code> 掛鉤觸發時，<strong>尚未決定是否讀取 body</strong>；若要在掛鉤內讀內文，必須呼叫 <code>response.read()</code> 或 Async 版 <code>await response.aread()</code> [來源:Event Hooks - HTTPX,2026][來源:encode/httpx docs advanced event-hooks.md,2026]。這與「回應是 byte stream、只能消費一次」的設計一致：掛鉤若提前消費或關閉串流，呼叫端再讀會得到 <code>StreamClosed</code> 類錯誤 [來源:GitHub Discussion #2364,2022]。</p>
+<h3>3. `raise_for_status` 置於掛鉤時的例外語意</h3>
+<p>討論 #2224 顯示：把 <code>response.raise_for_status()</code> 放在 <code>response</code> 掛鉤中時，若未先 <code>read()</code>，例外處理區塊讀 <code>e.response.text</code> 會遇到 <code>ResponseNotRead</code>／<code>StreamClosed</code>；解法是在 <code>raise_for_status</code> 前先 <code>read()</code>（Async 則 <code>aread()</code>）[來源:GitHub Discussion #2224,2022]。#2364 進一步指出：掛鉤內丟出例外會觸發 <code>response.close()</code>，導致「先 raise 再在 except 讀 body」模式失效；對<strong>巨型串流</strong>若一律 <code>aread()</code> 可能不現實，討論建議需要「讀完 body 後才執行的第三種掛鉤」或改寫 <code>Client.send</code> 層級行為 [來源:GitHub Discussion #2364,2022]。</p>
+<h3>4. Async 掛鉤必須為 coroutine</h3>
+<p><code>AsyncClient</code> 註冊的掛鉤<strong>必須是 async 函式</strong>，同步函式不會被正確 await，這點在官網第二個 Note 與中文譯介均被強調 [來源:Event Hooks - HTTPX,2026][來源:httpx 事件挂接_w3cschool,2022]。</p>
+<h3>5. 與 OpenTelemetry instrumentation 的分工</h3>
+<p>PyPI 套件 <code>opentelemetry-instrumentation-httpx</code> 說明：<code>HTTPXClientInstrumentor</code> 可全域或單一 client 注入；亦支援 <code>request_hook</code>／<code>response_hook</code>／<code>async_request_hook</code>／<code>async_response_hook</code>，在 span 建立後與結束前回呼，參數為 <strong>transport 層原始 tuple</strong>（method, url, headers, stream, extensions）而非高階 <code>Request</code> 物件 [來源:opentelemetry-instrumentation-httpx PyPI 專案說明,2026]。實務上常見組合是：<strong>OTel 產生 trace／metric</strong>，<strong>httpx event_hooks 寫應用欄位或取樣日誌</strong>。</p>
+<h2>最佳實踐</h2>
+<ol>
+<li><strong>稽核欄位在 <code>request</code> 掛鉤注入</strong>：在送往 KB／ntfy 前寫入 <code>X-Task-Key</code>、<code>X-Run-Id</code>（或專案既有 trace id），避免只在少數呼叫點設定而漏網；依據為掛鉤可安全修改 <code>request</code> 物件 [來源:Event Hooks - HTTPX,2026]。反例：在掛鉤內做阻塞型 DNS 反查或同步磁碟寫檔，會拖慢所有請求。</li>
+</ol>
+<ol>
+<li><strong>錯誤本體取樣：<code>aread()</code> 後再 <code>raise_for_status</code></strong>：針對已知小 payload 的 JSON API（本專案 <code>POST /api/import</code>、ntfy JSON），在 <code>response</code> 掛鉤先 <code>await response.aread()</code> 再決定是否 <code>raise_for_status</code>，確保 except 區塊可讀 <code>text</code>／<code>content</code> [來源:GitHub Discussion #2224,2022]。反例：對下載型 URL 盲目 <code>aread()</code> 導致記憶體尖峰。</li>
+</ol>
+<ol>
+<li><strong>掛鉤只做 O(1) 觀測、重試仍交給 RetryTransport／tenacity</strong>：延續本專案既有 httpx 研究結論——網路層與 HTTP 狀態碼重試應分層；掛鉤內應避免再發次級 HTTP 請求以免造成遞迴 [來源:KB 筆記「httpx 傳輸層重試與連線池」,2026]。</li>
+</ol>
+<ol>
+<li><strong>單例 AsyncClient + 共用掛鉤</strong>：與「長生命週期 AsyncClient」一致，掛鉤註冊在建立 client 時一次完成，避免熱路徑重複組 dict [來源:KB 筆記「Python httpx 非同步 HTTP 客戶端生產實踐」,2026]。</li>
+</ol>
+<ol>
+<li><strong>與 OTel 並存時注意雙重 span</strong>：若同時使用 <code>HTTPXClientInstrumentor</code> 與自訂 transport 包裝，需參考社群 PR 討論避免「transport 被重複 instrument」造成重複 span（具體重複條件需對照執行環境與 otel 版本）⚠️待驗證。</li>
+</ol>
+<h2>陷阱與反例</h2>
+<ol>
+<li><strong>掛鉤內 <code>raise_for_status</code> 但未 read</strong>：已於 #2224／官方 Note 交叉驗證；除錯時誤以為「掛鉤等同 try/except 外層」會踩雷 [來源:GitHub Discussion #2224,2022][來源:Event Hooks - HTTPX,2026]。</li>
+</ol>
+<ol>
+<li><strong>例外導致 body 永不可讀</strong>：#2364 描述掛鉤早退 + <code>close()</code> 使下游無法讀錯誤 HTML／JSON；規避：僅對小回應在掛鉤讀滿，或改在呼叫端用 <code>response.read()</code> 後再檢查 status [來源:GitHub Discussion #2364,2022]。</li>
+</ol>
+<ol>
+<li><strong>Async 掛鉤誤用 def</strong>：會變成未 await 的 coroutine 或型別錯誤；中文文件亦單獨段落提醒 [來源:httpx 事件挂接_w3cschool,2022][來源:Event Hooks - HTTPX,2026]。</li>
+</ol>
+<h2>與本專案（daily-digest-prompt）關聯</h2>
+<ul>
+<li><strong><code>tools/</code> 共用 KB client</strong>：在 <code>skills/knowledge-query</code> 建議的 <code>POST /api/search/hybrid</code>／<code>POST /api/import</code> 路徑上，以 <code>AsyncClient(event_hooks=...)</code> 統一寫入 <code>task_key</code>、耗時（<code>time.perf_counter</code> 差值）到 <code>logs/structured</code> 或既有 JSONL，銜接 <code>post_tool_logger</code> 的 trace 欄位；呼應 continuity 建議的「共用 async KB client」方向 [路徑:<code>context/continuity/auto-task-tech_research.json</code>]。</li>
+</ul>
+<ul>
+<li><strong>ntfy <code>curl</code> 遷移 httpx 時的稽核</strong>：<code>CLAUDE.md</code> 規定 JSON 檔 + <code>curl</code>；若改為 httpx，仍應在掛鉤記錄 <code>priority</code>、<code>topic</code> 摘要長度，對照 <code>config/notification.yaml</code> 3500 字軟上限，便於除錯推播失敗 [路徑:<code>CLAUDE.md</code> ntfy 區塊]。</li>
+</ul>
+<h2>程式碼範例（官方語意改寫為 async）</h2>
+<pre><code>
+import time
+import httpx
+
+async def audit_request(request: httpx.Request) -&gt; None:
+    request.extensions.setdefault("audit", {})
+    request.extensions["audit"]["t0"] = time.perf_counter()
+
+async def audit_response(response: httpx.Response) -&gt; None:
+    await response.aread()
+    t0 = response.request.extensions.get("audit", {}).get("t0")
+    if t0 is not None:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        # 寫入 JSONL：method, url, status_code, elapsed_ms, len(response.content)
+    response.raise_for_status()
+
+async def make_client() -&gt; httpx.AsyncClient:
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(30.0, connect=5.0),
+        event_hooks={"request": [audit_request], "response": [audit_response]},
+    )
+</code></pre>
+<p>來源：綜合 [Event Hooks - HTTPX,2026] 與 [GitHub Discussion #2224,2022]（<code>aread</code> 順序）。</p>
+<h2>完整參考書目</h2>
+<ol>
+<li>HTTPX 官方文件（Event Hooks）— 英文 — https://www.python-httpx.org/advanced/event-hooks/ — 取用 2026-05-02 — official</li>
+<li>encode/httpx 原始 docs（event-hooks.md）— 英文 — https://raw.githubusercontent.com/encode/httpx/master/docs/advanced/event-hooks.md — 取用 2026-05-02 — official</li>
+<li>GitHub Discussion #2224（event hooks and raise_for_status）— 英文 — https://github.com/encode/httpx/discussions/2224 — 取用 2026-05-02 — community</li>
+<li>GitHub Discussion #2364（Reading response after raising errors in hooks）— 英文 — https://github.com/encode/httpx/discussions/2364 — 取用 2026-05-02 — community</li>
+<li>W3Cschool《httpx 事件挂接》— 中文 — https://www.w3cschool.cn/httpx/httpx-event-hooks.html — 更新 2022-07-26 — blog</li>
+<li>书栈网《httpx v0.28 documentation / Event Hooks》— 中文 — https://www.bookstack.cn/read/httpx-0.28-en/3a6a6214919921ea.md — 取用 2026-05-02 — blog</li>
+<li>PyPI <code>opentelemetry-instrumentation-httpx</code> JSON 專案說明 — 英文 — https://pypi.org/pypi/opentelemetry-instrumentation-httpx/json — 版本 0.62b1 — official</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
