@@ -251,22 +251,55 @@ def main():
 
     print(f"  總計 {len(all_notes)} 筆筆記")
 
+    # ─── know-w 雙站分流：排除佛學 tag 與封存 tag ─────────
+    # 佛學筆記改由 knowledge-f.pages.dev 顯示（依 daily-digest-prompt
+    # /config/knowledge-routing.yaml 的 buddhist_tag_whitelist）
+    BUDDHIST_TAG_BLACKLIST = {
+        # 既有經典 / 基本
+        '法華經', '淨土宗', '楞嚴經', '教觀綱宗', '佛學', '天台宗', '念佛',
+        # 核心義理
+        '四聖諦', '八正道', '十二因緣', '緣起', '三法印', '菩提心', '五蘊',
+        '六波羅蜜', '戒定慧',
+        # 佛經
+        '金剛經', '心經', '般若', '華嚴經', '維摩詰經', '圓覺經',
+        '大涅槃經', '阿含經', '地藏經', '普門品', '觀音',
+        # 流派
+        '禪宗', '唯識', '中觀', '空性', '華嚴宗', '如來藏',
+        # 修行 / 法門
+        '念佛三昧', '止觀', '五戒', '輪迴', '業報', '涅槃',
+        '因果', '三寶', '漢傳佛教', '大乘', '小乘',
+    }
+
     # ─── 篩選相關主題 ────────────────────────────────
     filtered: list[dict] = []
     excluded_count = 0
+    archived_count = 0
+    buddhist_count = 0
     for n in all_notes:
         title = n.get('title', '')
         if not title:
+            continue
+        tags = n.get('tags', []) or []
+        # 排除已封存
+        if 'archived-stub' in tags or 'deprecated' in tags:
+            archived_count += 1
+            continue
+        # 排除佛學筆記（移到 knowledge-f 站）
+        if any(t in BUDDHIST_TAG_BLACKLIST for t in tags):
+            buddhist_count += 1
             continue
         # 排除含 EXCLUDE_KEYWORDS 的標題
         if any(k in title for k in EXCLUDE_KEYWORDS):
             excluded_count += 1
             continue
-        tags = n.get('tags', []) or []
         combined = title + ' ' + ','.join(tags)
         if any(k in combined for k in KEYWORDS):
             filtered.append(n)
 
+    if archived_count:
+        print(f"  排除已封存筆記：{archived_count} 篇（archived-stub / deprecated）")
+    if buddhist_count:
+        print(f"  排除佛學筆記（改由 knowledge-f.pages.dev 顯示）：{buddhist_count} 篇")
     if excluded_count:
         print(f"  排除含關鍵字筆記：{excluded_count} 篇（EXCLUDE_KEYWORDS）")
 
@@ -288,6 +321,9 @@ def main():
         need_update = force_rebuild or (old_hash != note_hash)
 
         cat_name, cat_slug = categorize(title, tags)
+        # know-w 雙站分流：categorize 結果為佛學的也排除（兜底擋 substring 漏網）
+        if cat_name == '佛學':
+            continue
         slug = generate_slug(title, note_id)
 
         excerpt = re.sub(r'[#*\->\[\]`]', '', content_text)
