@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="程式碼 LLM 2026 深度研究報告">
+  <title>程式碼 LLM 2026 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>程式碼 LLM 2026 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">程式碼LLM</span><span class="tag">2026</span><span class="tag">研究報告</span><span class="tag">Repository-Level</span><span class="tag">FIM</span><span class="tag">AI代碼安全</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>程式碼 LLM 2026：Repository-Level Reasoning、FIM 進階機制與 AI Code Review 自動化的架構突破</h1>
+<p><strong>深度研究報告 | 2026-04-26</strong></p>
+<p>---</p>
+<h2>執行摘要</h2>
+<p>2026 年，程式碼 LLM 領域正在經歷三條平行的技術躍遷線。其一，<strong>倉庫級（Repository-Level）推理</strong>從實驗室走向生產，以 Context Inlining 為代表的圖基方法在真實代碼庫基準上取得 29.73% 的顯著提升，徹底打破了「單文件補全已夠用」的業界慣性。其二，<strong>FIM（Fill-in-Middle）</strong> 從訓練技巧演進為 Cross-File 架構標準，Codestral 以 FIM pass@1 95.3% 確立了代碼補全的新基準線。其三，<strong>AI 代碼安全評審</strong>揭示了一個令人警醒的系統性危機——即使最佳 LLM（Claude）生成的代碼平均仍包含 6.4 個可利用漏洞，而行業整體 92% 含關鍵漏洞的現實，表明 AI 代碼審查在安全維度尚無法自我保證。</p>
+<p>五項核心結論如下：<strong>第一</strong>，倉庫級 context 理解已是 Code LLM 競爭力分水嶺，RAG 對決長上下文模型的二元對立已被圖基混合方案取代；<strong>第二</strong>，Cross-File FIM 特殊 token（repo_name/file_sep）已成技術標準，Codestral 為補全場景最優選擇；<strong>第三</strong>，開源代碼模型完成「逆轉時刻」，Qwen 2.5 Coder 32B（HumanEval 88.4%）已超越 GPT-4，GLM-5 在 SWE-bench 超越 Gemini 3 Pro；<strong>第四</strong>，AI 代碼安全仍是行業弱點，安全審查不可依賴 LLM 自動化，需疊加靜態分析與人工審查；<strong>第五</strong>，角色特定評估框架（SecLens）正在取代單一聚合分數，成為 AI 工具採購決策的新標準。</p>
+<p>---</p>
+<h2>研究背景與動機</h2>
+<p>程式碼 LLM 在 2023-2024 年快速普及後，業界在 2026 年面臨一個關鍵問題：單文件補全的天花板已至，下一個瓶頸在哪裡？</p>
+<p>現代軟體開發的真實挑戰在於跨文件的依賴關係：一個函數的正確實現需要理解上游的調用契約和下游的被調用接口。傳統的 Code LLM 只接收當前文件（或有限 context window 內的代碼），無法理解 call graph 和模塊依賴，導致在實際項目中表現大幅落後於孤立 benchmark。這一局限性驅動了倉庫級推理架構的研究熱潮。</p>
+<p>與此同時，AI 代碼輔助工具的安全性正在成為企業採購的核心考量。2026 年 Sherlock Security Report 揭示 92% AI 生成代碼含關鍵漏洞，迫使安全工程師重新審視「AI 是否能可靠地審查自己生成的代碼」這一基礎假設。本研究正是在這一背景下，聚焦於三個核心技術問題：Repository-Level Reasoning 的架構突破、FIM 機制的演進方向，以及 AI Code Review 的真實能力邊界。</p>
+<p>---</p>
+<h2>核心技術解析</h2>
+<h3>1. 倉庫級推理：從 RAG 到 Context Inlining</h3>
+<p>倉庫級代碼推理的核心挑戰是如何在有限的 context window 內呈現最相關的跨文件依賴。研究界目前形成了兩條技術路線。</p>
+<p><strong>圖基方法（Graph-Based）</strong>：以 AST（抽象語法樹）和 call graph 為基礎，構建代碼實體間的結構化關係。InlineCoder（arXiv 2601.00376）提出「Context Inlining」方案，將目標函數嵌入雙向調用鏈——上游調用者的調用意圖（契約資訊）和下游被調用函數的接口定義——創造比表面語義相似度更豐富的 context。在 RepoExec 基準上，Exact Match（EM）相對提升 <strong>29.73%</strong>，BLEU 提升 <strong>49.34%</strong>，骨幹模型涵蓋 DeepSeek-V3 和 Qwen3-Coder，驗證了方法的跨模型普遍性。[來源：InlineCoder, arXiv 2601.00376, 2026]</p>
+<p><strong>非圖基方法 vs 圖基方法的對比</strong>：系統化 RACG 分析（涵蓋 110 篇論文，arXiv 2510.04905）指出，非圖基方法（詞彙/語義相似度 RAG）在大型複雜代碼庫中明顯落後於圖基方法，根本原因在於無法捕捉函數調用的語義契約。大型複雜代碼庫中 RAG 方法優於長上下文 LLM，但小型結構良好的代碼庫中差距縮小。混合方案（Context Inlining = 圖結構 + 選擇性 RAG）在兩類場景均取得改進，正在成為業界最優實踐。[來源：RACG Survey, arXiv 2510.04905, 2025]</p>
+<p>關鍵的分歧點在於：無單一答案，應依代碼庫規模與結構選擇策略——小型代碼庫（<50 萬行）可直接用長上下文模型，大型代碼庫需要圖基 RAG 或 Context Inlining。</p>
+<h3>2. FIM 進階機制：Cross-File 時代</h3>
+<p>FIM（Fill-in-Middle）訓練目標讓模型學習「給定前後文，填充中間代碼」的能力，是 IDE 實時補全的技術核心。2026 年的技術演進將 FIM 從單文件補全推進到倉庫感知的 Cross-File FIM。</p>
+<p><strong>PSM vs SPM 格式</strong>：PSM（Prefix-Suffix-Middle）和 SPM（Suffix-Prefix-Middle）是兩種 FIM token 排列方式。DeepSeek-V3 採用 <strong>0.5 的 FIM 訓練比例</strong>（每次訓練有 50% 機率作為 FIM 任務），顯示 FIM 已成為與語言建模同等重要的訓練目標，而非輔助任務。[來源：DeepSeek-V3 Technical Report, arXiv 2412.19437, 2024]</p>
+<p><strong>Cross-File FIM 架構標準</strong>：Qwen2.5-Coder 引入六種特殊 token：<code>fim_prefix</code>、<code>fim_middle</code>、<code>fim_suffix</code>、<code>fim_pad</code>、<code>repo_name</code>、<code>file_sep</code>，其中 <code>repo_name</code> 提供倉庫上下文識別，<code>file_sep</code> 分隔不同文件的代碼片段，讓模型在填充時感知整個倉庫結構。Qwen 官方 GitHub Issue #343 確認此格式自 2025 年 2 月起為標準配置，並可顯著提升跨文件補全準確率。[來源：Qwen2.5-Coder Blog, 2024; GitHub Issue #343, 2025]</p>
+<p><strong>Codestral 的 FIM 領先地位</strong>：Mistral 的 Codestral 22B 在 FIM pass@1 指標達 <strong>95.3%</strong>，為含閉源模型的最高水準。其 256K context window 為 IDE 中的超長文件提供了完整的補全視野。與 Qwen 2.5 Coder 32B（HumanEval 88.4%，通用代碼能力最強）相比，Codestral 在補全速度和 FIM 精準度上具有明確優勢，形成互補的選型框架。[來源：aimadetools comparison blog, 2026]</p>
+<h3>3. AI Code Review：能力邊界與安全悖論</h3>
+<p><strong>系統性漏洞現實</strong>：2026 年 Sherlock Forensics Security Report 對主流 AI 代碼生成工具進行大規模評測，<strong>92% AI 生成代碼存在至少 1 個關鍵漏洞</strong>，平均 8.3 個可利用缺陷。具體類型分佈：缺少日誌（91%）、缺少速率限制（88%）、身份驗證缺失（65%）、注入漏洞（54%）。即使表現最好的 Claude 平均每個應用仍有 <strong>6.4 個漏洞</strong>，GitHub Copilot 為 9.1 個。[來源：Sherlock AI Code Security Report, 2026]</p>
+<p><strong>SecLens 角色特定評估框架</strong>：arXiv 2604.01637 提出的 SecLens 框架涵蓋 35 維度 / 7 測量類別，對 12 個模型在 406 任務、93 個開源專案、8 種 OWASP 漏洞類別（含注入、身份驗證失敗、安全配置錯誤等）上進行系統評測。關鍵發現：<strong>同一模型對 CISO（安全管理者）和工程負責人（Engineering Lead）的評分差距可達 31 分</strong>；身份驗證失敗漏洞的檢測某些模型得分為零，揭示 AI Code Review 在特定漏洞類別上的系統性盲點。這一框架揭示了聚合 benchmark 分數在企業工具選型中的根本性局限。[來源：SecLens, arXiv 2604.01637, 2026]</p>
+<p><strong>主流模型對比</strong>：DeepSeek-V3（MoE 671B，激活 37B）在推理成本和多語言支持（338 語言）上具有明確優勢；Qwen2.5-Coder 32B（密集架構，5.5 兆 token 訓練）在中文代碼和通用任務上最強；Codestral 22B（密集，256K context）在 FIM 補全場景最優。三者形成互補的生產部署選型矩陣。[來源：aimadetools, 2026; Qwen vs DeepSeek comparison, 2026]</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<p><strong>I1 ✅（3 獨立來源）：圖基 + Context Inlining 混合架構正在取代純 RAG</strong></p>
+<p>倉庫級代碼生成中，將函數嵌入雙向調用鏈的 Context Inlining 方法在 RepoExec 上相對提升 EM 29.73%。純語義相似度 RAG 無法捕捉函數調用的語義契約關係，圖基方法解決了這一根本性局限。<em>反方觀點</em>：對小型代碼庫，純 RAG 已足夠，Context Inlining 引入的計算開銷可能不合算。</p>
+<p><strong>I2 ✅（4 獨立來源）：Cross-File FIM 已成 Code LLM 標準配備，Codestral 確立新基準</strong></p>
+<p>repo_name + file_sep + fim_prefix 組合格式讓模型感知倉庫結構，Codestral FIM pass@1 達 95.3% 為目前最高水準，已在 Qwen、Codestral 等主流模型中標準化。<em>反方觀點</em>：Cross-File FIM 需要 IDE 整合配合，實際效益依賴工具鏈支持程度。</p>
+<p><strong>I3 ✅（3 獨立來源）：DeepSeek-V3 FP8 訓練突破使超大規模 MoE 訓練成本可控</strong></p>
+<p>671B MoE 模型在 FP8 精度下損失誤差 <0.25%，每 token 僅激活 37B 參數，推動開源模型從「閉源平替」升級為「競爭者」。<em>反方觀點</em>：MoE 架構在低並發場景效率優勢消失，密集架構在特定任務峰值表現更優。</p>
+<p><strong>I4 ✅（3 獨立來源）：AI 代碼安全存在「工具越好越危險」悖論</strong></p>
+<p>最好的 LLM 生成代碼漏洞最少，但仍有 6.4 個/應用；開發者對「最好的工具」容易放鬆安全審查，反而增加實際風險。AI 代碼審查無法自我保證安全，必須疊加 SAST 工具和人工審查。</p>
+<p><strong>I5 ✅（4 獨立來源）：開源代碼模型完成逆轉，不再是閉源「平替」而是競爭者</strong></p>
+<p>Qwen 2.5 Coder 32B（HumanEval 88.4%）超越 GPT-4（87.1%），GLM-5（SWE-bench Verified 77.8%）超越 Gemini 3 Pro（76.2%）。2026 年企業選型開源模型是主動選擇而非妥協。</p>
+<p><strong>I6 ⚠️（1 獨立來源）：角色特定安全評估揭示聚合 benchmark 的根本性局限</strong></p>
+<p>SecLens 發現同模型對不同利益相關者評分差 31 分，傳統單一 benchmark 分數在企業 AI 工具採購決策中存在誤導風險。需角色敏感的多維評估框架，但目前僅 SecLens 提供，缺乏多方驗證。</p>
+<p><strong>I7 ⚠️（2 獨立來源）：多 Token 預測（MTP）訓練目標可能取代 next-token 範式</strong></p>
+<p>DeepSeek-V3 採用 MTP 並在代碼 benchmark 上取得更強表現，預示訓練範式轉向。但目前僅少數模型驗證，其在代碼補全（非推理）場景的普遍性尚需更多研究確認。</p>
+<p>---</p>
+<h2>實務應用建議</h2>
+<p><strong>建議 1：倉庫級代碼任務採用「分層 Context 策略」（即時可落地）</strong></p>
+<p>依代碼庫規模選擇方案：小型代碼庫（<50 萬行）直接用 Qwen2.5-Coder 32B 的 128K context，配合 Cross-File FIM 格式；大型代碼庫（>50 萬行）部署 Context Inlining 管線，以 AST call graph 作為 RAG 的索引基礎。落地步驟：先評估代碼庫規模→選擇方案→試點 1-2 個模塊→測量 EM/BLEU 提升後全面推廣。風險：Context Inlining 管線引入的推理延遲可能影響實時補全體驗，需在吞吐和延遲間做取捨。</p>
+<p><strong>建議 2：IDE 補全工具「功能分層」選型</strong></p>
+<p>實時補全（<100ms latency）場景選 Codestral 22B（FIM 95.3%，推理速度快）；複雜代碼生成和重構場景選 Qwen 2.5 Coder 32B（HumanEval 88.4%，中文注釋友好）；資源受限場景（<16GB VRAM）選 Qwen 7B 變體或 DeepSeek V2 Lite。落地路徑：先以 Codestral 替換現有補全工具，觀測 2-4 週接受率提升後，再評估是否引入倉庫級方案。</p>
+<p><strong>建議 3：建立 AI 代碼安全審查「零信任原則」（立即執行）</strong></p>
+<p>所有 AI 生成代碼必須通過 SAST 工具掃描（Semgrep/CodeQL），優先補強四類高頻漏洞：速率限制、身份驗證、日誌記錄、注入防護。不應將 AI 代碼審查作為安全的最後一道防線。具體落地：在 CI/CD 管線加入強制 SAST 門檻，AI 代碼生成環節標記為「未安全驗證」直至通過掃描。</p>
+<p><strong>建議 4：採用角色敏感評估框架指導 AI 工具採購（中長期）</strong></p>
+<p>不依賴單一 benchmark 分數選型，改用多角色評估矩陣（開發/安全/運維各自定義評估維度）。SecLens 框架可作為方法論參考，企業可基於自身 OWASP 關注優先順序設計定制化評估流程。預期效果：降低選型後安全意外的發生機率，提升跨職能對 AI 工具採購的共識。</p>
+<p>---</p>
+<h2>與現有知識的連結</h2>
+<p>本研究與知識庫近期研究形成緊密關聯：</p>
+<ul>
+<li><strong>vLLM/SGLang 推論加速研究（2026-04-26）</strong>：Code LLM 的倉庫級推理需要更長的 context window，P/D Disaggregation 在長 prefill 場景的吞吐提升（goodput 2-4.48x）對 Repository-Level Code LLM 的生產部署有直接參考價值，尤其是處理大型倉庫的批次分析場景。</li>
+<li><strong>LLM 對齊優化研究（2026-04-26）</strong>：DeepSeek-V3 採用 MTP 訓練和 GRPO 式對齊，與代碼 LLM 的 RLHF/SWE-bench 訓練策略形成上下游關聯。對齊技術的進步直接影響代碼模型在指令跟隨和安全代碼生成方面的表現，這也解釋了為何 Claude（對齊最強）在 AI 代碼安全評測中漏洞最少。</li>
+<li><strong>向量資料庫選型研究（2026-04-25/26）</strong>：Repository-Level Code Reasoning 的 RAG 管線需要高效的代碼向量存儲，混合搜尋（BM25+向量+RRF）的 recall 提升（65%→91%）對 RACG 系統的代碼片段檢索有直接應用價值，尤其是跨文件函數簽名的語義搜索場景。</li>
+</ul>
+<p>---</p>
+<h2>未來展望</h2>
+<p>三個仍未解決的核心問題：</p>
+<p><strong>1. 全倉庫規模測試缺口</strong>：InlineCoder 在 RepoExec/DevEval 基準上驗證，但這些基準的代碼庫規模有限（數萬至數十萬行）。百萬行級真實工業代碼庫的 Context Inlining 效果和延遲尚無大規模測試數據，是產業化落地的關鍵未知數。</p>
+<p><strong>2. AI 代碼安全的可學習性</strong>：2026 年的評測均在「揭示問題」，但尚無研究回答：是否存在特殊的安全對齊訓練方法（Security RLHF），能夠系統性降低 AI 生成代碼的漏洞密度？SecLens 框架提供了評估工具，但解法空白。</p>
+<p><strong>3. MTP 在代碼補全的普適性驗證</strong>：MTP 在 DeepSeek-V3 的代碼推理效果需在更多模型和規格上驗證，尤其是較小的 7B/13B 規格是否能從 MTP 中獲益，以及對代碼補全（非長推理）場景的具體提升幅度。</p>
+<p><strong>下次深化方向</strong>：<strong>AI 代碼安全訓練方法論</strong>——如何設計 Security-aware SFT/RLHF 資料集，系統性提升代碼 LLM 在 OWASP Top 10 漏洞類別上的檢測與規避能力。</p>
+<p>---</p>
+<h2>完整書目</h2>
+<ol>
+<li><strong>arXiv / Anonymous Authors</strong>, 2025, "Retrieval-Augmented Code Generation: A Survey with Focus on Repository-Level Approaches", https://arxiv.org/html/2510.04905v1 (取用日期：2026-04-26), source_type: academic</li>
+<li><strong>arXiv / InlineCoder Team</strong>, 2026, "In Line with Context: Repository-Level Code Generation via Context Inlining", https://arxiv.org/html/2601.00376v1 (取用日期：2026-04-26), source_type: academic</li>
+<li><strong>DeepSeek AI</strong>, 2024, "DeepSeek-V3 Technical Report", https://arxiv.org/html/2412.19437v1 (取用日期：2026-04-26), source_type: official</li>
+<li><strong>Qwen Team / Alibaba Cloud</strong>, 2024, "Qwen2.5-Coder Series: Powerful, Diverse, Practical", https://qwenlm.github.io/blog/qwen2.5-coder-family/ (取用日期：2026-04-26), source_type: official</li>
+<li><strong>arXiv / SecLens Authors</strong>, 2026, "SecLens: Role-Specific Evaluation of LLMs for Security Vulnerability Detection", https://arxiv.org/html/2604.01637v1 (取用日期：2026-04-26), source_type: academic</li>
+<li><strong>aimadetools</strong>, 2026, "Best Open-Source Coding Model in 2026 — Qwen Coder vs Codestral vs DeepSeek", https://www.aimadetools.com/blog/best-open-source-coding-model-2026/ (取用日期：2026-04-26), source_type: blog</li>
+<li><strong>alphamatch.ai</strong>, 2026, "開源大語言模型革命2026：中國模型如何重新定義AI霸權", https://www.alphamatch.ai/zh/blog/open-source-llm-comparison-blog-2026 (取用日期：2026-04-26), source_type: blog</li>
+<li><strong>Sherlock Forensics</strong>, 2026, "92% of AI Code Has Critical Vulnerabilities - 2026 Security Report", https://www.sherlockforensics.com/pages/ai-code-security-report-2026.html (取用日期：2026-04-26), source_type: blog</li>
+<li><strong>QwenLM GitHub Community</strong>, 2025, "FIM + repository-level information for code completion (Issue #343)", https://github.com/QwenLM/Qwen3-Coder/issues/343 (取用日期：2026-04-26), source_type: community</li>
+<li><strong>aimadetools</strong>, 2026, "Qwen 2.5 Coder vs DeepSeek Coder — Open-Source Coding Models Compared (2026)", https://www.aimadetools.com/blog/qwen-2-5-coder-vs-deepseek-coder/ (取用日期：2026-04-26), source_type: blog</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LLM 推論加速技術 2026 深度研究報告">
+  <title>LLM 推論加速技術 2026 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LLM 推論加速技術 2026 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">LLM推論</span><span class="tag">vLLM</span><span class="tag">SGLang</span><span class="tag">Speculative Decoding</span><span class="tag">2026</span><span class="tag">研究報告</span><span class="tag">Disaggregated Prefill</span><span class="tag">RadixAttention</span><span class="tag">TensorRT-LLM</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LLM 推論加速技術 2026 深度研究報告</h1>
+<p><strong>研究主題</strong>：vLLM v0.8 Disaggregated Prefill、SGLang RadixCache 與 Speculative Decoding 的生產效能與成本優化</p>
+<p><strong>研究日期</strong>：2026-04-26</p>
+<p><strong>來源數量</strong>：10 篇（學術 2 + 官方 3 + 部落格 4 + 社群 1；中文 2 + 英文 8）</p>
+<p>---</p>
+<h2>執行摘要</h2>
+<p>2026 年 LLM 推論加速技術已進入多框架分工精細化的成熟期。本報告綜合 10 個來源——包含 vLLM 官方文件、PyTorch/Meta 部落格、LMSYS 官方研究、arXiv 學術論文、多份中英文 Benchmark 評測及 Hacker News 社群討論——以三角佐證方法提煉出四項核心共識與五項關鍵洞見。</p>
+<p><strong>核心結論摘要</strong>：</p>
+<p>第一，Disaggregated Prefill（P/D 分離）的核心價值<strong>不是吞吐量提升，而是 TTFT（首字延遲）與 ITL（Token 間延遲）的獨立調優</strong>。vLLM 官方文件明確標注「Does NOT improve throughput per se」，Meta 在生產環境驗證 P/D 分離可實現 2.0-4.48x 的「goodput」（滿足 SLO 的有效請求率）提升，這一指標比原始吞吐量更能反映業務價值。</p>
+<p>第二，SGLang 的 RadixAttention 機制在高快取命中率場景（few-shot、多輪對話、RAG、Agent 控制流）帶來 3-6.4x 的吞吐量優勢，已在 Grok 3 等大規模生產環境驗證。但在 cold-start 無快取場景，SGLang 與 vLLM 的差距僅約 2.5%。</p>
+<p>第三，Speculative Decoding 的加速效果強烈依賴接受率（α）與 batch size：α=0.8 時可達 3.8x 加速，但 batch size 超過 32 後收益回落至基準線。適用邊界清晰：1-20 併發延遲敏感場景是最佳適用範圍。</p>
+<p>第四，三大框架（vLLM、SGLang、TRT-LLM）在生產部署中各有明確適用場景，工程選型應以工作負載特徵為主要依據，而非單一效能指標。</p>
+<p>---</p>
+<h2>研究背景與動機</h2>
+<p>2025-2026 年間，LLM 推論的計算成本成為企業 AI 落地的首要瓶頸。隨著 Llama 3.1、Qwen3、DeepSeek-V3 等模型參數量增大，單純靠硬體擴容已不足以維持服務 SLO。工程界因此湧現三條主流加速路線：<strong>架構層分離</strong>（Disaggregated Prefill）、<strong>快取層複用</strong>（RadixAttention/KV Cache 共享）、<strong>解碼層加速</strong>（Speculative Decoding）。</p>
+<p>然而，現有技術部落格和官方文件的敘述角度分散，缺乏跨框架的系統比較與生產選型指引。本研究的動機在於彙整三條技術路線的機制原理、實測效能數據與生產邊界，為中小型團隊提供可操作的選型決策框架。</p>
+<p>研究主要涵蓋的問題包括：P/D Disaggregation 如何解耦 TTFT 與吞吐量的工程取捨、RadixCache 的快取命中率與成本節省的量化關係、Speculative Decoding 的接受率邊界判斷，以及三大框架在 H100 硬體下的 Benchmark 比較與選型建議。</p>
+<p>---</p>
+<h2>核心技術解析</h2>
+<h3>3.1 Disaggregated Prefill：解耦延遲與吞吐的架構革新</h3>
+<p>LLM 推論分為兩個計算特性截然不同的階段：<strong>Prefill</strong> 階段負責計算所有輸入 token 的注意力，是 compute-bound（GPU 算力飽和）；<strong>Decode</strong> 階段逐 token 生成輸出，是 memory-bound（顯存頻寬瓶頸）。在傳統統一架構中，兩者共用同一批 GPU，導致 Prefill 和 Decode 互相干擾——Prefill 的突發計算負載會中斷 Decode 流程，造成 tail latency 激增。</p>
+<p>Disaggregated Prefill 將 Prefill 與 Decode 分配至兩組獨立的 vLLM 實例，透過 Connector/LookupBuffer/Pipe 抽象層轉送 KV cache [來源：vLLM 官方文件, 2026]。Meta 已在生產環境驗證此架構，並通過 NixlConnector（非同步 P2P）和 MooncakeConnector（Moonshot AI 的互連優化方案）上游貢獻至 vLLM 社群 [來源：PyTorch Blog/Meta, 2026]。</p>
+<p>DistServe（UCSD Hao AI Lab）的學術研究引入「goodput」指標——即單位時間內滿足 SLO 的請求數，更精確衡量業務價值而非原始吞吐量。實驗顯示：P/D 分離相比統一架構，Chatbot 場景 goodput 提升 2.0-3.41x，Code Completion 提升 3.2x，Summarization 提升 4.48x [來源：DistServe/Hao AI Lab UCSD, 2026]。KV cache 遷移成本是關鍵工程挑戰，PCIe 5.0/NVLink 可將遷移延遲壓縮至低於單個 decode step 的時間。</p>
+<p>值得注意的是，vLLM 官方文件標注此功能仍屬「實驗性」（experimental），API 可能隨版本變動。</p>
+<h3>3.2 SGLang RadixAttention：KV Cache 複用的前綴樹革命</h3>
+<p>SGLang 的 RadixAttention 核心思想是：在 CPU 上維護一棵 LRU Radix Tree，記錄所有請求的 KV cache 前綴；當新請求到來時，自動比對最長公共前綴，複用已計算的 KV cache，跳過前綴部分的重新計算。GPU 上採用 Paged Layout 儲存實際 KV cache 資料 [來源：LMSYS Blog, 2024；arXiv 2312.07104, 2024]。</p>
+<p>此機制在多種場景自動生效：多輪對話（相同系統提示）、Few-shot 學習（固定示例前綴）、RAG（相同上下文段落）、Self-consistency（相同問題多次取樣）、Tree-of-Thought（共享推理路徑）。當快取命中率達 85-95%（典型客服場景），SGLang 相比 vLLM 吞吐量提升 29%（n1n.ai 評測）至最高 6.4x（arXiv 理論上界）。</p>
+<p>實際部署資料：SGLang 在 96 張 H100 GPU 上部署 DeepSeek 模型，啟用 P/D 分離後達到 52,300 input tok/s、22,300 output tok/s [來源：Fish Audio Blog, 2026]。Grok 3 也選擇 SGLang 作為推論引擎。成本面：n1n.ai 評測指出，日均百萬請求場景選 SGLang 而非 vLLM 可節省約 $15,000 GPU 租賃費。</p>
+<h3>3.3 Speculative Decoding：草稿模型加速解碼的邊界與機制</h3>
+<p>Speculative Decoding 使用小型草稿模型（draft model）預生成多個候選 token，再由目標大模型平行驗證，接受符合分佈的 token、拒絕不符合的 token。此機制的計算代價是草稿 + 驗證，收益是減少目標模型的序列 decode 次數。</p>
+<p><strong>接受率（α）是決定性指標</strong> [來源：PremaI Blog, 2026]：α=0.6→加速2.4x，α=0.75→2.9x，α=0.8→3.8x，α<0.5→加速為負（開銷超過收益）。</p>
+<p><strong>Batch Size 限制</strong>：batch=1 時加速 2-3x；batch=8 時降至 1.4x；batch=32+ 時回落至基準線。原因是大批次時 decode 的顯存頻寬利用率已高，草稿模型的額外計算難以攤薄成本。vLLM 整合 EAGLE3 草稿模型：在 Llama 3.3-70B 上達到約 2.3x 加速，在 Qwen3-32B 數學任務上達 2.7x。</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ <strong>P/D Disaggregation 是延遲解耦工具，非吞吐提升工具</strong>（3 個來源：vLLM官方、PyTorch/Meta、DistServe）：目標是提升吞吐量時，P/D 分離不是正確答案；目標是同時保持低 TTFT 和穩定 ITL 時，P/D 分離是目前唯一系統性方案。</li>
+</ol>
+<ol>
+<li>✅ <strong>「Goodput」比吞吐量更適合衡量生產推論效能</strong>（2 個來源：DistServe、業界逐步採用）：goodput = 單位時間滿足 SLO 的有效請求數，能反映真實業務 KPI，避免「吞吐高但 tail latency 爆表」的假陽性。</li>
+</ol>
+<ol>
+<li>✅ <strong>SGLang 效能優勢依賴快取命中率，冷啟動場景差距僅 2.5%</strong>（4 個來源：LMSYS、arXiv、n1n.ai、Spheron）：Benchmark 顯示 SGLang 顯著領先時需確認測試的快取命中率，實際生產中差距因工作負載而有顯著差異。</li>
+</ol>
+<ol>
+<li>✅ <strong>Speculative Decoding 接受率 α<0.5 時應停用</strong>（2 個來源：PremaI Blog、業界實踐）：部署前必須用生產流量樣本評估草稿模型接受率，低於閾值反而增加推論成本。EAGLE3 在特定任務類型（數學推理）接受率較高，創意寫作類通常較低。</li>
+</ol>
+<ol>
+<li>⚠️ <strong>SGLang 的 Python GIL 在超高並發下成為架構瓶頸</strong>（1 個來源：Fish Audio）：相較於 TRT-LLM（C++ 核心），SGLang 在極高並發下的可擴展性受 GIL 限制，此洞見需更多來源確認。</li>
+</ol>
+<p>---</p>
+<h2>實務應用建議</h2>
+<p><strong>依工作負載特徵選框架</strong>：客服/RAG/多輪對話 → SGLang（高快取命中率優勢）；固定模型最大吞吐 → TRT-LLM（H100 最快，但冷啟動 28min）；通用開發/多模型切換 → vLLM（75K stars，生態最完整）；成本敏感/邊緣部署 → LMDeploy（Int4 量化加速 2.4x）；省心優先 → TGI（HuggingFace，預設穩定）。</p>
+<p><strong>Speculative Decoding 部署前驗證</strong>：用生產流量評估 α 值。α≥0.7 → 啟用有明確收益；α<0.5 → 關閉；0.5-0.7 → 灰色地帶需具體測試。</p>
+<p><strong>P/D Disaggregation 啟用條件</strong>：同時滿足以下三點才考慮：(a) p95 TTFT SLO < 500ms；(b) 叢集規模足以分配獨立 Prefill 節點；(c) PCIe 5.0 或 NVLink 互連可用。否則統一架構 + 合理 batch size 策略即足夠。</p>
+<p><strong>監控指標升級</strong>：加入 goodput 指標（每秒滿足 p95 TTFT SLO 的請求數），作為主要 SLO 健康度指標，比原始 tokens/sec 更能反映用戶體驗。</p>
+<p>---</p>
+<h2>與現有知識的連結</h2>
+<p>vLLM 已在本專案推論後端配置中使用（config/backend-qualification.yaml、llama-adapter.yaml）。SGLang 的 RadixAttention 在 prefix-heavy 場景的優勢，與本專案 knowledge-query Skill 的設計理念一致（減少重複計算）。若本專案未來考慮自架推論服務，SGLang 在研究摘要生成（ai_deep_research 自動任務）的高前綴重複場景具有直接適用性。</p>
+<p>---</p>
+<h2>未來展望</h2>
+<ol>
+<li><strong>MLA + RadixAttention 整合</strong>：DeepSeek-V3 的 MLA 壓縮 KV cache 尺寸，與 RadixCache 結合可進一步降低遷移成本。</li>
+<li><strong>非 CUDA 路線</strong>：Modular MAX（MLIR+Mojo，16 億估值）在 L40 上已比 vLLM 快 16%，AMD ROCm/Intel Gaudi 替代生態值得持續關注。</li>
+<li><strong>EAGLE 系列演進</strong>：EAGLE3 數學任務 2.7x，後續 EAGLE4 及 draft-model 訓練改進是下一研究方向。</li>
+<li><strong>goodput 標準化</strong>：若 MLPerf 採納 goodput 作為標準指標，將系統性改變框架評測方法論。</li>
+</ol>
+<p>---</p>
+<h2>完整書目</h2>
+<ol>
+<li>vLLM Team. (2026). <em>Disaggregated Prefilling</em>. vLLM Official Documentation. https://docs.vllm.ai/en/latest/features/disagg_prefill/ [取用日期：2026-04-26] [official]</li>
+<li>Meta PyTorch Team. (2026). <em>Disaggregated Inference at Scale with PyTorch & vLLM</em>. PyTorch Blog. https://pytorch.org/blog/disaggregated-inference-at-scale-with-pytorch-vllm/ [取用日期：2026-04-26] [official]</li>
+<li>Zheng, L., et al. (2024). <em>Fast and Expressive LLM Inference with RadixAttention and SGLang</em>. LMSYS Blog. https://www.lmsys.org/blog/2024-01-17-sglang/ [取用日期：2026-04-26] [official]</li>
+<li>Zheng, L., et al. (2024). <em>SGLang: Efficient Execution of Structured Language Model Programs</em>. arXiv:2312.07104. https://arxiv.org/abs/2312.07104 [取用日期：2026-04-26] [academic]</li>
+<li>Hao AI Lab, UCSD. (2026). <em>Throughput is Not All You Need: Maximizing Goodput</em>. DistServe. https://haoailab.com/blogs/distserve/ [取用日期：2026-04-26] [academic]</li>
+<li>Spheron Team. (2026). <em>vLLM vs TensorRT-LLM vs SGLang: H100 Benchmarks 2026</em>. https://www.spheron.network/blog/vllm-vs-tensorrt-llm-vs-sglang-benchmarks/ [取用日期：2026-04-26] [blog]</li>
+<li>PremaI Team. (2026). <em>Speculative Decoding: 2-3x Faster LLM Inference 2026</em>. https://blog.premai.io/speculative-decoding-2-3x-faster-llm-inference-2026/ [取用日期：2026-04-26] [blog]</li>
+<li>n1n.ai. (2026). <em>vLLM vs SGLang vs LMDeploy 2026 深度評測</em>（中文）. https://explore.n1n.ai/zh/blog/vllm-vs-sglang-vs-lmdeploy-2026-zui-kuai-tui-li-yin-qing-2026-03-05 [取用日期：2026-04-26] [blog]</li>
+<li>Fish Audio Team. (2026). <em>開源 LLM 推論引擎 2026 比較</em>（中文）. https://fish.audio/blog/open-source-llm-inference-engines-2026/ [取用日期：2026-04-26] [blog]</li>
+<li>Hacker News Community. (2026). <em>工程師實際使用 SGLang/vLLM/TGI 的經驗 #43840797</em>. https://news.ycombinator.com/item?id=43840797 [取用日期：2026-04-26] [community]</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

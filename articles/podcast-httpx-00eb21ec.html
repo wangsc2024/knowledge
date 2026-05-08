@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Podcast 腳本：httpx 連接池與逾時設計">
+  <title>Podcast 腳本：httpx 連接池與逾時設計 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Podcast 腳本：httpx 連接池與逾時設計</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Podcast製作</span><span class="tag">對話腳本</span><span class="tag">雙主持人</span><span class="tag">note-c91ad542-20260504-152005</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Podcast 腳本：httpx 連接池與逾時設計</h1>
+<blockquote>生成時間：20260504_152005 | 輸出：<code>D:\Source\daily-digest-prompt\output\podcasts\httpx連接池與逾時設計_202605041520.mp3</code></blockquote>
+<h2>對話腳本</h2>
+<p><strong>曉晨（解說）</strong>：今天這集我們從知識庫一篇研究稿出發，談如何用 httpx 把對外 HTTP 呼叫做成可長期跑的服務級設定，特別連到 AI Agent 工作流的可靠度。</p>
+<p><strong>云哲（提問）</strong>：我先確認一件事：它和 requests、aiohttp 要怎麼分工？</p>
+<p><strong>曉晨（解說）</strong>：httpx 底層走 httpcore，同步 Client 和非同步 AsyncClient 都能用；裝 httpx[http2] 還能打 HTTP/2，並且有較友善的型別標註與預設逾時。</p>
+<p><strong>云哲（提問）</strong>：架構上它是怎麼疊起來的？</p>
+<p><strong>曉晨（解說）</strong>：可以想成三層：最上是 AsyncClient 處理重定向與 Cookie；中間 httpcore 管連線池與 HTTP/2；底層才是 asyncio 或 trio 去打 socket。</p>
+<p><strong>云哲（提問）</strong>：那預設 transport 上的 retries，會自動幫我扛速率限制嗎？</p>
+<p><strong>曉晨（解說）</strong>：不會。這種 retries 偏向連線建立失敗或逾時；遇到要看 HTTP 狀態碼的情境，要在應用層另外設計。</p>
+<p><strong>云哲（提問）</strong>：連接池最常調的三個數字是什麼？</p>
+<p><strong>曉晨（解說）</strong>：httpx.Limits 預設大致是 max_keepalive_connections 二十條、max_connections 一百條，以及 keepalive_expiry 的空閒存活秒數；目的是複用 TCP 與 TLS 交握成本，必要時靠 PoolTimeout 避免卡在池外排隊。</p>
+<p><strong>云哲（提問）</strong>：為什麼文件一直警告不要在熱路徑一直 new AsyncClient？</p>
+<p><strong>曉晨（解說）</strong>：官方講得很直白：Creating an AsyncClient is expensive。每次 async with AsyncClient() 都會建新池子，成本高又無法沿用連線；長生命週期的服務較適合在 FastAPI lifespan 或模組層共用同一個實例。</p>
+<p><strong>云哲（提問）</strong>：逾時如果要細調，最小單位有哪些？</p>
+<p><strong>曉晨（解說）</strong>：至少有 Connect、Read、Write、Pool 四種；預設常以 httpx.Timeout(5.0) 共享總預算，也能拆成「總秒數外加 connect、pool」去對齊慢速上游或連線很慢的情境。</p>
+<p><strong>云哲（提問）</strong>：Agent 管線最怕哪種設定？</p>
+<p><strong>曉晨（解說）</strong>：最怕 timeout=None；上游偶發不回應時會整段 Phase 懸在那裡，Windows 工作排程器甚至可能長時間留在 Running，阻塞後續批次。</p>
+<p><strong>云哲（提問）</strong>：重試要怎麼分工才不會策略打架？</p>
+<p><strong>曉晨（解說）</strong>：網路層可用 httpx-retries 的 RetryTransport；碰到 HTTP 429 這種應用層情境，較常再用 tenacity，並優先讀 Retry-After，外加 jitter 降低同步撞車。</p>
+<p><strong>云哲（提問）</strong>：並行發請求時還要注意什麼？</p>
+<p><strong>曉晨（解說）</strong>：同一個 AsyncClient 底下用 asyncio.gather，可把總等待時間往最慢那一個靠攏；但若並發拉到三百以上，文章提醒 httpx 可能出現較難重現的 ReadError，可能要 semaphore 限流、調高 Limits，或評估換 aiohttp。</p>
+<p><strong>云哲（提問）</strong>：我抓到三個帶走的結論：共用客戶端、逾時永遠給具體數字、網路重試跟狀態碼重試分開設計。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

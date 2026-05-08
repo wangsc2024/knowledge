@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: 多代理編排（Crew/Graph/對話）- 2026-04-28">
+  <title>GitHub Scout: 多代理編排（Crew/Graph/對話）- 2026-04-28 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: 多代理編排（Crew/Graph/對話）- 2026-04-28</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">多代理編排</span><span class="tag">LangGraph</span><span class="tag">CrewAI</span><span class="tag">microsoft-agent-framework</span><span class="tag">HITL</span><span class="tag">2026-04-28</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>專案觀測摘要</h2>
+<h3>langchain-ai/langgraph (~50k★)</h3>
+<ul>
+<li><strong>runtime_model</strong>: 圖式編排（Directed Stateful Graph）：節點=函數/代理，邊=條件轉換；支援 fork/join 並行</li>
+<li><strong>state_strategy</strong>: 內建 checkpointing（thread_id 區隔 session）；time-travel debug；生產環境推薦 PostgreSQL/Redis durable checkpointer</li>
+<li><strong>human_review_model</strong>: <strong>interrupt-point 模式</strong> — interrupt() API 暫停圖執行，持久化狀態後等待人工 Command(resume=...) 注入；支援 interrupt_before/interrupt_after 靜態 breakpoints；適合同步短延遲審核</li>
+</ul>
+<h3>crewAIInc/crewAI (45.9k★)</h3>
+<ul>
+<li><strong>runtime_model</strong>: 角色扮演多代理（Agent+Task+Crew）；CrewAI Flows 以 @start/@listen/@router 裝飾器建構 DAG 工作流，支援 parallel kickoff</li>
+<li><strong>state_strategy</strong>: 任務間 context 傳遞；Flows 支援 structured State 持久化；無 time-travel checkpoint</li>
+<li><strong>human_review_model</strong>: human_input=True 任務標記（CLI 輸入等待）；非 interrupt-point 模式；適合非同步 batch 場景</li>
+</ul>
+<h3>microsoft/agent-framework (GA 2026-04-03, 前身 SK+AutoGen 合計 75k+★)</h3>
+<ul>
+<li><strong>runtime_model</strong>: 多模式：sequential/concurrent/handoff/group-chat/Magentic-One；graph-based workflows（SK 傳承）；MCP+A2A 原生支援</li>
+<li><strong>state_strategy</strong>: Agent memory + context providers；checkpoint 機制（AutoGen AgentChat 傳承）；跨 .NET/Python 統一</li>
+<li><strong>human_review_model</strong>: AutoGen HumanProxyAgent 傳承；middleware hooks 實現人工審核注入；middleware-intercept 模式，非 interrupt-point；適合異步高延遲審核</li>
+</ul>
+<h2>改進提案</h2>
+<p>| 優先級 | 模式 | 目標 | 狀態 |</p>
+<p>|--------|------|------|------|</p>
+<p>| P1 | agent_framework_unification_keyword_coverage | skills/github-scout/SKILL.md | <strong>implemented</strong> |</p>
+<p>| P1 | crew_flows_dag_routing_evaluation | context/improvement-backlog.json | plan_ready |</p>
+<p>| P2 | middleware_hook_alignment_docs | context/improvement-backlog.json | plan_ready |</p>
+<h2>審查結論</h2>
+<ul>
+<li>P1 SKILL.md 觸發詞更新（v2.8.0→v2.9.0）：feasibility=9, stability=10，第1輪通過直接落實。新增 Semantic Kernel/AgentChat/Magentic-One 3 個觸發詞，覆蓋 microsoft/agent-framework GA 後的新術語。</li>
+<li>P1 CrewAI Flows DAG：backlog 寫入（high priority），本週 backlog_hygiene 評估。風險 medium，不直接執行。</li>
+<li>P2 middleware hooks 文件對齊：backlog 寫入（medium priority + awaits_proposal），優化候選池。</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li>skills/github-scout/SKILL.md v2.9.0：新增 Semantic Kernel、AgentChat、Magentic-One 三個觸發關鍵詞</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>CrewAI Flows @router 條件路由引入 Phase 1 動態任務分派（P1，medium risk，需設計評估）</li>
+<li>microsoft/agent-framework middleware hooks 文件對齊（P2，low risk，awaits_proposal）</li>
+</ul>
+<h2>多代理編排框架 HITL 模式對比</h2>
+<p>| 框架 | HITL 模式 | 延遲特性 | 適合場景 |</p>
+<p>|------|-----------|---------|----------|</p>
+<p>| LangGraph | interrupt-point | 同步短延遲 | 細粒度審核、動態路由 |</p>
+<p>| CrewAI | human_input 任務標記 | CLI 阻塞 | 批次任務人工確認 |</p>
+<p>| MS agent-framework | middleware-intercept | 異步高延遲 | 企業級工作流審核 |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

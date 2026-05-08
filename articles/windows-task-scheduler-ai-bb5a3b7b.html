@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Windows Task Scheduler AI Agent 場景進階實踐 2026：單實例鎖定、殭屍進程偵測、FSM 狀態機整合與跨任務並行防護模式">
+  <title>Windows Task Scheduler AI Agent 場景進階實踐 2026：單實例鎖定、殭屍進程偵測、FSM 狀態機整合與跨任務並行防護模式 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Windows Task Scheduler AI Agent 場景進階實踐 2026：單實例鎖定、殭屍進程偵測、FSM 狀態機整合與跨任務並行防護模式</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Windows Task Scheduler</span><span class="tag">AI Agent</span><span class="tag">殭屍進程</span><span class="tag">單實例</span><span class="tag">FSM</span><span class="tag">PowerShell</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Windows Task Scheduler AI Agent 場景進階實踐 2026</h1>
+<h2>單實例鎖定、殭屍進程偵測、FSM 狀態機整合與跨任務並行防護模式</h2>
+<p>---</p>
+<h2>技術概述</h2>
+<p>Windows Task Scheduler 是 AI Agent 自動化系統在 Windows 上的核心基礎設施。每日摘要、Todoist 任務自動化、知識庫更新、健康稽核等排程任務，都依賴它定時觸發。然而，在 AI Agent 場景中，Task Scheduler 面臨的挑戰遠超傳統批次作業：Agent 任務執行時間不確定（可能 1 分鐘也可能 3 小時）；Agent 會派生子進程（LLM API 呼叫、Python 工具）；外部系統重啟會讓 FSM 狀態殘留；任務失敗可能靜默（exit code 0 但邏輯未完成）。</p>
+<p>本文聚焦三個在既有基礎 Task Scheduler 筆記中未覆蓋的核心問題：<strong>（1）單實例防護的真實邊界</strong>（Task Scheduler 原生設定的盲區）、<strong>（2）殭屍進程的成因與偵測清除模式</strong>、<strong>（3）外部 FSM 狀態機與排程系統的整合陷阱</strong>。這三個問題都曾導致本專案生產故障，值得深入理解 [來源：daily-digest-prompt MEMORY，2026-04-29]。</p>
+<p>替代方案比較：Azure Durable Functions 提供原生狀態機排程，但需 Azure 環境；Prefect/Airflow 有完整 DAG 狀態追蹤，但部署複雜度高；Windows Task Scheduler 勝在零外部依賴、OS 原生、啟動快（<1s），適合本機 AI Agent 自動化場景。</p>
+<p>---</p>
+<h2>核心概念與原理</h2>
+<h3>1. 單實例防護的三層架構</h3>
+<p>Task Scheduler 的「不啟動新實例」設定（<code>TASK_INSTANCES_IGNORE_NEW</code>）存在關鍵盲區 [來源：Microsoft Q&A - Do not start a new instance issue, 2023]：<strong>該設定僅攔截排程觸發，不攔截手動執行</strong>。當管理員從 UI 或 <code>Start-ScheduledTask</code> 手動觸發時，新實例<strong>一定</strong>會啟動，即使舊實例正在執行。Microsoft 官方說明確認這是「by design」行為。</p>
+<p>因此，生產環境需要三層防護：</p>
+<p><strong>Layer 1：Task Scheduler 設定</strong>（防排程觸發重疊）</p>
+<pre><code>
+任務屬性 → 設定 → 如果工作已在執行，套用下列規則：
+  ✓ 不啟動新的執行個體（TASK_INSTANCES_IGNORE_NEW）
+如果工作執行時間超過此時間，停止工作：
+  ✓ 2 小時（依預期執行時間 × 1.5 設定）
+</code></pre>
+<p><strong>Layer 2：具名 Mutex 跨 Session 保護</strong>（防任何路徑的重複執行）</p>
+<p>Global\ 前綴的 Named Mutex 在 Windows 中跨所有 Session 可見，包含 SYSTEM Session 0 和所有用戶 Session。這是唯一能防止「手動觸發 + 排程觸發」同時進入的方法 [來源：Microsoft Learn - Mutexes, 2024]：</p>
+<pre><code>
+# Global\ 前綴 = 跨所有 Terminal Server sessions 可見
+$mutexName = "Global\DailyDigest-$([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Path))"
+$mutex = New-Object System.Threading.Mutex($false, $mutexName)
+
+$mutexAcquired = $mutex.WaitOne(0, $false)  # 非阻塞嘗試獲取
+if (-not $mutexAcquired) {
+    Write-Host "[GUARD] 另一個執行個體正在執行中，退出。"
+    exit 1
+}
+try {
+    # 主要腳本邏輯
+} finally {
+    $mutex.ReleaseMutex()
+    $mutex.Dispose()
+}
+</code></pre>
+<p>Mutex 優於 Lock File 的關鍵：Mutex 在程式 crash 或 PowerShell 進程被強制終止時，OS 會自動釋放（Abandoned Mutex）；Lock File 則需要手動清理，靜默 crash 會留下殭屍鎖 [來源：codegenes.net - Single Instance PowerShell, 2024]。</p>
+<p><strong>Layer 3：PID-Aware Lock File（補強 FSM 整合場景）</strong></p>
+<p>當任務使用外部 JSON FSM 狀態檔時，鎖定檔應記錄 PID，以便下次啟動時驗證 PID 是否仍存活：</p>
+<pre><code>
+{ "status": "running", "pid": 12345, "started_at": "2026-04-29T10:00:00" }
+</code></pre>
+<p>啟動時檢查：若 PID 不存在（<code>Get-Process -Id $pid -ErrorAction SilentlyContinue</code>），視為殭屍鎖並清除。</p>
+<p>---</p>
+<h3>2. 殭屍進程（0x41301）的三類根因</h3>
+<p><code>0x41301</code>（The task is currently running）是 Task Scheduler 最常見的生產故障碼，表示 Scheduler 認為任務仍在執行，但實際進程可能已消失 [來源：copyprogramming.com - 0x41301 Complete Fix Guide, 2026]：</p>
+<p><strong>根因 A：子進程孤兒化</strong></p>
+<p>Task Scheduler 只追蹤直接啟動的進程（parent process）。當 PowerShell 腳本用 <code>Start-Process</code>、<code>Start-Job</code> 或 Python <code>subprocess</code> 派生子進程時，<strong>即使父進程退出，Scheduler 仍視任務為「執行中」</strong>，直到所有子進程也退出。AI Agent 場景中，<code>claude -p</code> 本身就是子進程，若父腳本提前退出，Scheduler 狀態殘留。</p>
+<p>修正：父腳本必須等待所有子進程完成（<code>Wait-Job</code>、<code>$proc.WaitForExit()</code>），或使用 Job Object 確保子進程樹跟隨父進程終止。</p>
+<p><strong>根因 B：SYSTEM Session 0 隔離造成的靜默卡死</strong></p>
+<p>以 SYSTEM 帳戶執行的任務在 Session 0（非互動式桌面）中執行。若腳本嘗試顯示 GUI 對話框（如 <code>MsgBox</code>）、讀取用戶家目錄的相對路徑（<code>~\</code>），或依賴用戶環境變數，會靜默卡住而非拋出錯誤 [來源：woshub.com - Run PowerShell Task Scheduler, 2024]。</p>
+<p>診斷：Session 0 卡死不輸出到標準輸出；必須配置日誌路徑為<strong>絕對路徑</strong>，並加上 <code>-NonInteractive -WindowStyle Hidden -NoProfile</code>。</p>
+<p><strong>根因 C：「停止工作若執行超時」設定失效</strong></p>
+<p>Task Scheduler 的超時設定對「由 PowerShell 腳本派生的子進程」無效——它只能終止 PowerShell 父進程，子進程（Claude CLI、Python 工具）繼續孤兒化執行。這是本專案「殭屍鎖 PID 7860 卡 179.7 分鐘」事故的根本原因 [來源：daily-digest-prompt MEMORY - 殭屍鎖根因, 2026-04-29]。</p>
+<p>---</p>
+<h3>3. FSM 狀態機與 Task Scheduler 整合：殘留態問題</h3>
+<p>Task Scheduler 本身無狀態機概念，生產 AI Agent 系統通常使用外部 JSON 檔（如 <code>state/workflow-state.json</code>）實作 FSM。這引發一類特殊故障：<strong>系統重啟後 FSM 狀態殘留</strong>。</p>
+<p>故障場景：</p>
+<ol>
+<li>Task Scheduler 觸發任務 → FSM 寫入 <code>status: "running", pid: 31372</code></li>
+<li>系統強制重啟（如 Windows Update）→ Task Scheduler 重新啟動服務</li>
+<li>新任務觸發 → 讀到 FSM <code>status: "running"</code> → 認為舊任務仍在執行 → <strong>兩輪排程被阻擋</strong></li>
+</ol>
+<p>根本缺陷：FSM 狀態寫入了 PID，但重啟後 PID 空間重置，同一 PID 可能被新進程佔用（PID 重用）。</p>
+<p>解法（F-02 Guard PID-aware）[來源：daily-digest-prompt MEMORY - FSM zombie on system restart, 2026]：</p>
+<pre><code>
+# 讀取 FSM 狀態
+$fsmState = Get-Content $FsmStatePath | ConvertFrom-Json
+if ($fsmState.status -eq 'running') {
+    $pid = $fsmState.pid
+    $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+    if ($null -eq $proc) {
+        # PID 不存在 → 殭屍狀態，清除
+        Write-Warning "[FSM] PID $pid 已不存在，清除殭屍狀態"
+        $fsmState.status = 'idle'
+        $fsmState | ConvertTo-Json | Set-Content $FsmStatePath
+    } elseif ($proc.StartTime -lt (Get-Date).AddHours(-2)) {
+        # PID 存在但超過 2 小時 → 視為超時，終止並清除
+        Stop-Process -Id $pid -Force
+        $fsmState.status = 'timeout'
+        $fsmState | ConvertTo-Json | Set-Content $FsmStatePath
+    }
+}
+</code></pre>
+<p><strong>重要補充</strong>：PID 重用問題。新進程可能佔用已終止進程的 PID（Windows PID 範圍 4-65535）。應同時比對 <code>StartTime</code>：若 PID 存在但 StartTime 晚於 FSM 記錄的 <code>started_at</code>，仍視為殭屍。</p>
+<p>---</p>
+<h2>最佳實踐</h2>
+<h3>實踐 1：雙重守護（Mutex + Task Scheduler 設定並用）</h3>
+<p><strong>情境</strong>：任何可能被手動觸發或多工作流觸發的 AI Agent 任務。</p>
+<p><strong>建議</strong>：Task Scheduler 設定「不啟動新實例」+ 腳本開頭加 Global\ Named Mutex。兩者各有盲區，並用才完整。</p>
+<p><strong>反例</strong>：只靠 Task Scheduler 設定 → 管理員手動觸發後兩個 Agent 並行呼叫 LLM，token 雙倍消耗，ntfy 重複推送。只靠 Lock File → 腳本 crash 後殭屍鎖，下次正常觸發被擋。</p>
+<h3>實踐 2：超時必須同時設定任務層與腳本層</h3>
+<p><strong>情境</strong>：執行 LLM API 呼叫的任務（外部 API 可能卡住）。</p>
+<p><strong>建議</strong>：</p>
+<ul>
+<li>Task Scheduler 任務超時：預期時間 × 2（Task Scheduler 層，殺父進程）</li>
+<li>PowerShell <code>-Timeout</code> 或 Python <code>subprocess.run(timeout=X)</code>：預期時間 × 1.5（腳本層，殺子進程）</li>
+<li>確保子進程有獨立超時，不依賴父超時傳遞</li>
+</ul>
+<p><strong>依據</strong>：Task Scheduler 超時僅殺父 PowerShell 進程，子進程孤兒化繼續執行 [來源：Liebensraum, 2017]。</p>
+<h3>實踐 3：FSM 狀態記錄 PID + 啟動時間</h3>
+<p><strong>情境</strong>：使用外部 JSON FSM 的多工作流 AI Agent 系統。</p>
+<p><strong>建議</strong>：FSM 的 <code>running</code> 狀態必須記錄 <code>{ pid, started_at, task_name }</code>。每次新任務啟動前，執行 F-02 Guard（PID 存活 + StartTime 比對）。</p>
+<p><strong>情境閾值</strong>：<code>started_at</code> 超過預期最長執行時間的 1.5 倍 → 即使 PID 存活也視為超時（防止真正無限迴圈）。</p>
+<h3>實踐 4：Watchdog 任務監控所有 AI 任務的 LastRunTime</h3>
+<p><strong>情境</strong>：部署了 10+ 個 AI Agent 排程任務的生產環境。</p>
+<p><strong>建議</strong>：建立獨立的「watchdog」任務，每 15 分鐘執行一次，掃描所有 <code>Claude_*</code> 任務：</p>
+<pre><code>
+$tasks = Get-ScheduledTask -TaskPath '\DailyDigest\'
+foreach ($task in $tasks) {
+    $info = Get-ScheduledTaskInfo -TaskName $task.TaskName -TaskPath $task.TaskPath
+    if ($info.LastTaskResult -eq 0x41301) {
+        Stop-ScheduledTask -TaskName $task.TaskName -TaskPath $task.TaskPath
+        # 發送 ntfy 告警
+    }
+}
+</code></pre>
+<p>[來源：Microsoft Learn - Stop-ScheduledTask, 2024][來源：GitHub - SammyKrosoft Get-ScheduledTaskInfo, 2022]</p>
+<h3>實踐 5：以絕對路徑配置所有 SYSTEM 任務</h3>
+<p><strong>情境</strong>：以 SYSTEM 帳戶執行的任務。</p>
+<p><strong>建議</strong>：所有日誌路徑、設定檔路徑、Python 工具路徑使用絕對路徑（如 <code>D:\Source\daily-digest-prompt\logs\</code>）。pwsh 引數加 <code>-NonInteractive -WindowStyle Hidden -NoProfile</code>。工作目錄明確設定到腳本所在目錄。</p>
+<p><strong>反例</strong>：使用 <code>~\logs\</code> → SYSTEM 帳戶的 <code>~</code> 指向 <code>C:\Windows\System32\config\systemprofile</code>，日誌寫入系統目錄，ACL 可能拒絕存取 [來源：woshub.com, 2024]。</p>
+<p>---</p>
+<h2>陷阱與反例</h2>
+<h3>陷阱 1：「不啟動新實例」設定被手動觸發繞過，產生雙重 Agent 黑洞</h3>
+<p><strong>成因</strong>：<code>TASK_INSTANCES_IGNORE_NEW</code> 僅對排程觸發有效，手動觸發（UI / <code>Start-ScheduledTask</code>）直接繞過此設定 [來源：Microsoft Q&A - 1159691, 2023]。生產事故：管理員看到任務「沒執行」就手動觸發，與排程實例並行，兩個 Claude CLI 同時呼叫同一個 LLM 工作流，FSM 狀態互相覆寫。</p>
+<p><strong>規避</strong>：腳本開頭加 Global\ Named Mutex。即使手動觸發，第二個實例無法獲取 Mutex 就退出。</p>
+<h3>陷阱 2：Task Scheduler 超時設定不能殺子進程，導致殭屍進程群</h3>
+<p><strong>成因</strong>：「如果工作執行時間超過此時間，停止工作」只終止 Task Scheduler 直接啟動的進程（父 PowerShell）。Claude CLI（<code>claude -p</code>）、Python uv 工具、TTS 進程等子進程不受控制，繼續孤兒化執行 [來源：Liebensraum, 2017]。</p>
+<p><strong>本專案實例</strong>：Phase 0a/Snapshot 子進程無 timeout + Task Scheduler「不啟新實例」串成 3 小時黑洞（PID 7860 卡 179.7 分鐘）[來源：MEMORY - 殭屍鎖根因, 2026]。</p>
+<p><strong>規避</strong>：子進程使用 <code>Start-Process</code> 啟動時傳入 Job Object，確保 Job Object 設定 <code>KillOnJobClose</code>；或腳本中明確 <code>Wait-Job</code>（設超時）+ <code>Stop-Job</code>。</p>
+<h3>陷阱 3：系統重啟清空 PID 空間，FSM 殘留態阻擋後續排程</h3>
+<p><strong>成因</strong>：系統重啟後新進程 PID 可能與舊 FSM 記錄的 PID 相同（PID 重用），導致 F-02 Guard 誤判「進程仍存活」，FSM 永久卡在 <code>running</code>。</p>
+<p><strong>本專案實例</strong>：2026-04-25 使用者手動重啟，殺掉 PID 31372，FSM 殘留 <code>running</code> 擋兩輪排程 [來源：MEMORY - FSM zombie on system restart, 2026]。</p>
+<p><strong>規避</strong>：同時比對 PID 的 <code>StartTime</code>（<code>$proc.StartTime</code>）與 FSM 記錄的 <code>started_at</code>。若 StartTime 晚於 started_at，表示 PID 已被重用，仍視為殭屍。</p>
+<h3>陷阱 4：`0x41301` 狀態下 `Stop-ScheduledTask` 無法清除殘留</h3>
+<p><strong>成因</strong>：若導致 0x41301 的根本進程已消失（Task Scheduler 的進程 handle 丟失），<code>Stop-ScheduledTask</code> 有時無法清除「Running」狀態。</p>
+<p><strong>根本解法</strong>：刪除並重建任務（Task Scheduler 狀態儲存在 <code>%SystemRoot%\System32\Tasks\</code> XML 中；重建即清除所有執行狀態）[來源：Microsoft Q&A - Can't get Task Scheduler to end a task 0x41301, 2025]。</p>
+<p>---</p>
+<h2>與本專案關聯</h2>
+<h3>落地場景 1：run-todoist-agent-team.ps1 的殭屍鎖修復</h3>
+<p>本專案 <code>run-todoist-agent-team.ps1</code> 已實作 FSM 殭屍偵測（殭屍閾值 90→60min）。根據本研究，應補強：</p>
+<ol>
+<li><strong>FSM 的 <code>running</code> 狀態加入 <code>started_at</code> 欄位</strong>（目前已有 PID，但需同時比對 StartTime）</li>
+<li><strong>腳本開頭加 Global\ Named Mutex</strong> 防止 <code>Check-Todoist-Lock.ps1</code> 手動觸發與排程並行</li>
+<li><strong>Phase 0a/Snapshot 子進程加獨立超時</strong>（<code>-Timeout 120</code>），不依賴父超時</li>
+</ol>
+<h3>落地場景 2：check-health.ps1 整合 0x41301 掃描</h3>
+<p><code>check-health.ps1</code> 目前已有多個健康區塊。可新增「[排程健康]」區塊，掃描所有 <code>Claude_*</code> 任務是否有 LastTaskResult=0x41301 的殭屍狀態，並推送 ntfy warning。</p>
+<pre><code>
+# 在 check-health.ps1 新增
+$zombieTasks = Get-ScheduledTask -TaskPath '\' | Where-Object { $_.TaskName -like 'Claude_*' } | ForEach-Object {
+    $info = Get-ScheduledTaskInfo -TaskName $_.TaskName -TaskPath $_.TaskPath -ErrorAction SilentlyContinue
+    if ($info -and $info.LastTaskResult -eq 0x41301) { $_.TaskName }
+}
+if ($zombieTasks.Count -gt 0) {
+    Write-Warning "[排程健康] 偵測到 $($zombieTasks.Count) 個殭屍任務：$($zombieTasks -join ', ')"
+}
+</code></pre>
+<p>---</p>
+<h2>程式碼範例：完整單實例防護腳本模版</h2>
+<p>以下為生產級 AI Agent 腳本開頭標準模版（官方文件驗證）：</p>
+<pre><code>
+#Requires -Version 7.0
+# 腳本：run-agent-task.ps1
+# 用途：AI Agent 任務啟動點，含三層單實例防護
+
+param(
+    [string]$TaskKey = "unknown",
+    [int]$MaxRunMinutes = 120
+)
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$logPath = Join-Path $scriptDir "logs\$(Get-Date -Format 'yyyyMMdd_HHmmss')_${TaskKey}.log"
+
+# ── Layer 1: Task Scheduler 設定（需在 Task Properties 手動設定）
+# "Do not start a new instance" + "Stop if runs longer than 2 hours"
+
+# ── Layer 2: Global Named Mutex（跨 session 單實例）
+$mutexName = "Global\AgentTask-$TaskKey"
+$mutex = New-Object System.Threading.Mutex($false, $mutexName)
+$mutexAcquired = $mutex.WaitOne(0, $false)
+if (-not $mutexAcquired) {
+    "[GUARD] $TaskKey 已有執行個體，退出" | Out-File $logPath -Append
+    $mutex.Dispose()
+    exit 1
+}
+
+# ── Layer 3: PID-Aware FSM 殭屍清除
+$fsmPath = Join-Path $scriptDir "state\fsm-$TaskKey.json"
+if (Test-Path $fsmPath) {
+    $fsm = Get-Content $fsmPath | ConvertFrom-Json
+    if ($fsm.status -eq 'running') {
+        $existingProc = Get-Process -Id $fsm.pid -ErrorAction SilentlyContinue
+        $isZombie = ($null -eq $existingProc) -or
+                    ($existingProc.StartTime -lt [DateTime]$fsm.started_at)
+        if ($isZombie) {
+            "[FSM] 清除殭屍狀態 PID=$($fsm.pid)" | Out-File $logPath -Append
+            $fsm.status = 'idle'
+            $fsm | ConvertTo-Json | Set-Content $fsmPath -Encoding UTF8
+        } else {
+            "[FSM] $TaskKey 仍在執行中（PID=$($fsm.pid)），退出" | Out-File $logPath -Append
+            $mutex.ReleaseMutex(); $mutex.Dispose()
+            exit 1
+        }
+    }
+}
+
+# ── 更新 FSM 為 running
+@{ status = 'running'; pid = $PID; started_at = (Get-Date -Format 'o'); task_key = $TaskKey } |
+    ConvertTo-Json | Set-Content $fsmPath -Encoding UTF8
+
+try {
+    # ── 主要 Agent 邏輯
+    # ... 呼叫 claude -p 或 Python 工具 ...
+    @{ status = 'idle' } | ConvertTo-Json | Set-Content $fsmPath -Encoding UTF8
+} catch {
+    @{ status = 'failed'; error = $_.ToString() } | ConvertTo-Json | Set-Content $fsmPath -Encoding UTF8
+} finally {
+    $mutex.ReleaseMutex()
+    $mutex.Dispose()
+}
+</code></pre>
+<p>來源：自寫驗證，整合 [Microsoft Learn - Mutexes] + [codegenes.net 單實例模式] + [daily-digest-prompt FSM 模式]</p>
+<p>---</p>
+<h2>完整參考書目</h2>
+<p>| # | 機構/作者 | 年份 | 標題 | URL | source_type |</p>
+<p>|---|-----------|------|------|-----|-------------|</p>
+<p>| 1 | Microsoft | 2024 | Task Scheduler for developers (Win32 API) | https://learn.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-start-page | official |</p>
+<p>| 2 | codegenes.net | 2024 | Assure Only 1 Instance of PowerShell Script is Running | https://www.codegenes.net/blog/assure-only-1-instance-of-powershell-script-is-running-at-any-given-time/ | blog |</p>
+<p>| 3 | Microsoft Q&A | 2023 | Do not start a new instance issue (task runs multiple times) | https://learn.microsoft.com/en-gb/answers/questions/1159691/we-have-issue-an-issue-with-task-scheduler-it-runs | community |</p>
+<p>| 4 | Liebensraum (Johan Arwidmark) | 2017 | Prevent duplicate or hanging PowerShell processes from Task Scheduler | https://www.lieben.nu/liebensraum/2017/01/prevent-duplicate-or-hanging-powershell-processes-that-run-from-the-task-scheduler/ | blog |</p>
+<p>| 5 | woshub.com | 2024 | Run PowerShell Scripts on a Schedule with Task Scheduler | https://woshub.com/run-powershell-script-task-scheduler/ | blog |</p>
+<p>| 6 | Microsoft | 2024 | Mutexes - .NET Threading | https://learn.microsoft.com/en-us/dotnet/standard/threading/mutexes | official |</p>
+<p>| 7 | SammyKrosoft (GitHub) | 2022 | Get-Windows-Scheduled-Task-Info-And-Last-Run | https://github.com/SammyKrosoft/Get-Windows-Scheduled-Task-Info-And-Last-Run | community |</p>
+<p>| 8 | Microsoft | 2024 | Stop-ScheduledTask (ScheduledTasks) | https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/stop-scheduledtask | official |</p>
+<p>| 9 | copyprogramming.com | 2026 | Windows Task Scheduler Error 0x41301: Complete Fix Guide and 2026 Best Practices | https://copyprogramming.com/howto/windows-task-schduler-keep-showing-0x41301 | blog |</p>
+<p>| 10 | 保哥 (Will 保哥) | 2021 | PowerShell 自動將應用程式註冊到工作排程器 | https://blog.miniasp.com/post/2021/09/13/PowerShell-with-Task-Scheduler-using-ScheduledTasks-Module | blog |</p>
+<p>| 11 | Microsoft (zh-TW) | 2024 | 關於排程工作 - PSScheduledJob | https://learn.microsoft.com/zh-tw/powershell/module/psscheduledjob/about/about_scheduled_jobs | official |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

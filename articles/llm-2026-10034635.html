@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LLM 知識蒸餾 2026 深度研究報告">
+  <title>LLM 知識蒸餾 2026 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LLM 知識蒸餾 2026 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">LLM知識蒸餾</span><span class="tag">DeepSeek-R1</span><span class="tag">Reasoning Distillation</span><span class="tag">Chain-of-Thought</span><span class="tag">2026</span><span class="tag">研究報告</span><span class="tag">小模型</span><span class="tag">生產最佳實踐</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LLM 知識蒸餾 2026 深度研究報告</h1>
+<p><strong>研究日期</strong>：2026-04-27</p>
+<p><strong>覆蓋主題</strong>：Reasoning Distillation（DeepSeek-R1 路線）、Data-Free 蒸餾、Chain-of-Thought 壓縮、小模型推理能力邊界與生產最佳實踐</p>
+<p>---</p>
+<h2>執行摘要</h2>
+<p>本報告針對五個核心研究問題提供系統性答案，覆蓋理論基礎、2025-2026 年最新進展與生產實務。</p>
+<p><strong>Q1：Reasoning Distillation 與傳統 KD 的核心差異？</strong></p>
+<p>Reasoning Distillation 不傳遞靜態知識，而是傳遞 teacher 透過強化學習（RL）發展出的「推理模式」（reasoning pattern）。DeepSeek-R1 的關鍵設計決策：以 800K RL 生成樣本做 SFT（拒絕採樣移除混合語言、長段落、失格代碼回答），直接讓小模型繼承大模型探索出的推理路徑。核心洞見：reasoning pattern 本身就是核心資產，比重跑 RL 更高效且可預期。</p>
+<p><strong>Q2：CoT 蒸餾如何在 <10B 模型中保留複雜推理鏈？效能上限？</strong></p>
+<p>CoT 蒸餾核心技術包含：rationale extraction（few-shot CoT 提示 teacher 生成 step-by-step 推理鏈）、多任務學習（同時預測標籤 + 生成 rationale）、stepwise attention capture（2025 EMNLP 的 Mixture-of-Layers 新法）。效能上限：DeepSeek-R1-Distill-7B 在 AIME 2024 達 55.5%；1.5B 以下模型在複雜數學/代碼推理出現系統性能力鴻溝，CoT 蒸餾難以突破架構容量上限。</p>
+<p><strong>Q3：Data-Free 蒸餾與 Dataset Distillation 的可行性？</strong></p>
+<p>Dataset Distillation 的梯度匹配方法在小型任務可達 80-90% full-data 性能。但「真正 data-free」在 LLM 場景非常受限——現有方法本質上是「data-efficient」而非「data-free」，仍需 teacher 生成 soft labels 或 few-shot 樣本。主要限制：scaling 至現代 LLM（100B+）計算成本劇增；API 條款限制（OpenAI/Google 禁止用輸出訓練競爭模型）。</p>
+<p><strong>Q4：Intermediate Layer 蒸餾效果？DSKD 突破點？</strong></p>
+<p>Logit-based KD（傳遞概率分布）vs. feature-based KD（傳遞中間層激活）：feature-based 信息更豐富但需解決層對齊問題。DSKD（Dual-Space Knowledge Distillation）突破點：引入 Exact Token Alignment（ETA）機制對齊不同 tokenizer 詞彙表，使跨架構蒸餾成為可能。2025 EMNLP 的 Mixture-of-Layers + stepwise attention 代表 feature-based KD 的 2026 年新前沿。</p>
+<p><strong>Q5：生產部署最佳實踐？何時不應用蒸餾？</strong></p>
+<p>最適蒸餾場景：任務特定的分類/摘要/代碼生成（有明確輸入-輸出配對）、資料量充足（≥10K 樣本）、7B 以上 student 模型。不適合蒸餾：需要廣泛通用能力的 agent 任務、teacher 模型受 API 條款保護（法律風險）、teacher-student 領域差距 >30%。</p>
+<p><strong>核心結論（5 點）</strong>：</p>
+<ol>
+<li>Reasoning Distillation 已取代 RL 成為小模型推理賦能主流路線</li>
+<li>7B 參數是蒸餾推理的實質品質分水嶺</li>
+<li>Rationale-Based CoT 蒸餾突破資料效率瓶頸（最高減少 75-88% 資料需求）</li>
+<li>最優壓縮序列：Pruning → KD → Quantization（P→KD→Q）</li>
+<li>中文業界蒸餾動機以數據主權與算力成本優先，形成差異化本地生態</li>
+</ol>
+<p>---</p>
+<h2>研究背景與動機</h2>
+<p>LLM 知識蒸餾在 2025-2026 年進入加速期，三大驅動力：算力成本壓力（大模型 API 推論成本約為 7B 本地模型的 10-50 倍）、推理能力突破（DeepSeek-R1 首次展示推理路徑可直接被小模型繼承，打破「推理能力無法蒸餾」認知）、中文業界數據主權需求（數據合規需求倒逼本地蒸餾工具如 EasyDistill 崛起）。</p>
+<p>研究缺口：7B 以下 student 的 CoT 蒸餾副作用缺乏系統性驗證；跨 tokenizer 蒸餾的標準化路徑尚未形成共識。</p>
+<p>---</p>
+<h2>核心技術解析</h2>
+<h3>3.1 Reasoning Distillation：DeepSeek-R1 路線</h3>
+<p><strong>核心機制</strong>：Teacher（DeepSeek-R1-Zero）透過 RL（GRPO 算法）發展出自我驗證、反思、長推理鏈展開能力，這些 patterns 被編碼進約 800K SFT 訓練樣本直接傳遞。拒絕採樣過濾：移除混合語言 CoT、超長段落、失格代碼塊，確保傳遞高質量推理信號。[來源：DeepSeek-R1 arXiv 2501.12948, 2025]</p>
+<p><strong>性能驗證</strong>：</p>
+<ul>
+<li>DeepSeek-R1-Distill-Qwen-7B：AIME 2024 55.5%（超越 QwQ-32B-Preview 的 50.0%）</li>
+<li>DeepSeek-R1-Distill-Qwen-32B：AIME 72.6%、MATH-500 94.3%、LiveCodeBench 57.2%</li>
+<li>DeepSeek-R1-Distill-Llama-70B：AIME 70.0%（接近 o1-mini 63.6%）</li>
+</ul>
+<p>六個 student 模型跨越 1.5B 到 70B 規模的系統性測試，首次確立了 reasoning distillation 的規模分層效應。[來源：DeepSeek-R1 arXiv 2501.12948, 2025]</p>
+<h3>3.2 Chain-of-Thought 蒸餾方法演進</h3>
+<p><strong>Distilling Step-by-Step（Google Research）</strong>：Few-shot CoT 提示 teacher 生成 rationale，多任務學習（label prediction + rationale generation）訓練 student。關鍵數據：770M T5 在 e-SNLI 僅用 12.5% 數據超越 540B PaLM；ANLI 數據需求減少 75%。這打破了「更小模型需要更多數據」的傳統直覺。[來源：Google Research Blog; Microsoft Azure AI Foundry Blog]</p>
+<p><strong>Mixture-of-Layers + Stepwise Attention（EMNLP 2025）</strong>：創新在於捕捉 teacher 推理中的漸進注意力轉移（stepwise attention shifts）。Mixture-of-Layers Module 動態對齊 teacher/student 的層差異，使 student 繼承「推理過程中看哪裡」的行為模式，超越傳統靜態知識遷移。[來源：arXiv 2604.15701, 2025]</p>
+<p><strong>CoT 蒸餾的非單調效應</strong>：INLG 2025 研究（Qwen/Llama2 白盒 KD 實驗）發現弱 student 模型使用細粒度 CoT 反而性能下降——步驟太多超出小模型工作記憶容量，導致錯誤累積。強模型受益細粒度推理，弱模型受益簡單 CoT。[來源：arXiv 2511.05184, INLG 2025]</p>
+<h3>3.3 Data-Free 蒸餾與 Dataset Distillation</h3>
+<p><strong>Optimization-Based Dataset Distillation</strong>：梯度匹配/kernel inducing points 生成合成訓練集。PMC 綜述：小型任務可達 80-90% full-data 性能，但 scaling 至現代 LLM 計算成本為 O(N×C²)，當前不可行於 100B+ 規模。[來源：PMC12634706, 2025]</p>
+<p><strong>Generative Dataset Distillation</strong>：teacher 生成合成語料替代原始數據。最新進展：<3% 原始訓練資料可達有效知識遷移。主要限制：API 使用條款（OpenAI/Google/Meta 明確禁止用輸出訓練競爭性生成模型）、合成數據分佈偏移風險。[來源：Redis blog; Snorkel AI]</p>
+<h3>3.4 中間層蒸餾：Logit vs. Feature-Based</h3>
+<p><strong>Logit-Based KD（Soft Targets）</strong>：傳遞 teacher softmax 輸出，概率分布攜帶語義鄰近資訊（如「Paris 92%, Lyon 5%」vs. one-hot），提供更豐富訓練信號。DistilBERT 實效：縮小 40%、快 60%、保留 97% GLUE 準確率；TinyBERT-4 僅用 13.3% BERT 參數即超越 DistilBERT。[來源：Redis blog]</p>
+<p><strong>Feature-Based KD（DSKD Dual-Space Framework）</strong>：傳遞中間層激活。挑戰：跨架構 teacher/student 的 tokenizer 不同。DSKD 引入 ETA（Exact Token Alignment）在共享 token 上計算 KL 散度，解決業界長期面臨的「tokenizer 壁」——使不同 vocabulary 的 teacher-student 對的蒸餾成為可能。[來源：arXiv 洞見]</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li><strong>推理模式繼承 > 知識量傳遞</strong> ✅（4 個獨立來源）</li>
+</ol>
+<p>   DeepSeek-R1 蒸餾秘訣不在 800K 數據量，而在這些數據編碼了 RL 探索出的推理路徑本身。顛覆「蒸餾 = 複製知識」傳統認知——蒸餾現在能傳遞「如何思考」的過程。反方觀點：此效果在 <7B student 可能因架構容量不足大幅衰減。</p>
+<ol>
+<li><strong>7B 參數是推理蒸餾的實質品質分水嶺</strong> ✅（3 個獨立來源）</li>
+</ol>
+<p>   DeepSeek-R1-7B AIME 55.5% 超越 32B 非蒸餾模型；PMC 綜述確認 1.5B-4B 的系統性推理衰退；CoT distillation 研究以 BBH 基準複現此分水嶺。7B 是「合格蒸餾」的實質最低門檻。</p>
+<ol>
+<li><strong>Rationale-Based KD 的資料效率革命</strong> ✅（3 個獨立來源）</li>
+</ol>
+<p>   Google（-75-88% 數據需求）、Microsoft Azure（8B +21% 準確率）、PMC 綜述（single-teacher + instruction tuning 達 teacher 95% 性能）三方獨立驗證。機制：rationale 提供比標籤更密集的監督信號，降低補償數據需求。</p>
+<ol>
+<li><strong>DSKD Dual-Space Framework 突破跨 tokenizer 蒸餾障礙</strong> ⚠️（1 個來源，待更多驗證）</li>
+</ol>
+<p>   ETA 機制解決業界長期面臨的跨架構蒸餾問題，理論意義重大。實際落地效果尚需更多跨 benchmark 驗證，特別在非英文場景。</p>
+<ol>
+<li><strong>中文業界蒸餾動機的結構性差異</strong> ⚠️（2 個中文來源）</li>
+</ol>
+<p>   台灣/中國業界採用蒸餾的首要動機是「數據不能出境」合規需求 + 算力成本，而非純推論速度。推動了 EasyDistill 等本地工具崛起，形成與西方不同的技術採用路徑。</p>
+<p>---</p>
+<h2>實務應用建議</h2>
+<p><strong>建議 1：7B student 為生產蒸餾最低推薦規格</strong></p>
+<p>選擇已有 instruct tuning 的 7B 基模（Qwen2.5-7B-Instruct、Llama3-8B-Instruct）作為 student；teacher 規模建議 ≥70B 或已有 RL 對齊的推理模型。落地步驟：(a) 確認 teacher 授權 (b) 生成 reasoning 樣本集（拒絕採樣） (c) SFT student (d) 任務特定 benchmark 驗證。風險：1.5B-4B student 在複雜推理任務需提前在任務特定 benchmark 驗證能力底線。</p>
+<p><strong>建議 2：採用 P→KD→Q 三步壓縮序列</strong></p>
+<p>(1) 結構化剪枝（移除不重要注意力頭/FFN 通道）→ (2) CoT 蒸餾修復剪枝損失 → (3) INT8/INT4 量化。風險：順序顛倒（先量化再蒸餾）讓 KL 散度在低精度空間失效，導致蒸餾效果大幅下降。</p>
+<p><strong>建議 3：Rationale-Based SFT 優先於傳統 KD</strong></p>
+<p>用 teacher 模型對每個訓練樣本生成 step-by-step rationale → 多任務 fine-tuning（同時學習 rationale + 最終答案）。落地步驟：確認 API 條款 → 批量生成 rationale → 過濾低質量樣本 → SFT。風險：需使用開源 teacher（Qwen、DeepSeek）規避法律風險。</p>
+<p><strong>建議 4：弱模型慎用細粒度 CoT</strong></p>
+<p>對 ≤3B student，先測試簡化 CoT（3-5 步）vs. 詳細 CoT（10+ 步）性能差異；若細粒度 CoT 導致性能下降，回退到 answer-only 蒸餾。本建議基於 INLG 2025 非單調效應的實證發現。</p>
+<p><strong>建議 5：中文業界優先考慮數據主權合規路徑</strong></p>
+<p>選擇開源 teacher（Qwen、DeepSeek 系列）→ 採用 EasyDistill 等本地工具鏈 → 蒸餾全程在本地/私有雲進行。注意：開源 teacher 能力上限低於 GPT-4o 約 15-20%，需驗證任務特定差距可接受性。</p>
+<p>---</p>
+<h2>與現有知識的連結</h2>
+<ul>
+<li><strong>Online DPO/RLVR 對齊技術</strong>（KB 筆記 b34913d9）：RLVR 的 verifiable reward 機制是 DeepSeek-R1 RL 訓練的底層——蒸餾的是 RLVR 訓練後的推理模式，兩者構成「大模型能力獲取 → 小模型能力傳遞」完整鏈路。</li>
+<li><strong>程式碼 LLM 2026</strong>（KB 筆記 d51de31e）：Code generation 是蒸餾效果最穩定的場景之一（有明確 pass@k 評估指標），FIM 機制與蒸餾的結合是下一步可探索方向。</li>
+<li><strong>AI 代碼安全訓練</strong>（KB 筆記 8e656f0e）：Security-aware SFT 的對比學習架構與 rationale-based KD 有方法論交集——蒸餾安全推理能力（漏洞識別 rationale）是潛在應用場景。</li>
+<li>本專案 llama-3-70b 本地 backend：作為 teacher 蒸餾 7B task-specific student 是潛在架構升級方向。</li>
+</ul>
+<p>---</p>
+<h2>未來展望</h2>
+<p>仍未解決的問題：(1) 1.5B-4B student 的 CoT 蒸餾上限——課程學習能否突破容量限制目前無系統性研究；(2) 多 teacher 蒸餾的推理路徑衝突解決，PMC 綜述提出問題但無成熟方案；(3) DSKD/ETA 的跨語言（中英）適用性，主要在英文 benchmark 驗證；(4) 蒸餾模型的知識截止日期與增量學習問題。</p>
+<p>下次可深化方向：Speculative Decoding 與蒸餾的結合（small draft model + large verify model，draft model 由蒸餾生成），以及 Multi-Agent 場景中 task-specific 蒸餾的分工架構設計。</p>
+<p>---</p>
+<h2>完整書目</h2>
+<ol>
+<li>DeepSeek-AI (2025). DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning. arXiv:2501.12948. https://arxiv.org/html/2501.12948v1. 取用日期：2026-04-27. [academic]</li>
+<li>匿名/INLG 2025 (2024). Effectiveness of Chain-of-Thought in Distilling Reasoning Capability from Large Language Models. arXiv:2511.05184. https://arxiv.org/abs/2511.05184. 取用日期：2026-04-27. [academic]</li>
+<li>PMC/NCBI (2025). Knowledge Distillation and Dataset Distillation of LLMs: Emerging Trends, Challenges, and Future Directions. PMC12634706. https://pmc.ncbi.nlm.nih.gov/articles/PMC12634706/. 取用日期：2026-04-27. [academic]</li>
+<li>匿名/EMNLP 2025 (2025). Improving Reasoning Capabilities in Small Models through Mixture-of-Layers Distillation with Stepwise Attention on Key Information. arXiv:2604.15701. https://arxiv.org/abs/2604.15701. 取用日期：2026-04-27. [academic]</li>
+<li>Google Research (2023). Distilling Step-by-Step! Outperforming Larger Language Models with Less Training Data. https://research.google/blog/distilling-step-by-step-outperforming-larger-language-models-with-less-training-data-and-smaller-model-sizes/. 取用日期：2026-04-27. [official]</li>
+<li>Microsoft Azure AI Foundry (2024). Distillation: Turning Smaller Models into High-Performance, Cost-Effective Solutions. https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/distillation-turning-smaller-models-into-high-performance-cost-effective-solutio/4355029. 取用日期：2026-04-27. [official]</li>
+<li>Snorkel AI (2024). LLM Distillation Demystified: A Complete Guide. https://snorkel.ai/blog/llm-distillation-demystified-a-complete-guide/. 取用日期：2026-04-27. [blog]</li>
+<li>Redis (2024). Model Distillation for LLMs: Cut Costs & Boost Speed in 2026. https://redis.io/blog/model-distillation-llm-guide/. 取用日期：2026-04-27. [blog]</li>
+<li>Deep Learning 101 (2026). 2026 LLM 大語言模型資源懶人包（繁體中文）. https://deeplearning101.twman.org/Large-Language-Model. 取用日期：2026-04-27. [blog, zh]</li>
+<li>知乎 (2026). 2025年度大模型盤點！以及26年的五大展望. https://zhuanlan.zhihu.com/p/1991837671446837098. 取用日期：2026-04-27. [community, zh]</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

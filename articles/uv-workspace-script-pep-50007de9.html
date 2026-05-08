@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="uv Workspace 管理、Script 模式（PEP 723）、Python 版本管理與 Windows CI 整合 — Astral uv 2026 進階實踐深度研究">
+  <title>uv Workspace 管理、Script 模式（PEP 723）、Python 版本管理與 Windows CI 整合 — Astral uv 2026 進階實踐深度研究 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>uv Workspace 管理、Script 模式（PEP 723）、Python 版本管理與 Windows CI 整合 — Astral uv 2026 進階實踐深度研究</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">uv</span><span class="tag">Workspace</span><span class="tag">PEP 723</span><span class="tag">Python 版本管理</span><span class="tag">Windows CI</span><span class="tag">Monorepo</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>uv Workspace 管理、Script 模式（PEP 723）、Python 版本管理與 Windows CI 整合 — Astral uv 2026 進階實踐深度研究</h1>
+<h2>1. 技術概述</h2>
+<p>uv 是由 Astral（維護 ruff 的團隊）以 Rust 撰寫的現代 Python 套件管理器，2023 年底發布，2025-2026 年已成為生產環境主流選擇之一 [darkthread.net, 2025]。相較於傳統工具鏈（pip + virtualenv + pyenv + poetry），uv 整合了七大功能：套件安裝、依賴管理、虛擬環境建立、Python 版本管理、Workspace 多套件管理、PEP 723 Script 模式、以及工具隔離執行（uvx）[docs.astral.sh, 2026]。</p>
+<p>uv 解決的核心問題是 Python 工具鏈碎片化：過去開發者需要多個工具各司其職，版本矩陣複雜、CI 配置冗長。uv 的效能提升顯著，套件安裝與依賴解析速度比 pip 快 10-100 倍 [darkthread.net, 2025]，得益於單一靜態 Rust 二進位、平行下載、全域快取與硬連結去重複技術。</p>
+<p>本次研究聚焦三個進階面向（前一份筆記已涵蓋鎖定檔與快取基礎）：① Workspace 多套件管理（Monorepo 架構），② PEP 723 Script 模式（自帶依賴的單一腳本），③ Python 版本管理與 Windows CI 整合。</p>
+<p>---</p>
+<h2>2. 核心概念與原理</h2>
+<h3>2.1 uv Workspace 架構</h3>
+<p>Workspace 是 uv 從 Rust Cargo 借鑑的 Monorepo 管理機制，允許多個相關 Python 套件共享單一 <code>uv.lock</code> 鎖定檔與 <code>.venv</code> 虛擬環境 [來源：docs.astral.sh/uv/concepts/projects/workspaces/, 2026]。</p>
+<p><strong>核心三要素：</strong></p>
+<ol>
+<li><strong>Workspace Root</strong>：根目錄的 <code>pyproject.toml</code> 定義 <code>[tool.uv.workspace]</code> 表格，含 <code>members</code>（必要，glob patterns）與 <code>exclude</code>（可選）欄位。</li>
+<li><strong>單一 uv.lock</strong>：整個 Workspace 共用一個鎖定檔，放在 workspace root，確保所有成員使用版本一致的依賴，防止版本漂移 [來源：pydevtools.com, 2025]。</li>
+<li><strong>成員間依賴聲明</strong>：透過 <code>[tool.uv.sources]</code> 中 <code>{ workspace = true }</code> 宣告解析本地套件，以可編輯模式（editable）安裝，修改立即生效 [來源：pydevtools.com, 2025]。</li>
+</ol>
+<p><strong>成員初始化：</strong></p>
+<pre><code>
+uv init monorepo &amp;&amp; cd monorepo
+uv init --lib packages/shared-lib
+uv init --app packages/worker-app
+</code></pre>
+<p>當 uv 偵測到父層 pyproject.toml 時，自動登錄新套件為 workspace 成員 [來源：pydevtools.com, 2025]。</p>
+<p><strong>Python 版本交集計算：</strong> uv 自動計算所有成員 <code>requires-python</code> 的交集。若 shared-lib 要求 >=3.10、worker-app 要求 >=3.12，有效約束為較嚴格的 >=3.12 [來源：pydevtools.com, 2025]。</p>
+<h3>2.2 PEP 723 Script 模式（自帶依賴腳本）</h3>
+<p>PEP 723 標準化了「單一腳本內嵌元資料」格式，允許腳本在 TOML 格式的 <code># /// script</code> 注釋塊中宣告依賴與 Python 版本需求 [來源：docs.astral.sh/uv/guides/scripts/, 2026]。</p>
+<p><strong>執行機制：</strong> <code>uv run example.py</code> 解析 <code># /// script</code> 塊，建立隔離快取環境並解析安裝依賴。後續執行若環境已快取幾乎瞬間完成。重要行為：存在 inline metadata 時，當前專案的 dependencies 會被完全忽略，無需加 <code>--no-project</code> 旗標 [來源：docs.astral.sh, 2026]。</p>
+<p><strong>Script 鎖定機制（生產安全）：</strong> <code>uv lock --script example.py</code> 產生 <code>example.py.lock</code>，包含所有依賴的固定版本與 SHA256 雜湊 [來源：lincolnloop.com, 2025]。</p>
+<ul>
+<li><code>--locked</code>：本地開發用，鎖定檔缺失或過期時失敗</li>
+<li><code>--frozen</code>：CI 用，直接套用鎖定檔不進行解析（零網路呼叫，最高重現性）[來源：lincolnloop.com, 2025]</li>
+</ul>
+<p><strong><code>exclude-newer</code> 時間鎖：</strong> 在 <code>[tool.uv]</code> 設定 <code>exclude-newer = "2026-01-01T00:00:00Z"</code>，限制套件解析到指定日期前的版本，適用於需要歷史重現的研究腳本 [來源：docs.astral.sh, 2026]。</p>
+<h3>2.3 Python 版本管理原理</h3>
+<p>uv 維護雙層版本聲明機制 [來源：docs.astral.sh/uv/concepts/python-versions/, 2026]：</p>
+<p>| 層級 | 位置 | 語意 |</p>
+<p>|------|------|------|</p>
+<p>| <code>.python-version</code> | 專案根目錄 | 開發環境使用的確切版本（如 3.12） |</p>
+<p>| <code>requires-python</code> | <code>pyproject.toml</code> | 套件支援的版本範圍（如 >=3.11） |</p>
+<p><code>.python-version</code> 控制開發時實際使用哪個直譯器，<code>requires-python</code> 是發布套件時的相容性聲明。執行 <code>uv python pin 3.12</code> 更新 <code>.python-version</code>；若指定版本未安裝，uv 在 <code>uv sync</code> 時自動下載 [來源：docs.astral.sh, 2026]。</p>
+<p>---</p>
+<h2>3. 最佳實踐</h2>
+<p><strong>3.1 Workspace 成員命名（Virtual Root 陷阱規避）</strong></p>
+<p>Virtual Root（<code>package = false</code>）仍需在 <code>[project]</code> 中設定不與任何成員重複的唯一名稱。推薦：根目錄命名 <code>{project-name}-workspace</code>（例：<code>my-app-workspace</code>）。開發依賴放在 <code>[dependency-groups]</code>（PEP 735）而非 <code>[project.dependencies]</code> [來源：dev.to/aws, 2025]。</p>
+<p><strong>3.2 pytest 多套件設定</strong></p>
+<p>Workspace Monorepo 中多套件包含同名測試檔時，pytest 預設 prepend import mode 會衝突。必要設定：<code>addopts = "--import-mode=importlib"</code> 在根目錄 pyproject.toml。同時避免在測試目錄加 <code>__init__.py</code> [來源：dev.to/aws, 2025]。</p>
+<p><strong>3.3 CI 快取最佳化（GitHub Actions）</strong></p>
+<p>使用 <code>astral-sh/setup-uv@v7</code> 官方 Action 搭配 <code>enable-cache: true</code> + <code>cache-dependency-glob: "**/uv.lock"</code>。避免用 <code>actions/cache</code> 自行管理（容易跨 PR 快取碎片化）。部署用 <code>uv sync --locked --no-dev</code> [來源：docs.astral.sh, 2026]。</p>
+<p><strong>3.4 uv link-mode（Windows）</strong></p>
+<p>Windows 保持預設 <code>hardlink</code>。避免使用 <code>symlink</code>：<code>uv cache clean</code> 會破壞 symlink 安裝 [來源：copdips.com, 2025]。</p>
+<p><strong>3.5 生產效能：Bytecode 編譯</strong></p>
+<p>uv 預設跳過 bytecode 編譯。生產環境設定 <code>UV_COMPILE_BYTECODE=1</code> 縮短後續啟動時間，代價是首次建置時間增加 [來源：copdips.com, 2025]。</p>
+<p>---</p>
+<h2>4. 陷阱與反例</h2>
+<p><strong>陷阱 1：Workspace 沒有 Runtime 隔離（最常見誤解）</strong></p>
+<p>Python 本身不提供執行時依賴隔離，uv workspace 的單一 <code>.venv</code> 意味著成員 A 可以 import 只有成員 B 宣告的依賴，而不會在執行時報錯 [來源：docs.astral.sh, 2026]。只有在 CI 以 <code>uv sync --package member-A</code> 分別安裝、分別測試時才能暴露隱藏的越界 import。規避：使用靜態分析工具（gauge.sh validate-workspace-deps）[來源：gauge.sh, 2024]。</p>
+<p><strong>陷阱 2：Workspace sources 宣告遺漏（靜默解析錯誤）</strong></p>
+<p>成員間互依時，<code>[project.dependencies]</code> 要加依賴名，<code>[tool.uv.sources]</code> 也必須補上 <code>{ workspace = true }</code> 宣告。漏掉後者，uv 不報錯但從 PyPI 拉取同名套件（若存在）[來源：dev.to/aws, 2025]。規避：一律用 <code>uv add --package member-B member-A</code> 讓 CLI 自動補齊兩處。</p>
+<p><strong>陷阱 3：版本衝突在 Monorepo 遷移時才爆發</strong></p>
+<p>pip 的 per-venv 方案隱藏了不同套件間的 transitive dependency 衝突；遷移到 uv workspace 時統一浮出 [來源：dev.to/jimmyyeung, 2025]。規避：遷移前用 <code>pip check</code> 掃描衝突，先解決再切換。torch 相依套件（flash-attn、deepspeed）有特殊建置隔離需求，不適合 workspace。</p>
+<p><strong>陷阱 4：Script CI 未加 --frozen 導致非確定性</strong></p>
+<p>PEP 723 Script 在 CI 只用 <code>uv run example.py</code> 而未加 <code>--frozen</code>，每次執行可能因 upstream 新版本導致依賴變化 [來源：lincolnloop.com, 2025]。生產 CI 必須先產生鎖定檔（<code>uv lock --script</code>）並提交版本控制，CI 使用 <code>--frozen</code> 執行。</p>
+<p>---</p>
+<h2>5. 與本專案關聯</h2>
+<p><strong>場景 1：Script 模式應用於一次性工具</strong></p>
+<p><code>tools/apply_series_update.py</code> 等工具若改用 PEP 723 Script 模式（inline metadata），在乾淨環境無需 <code>uv sync</code> 直接執行。對 AI 代理子任務的隔離執行尤其有用。</p>
+<p><strong>場景 2：Windows Task Scheduler 啟動效能優化</strong></p>
+<p>在 <code>run-token-efficiency.ps1</code> 等排程腳本加入 <code>$env:UV_COMPILE_BYTECODE = '1'</code>，可改善高頻 <code>uv run python -m tools.xxx</code> 呼叫的後續啟動延遲（2小時輪詢場景有實際效益）。</p>
+<p><strong>場景 3：Workspace 評估門檻</strong></p>
+<p>本專案目前單一套件架構已足夠，但若 hooks/、tools/、skills/ 依賴樹膨脹需獨立測試環境時，可考慮 workspace 拆分（packages/hooks/、packages/tools/），需先確認無版本衝突且接受 Runtime 無隔離限制。</p>
+<p>---</p>
+<h2>6. 程式碼範例</h2>
+<h3>PEP 723 自帶依賴維運腳本</h3>
+<pre><code>
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = "&gt;=3.11"
+# dependencies = ["requests&gt;=2.31", "pyyaml&gt;=6.0"]
+# [tool.uv]
+# exclude-newer = "2026-01-01T00:00:00Z"
+# ///
+import requests, yaml
+def main():
+    resp = requests.get("http://localhost:3000/api/health", timeout=5)
+    print(yaml.dump(resp.json()))
+if __name__ == "__main__":
+    main()
+</code></pre>
+<p>生成鎖定: <code>uv lock --script check_api.py</code>；CI 執行: <code>uv run --frozen --script check_api.py</code></p>
+<p>來源：改編自官方文件 [docs.astral.sh/uv/guides/scripts/, 2026]</p>
+<h3>Workspace 根目錄 pyproject.toml 最小配置</h3>
+<pre><code>
+[project]
+name = "my-project-workspace"
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[dependency-groups]
+dev = ["pytest&gt;=8.0"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+</code></pre>
+<p>來源：整合自 docs.astral.sh [2026] + dev.to/aws [2025]</p>
+<h3>Windows Task Scheduler 啟用 Bytecode 編譯</h3>
+<pre><code>
+$env:UV_COMPILE_BYTECODE = '1'
+uv run python tools/anthropic_usage_calibrator.py
+</code></pre>
+<p>來源：自寫，依據 copdips.com [2025]</p>
+<p>---</p>
+<h2>7. 完整參考書目</h2>
+<ol>
+<li>Astral. (2026). <em>Using workspaces</em>. https://docs.astral.sh/uv/concepts/projects/workspaces/ [official]</li>
+<li>Astral. (2026). <em>Running scripts</em>. https://docs.astral.sh/uv/guides/scripts/ [official]</li>
+<li>Astral. (2026). <em>Using uv in GitHub Actions</em>. https://docs.astral.sh/uv/guides/integration/github/ [official]</li>
+<li>Astral. (2026). <em>Python versions</em>. https://docs.astral.sh/uv/concepts/python-versions/ [official]</li>
+<li>Pydevtools. (2025). <em>How to set up a Python monorepo with uv workspaces</em>. https://pydevtools.com/handbook/how-to/how-to-set-up-a-python-monorepo-with-uv-workspaces/ [blog]</li>
+<li>AWS Dev. (2025). <em>3 Things I Wish I Knew Before Setting Up a UV Workspace</em>. https://dev.to/aws/3-things-i-wish-i-knew-before-setting-up-a-uv-workspace-30j6 [blog]</li>
+<li>Lincoln Loop. (2025). <em>Locking uv Script Dependencies</em>. https://lincolnloop.com/blog/locking-uv-script-dependencies/ [blog]</li>
+<li>copdips. (2025). <em>Python uv cheat sheet</em>. https://copdips.com/2025/08/python-uv-cheat-sheet.html [blog]</li>
+<li>darkthread.net. (2025). <em>一次搞定 Python 版本管理/套件安裝/虛擬環境的極速神器 - uv</em>. https://blog.darkthread.net/blog/uv/ [blog, zh]</li>
+<li>codemee. (2025). <em>使用 uv 管理 Python 環境</em>. https://dev.to/codemee/shi-yong-uv-guan-li-python-huan-jing-53hg [blog, zh]</li>
+<li>Gauge. (2024). <em>How to Validate uv workspace Dependencies</em>. https://www.gauge.sh/blog/how-to-validate-uv-workspace-dependencies [benchmark]</li>
+<li>jimmyyeung. (2025). <em>Journey migrating to uv workspace</em>. https://dev.to/jimmyyeung/journey-migrating-to-uv-workspace-34a7 [community]</li>
+<li>astral-sh. (2025). <em>Best practices for uv cache in CI #2231</em>. https://github.com/astral-sh/uv/issues/2231 [community]</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

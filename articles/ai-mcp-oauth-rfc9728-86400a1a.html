@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 深度研究：MCP OAuth/RFC9728 與政策測試矩陣（2026-05-01）">
+  <title>AI 深度研究：MCP OAuth/RFC9728 與政策測試矩陣（2026-05-01） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AI 深度研究：MCP OAuth/RFC9728 與政策測試矩陣（2026-05-01）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">MCP</span><span class="tag">OAuth2.1</span><span class="tag">RFC9728</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>MCP 遠端資源伺服器：OAuth 2.1、RFC 9728 發現流程與工具輸出信任邊界（銜接政策引擎與 OAuth 整合測試）</h1>
+<h2>執行摘要</h2>
+<p>本報告回答三個研究問題：第一，Model Context Protocol（MCP）在 HTTP 傳輸下，把「受保護的 MCP 伺服器」明確建模為 OAuth 2.1 資源伺服器，並透過 OAuth 2.0 Protected Resource Metadata（RFC 9728）讓客戶端取得授權伺服器位置、支援範圍與權杖呈遞方式；同時以 Resource Indicators（RFC 8707）把授權請求與權杖使用綁定到 MCP 伺服器的規範化 URI，降低權杖被轉用於其他資源的風險 [來源：Authorization（MCP Specification 2025-11-25）, 2025]。第二，RFC 9728 定義的 <code>/.well-known/oauth-protected-resource</code> 與 <code>WWW-Authenticate</code> 內 <code>resource_metadata</code> 參數，使「發現 → 驗證 metadata <code>resource</code> 與請求 URL 一致 → 取得授權伺服器 metadata」成為可自動化重播的測試序列；搭配 401/403 的 scope challenge 與 step-up 重新授權，可把「最小權限」從口號落實為狀態碼驅動的行為 [來源：RFC 9728 OAuth 2.0 Protected Resource Metadata, 2025]。第三，OAuth 解決的是「誰能以何種 scope 呼叫資源伺服器」，但無法消滅工具 metadata 與工具回覆中的間接注入；OWASP 社群與 MCP-SafetyBench 研究共同指出：連線時審查與執行時把伺服器輸出當可信內容之間存在結構性信任落差，需要 schema 化輸出、特權工具隔離、以及與 OAuth 正交的集中式政策／審計 [來源：MCP Tool Poisoning（OWASP）, 2025] [來源：MCP-SafetyBench, 2025]。綜合結論：企業若要銜接「政策引擎 schema」與「OAuth 整合測試」，應以「PRM+AS discovery+PKCE+resource」為一條可機械驗證的授權鏈，並以「工具輸出驗證＋taint／閘道」為第二條可觀測的資料鏈，兩者缺一不可。</p>
+<h2>研究背景與動機</h2>
+<p>MCP 讓代理能在標準介面上掛載多個外部工具，但遠端部署把問題從「本機 stdio 可控環境」推向「多租戶、跨網路、動態註冊」的開放系統。先前本專案連續研究已覆蓋 MCP 安全與 taint 傳播；<code>context/continuity/auto-task-ai_deep_research.json</code> 建議下一步深化「policy engine schema 與 OAuth 整合測試」。動機在於：若僅驗證 JWT 簽章與過期時間，仍可能忽略 audience 綁定、PRM 冒充、以及工具層面的資料流污染。本文因此聚焦「規範要求的授權發現與權杖綁定」如何具體化成 CI 可跑的測試矩陣，並對齊學術基準對整體風險的量化結論，避免把 OAuth 當成萬靈丹 [來源：How to build secure and scalable remote MCP servers, 2025]。</p>
+<h2>核心技術解析</h2>
+<h3>子題一：資源伺服器角色與 RFC 9728 發現</h3>
+<p>MCP 規範將客戶端、資源伺服器、授權伺服器的責任分界對齊 OAuth 2.1 家族：資源伺服器必須實作 RFC 9728，使客戶端能以標準化 HTTP 流程定位授權伺服器；客戶端則必須同時支援從 <code>WWW-Authenticate</code> 取得 <code>resource_metadata</code> URL，以及在缺省時依序探測 well-known 路徑 [來源：Authorization（MCP Specification 2025-11-25）, 2025]。RFC 9728 進一步要求：若 metadata 係由 <code>WWW-Authenticate</code> 提供 URL 取得，則回傳的 <code>resource</code> 必須與客戶端實際請求資源時使用的 URL 完全一致，否則客戶端必須拒絕使用該 metadata，藉此抑制中間人與 DNS 層級的冒充 [來源：RFC 9728, 2025]。對工程團隊而言，這三句話可直接轉成測試案例：偽造 <code>resource</code>、偽造 metadata 主機、與正確三元組（MCP endpoint、PRM、<code>authorization_servers</code>）對照。</p>
+<h3>子題二：RFC 8707 `resource` 參數與權杖每請求附帶</h3>
+<p>規範要求 MCP 客戶端在授權與換票請求皆帶上 <code>resource</code>，且其值必須是目標 MCP 伺服器的 canonical HTTPS URI；資源伺服器驗票時亦必須確認權杖係為該伺服器簽發之意圖 audience，失敗則 401 [來源：Authorization（MCP Specification 2025-11-25）, 2025]。Auth0 對 2025-06 修訂的解讀亦強調：此舉旨在避免惡意或遭入侵的伺服器拿著「為別的資源簽發的權杖」跨服務兌換 [來源：MCP Spec Updates from June 2025, 2025]。GitHub 工程部落格則把整體流程整理為八步驟（401 挑戰、取 PRM、DCR、PKCE+resource、同意、換票、Bearer 呼叫），明確指出「沒有 MCP 特規的怪異 OAuth」，利於直接套用現成函式庫與測試替身 [來源：How to build secure and scalable remote MCP servers, 2025]。</p>
+<h3>子題三：OAuth 邊界外的工具信任與基準數據</h3>
+<p>OWASP 描述 tool poisoning 的核心是「連線時看過工具說明」與「執行時把工具回覆餵進模型」之間的信任落差；規範雖提示客戶端應意識到伺服器輸出不可預設可信，但未強制執行期驗證 [來源：MCP Tool Poisoning（OWASP）, 2025]。MCP-SafetyBench 以真實伺服器與多回合任務評測，指出整體攻擊成功率（ASR）仍維持顯著水準，且存在任務成功率與防禦成功率的負相關，代表「讓模型更會用工具」與「讓模型更會拒絕惡意工具行為」在現有架構下彼此拉扯 [來源：MCP-SafetyBench, 2025]。中文技術長文亦從營運視角補充：除了驗 <code>iss</code>/<code>aud</code>/<code>exp</code>/scope，應避免將使用者權杖原樣轉發給下游（令牌直通），改以 On-Behalf-Of 取得伺服器意圖清楚的最小權限權杖，降低混淆代理 [來源：MCP 身份验证与授权（FlowHunt）, 2025]。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li><strong>✅（支持來源數 5+）「PRM + AS metadata + PKCE + RFC8707」是 MCP HTTP 授權的可機械化主路徑。</strong> 官方規範、RFC 9728、GitHub 指南與身分廠商解讀均指向同一拓扑；適合當成整合測試的 golden path。</li>
+<li><strong>✅（4）權杖「每個 HTTP 請求」都必須放在 Authorization header，且不得出現在 query string。</strong> 這直接影響到任何想把 token 塞進 SSE query 的自訂傳輸反模式 [來源：Authorization（MCP Specification 2025-11-25）, 2025]。</li>
+<li><strong>✅（3）多租戶場景必須把「授權（有 token）」與「授權（此 token 允許此工具與此租戶資料）」拆層；混淆 deputy 屬於後者。</strong> FlowHunt 與 GitHub 文章在工程語境下方向一致 [來源：FlowHunt, 2025] [來源：GitHub Blog, 2025]。</li>
+<li><strong>⚠️（2）動態工具註冊若成為主流，連線時一次性審查將更不足；需執行期變更偵測。</strong> 部分判斷來自 MCP-SafetyBench 對多回合與 metadata 攻擊的強調，但「動態註冊」產品化時間軸仍依賴各 SDK 釋出節奏，故標為待驗證。</li>
+<li><strong>⚠️（2）JSON Schema 強制工具輸出可與 taint 標記並行，但對自由文本工具無法保證語意安全。</strong> OWASP 亦指出自由文本注入檢測仍屬開放問題 [來源：MCP Tool Poisoning（OWASP）, 2025]。</li>
+</ol>
+<p>若論「反方觀點」：官方文本將整體授權標為 OPTIONAL，代表最小實作仍可避開完整 OAuth 互操作性；與中文社群常見的「遠端即應強制 OAuth2.1」敘述存在語氣張力——實務上企業治理可選擇高於規範基線，但測試矩陣應清楚區分「規範相容」與「內部強制」兩層門檻 [來源：Authorization（MCP Specification 2025-11-25）, 2025] [來源：modelcontextprotocol.info zh-tw 草案譯本, 2025]。</p>
+<h2>實務應用建議</h2>
+<ol>
+<li><strong>建立「授權發現」測試套件</strong>：對每個環境固定断言 401 挑戰是否含 <code>resource_metadata</code> 或正確 well-known fallback；並對偽造 <code>resource</code> 的 PRM 回應期待客戶端拒絕。落地步驟：在 staging 先錄製 golden headers，再於 CI 用 httpx 重播；風險是部分代理會改寫 header，需要可在測試中關閉的 feature flag。</li>
+<li><strong>建立「換票請求」斷言</strong>：授權碼換 token 的 body 必須同時包含 PKCE <code>code_verifier</code> 與 <code>resource</code>；缺失則判為客戶端不合規。可與 IdP 的 integration test sandbox 對接；風險是不同 IdP 對 resource indicator 支援度不一，需要 capability matrix。</li>
+<li><strong>閘道層集中驗簽＋每工具 scope map</strong>：在進入業務工具處理器前，由閘道完成 JWT 驗證與 tool→scope 對照，避免每支工具各自實作授權而漏檢 [來源：FlowHunt, 2025]。</li>
+<li><strong>工具輸出 schema 化與稽核</strong>：能結構化者一律 JSON Schema 驗證；必須自由文本者，降級為「不可觸發高權限工具」或需人工確認；與 MCP-SafetyBench 類似的定期回歸可量化 ASR 趨勢 [來源：MCP-SafetyBench, 2025]。</li>
+<li><strong>混淆代理對策優先序</strong>：禁用令牌直通→採 OBO 或伺服器權杖→下游再細粒度授權；並把「代理身份」與「使用者身份」在 log 關聯 ID 上拆開以利稽核 [來源：FlowHunt, 2025]。</li>
+</ol>
+<h2>與現有知識的連結</h2>
+<p>本專案 <code>context/continuity/auto-task-ai_deep_research.json</code> 最近一筆已完成主題為「MCP taint propagation 2026：跨工具資料流標記、政策引擎與執行隔離」，並建議下一步研究「policy engine schema 與 OAuth 整合測試」。本報告把 OAuth/RFC9728/8707 的「身分與範圍邊界」補齊為可測試鏈路，使 taint 與政策引擎能在「已驗證的授權上下文」上附著，而非僅依附於提示詞層級的約束。</p>
+<h2>未來展望</h2>
+<p>仍待補強者包括：Microsoft 針對 MCP 間接注入的防護元件在本地擷取逾時，建議後續以離線鏡像或 PDF 方式補齊；另可將 DPoP、mTLS 與閘道策略（rate limit、WAF）一併納入矩陣。長期可探索「授權決策」與「工具輸出風險分數」於同一 OPAL/Rego 或 OPA bundle 中統一版本化，達成政策即程式碼與測試即證據。</p>
+<h2>完整書目</h2>
+<ol>
+<li>Model Context Protocol / Anthropic et al.（2025）。Authorization（Specification 2025-11-25）。<code>https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization</code>（取用日期：2026-05-01；source_type：official）</li>
+<li>Jones, M. et al.（2025）。RFC 9728: OAuth 2.0 Protected Resource Metadata。IETF。<code>https://datatracker.ietf.org/doc/html/rfc9728</code>（取用日期：2026-05-01；source_type：official）</li>
+<li>OWASP Foundation（2025）。MCP Tool Poisoning。<code>https://owasp.org/www-community/attacks/MCP_Tool_Poisoning</code>（取用日期：2026-05-01；source_type：community）</li>
+<li>Zong, X. et al.（2025）。MCP-SafetyBench: A Benchmark for Safety Evaluation of Large Language Models with Real-World MCP Servers。arXiv:2512.15163v2。<code>https://arxiv.org/html/2512.15163v2</code>（取用日期：2026-05-01；source_type：academic）</li>
+<li>GitHub Blog（2025）。How to build secure and scalable remote MCP servers。<code>https://github.blog/ai-and-ml/generative-ai/how-to-build-secure-and-scalable-remote-mcp-servers</code>（取用日期：2026-05-01；source_type：blog）</li>
+<li>FlowHunt（2025）。MCP 身份验证与授权：OAuth 2.1、令牌委托和混淆代理问题。<code>https://www.flowhunt.io/zh/%E5%8D%9A%E5%AE%A2/mcp-authentication-authorization-oauth-confused-deputy/</code>（取用日期：2026-05-01；source_type：blog）</li>
+<li>Model Context Protocol 中文社群文件（草案）。授權（zh-tw）。<code>https://modelcontextprotocol.info/zh-tw/specification/draft/basic/authorization/</code>（取用日期：2026-05-01；source_type：official）</li>
+<li>Auth0（2025）。Model Context Protocol (MCP) Spec Updates from June 2025: All About Auth。<code>https://auth0.com/blog/mcp-specs-update-all-about-auth</code>（取用日期：2026-05-01；source_type：blog）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

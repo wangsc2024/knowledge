@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LLM Agent 評估框架深度研究 2026：deepeval、promptfoo 與 agentevals 的架構設計、評測方法論與 Agent 品質閘門整合">
+  <title>LLM Agent 評估框架深度研究 2026：deepeval、promptfoo 與 agentevals 的架構設計、評測方法論與 Agent 品質閘門整合 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>LLM Agent 評估框架深度研究 2026：deepeval、promptfoo 與 agentevals 的架構設計、評測方法論與 Agent 品質閘門整合</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">LLM評估</span><span class="tag">deepeval</span><span class="tag">promptfoo</span><span class="tag">agentevals</span><span class="tag">Agent品質閘門</span><span class="tag">LLM-as-Judge</span><span class="tag">CI/CD</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LLM Agent 評估框架深度研究 2026：deepeval、promptfoo 與 agentevals 的架構設計、評測方法論與 Agent 品質閘門整合</h1>
+<h2>技術概述</h2>
+<p>隨著 AI Agent 進入生產環境，如何系統性地評估 Agent 行為已成為 AI Engineering 的核心挑戰。與傳統 ML 模型評估不同，Agent 評估必須處理多步驟工具呼叫、非確定性輸出、複雜推理鏈，以及環境狀態變化等維度——單一指標遠不足以判斷一個 Agent 是否真正可靠。</p>
+<p>2026 年主流有三大框架各占不同生態位：<strong>deepeval</strong>（Confident AI，Python-first，60+ 指標，Pytest 整合）、<strong>promptfoo</strong>（YAML-first，CLI 優先，多模型 A/B 測試與紅隊測試）、<strong>agentevals</strong>（LangChain 生態，軌跡匹配評估器）。三者解決的問題相似但切入角度不同：deepeval 強調品質閘門與 CI/CD 原生支援；promptfoo 強調跨模型比較與安全掃描；agentevals 強調 Agent 執行軌跡的精確匹配驗證。</p>
+<h2>核心概念與原理</h2>
+<h3>1. Agent 評估的雙層架構（deepeval 設計）</h3>
+<p>deepeval 將 Agent 評估組織成<strong>兩個相互交織的層次</strong> [來源: deepeval 官方, 2026]：</p>
+<ul>
+<li><strong>Reasoning Layer（推理層）</strong>：LLM 組件負責規劃與決策哪些工具要呼叫；評估指標包含 <code>PlanQualityMetric</code>（計畫是否邏輯完整、高效）與 <code>PlanAdherenceMetric</code>（Agent 是否遵循自己制定的計畫）。</li>
+<li><strong>Action Layer（行動層）</strong>：工具與外部系統執行決策；評估指標包含 <code>ToolCorrectnessMetric</code>（工具選擇正確率）、<code>ArgumentCorrectnessMetric</code>（工具參數生成準確度）、<code>TaskCompletionMetric</code>（任務完成率）、<code>StepEfficiencyMetric</code>（步驟效率，無冗餘動作）。</li>
+</ul>
+<p>兩層在迴圈中反覆運作直至任務完成，每一層均需獨立評估才能精準定位故障點。[來源: deepeval 官方, 2026]</p>
+<h3>2. 軌跡評估（agentevals 設計）</h3>
+<p>agentevals（langchain-ai）採用<strong>軌跡匹配評估器</strong>，將 Agent 的執行路徑（工具呼叫序列）與參考軌跡進行比對 [來源: agentevals GitHub, LangChain, 2026]：</p>
+<ul>
+<li><strong>Strict mode</strong>：要求工具呼叫序列完全一致（相同順序、相同工具）——適合需強制特定操作順序的場景。</li>
+<li><strong>Unordered mode</strong>：接受相同工具不論順序——適合工具間無依賴關係時。</li>
+<li><strong>Subset/Superset mode</strong>：允許工具呼叫數量浮動——適合評估 Agent 是否包含必要步驟。</li>
+<li><strong>LLM-as-Judge Trajectory</strong>：無需參考軌跡，由 LLM 評估執行路徑的邏輯性與效率。</li>
+</ul>
+<h3>3. LLM-as-Judge 原理與可靠性閾值</h3>
+<p>LLM-as-Judge 是三大框架共用的核心機制。deepeval 的 <strong>G-Eval</strong> 框架使用 Chain-of-Thought 引導 LLM 以自訂標準評估輸出；任何 LLM 提供者均可作為評審（OpenAI、Anthropic、Ollama 等）[來源: deepeval 官方, 2026]。</p>
+<p>然而，LLM-as-Judge 存在三種已量化的偏差 [來源: NUS AICET 論文, Label Your Data, 2026]：</p>
+<ul>
+<li><strong>位置偏差（Position Bias）</strong>：GPT-4 約有 40% 機率偏好第一個呈現的答案；交換順序後裁決往往也跟著翻轉 [來源: ACL 2025 Position Bias 研究]。</li>
+<li><strong>長度偏差（Length Bias）</strong>：更長的輸出被視為「更有努力」，即使更短的輸出更正確 [來源: LLM-as-Judge Bias Metrics]。</li>
+<li><strong>和諧偏差（Agreeableness Bias）</strong>：LLM 評審識別有效輸出的 True Positive Rate >96%，但識別無效輸出的 True Negative Rate <25%，導致大量誤報通過 [來源: NUS AICET, 2025]。</li>
+</ul>
+<p><strong>可靠性閾值</strong>：生產環境要求 LLM-as-Judge 與人類評估者的 Spearman 相關係數達 ≥0.80，方可用於自動化品質閘門 [來源: galileo.ai, wenwender 繁體中文評測指南, 2026]。</p>
+<h3>4. 三框架定位比較</h3>
+<p>| 維度 | deepeval | promptfoo | agentevals |</p>
+<p>|------|---------|-----------|------------|</p>
+<p>| 切入角度 | Python-first 單元測試 | YAML-first CLI 工具 | 軌跡匹配評估 |</p>
+<p>| Agent 指標數 | 6+ 專屬 Agent 指標 | 基礎 RAG/安全 | 軌跡比對 + LLM-Judge |</p>
+<p>| CI/CD 整合 | Pytest 原生 + Confident AI | GitHub Action 官方支援 | LangSmith + pytest |</p>
+<p>| 紅隊測試 | 有（Confident AI 平台） | 核心功能（最強） | 無 |</p>
+<p>| 適用場景 | 複雜多組件 AI 系統 | 跨模型比較 + 安全掃描 | LangChain Agent 除錯 |</p>
+<p>[來源: wenwender 繁體中文, atlan 比較, deepeval 官方比較頁, 2026]</p>
+<h3>5. Anthropic 的評估分類法</h3>
+<p>Anthropic 工程部落格區分三種評審類型並給出明確限制 [來源: Anthropic Engineering, 2026]：</p>
+<ul>
+<li><strong>Code-based graders</strong>：快速、客觀、可重現（字串匹配、單元測試、靜態分析）；缺點：對有效變體脆弱。</li>
+<li><strong>Model-based graders</strong>：彈性高，適合開放性任務；需對人類判斷進行校準。</li>
+<li><strong>Human graders</strong>：黃金標準但昂貴。</li>
+</ul>
+<p>並引入 <code>pass@k</code>（k 次嘗試中至少成功 1 次）與 <code>pass^k</code>（k 次全部成功）兩個指標衡量非確定性 Agent 的穩健性。</p>
+<h3>6. 三層品質門檻（生產部署模型）</h3>
+<p>Galileo AI 提出漸進式部署品質門檻 [來源: galileo.ai, 2026]：</p>
+<ul>
+<li><strong>開發環境</strong>：任務成功率 ≥70%</li>
+<li><strong>Staging 環境</strong>：任務成功率 ≥85%</li>
+<li><strong>生產環境</strong>：任務成功率 ≥95%（含安全保障）</li>
+</ul>
+<p>繁體中文指南補充了 G-Eval 分數層次：開發期 0.6-0.7、生產前 0.8+、關鍵應用 0.9+ [來源: wenwender, 2025]。</p>
+<h2>最佳實踐</h2>
+<h3>1. 從 20-50 個真實失敗案例出發</h3>
+<p>不要等待「完美測試集」——先手動審查 20-50 個來自實際使用者失敗的 Agent trace，定義明確的成功標準。品質遠比數量重要：「20-50 個仔細審查過的樣本，優於數百個未驗證的合成樣本」 [來源: LangChain Agent Evaluation Readiness Checklist, 2026]。情境：剛開始建立 eval 套件時，反例：先產生大量合成樣本再評估品質。</p>
+<h3>2. 評估結果而非路徑</h3>
+<p>「評分 Outcome，而非精確路徑」——Agent 常發現設計者未預期但同樣有效的解法，評估器若過度綁定步驟順序將產生大量偽陰性 [來源: Anthropic Engineering, LangChain Checklist, 2026]。具體做法：優先用 deterministic code-based graders 驗證環境最終狀態，再用 LLM rubric 評估步驟品質。反例：強制要求 Agent 每次以相同順序呼叫工具。</p>
+<h3>3. LLM-as-Judge 校準（防止偏差門控失效）</h3>
+<p>在用 LLM Judge 作為 CI 品質閘門前，須先在 20-30 個任務特定的人工標注樣本上量測一致性；Judge 與人類評估者一致性 <80% 不應用於自動化阻擋決策 [來源: LLM Testing Tools 2026, galileo.ai]。緩解策略：隨機化答案位置、評估 (A,B) 與 (B,A) 兩個順序取平均，以及使用 ensemble 方法降低單一模型偏差。</p>
+<h3>4. 三層 CI/CD 觸發策略</h3>
+<p>在 CI/CD pipeline 設定三個觸發點：(a) 每次 prompt 變更，(b) 每次工具/API 更新，(c) 定期迴歸（週期性）。deepeval 搭配 <code>--fail-on-error</code> + 自訂 JSON 閾值（如 95% pass rate）可自動阻擋不達標的部署。三層 eval 體系：Offline（預部署）→ Online（生產流量）→ Ad-hoc（探索性分析）[來源: promptfoo CI/CD 官方文件, LangChain Checklist, 2026]。</p>
+<h3>5. 量化 pass@k 與 pass^k 追蹤一致性</h3>
+<p>對非確定性 Agent，同一任務多次執行；<code>pass@k</code> 衡量至少成功一次的機率，<code>pass^k</code> 衡量全部成功（一致性）。情境：部署前的 staging 驗收；依據：Anthropic Engineering 標準。反例：只跑一次通過就算驗收通過。</p>
+<h2>陷阱與反例</h2>
+<h3>1. 工具過載（Tool Bloat）導致推理退化</h3>
+<p><strong>失敗模式</strong>：為 Agent 配置 30-50 個工具，實際相關工具少於 10 個；工具集增大時 LLM 工具選擇品質顯著下降 [來源: Why AI Agents Fail in Production, Medium, 2026]。<strong>根因</strong>：LLM attention 機制對過長 tool schema context 的維護能力有限。<strong>規避</strong>：使用 <code>ToolCorrectnessMetric</code> 基準測試，每新增工具都必須量測對現有任務的影響。</p>
+<h3>2. 情境漂移（Context Drift）累積失效</h3>
+<p><strong>失敗模式</strong>：多步驟工作流中每步驟約有 2% context 保留損失，5 步後不足 60% 原始上下文可靠存取；65% 企業 AI Agent 失敗溯因至 context drift 而非架構缺陷 [來源: AI Agent Harness Failures: 13 Anti-Patterns, atlan, 2026]。<strong>規避</strong>：評估設計應包含完整 trace-level 評估（而非僅評估最後輸出），並在測試集中納入長對話場景。</p>
+<h3>3. 僅評估 Inference Layer，忽視 Retrieval Layer</h3>
+<p><strong>失敗模式</strong>：deepeval、RAGAS、TruLens 三者均只評估推理層；檢索索引本身的可信度、時效性、一致性無法被評估 [來源: atlan 比較, 2026]。<strong>規避</strong>：在評估 pipeline 中加入獨立的 retrieval quality check（embedding 品質監控、index freshness 檢查）。</p>
+<h3>4. 評估達 100% 飽和後失去改善信號</h3>
+<p><strong>失敗模式</strong>：eval 通過率達 100% 時停止提供改善方向，讓團隊產生虛假安全感 [來源: Anthropic Engineering, 2026]。<strong>規避</strong>：達到飽和的 eval 應轉移到迴歸測試角色，設計更具挑戰性的新評估集。</p>
+<h3>5. 合成測試集過擬合，生產表現崩潰</h3>
+<p><strong>失敗模式</strong>：完全仰賴合成生成的測試案例，Agent 在受控測試中表現優秀，但在真實生產流量中性能驟降 [來源: LLM Evaluation Frameworks 2025 vs 2026, mlaidigital.com]。<strong>規避</strong>：測試集必須包含來自 dogfooding 錯誤、改編自真實 benchmark、以及手寫的行為測試三類來源。</p>
+<h2>與本專案關聯</h2>
+<p>本專案（daily-digest-prompt）已在多處內建 Evals-as-Code 雛形，與上述框架高度對齊：</p>
+<p><strong>落地場景 1：eval-criteria + LLM-as-Judge 對齊</strong></p>
+<p><code>prompts/team/todoist-auto-skill_quality_audit.md</code> v2→v3 已加入 <code>kb_system_optimize</code>、<code>system_insight</code>、<code>arch_evolution</code> 任務標準 + LLM-as-Judge 偏差校準（最近提交 29c39bf）。可進一步套用 deepeval <code>GEval</code> API 將現有自然語言標準形式化為可量測指標，並追蹤 Spearman 相關係數校準進度。</p>
+<p><strong>落地場景 2：Phase 2 結果檔案品質閘門</strong></p>
+<p><code>tools/validate_results.py</code> 驗證 <code>results/todoist-auto-*.json</code> schema 合規性，等同 deepeval 的 code-based grader 層。下一步可加入 <code>TaskCompletionMetric</code> 型的 LLM rubric 評估 <code>summary</code> 欄位的資訊密度，形成 code-based + model-based 雙層閘門，直接對應 <code>daily_success_rate</code> ≥90% 目標。</p>
+<h2>程式碼範例</h2>
+<h3>deepeval Agent 評估整合（來源：deepeval 官方文件 + 本專案適配）</h3>
+<pre><code>
+from deepeval import evaluate
+from deepeval.test_case import LLMTestCase, TraceSpan
+from deepeval.metrics import TaskCompletionMetric, ToolCorrectnessMetric
+
+test_case = LLMTestCase(
+    input="整理今日 Todoist 高優先任務並生成摘要",
+    actual_output="已完成任務：1. 架構審查 2. 系統洞察報告",
+    trace=[
+        TraceSpan(type="tool", name="fetch_todoist_tasks", output="[task1, task2]"),
+        TraceSpan(type="tool", name="generate_summary", output="摘要文字"),
+    ]
+)
+
+task_completion = TaskCompletionMetric(threshold=0.8, model="gpt-4o")
+tool_correctness = ToolCorrectnessMetric(threshold=0.9)
+results = evaluate([test_case], [task_completion, tool_correctness])
+</code></pre>
+<h3>promptfoo YAML 品質閘門（來源：promptfoo 官方 CI/CD 文件）</h3>
+<pre><code>
+prompts:
+  - file://prompts/todoist-query.md
+providers:
+  - anthropic:claude-sonnet-4-6
+tests:
+  - vars:
+      task: "整理今日高優先任務"
+    assert:
+      - type: llm-rubric
+        value: "回應必須包含具體任務項目，不可為空泛描述"
+        threshold: 0.8
+      - type: not-contains
+        value: "我準備好了"
+</code></pre>
+<pre><code>
+# CI 品質閘門（95% pass rate）
+npx promptfoo@latest eval --config promptfooconfig.yaml --output results.json
+python -c "import json,sys; r=json.load(open('results.json')); \
+  rate=r['results']['successes']/(r['results']['successes']+r['results']['failures']); \
+  sys.exit(0 if rate &gt;= 0.95 else 1)"
+</code></pre>
+<h2>完整參考書目</h2>
+<ol>
+<li>Confident AI. (2026). AI Agent Evaluation — deepeval Official Guide. https://deepeval.com/guides/guides-ai-agent-evaluation 取用日期 2026-04-27. source_type: official</li>
+<li>promptfoo. (2026). CI/CD Integration for LLM Eval and Security. https://www.promptfoo.dev/docs/integrations/ci-cd/ 取用日期 2026-04-27. source_type: official</li>
+<li>LangChain AI. (2026). GitHub — langchain-ai/agentevals: Readymade evaluators for agent trajectories. https://github.com/langchain-ai/agentevals 取用日期 2026-04-27. source_type: official</li>
+<li>Anthropic Engineering. (2026). Demystifying evals for AI agents. https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents 取用日期 2026-04-27. source_type: official</li>
+<li>Atlan. (2026). RAGAS, TruLens, DeepEval: LLM Evaluation Frameworks (2026). https://atlan.com/know/llm-evaluation-frameworks-compared/ 取用日期 2026-04-27. source_type: blog</li>
+<li>LangChain Blog. (2026). Agent Evaluation Readiness Checklist. https://www.langchain.com/blog/agent-evaluation-readiness-checklist 取用日期 2026-04-27. source_type: blog</li>
+<li>Galileo AI. (2026). Agent Evaluation Framework 2026: Metrics, Rubrics & Benchmarks. https://galileo.ai/blog/agent-evaluation-framework-metrics-rubrics-benchmarks 取用日期 2026-04-27. source_type: benchmark</li>
+<li>wenwender（繁中）. (2025). AI Agent 大語言模型輸出評估：如何選擇最佳評估框架？ https://wenwender.wordpress.com/2025/10/21/ai-agent-llm-evaluation/ 取用日期 2026-04-27. source_type: community/zh</li>
+<li>NUS AICET. (2025). Beyond Consensus: Mitigating the Agreeableness Bias in LLM Judge Evaluations. https://aicet.comp.nus.edu.sg/llm-as-a-judge-bias/ 取用日期 2026-04-27. source_type: academic</li>
+<li>Label Your Data. (2026). LLM as a Judge: A 2026 Guide to Automated Model Assessment. https://labelyourdata.com/articles/llm-as-a-judge 取用日期 2026-04-27. source_type: blog</li>
+<li>Atlan. (2026). AI Agent Harness Failures: 13 Anti-Patterns and Root Causes. https://atlan.com/know/agent-harness-failures-anti-patterns/ 取用日期 2026-04-27. source_type: blog</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

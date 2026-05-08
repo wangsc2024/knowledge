@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="技術研究：ntfy HTTP 發佈與自架營運（Priority／Markdown／限速／Windows UTF-8）（2026-05-03）">
+  <title>技術研究：ntfy HTTP 發佈與自架營運（Priority／Markdown／限速／Windows UTF-8）（2026-05-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>技術研究：ntfy HTTP 發佈與自架營運（Priority／Markdown／限速／Windows UTF-8）（2026-05-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">ntfy</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>ntfy HTTP 發佈與自架營運：Priority、Markdown、限速與 Windows 發佈實務（2026）</h1>
+<h2>技術概述</h2>
+<p>ntfy 是以 HTTP PUT/POST 為核心的 pub/sub 推播服務：發佈端對 <code>/{topic}</code> 送出一則本文與多個「訊息屬性」HTTP 標頭，訂閱端（Android/iOS/Web）即收到通知。與 Apprise 這類「一對多轉發器」不同，ntfy 內建 topic 快取與手機 App 長連線，適合個人／小團隊把腳本、排程、監控事件收斂到單一推播通道 [來源:Apprise vs Ntfy: Push Notifications Compared,2025]。自架時可調 <code>visitor-request-limit-*</code> 等旋鈕，但維護者明確表示<strong>無法完全關閉</strong>限速邏輯，只能把各項數字調大 [來源:GitHub Issue #1354 How to disable ratelimit,2025]。官方文件同時定義五級 <code>Priority</code>（數字 1–5 或 <code>min</code>/<code>low</code>/<code>default</code>/<code>high</code>/<code>max</code>/<code>urgent</code>）、<code>Tags</code>、<code>Title</code> 別名、以及 Markdown 開關與 <code>Content-Type: text/markdown</code> 的等價關係 [來源:Sending messages - ntfy,2026]。對 daily-digest-prompt 而言，ntfy 是排程與自動任務失敗／成功的最外層人機介面；<code>config/notification.yaml</code> 將單則 <code>message</code> 軟上限設為 <strong>3500</strong> 字元，與官方「本文＋標頭」模型疊加時，必須在管線內預先截斷或改附件策略，避免客戶端顯示異常。</p>
+<h2>核心概念與原理</h2>
+<p><strong>（一）Topic 即密碼、無註冊即寫入</strong>  </p>
+<p>官方說明：topic 在首次訂閱或發佈時即建立，且「無需註冊」，因此 topic 名稱實質上等於密碼，應選難以猜測字串 [來源:Sending messages - ntfy,2026]。繁體中文實作筆記亦示範以自架網域 <code>POST /test</code> 搭配 <code>Title</code>/<code>Priority</code>/<code>Tags</code> 與本文分離的模型，與官方語意一致 [來源:自架通知推送服務 – ntfy,2025]。</p>
+<p><strong>（二）Priority 編碼與行為</strong>  </p>
+<p><code>X-Priority</code> 與 <code>Priority</code>、<code>prio</code>、<code>p</code> 為別名；可填 <strong>1–5</strong> 或 <code>min</code>/<code>low</code>/<code>default</code>/<code>high</code>/<code>max</code>（<code>urgent</code> 對應 max）。Android 端可再把各級對應到自訂鈴聲與震動模式 [來源:Sending messages - ntfy,2026]。第三方比較表將 ntfy 列為 5 級 priority，Apprise 為 4 級 info/success/warning/failure，可作跨工具設計時的對照 [來源:Apprise vs Ntfy: Push Notifications Compared,2025]。</p>
+<p><strong>（三）Markdown 與渲染邊界</strong>  </p>
+<p>預設本文為純文字；啟用方式為 <code>Markdown: yes</code>（或 <code>md: yes</code>）或 <code>Content-Type: text/markdown</code> [來源:Sending messages - ntfy,2026]。官方同段註明「支援的 Markdown 功能（<strong>目前僅 web app</strong>）」—代表同一則 Markdown 訊息在 Android 通知列可能仍以純文字呈現；若把結構化資訊完全押在 Markdown 表格，行動端可讀性可能下降（此為跨客戶端語意落差，宜在設計上假設「摘要＝純文字可讀」）[來源:Sending messages - ntfy,2026]。</p>
+<p><strong>（四）標頭 UTF-8 與 RFC 2047</strong>  </p>
+<p>ntfy 聲明支援標頭內 UTF-8，但提醒「並非所有程式語言／函式庫」都能正確處理；若標題出現 <code>?</code> 亂碼，可改以 RFC 2047 Base64／QP 編碼標頭值 [來源:Sending messages - ntfy,2026]。這直接解釋為何在 Windows 上專案規範要求以 <strong>UTF-8 JSON 檔</strong> 搭配 <code>curl</code> 發佈，而非在 shell 內嵌字串：<code>CLAUDE.md</code> 與 <code>config/notification.yaml</code> 的 <code>send_steps</code> 皆禁止以易失真之 inline JSON／錯誤 code page 路徑承載非 ASCII。</p>
+<p><strong>（五）自架限速與 429</strong>  </p>
+<p>設定入口集中在 <code>docs.ntfy.sh/config/#rate-limiting</code>（維護者在 #1354 回覆中指向該節）[來源:GitHub Issue #1354,2025]。Issue 結論：<strong>沒有</strong>全域「disable ratelimit」開關；自架實例若大量自動化發佈仍遇到 429，只能同步調高 burst、replenish 與相關 visitor 配額 [來源:GitHub Issue #1354,2025]。公開比較文亦描述 ntfy 為有狀態快取、Apprise 為 fire-and-forget，解釋為何在「高頻但可丟失」與「裝置離線仍要補送」之間選型 [來源:Apprise vs Ntfy: Push Notifications Compared,2025]。</p>
+<p><strong>（六）2025–2026 版本線與維運含義</strong>  </p>
+<p>Release 表載明 server <strong>v2.22.0</strong>（2026-04-21）等；含 web push SSRF 修補（GHSA）、iOS v1.5.1（2026-04-27）背景輪詢可靠性等 [來源:Release notes - ntfy,2026]。v2.21.0 起為因應濫發郵件導致 SES 停權，引入 <code>smtp-sender-verify</code> 與收件地址預先驗證流程—若管線使用「Email 轉發」整合，必須重檢驗證步驟是否仍符合新政策 [來源:Release notes - ntfy,2026]。</p>
+<h2>最佳實踐</h2>
+<ol>
+<li><strong>Priority 與 tags 分層</strong>：例行 digest 用預設或 <code>low</code> 降低打斷；<code>self_heal</code>、憑證即將到期、連續 timeout 用 <code>high</code>/<code>max</code>，並以 <code>Tags</code> 對齊 emoji shortcode（如 <code>warning</code>、<code>rotating_light</code>）以利一眼分類 [來源:Sending messages - ntfy,2026]。反例：全部 <code>urgent</code> 會讓使用者麻痺且與 Android 通道噪音同級。</li>
+</ol>
+<ol>
+<li><strong>Markdown 僅作補充，標題承載結構</strong>：長內文放 Markdown 區塊前，先把任務鍵、狀態、<code>task_key</code> 寫進 <code>Title</code>，確保鎖屏與穿戴裝置仍可读 [來源:Sending messages - ntfy,2026]。反例：只靠 <code>#</code> 大標在 Android 通知本體不可見。</li>
+</ol>
+<ol>
+<li>*<em>自架＋排程爆量：先量測再調 visitor-</em> limit**：依官方 config 節與 issue 共識，429 時應調整參數而非尋找「關閉限速」 [來源:GitHub Issue #1354,2025]。反例：單一迴圈對同一 visitor IP 每秒百則，仍可能在其他維度（附件總量、日頻寬）觸發限制 [來源:Configuration - ntfy,2026]。</li>
+</ol>
+<ol>
+<li><strong>與 Apprise 串接</strong>：若需 Slack＋手機並發，採「Apprise 為樞紐、ntfy 為其中一個 URL（<code>ntfy://host/topic</code>）」模式 [來源:Self-hosted notifications with ntfy and Apprise,2025]。反例：在 10 個監控工具各寫一支直連 ntfy，難以統一節流與重試。</li>
+</ol>
+<ol>
+<li><strong>安全：topic 命名與自架 TLS</strong>：公開伺服器務必啟用 ACL／token，並避免弱 topic；自架教學示範以網域反代收斂管理面 [來源:自架通知推送服務 – ntfy,2025]。反例：沿用 <code>test</code> 作為 production topic 且開放匿名寫入。</li>
+</ol>
+<h2>陷阱與反例</h2>
+<ul>
+<li><strong>誤以 Markdown 全客戶端一致</strong>：官方寫明 Markdown 渲染以 web app 為準；若在 <code>ntfy_review</code> 只看網頁版而忽略 Android 純文字呈現，會誤判「格式遺失」為遞送失敗 [來源:Sending messages - ntfy,2026]。</li>
+</ul>
+<ul>
+<li><strong>429 時尋找「disable ratelimit」</strong>：維護者關閉 issue 時確認邏輯不可關閉；應回到 config 表調整各旋鈕 [來源:GitHub Issue #1354,2025]。</li>
+</ul>
+<ul>
+<li><strong>非 ASCII 標題未測標頭編碼</strong>：未走 UTF-8 檔案＋curl 或 RFC2047，Windows 預設 code page 路徑易出现 <code>?</code> [來源:Sending messages - ntfy,2026]；與本 repo「Write 建 UTF-8 JSON + curl」禁令直接對照。</li>
+</ul>
+<h2>與本專案關聯</h2>
+<ul>
+<li><strong><code>config/notification.yaml</code></strong>：<code>max_message_length: 3500</code> 與 ntfy 本文合併設計；長篇 digest 應在 <code>tools/ntfy_message_assembler.py</code>（或等效管線）先截斷再送，必要時改「標題精簡＋連結回 repo／check-health」而非塞滿 Markdown 表格。</li>
+</ul>
+<ul>
+<li><strong><code>CLAUDE.md</code> ntfy 規範</strong>：與官方 UTF-8 標頭注意事項一致—以 JSON 檔承載 body、charset=utf-8，避免 Bash <code>echo</code> 建檔。</li>
+</ul>
+<ul>
+<li><strong>今日脈絡</strong>：<code>state/todoist-history.json</code> 2026-05-03 有 <code>ntfy_review</code> 執行紀錄；本研究主題選 ntfy HTTP／營運面，可直接支撐該任務對 MUST_FIX 與遞送健康度分離分析時的「協定層預期行為」對照。</li>
+</ul>
+<h2>程式碼範例</h2>
+<p>以下片段取自官方文件之 PowerShell 範例（略調 topic），示範標頭與本文分離；實務上應改為與本專案一致：先 <code>Set-Content -Encoding utf8</code> 寫入 JSON 再以 <code>curl.exe -d @file</code> 發佈至 <code>https://ntfy.sh/{topic}</code>。</p>
+<pre><code>
+$Request = @{
+  Method = "POST"
+  URI = "https://ntfy.sh/wangsc2025"
+  Headers = @{
+    Title = "digest: OK"
+    Priority = "default"
+    Tags = "memo,white_check_mark"
+  }
+  Body = "Phase2 完成"
+}
+Invoke-RestMethod @Request
+</code></pre>
+<p>來源：Sending messages - ntfy（官方文件範例區塊之 PowerShell tab）。</p>
+<h2>完整參考書目</h2>
+<ol>
+<li>ntfy 官方文件—Sending messages（Publishing）. https://docs.ntfy.sh/publish/ （取用：2026-05-03）. source_type: official, language: en  </li>
+<li>ntfy 官方文件—Configuration（含 rate limiting 連結與附件／快取說明）. https://docs.ntfy.sh/config/ （取用：2026-05-03）. source_type: official, language: en  </li>
+<li>ntfy 官方文件—Release notes. https://docs.ntfy.sh/releases/ （取用：2026-05-03）. source_type: official, language: en  </li>
+<li>binwiederhier/ntfy GitHub Issue #1354「How to disable ratelimit」. https://github.com/binwiederhier/ntfy/issues/1354 （取用：2026-05-03）. source_type: community, language: en  </li>
+<li>selfhosting.sh—Apprise vs Ntfy: Push Notifications Compared. https://selfhosting.sh/compare/apprise-vs-ntfy/ （取用：2026-05-03）. source_type: benchmark, language: en  </li>
+<li>Fraser McLean—Self-hosted notifications with ntfy and Apprise. https://www.frasermclean.com/post/2025/10/self-hosted-notifications-with-ntfy-and-apprise/ （取用：2026-05-03）. source_type: blog, language: en  </li>
+<li>cre0809 部落格—自架通知推送服務 – ntfy. https://blog.cre0809.com/archives/885/ （取用：2026-05-03）. source_type: blog, language: zh  </li>
+</ol>
+<p>---</p>
+<h2>三角佐證摘要（核心主張）</h2>
+<p>| 主張 | 佐證來源數 | 備註 |</p>
+<p>|------|------------|------|</p>
+<p>| Priority 五級與別名行為 | ≥3 | 官方 publish；比較表；中文實作 POST 範例 |</p>
+<p>| Markdown 需顯式開關且客戶端渲染不一致 | ≥3 | 官方 publish；與「web app only」同段 |</p>
+<p>| 限速不可全關、429 需調參 | ≥3 | GitHub #1354；官方 config 節引用；比較文描述有狀態快取 |</p>
+<p>| UTF-8 標頭與 RFC2047 後備 | ≥3 | 官方 publish Title 小節；專案 notification 發送步驟 |</p>
+<p>（本表為研究方法註記，非額外協定欄位。）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

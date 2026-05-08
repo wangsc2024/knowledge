@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agent 長期記憶系統架構模式（mem0 / graphiti / Letta）">
+  <title>Agent 長期記憶系統架構模式（mem0 / graphiti / Letta） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Agent 長期記憶系統架構模式（mem0 / graphiti / Letta）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Agent記憶</span><span class="tag">mem0</span><span class="tag">graphiti</span><span class="tag">Letta</span><span class="tag">MemGPT</span><span class="tag">知識圖</span><span class="tag">向量資料庫</span><span class="tag">GitHub Scout</span><span class="tag">架構模式</span><span class="tag">長期記憶</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Agent 長期記憶系統架構模式（mem0 / graphiti / Letta）</h1>
+<blockquote>蒐集日期：2026-04-26 | 來源：GitHub Scout</blockquote>
+<h2>概述</h2>
+<p>三套主流 Agent 長期記憶框架，各有不同的架構哲學：</p>
+<ul>
+<li><strong>mem0</strong>：混合存儲三層，多範圍隔離</li>
+<li><strong>graphiti</strong>：時態知識圖，fact 有有效期窗口</li>
+<li><strong>Letta（前身 MemGPT）</strong>：OS 式分頁記憶，Agent 主動管理</li>
+</ul>
+<p>---</p>
+<h2>mem0（mem0ai/mem0，~53,500★）</h2>
+<h3>架構哲學</h3>
+<p>Universal Memory Layer — 對 AI Agent 來說像「通用記憶層」，不同框架都能接入。</p>
+<h3>Memory Architecture</h3>
+<p>混合存儲三層：</p>
+<ul>
+<li><strong>Vector DB</strong>（Qdrant/Pinecone）：語義相似度查詢</li>
+<li><strong>Key-Value DB</strong>（Redis）：精確查找</li>
+<li><strong>Graph DB</strong>（Neo4j）：關係遍歷</li>
+</ul>
+<p>多範圍隔離：user / session / agent，各自獨立命名空間。</p>
+<h3>衝突處理</h3>
+<p>Mem0g 變體加入衝突偵測：新 fact 寫入前先比對現有圖節點，有矛盾時先標記再寫入。</p>
+<h3>整合廣度</h3>
+<p>支援 21 個 AI 框架整合（LangChain、LlamaIndex、CrewAI 等）。</p>
+<p>---</p>
+<h2>graphiti（getzep/graphiti，~20,000★）</h2>
+<h3>架構哲學</h3>
+<p>Temporally-aware Knowledge Graph — 每個 fact 都有時間有效窗口，舊 fact 失效而非刪除。</p>
+<h3>Memory Architecture</h3>
+<p>時態知識圖（Temporal KG）：</p>
+<ul>
+<li>每個 fact 節點含 valid_from / valid_to 有效窗口</li>
+<li>過期 fact 標記失效，保留歷史可回溯</li>
+<li>支援時點查詢（「T 時刻有效的 facts」）</li>
+</ul>
+<h3>Storage Backend</h3>
+<p>Neo4j 圖存儲，增量更新不需重算整圖。</p>
+<h3>效能基準</h3>
+<p>LongMemEval 得分 <strong>63.8%</strong>（vs mem0 的 49.0%，差距 +14.8%）。</p>
+<h3>本專案啟發</h3>
+<p>→ 在 memory-policy.yaml continuity 層新增 finding_expires_days 欄位，讓 Agent 記憶的發現有時效性。</p>
+<p>---</p>
+<h2>Letta（letta-ai/letta，前身 MemGPT，~13,000★）</h2>
+<h3>架構哲學</h3>
+<p>OS-inspired Stateful Agent — 把 Agent 記憶比擬為作業系統分頁：RAM（in-context）vs Disk（external storage）。</p>
+<h3>Memory Architecture</h3>
+<p>三層分頁：</p>
+<ul>
+<li><strong>core memory</strong>：永遠在 context（如 RAM），含 persona + human 描述</li>
+<li><strong>archival memory</strong>：外部向量庫（如 Disk），容量無限</li>
+<li><strong>recall memory</strong>：對話歷史，可搜尋</li>
+</ul>
+<h3>Agent 主動管理</h3>
+<p>與 mem0/graphiti 不同，Letta 的記憶管理是 Agent 主動呼叫工具函式，而非被動注入：</p>
+<ul>
+<li>memory_search() — 搜尋 archival</li>
+<li>memory_append() — 新增到 core/archival</li>
+</ul>
+<h3>多 Agent 協作</h3>
+<p>支援 multi-agent 共享記憶，跨 Agent 傳遞知識。</p>
+<p>---</p>
+<h2>三套框架比較</h2>
+<p>| 維度 | mem0 | graphiti | Letta |</p>
+<p>|------|------|---------|-------|</p>
+<p>| <strong>存儲模型</strong> | 混合三層 | 時態知識圖 | OS 式分頁 |</p>
+<p>| <strong>時效處理</strong> | 衝突偵測標記 | valid_from/valid_to | 無內建 TTL |</p>
+<p>| <strong>Agent 角色</strong> | 被動注入 | 被動注入 | 主動呼叫工具 |</p>
+<p>| <strong>最強項</strong> | 整合廣度（21框架） | 時態準確性（LongMemEval +15%） | 有狀態長對話 |</p>
+<p>| <strong>Storage</strong> | Qdrant+Redis+Neo4j | Neo4j | 向量DB+in-context |</p>
+<p>---</p>
+<h2>對本專案的啟發（已落實 P1）</h2>
+<ol>
+<li><strong>memory-policy temporal validity</strong>：config/memory-policy.yaml continuity 層新增 memory_scope / finding_expires_days optional fields，過期後降低參考權重（靈感：graphiti validity window）</li>
+<li><strong>review-policy agent_memory override</strong>：config/github-scout-review-policy.yaml 新增 agent_memory topic，要求補充 memory_architecture / storage_backends / retrieval_strategy 三面向（靈感：mem0 多層架構）</li>
+<li><strong>SKILL.md v2.5.0 記憶觸發詞</strong>：skills/github-scout/SKILL.md 新增 mem0/graphiti/Letta/MemGPT 等 10 個觸發詞（靈感：Letta 主動記憶管理）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

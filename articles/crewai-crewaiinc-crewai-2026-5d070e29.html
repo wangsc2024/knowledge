@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CrewAI（crewAIInc/crewAI）深度研究報告 — 2026 Flows／Crews 雙軌、AMP 與 daily-digest 串接要點">
+  <title>CrewAI（crewAIInc/crewAI）深度研究報告 — 2026 Flows／Crews 雙軌、AMP 與 daily-digest 串接要點 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>CrewAI（crewAIInc/crewAI）深度研究報告 — 2026 Flows／Crews 雙軌、AMP 與 daily-digest 串接要點</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">CrewAI</span><span class="tag">Multi-agent框架</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>CrewAI 深度研究報告</h1>
+<h2>概述</h2>
+<p>CrewAI（<code>crewAIInc/crewAI</code>）是以 <strong>Python</strong> 為核心的開源多 Agent 編排框架，定位在「角色扮演式自主代理人」與可投產的 <strong>事件驅動工作流</strong> 之間取得平衡。官方 README 與文件強調其 <strong>不依賴 LangChain</strong>、以輕量執行路徑換取較低延遲與較可控的客製空間；同時透過 <strong>Crews</strong>（多角色協作）與 <strong>Flows</strong>（狀態化流程骨架）雙軌，把「探索式多代理對話」與「可重播、可分支的產線邏輯」拆開建模。企業面向上另有 <strong>CrewAI AMP Suite</strong>（控制平面、追蹤、整合與合規敘事），與開源核心形成分層商業模式。</p>
+<h2>技術架構</h2>
+<ul>
+<li><strong>語言與套件管理</strong>：主程式庫為 Python，官方建議以 <strong>uv</strong> 安裝與鎖版（<code>uv pip install crewai</code>／<code>crewai[tools]</code>），並提供 <code>crewai create crew</code> CLI 產生標準目錄（<code>crew.py</code>、<code>agents.yaml</code>、<code>tasks.yaml</code>、<code>main.py</code>）。</li>
+<li><strong>Crews 層</strong>：以 <code>Agent</code>、<code>Task</code>、<code>Crew</code>、<code>Process</code>（sequential／hierarchical 等）描述角色、目標、背景故事與工具；支援 <code>@CrewBase</code> 類別裝飾器自動組裝 agents／tasks，降低樣板程式碼。</li>
+<li><strong>Flows 層</strong>：以 <code>@start</code>、<code>@listen</code>、<code>@router</code>、<code>or_</code>／<code>and_</code> 等裝飾器建立 <strong>DAG 式控制流</strong>，可承載 <strong>Pydantic</strong> 結構化 state，在步驟間傳遞決策與中繼結果；Flow 內可嵌入 <code>Crew(...).kickoff()</code>，把「高不確定性」段落封裝在 Crew 內、其餘維持確定性 Python。</li>
+<li><strong>與其他框架關係</strong>：文件明確對照 <strong>LangGraph</strong>（較多樣板與 LangChain 生態耦合）、<strong>AutoGen</strong>（對話強、流程結構需自行補）等；README 引用 Notebook 宣稱在特定 QA／Coding 任務上相對 LangGraph 有速度與分數優勢（需視基準與版本自行驗證）。</li>
+</ul>
+<h2>工作流核心能力</h2>
+<ul>
+<li><strong>觸發與編排</strong>：Flow 提供事件驅動入口與條件分支；Crew 內則以 task 相依與 process 模式（順序、階層含 manager 協調）描述代理間工作分配。</li>
+<li><strong>輸出與契約</strong>：Task 可要求 <code>expected_output</code>、結構化輸出（<code>output_pydantic</code>／<code>output_json</code>）與落地檔案（如 <code>output_file</code>），利於下游機械化驗證。</li>
+<li><strong>人機協作</strong>：文件鏈結 <em>Human Input on Execution</em> 等 HITL 模式，與 Flow 暫停／恢復語意可互補。</li>
+</ul>
+<h2>AI 整合機制</h2>
+<ul>
+<li><strong>模型連線</strong>：預設可走 OpenAI 相容 API，亦支援 Ollama／LM Studio 等本地推論；工具層可接搜尋、資料庫與自訂 API（<code>crewai_tools</code> 擴充）。</li>
+<li><strong>Agent Skills 生態</strong>：README 推廣官方 <strong>skills</strong>（Claude Code plugin、<code>npx skills add crewaiinc/skills</code>），把腳手架、Agent 設計、Task 設計、問文件 MCP 產品化為代理可載入的知識包，與本專案 Skill-First 文化高度共鳴。</li>
+<li><strong>Telemetry</strong>：預設匿名遙測版本／OS／crew 規模等；敏感內容預設不上傳；可 <code>OTEL_SDK_DISABLED=true</code> 關閉；<code>share_crew=True</code> 為顯式進階分享。</li>
+</ul>
+<h2>部署與維運</h2>
+<ul>
+<li><strong>開發體驗</strong>：標準專案模板＋<code>crewai run</code>；可選 <code>crewai install</code> 鎖依賴。</li>
+<li><strong>企業部署</strong>：AMP 主打 tracing、統一控制平面、雲端／地端選項與合規敘事；開源核心則可自建於既有 K8s／VM。</li>
+<li><strong>觀測性</strong>：企業層強調 metrics／logs／traces；開源側可與既有 OTLP／Langfuse 類工具自行接線（非內建一體化）。</li>
+</ul>
+<h2>與 daily-digest-prompt 的連結</h2>
+<ol>
+<li><strong>Phase 管線對照</strong>：本專案 <code>run-todoist-agent-team.ps1</code> 的 Phase0→2 可類比為 <strong>Flow 骨架</strong>（確定性腳本、timeout、結果 JSON），而單次高不確定 LLM 研究段落可類比為 <strong>Crew 步驟</strong>；CrewAI 的分層有助討論「何時保留 PS 機械層、何時允許多代理發散」。</li>
+<li><strong>Skill-First</strong>：CrewAI 官方 skills 與本 repo <code>skills/*/SKILL.md</code> 策略一致，可借鏡其「代理自動載入操作手冊」的發佈格式（marketplace／npx）。</li>
+<li><strong>HITL 與 ntfy</strong>：Flow 暫停等待外部事件與現有 <strong>ntfy</strong> 人工確認流程可對照設計；Temporal 研究已討論 Signal；CrewAI 則偏應用層輕量 HITL。</li>
+<li><strong>觀測與品質閘門</strong>：若將子代理遷移為 Crew，可把 <code>expected_output</code>＋schema 對齊 <code>validate_results.py</code> 類機械驗證，並將 trace 送入既有 KB／Langfuse 研究脈絡。</li>
+</ol>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>API 貼近「團隊／任務」心智模型，上手曲線相對平緩。</li>
+<li>Flows＋Crews 清楚分離控制與創造性工作，利於長期維護。</li>
+<li>獨立於 LangChain，依賴面與發版風險較可控。</li>
+<li>社群課程與範例儲存庫豐富，利於複製實務模式。</li>
+</ul>
+<p><strong>缺點 / 限制</strong>：</p>
+<ul>
+<li>企業級觀測／控管多集中在 AMP，開源自建需自行補齊 SLO／稽核。</li>
+<li>與 LangGraph／Temporal 等「強持久／強交易」引擎相比，長流程容錯與跨重啟恢復需自行設計或在 Flow 外包資料層。</li>
+<li>官方效能對照宣稱需以自家 workload 重測，避免過度外推。</li>
+</ul>
+<h2>社群狀態</h2>
+<p>Stars：50489 | Forks：6961 | 最近更新：2026-05-01（GitHub <code>pushed_at</code>）</p>
+<h2>參考來源</h2>
+<ul>
+<li>https://github.com/crewAIInc/crewAI（README、授權 MIT）</li>
+<li>https://docs.crewai.com/introduction</li>
+<li>GitHub REST <code>repos/crewAIInc/crewai</code>（2026-05-03 查詢）</li>
+<li>ByteByteGo 系統設計電子報（<code>website_curator</code> system_design 類別首選來源之一，作為架構思維補充）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

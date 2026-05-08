@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Test-Time Compute Scaling 2026 深度研究報告">
+  <title>Test-Time Compute Scaling 2026 深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Test-Time Compute Scaling 2026 深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI深度研究</span><span class="tag">Test-Time Compute Scaling</span><span class="tag">2026</span><span class="tag">研究報告</span><span class="tag">推理算力</span><span class="tag">Process Reward Model</span><span class="tag">MCTS</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Test-Time Compute Scaling 2026：推理算力橫向擴展原理、Process Reward Model 設計實踐與 MCTS 搜索策略深度研究</h1>
+<h2>執行摘要</h2>
+<p>Test-Time Compute Scaling（TTS）是 2024-2026 年 AI 研究的重心轉移：從「訓練更大的模型」轉向「在推理時花更多算力思考」。本研究整合 10 篇來自學術論文、官方技術文件、技術部落格與社群分析的來源，系統性地回答五個核心問題。</p>
+<p><strong>核心結論一：</strong> Compute-optimal 自適應分配策略比均勻分配（best-of-N）效率高 4x FLOPs，且中等難度問題上，一個搭配 TTS 的小模型可超越 14 倍參數量的大模型（Snell et al., 2024；Microsoft Research, 2025）。</p>
+<p><strong>核心結論二：</strong> 沒有單一 TTS 策略在所有情境下都最優。任務難度和模型架構共同決定最佳策略——易題適合單輪 CoT + 自修正，中等難度適合小候選池 + 驗證器，高難度需要並行多路徑 + 嚴格驗證器（Agarwal et al., 2025；BuildML, 2025）。</p>
+<p><strong>核心結論三：</strong> PRM（Process Reward Model）在中間步驟評分上優於 ORM（Outcome Reward Model），尤其適合數學推理；但多域任務中生成式 ORM 更穩健，PRM 面臨 stepwise 誤差累積問題（Zheng et al., 2025）。</p>
+<p><strong>核心結論四：</strong> MCTS 作為訓練數據生成工具有效（AlphaZero-style），但 DeepSeek-R1 的實際部署經驗表明，純 RL（GRPO）+ 長 CoT 在特定推理任務（AIME 從 15.6%→71%）勝過 MCTS 式搜索。</p>
+<p><strong>核心結論五：</strong> 推論成本正在爆炸性增長。預計 2026 年推論計算量達訓練量的 118 倍，生產環境中需要「難度路由層」以避免成本爆炸。</p>
+<p><strong>研究問題解答：</strong></p>
+<ul>
+<li>Q1（TTS 突破天花板的機制）：透過讓模型嘗試多條路徑並用驗證器篩選，突破單次 next-token prediction 的天花板；compute-optimal 分配比均勻分配高效 4x。</li>
+<li>Q2（PRM vs ORM 選型）：步驟可驗證域（數學/代碼）優先 PRM；開放域多步任務優先生成式 ORM；長推理鏈謹慎使用 PRM（stepwise 誤差累積）。</li>
+<li>Q3（搜索策略比較）：Beam Search 最實用（FLOPs 效率比 best-of-N 高 4x）；MCTS 適合訓練數據生成但不推薦作純推理搜索；DeepSeek-R1 的純 RL 仍是 AIME 最優。</li>
+<li>Q4（生產預算分配）：建立難度路由層（easy/medium/hard 三模式）+ 每問題算力上限 + 邊際收益監控。</li>
+<li>Q5（SOTA 模型設計取捨）：DeepSeek-R1 選純 RL+長 CoT（高精度/高成本）；o3 選多輪搜索+驗證（旗艦級但昂貴）；Qwen3 選動態思考切換（彈性成本控制）。</li>
+</ul>
+<h2>研究背景與動機</h2>
+<p>大語言模型的能力長期仰賴「訓練時算力擴展定律」（scaling laws）：更多參數、更多 Token、更大模型。然而訓練成本呈指數上升，邊際效益遞減的訊號日益明顯。</p>
+<p>Test-Time Compute Scaling 代表一條不同的路徑：<strong>讓模型在推理時思考更長時間、嘗試更多路徑、利用驗證機制淘汰錯誤方向</strong>。這是對 next-token prediction 的根本性擴展——從「預測下一個最可能的 token」轉為「搜索最優的推理路徑」。</p>
+<p>Microsoft Research（2025）明確指出三大未解問題：計算效率高原期（plateau）、泛化性顧慮、可解釋性缺口。此研究旨在彌合理論認知與生產實踐之間的落差，為 AI 系統開發者提供可操作的 TTS 導入指引。</p>
+<h2>核心技術解析</h2>
+<h3>3.1 TTS 的基礎機制：從 Best-of-N 到 Compute-Optimal</h3>
+<p>最基礎的 TTS 形式是 <strong>Best-of-N</strong>：生成 N 個候選答案，選最好的。這雖直觀，但 FLOPs 效率低下。</p>
+<p>Snell et al.（2024）提出的 <strong>compute-optimal 策略</strong>根據問題難度動態分配算力：</p>
+<ul>
+<li>簡單問題：少量樣本 + 輕量驗證</li>
+<li>中等問題：中量並行候選 + PRM 篩選</li>
+<li>困難問題：大量搜索 + 嚴格驗證器</li>
+</ul>
+<p>實證結果：compute-optimal 比同 FLOPs 下的 best-of-N 效率高 4x，且中等難度問題上 1B 小模型搭配 TTS 可勝過 14B 大模型。商業意義：<strong>不需要買更大的模型，投資推理基礎設施是另一條路</strong>。</p>
+<p>Agarwal et al.（2025）在 8 個 LLM（7B-235B 參數）、30B+ tokens 的最大規模研究中確認：短期（short-horizon）與長期（long-horizon）任務呈現不同最優策略，單調縮放特性在大多數情況下成立，但最優策略高度模型依賴。</p>
+<p>BuildML（2025）將框架具體化為 <strong>Proposer-Verifier 架構</strong>：Proposer 生成多個候選，Verifier（PRM/ORM/規則器）評分篩選。三難度模式：易題一輪 CoT + 自修正，中等小候選池 + 驗證器，難題並行大量候選 + 嚴格多驗證器。</p>
+<h3>3.2 Process Reward Model vs. Outcome Reward Model</h3>
+<p><strong>ORM</strong> 只評估最終答案是否正確，設計簡單但信號稀疏。<strong>PRM</strong> 在每個中間推理步驟評分，提供更密集的監督信號。</p>
+<p>Zheng et al.（2025）的 PRM 綜述覆蓋數學推理、代碼生成、NLP、多模態、機器人控制五大領域，指出 PRM 三大設計維度：</p>
+<ol>
+<li><strong>資料生成</strong>：人工標注（最準）、LLM 自動標注（低成本）、蒙地卡羅估計（用後續結果反推步驟品質）</li>
+<li><strong>模型構建</strong>：判別式 vs 生成式架構選擇</li>
+<li><strong>部署策略</strong>：逐步篩選 vs 最終重排序</li>
+</ol>
+<p><strong>關鍵分歧：</strong> Zheng et al. 主張 PRM 在數學和代碼域有優勢；但近期研究發現多域任務中生成式 ORM 更穩健，PRM 的 stepwise 聚合在長推理鏈（>20 步）中累積誤差。</p>
+<p><strong>選型指引：</strong> 數學/代碼 → PRM；開放域/摘要 → 生成式 ORM；長推理鏈 → 謹慎 PRM，監控誤差累積。</p>
+<h3>3.3 MCTS 與 Beam Search 在 LLM 推理的應用</h3>
+<p><strong>Beam Search</strong>：維持 k 個最高分候選逐步擴展，同 FLOPs 下比 best-of-N 效率高 4x，是最實用的生產升級方案。</p>
+<p><strong>MCTS</strong>（Selection→Expansion→Simulation→Backpropagation）：</p>
+<ul>
+<li>Xie et al.（2024）應用於訓練數據生成（AlphaZero-style），在 Mistral-7B 上實現 GSM8K +5.9%、MATH +5.8%、ARC-C +15.8%</li>
+<li>DeepSeek-R1（2025）將 MCTS 列為「不成功的嘗試」，純 RL（GRPO）+長 CoT 在 AIME 更優（15.6%→71%）</li>
+<li>Microsoft Research（2025）：MCTS 需改進才能在資源限制下有效</li>
+</ul>
+<p><strong>結論：MCTS 作為訓練數據生成有效，但作為純推理搜索不推薦。Beam Search 是生產首選升級方案。</strong></p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>✅ <strong>TTS 讓小模型超越大模型（4+ 來源）</strong>：1B 搭配 TTS 可在同 FLOPs 下勝過 14B。高查詢量場景仍以大模型為優（AgentWiki, 2025）。[Snell et al., 2024; Microsoft Research, 2025; AgentWiki, 2025; 中文社群, 2025]</li>
+</ol>
+<ol>
+<li>✅ <strong>難度路由層是生產 TTS 的關鍵基礎設施（4+ 來源）</strong>：easy→CoT, medium→beam+verifier, hard→parallel+strict-verifier。不路由而全用最昂貴策略在成本上不可持續。[BuildML, 2025; Snell et al., 2024; Microsoft Research, 2025; AgentWiki, 2025]</li>
+</ol>
+<ol>
+<li>✅ <strong>推論成本 2026 年達訓練量 118 倍（3 來源）</strong>：從研究趨勢轉為產業基礎設施危機。需要難度路由和算力上限管控。[Introl Blog, 2025; 中文社群, 2025; NVIDIA, 2025]</li>
+</ol>
+<ol>
+<li>✅ <strong>Proposer-Verifier 是最小可行 TTS 架構（4 來源）</strong>：生成候選+驗證篩選雙組件架構。Verifier 可以是 PRM、ORM、生成式評分器或規則驗證器。[BuildML, 2025; Snell et al., 2024; Zheng et al., 2025; NVIDIA, 2025]</li>
+</ol>
+<ol>
+<li>⚠️ <strong>MCTS vs 純 RL 分歧（主要爭議點）</strong>：MCTS 訓練數據生成有效，但 DeepSeek-R1 推理實戰否定其搜索價值，純 RL 更優。待跨組織複製實驗確認。[Xie et al., 2024; Introl Blog/DeepSeek-R1, 2025; Microsoft Research, 2025]</li>
+</ol>
+<ol>
+<li>✅ <strong>DeepSeek-R1：簡單 RL + 長 CoT 勝複雜搜索（3 來源）</strong>：GRPO+長推理鏈達 AIME SOTA。代價：長 CoT 推論 token 可能 100x 倍增，需預算控制。[Introl Blog, 2025; NVIDIA, 2025; 中文社群, 2025]</li>
+</ol>
+<ol>
+<li>✅ <strong>TTS 性能：問題集維度冪律，單問題快速飽和（3 來源）</strong>：廣度（覆蓋更多問題類型）的投資回報 > 深度（對同一問題無限重試）。[BuildML, 2025; AgentWiki, 2025; Microsoft Research, 2025]</li>
+</ol>
+<h2>實務應用建議</h2>
+<h3>建議一：從 Proposer-Verifier 最小可行架構起步</h3>
+<p>不要試圖直接實作 MCTS 或完整 PRM。先部署：(1) 現有 LLM 作 Proposer；(2) 輕量規則驗證器或弱 ORM 作 Verifier。驗證 10%+ 精度提升再升級。</p>
+<ul>
+<li><strong>落地步驟</strong>：選定 1 個高價值任務 → 部署 best-of-3 + 規則驗證器 → 衡量精度 → 決定升級路徑</li>
+<li><strong>風險</strong>：低品質 Verifier 會反向拖累準確率</li>
+</ul>
+<h3>建議二：建立難度分類器作為路由層</h3>
+<p>即使使用啟發式規則（問題長度、關鍵詞、過去失敗率），也能節省 50-70% 推論成本。</p>
+<ul>
+<li><strong>落地步驟</strong>：收集樣本 → 標注難度 → 訓練輕量分類器 → A/B 測試 → 逐步細化</li>
+</ul>
+<h3>建議三：PRM vs ORM 選型依任務性質決定</h3>
+<ul>
+<li>數學/代碼（步驟可驗證）→ 優先 PRM</li>
+<li>開放域對話/摘要 → 生成式 ORM</li>
+<li>長推理鏈（>10 步）→ 謹慎使用 PRM，監控 stepwise 誤差</li>
+</ul>
+<h3>建議四：設定每問題算力預算上限並監控邊際收益</h3>
+<p>NVIDIA 案例：L1 問題 10 分鐘後邊際收益驟降，L2 需 15+ 分鐘。在 inference pipeline 加入 compute budget counter，超限後強制終止使用已有最佳答案。</p>
+<h3>建議五：慎用 MCTS，除非是訓練數據生成場景</h3>
+<p>推理時優先評估 Beam Search + 驗證器組合。MCTS 僅在生成高品質 SFT/RL 訓練數據時考慮。</p>
+<h2>與現有知識的連結</h2>
+<ol>
+<li><strong>Qwen3 混合推理研究</strong>（2026-04-29，note: e14a7098）：四階段訓練管線的 Stage 2「推理 RL」與 TTS scaling 直接相關；Thinking Budget 對數縮放效益印證 compute-optimal 策略；動態 thinking 切換本質上是難度路由層的實作。</li>
+</ol>
+<ol>
+<li><strong>MoE LLM Fine-tuning 研究</strong>（2026-04-28）：路由感知 TTS 策略（針對不同 Expert 路徑分配不同搜索預算）是潛在研究方向；MoE 稀疏激活與 TTS 動態算力分配可能有協同效應。</li>
+</ol>
+<ol>
+<li><strong>本專案系統架構</strong>：<code>Get-TaskBackend</code> 動態路由機制與 TTS「難度路由層」是同構設計——「algorithmic routing before expensive computation」是跨領域的普適工程原則。</li>
+</ol>
+<h2>未來展望</h2>
+<ol>
+<li><strong>PRM 中文任務量化評估</strong>：現有研究以英文為主，中文原生推理任務的 TTS 效益評估是明確缺口。</li>
+</ol>
+<ol>
+<li><strong>TTS 成本動態分配開源工具</strong>：生產環境的系統性自動化工具仍不成熟，多為研究原型。</li>
+</ol>
+<ol>
+<li><strong>MCTS vs 純 RL 的跨組織複製</strong>：DeepSeek-R1 的結論需在非 AIME 任務（多跳問答、長文檔、工具使用推理）上確認。</li>
+</ol>
+<ol>
+<li><strong>並行推理路徑系統性評估</strong>：ThreadWeaver-style 1.53x 加速目前僅有單一來源，需跨任務域複製實驗。</li>
+</ol>
+<h2>完整書目</h2>
+<p>| # | 機構/作者 | 年份 | 標題 | URL | 取用日期 | 來源類型 |</p>
+<p>|---|---|---|---|---|---|---|</p>
+<p>| 1 | Snell et al. | 2024 | Scaling LLM Test-Time Compute Optimally | https://arxiv.org/abs/2408.03314 | 2026-04-29 | academic |</p>
+<p>| 2 | Agarwal, Sengupta, Chakraborty | 2025 | The Art of Scaling Test-Time Compute for LLMs | https://arxiv.org/abs/2512.02008 | 2026-04-29 | academic |</p>
+<p>| 3 | BuildML | 2025 | Test-Time Compute Scaling: A Practical Guide | https://buildml.substack.com/p/test-time-compute-scaling-a-practical | 2026-04-29 | blog |</p>
+<p>| 4 | Microsoft Research | 2025 | Inference-Time Scaling for Complex Tasks | https://www.microsoft.com/en-us/research/wp-content/uploads/2025/03/Inference-Time-Scaling-for-Complex-Tasks-Where-We-Stand-and-What-Lies-Ahead.pdf | 2026-04-29 | official |</p>
+<p>| 5 | NVIDIA Technical Blog | 2025 | Automating GPU Kernel Generation with DeepSeek-R1 | https://developer.nvidia.com/blog/automating-gpu-kernel-generation-with-deepseek-r1-and-inference-time-scaling/ | 2026-04-29 | official |</p>
+<p>| 6 | Zheng et al. | 2025 | A Survey of Process Reward Models | https://arxiv.org/abs/2510.08049 | 2026-04-29 | academic |</p>
+<p>| 7 | Xie et al. | 2024 | Monte Carlo Tree Search Boosts Reasoning via Iterative Preference Learning | https://arxiv.org/abs/2405.00451 | 2026-04-29 | academic |</p>
+<p>| 8 | Introl Blog | 2025 | Inference-Time Scaling Research and Reasoning Models (December 2025) | https://introl.com/blog/inference-time-scaling-research-reasoning-models-december-2025 | 2026-04-29 | blog |</p>
+<p>| 9 | AgentWiki Community | 2025 | Test-Time Compute Scaling [AI Agent Knowledge Base] | https://agentwiki.org/test_time_compute_scaling | 2026-04-29 | community |</p>
+<p>| 10 | 知乎/量子位 社群綜合 | 2025 | 測試時計算擴展 — 推理突破與實踐分析 | https://zhuanlan.zhihu.com/p/1905581145531356084 | 2026-04-29 | community |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

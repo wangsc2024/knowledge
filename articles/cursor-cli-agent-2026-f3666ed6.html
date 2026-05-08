@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="技術研究：Cursor CLI 非互動 agent 沙箱與無頭寫入（2026-05-03）">
+  <title>技術研究：Cursor CLI 非互動 agent 沙箱與無頭寫入（2026-05-03） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>技術研究：Cursor CLI 非互動 agent 沙箱與無頭寫入（2026-05-03）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Cursor CLI</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>技術研究：Cursor CLI 非互動 agent（`agent -p`）沙箱、`sandbox.json` 與無頭寫入邊界（2026-05-03）</h1>
+<h2>技術概述</h2>
+<p>Cursor CLI 讓開發者在終端機直接驅動與編輯器同源能力的 AI agent，支援互動式 <code>agent</code> 與非互動 <code>agent -p</code>（<code>--print</code>）兩類場景；後者典型用途是 PowerShell 排程、<code>run-todoist-agent-team.ps1</code> Phase 2、或 CI 內嵌的自動化任務檔 [來源: Cursor CLI overview, 2026]。與「純聊天 API」不同，CLI agent 會實際呼叫讀寫檔案、Shell、以及（若已設定）MCP 工具；因此產品方以<strong>沙箱</strong>界定「技術上允許的副程序邊界」，並以互動核准或旗標（如 <code>--force</code>、<code>--approve-mcps</code>）處理<strong>政策上是否自動放行</strong> [來源: Implementing a secure sandbox for local agents · Cursor, 2026]。相較之下，OpenAI Codex CLI 以另一套命名（<code>workspace-write</code>、<code>danger-full-access</code>）與 <code>approval_policy</code>（<code>never</code>／<code>on-request</code> 等）描述類似雙層控制，且官方文件明確區分「沙箱邊界」與「核准策略」不得混為一談 [來源: OpenAI Codex — Sandbox concepts, 2026]。本專案同時面對 Windows 本機排程、多後端路由與 <code>AGENTS.md</code> 對 CLI／MCP 的邊界說明，理解 Cursor 這條鏈路的預設與可調參數，是降低 Phase 2 假失敗與過度放寬權限的關鍵。</p>
+<h2>核心概念與原理</h2>
+<p><strong>1. 非互動 <code>-p</code> 並不等於「自動寫入」</strong>  </p>
+<p>官方中文〈參數〉說明：<code>--print</code>「可存取所有工具，包括 write 和 shell」，但無頭文件另段指出：在腳本中要<strong>實際改檔</strong>需搭配 <code>--force</code>（<code>--yolo</code> 同義），否則「僅提議變更」[來源: 參數｜Cursor Docs（zh-Hant）, 2026；使用 Headless CLI（cn）, 2026]。這解釋了常見誤解：以為 <code>-p</code> 在 CI 內必然落盤，結果只得到文字建議而無檔案 diff。原理上，無頭模式缺少互動式「套用變更」確認，故產品以 <code>--force</code> 顯式承擔風險，與互動模式的人類按鈕對齊。</p>
+<p><strong>2. <code>sandbox.json</code>：路徑、網路與合併優先序</strong>  </p>
+<p><code>sandbox.json</code> 可置於 <code>~/.cursor/sandbox.json</code>（使用者全域）與 repo 根目錄 <code>/.cursor/sandbox.json</code>（工作區）；兩者並存時<strong>工作區優先合併</strong>。欄位層級上，<code>type</code> 預設 <code>workspace_readwrite</code>，可降到 <code>workspace_readonly</code> 或 <code>insecure_none</code>（完全關閉沙箱）；<code>networkPolicy</code> 以 <code>default</code>、<code>allow[]</code>、<code>deny[]</code> 控制出站，且 <strong>deny 永遠贏過 allow</strong>；私有網段與 metadata IP 預設封鎖以降低 SSRF 面 [來源: sandbox.json Reference, 2026]。此外，<code>.cursor/*<em>/</em>.json</code>、<code>.git/config</code>、<code>.cursorignore</code> 等路徑恒為寫入保護；<code>.cursor/rules/</code>、<code>skills/</code> 等子目錄可寫，直接對應本 repo 的 Skill／規則治理目錄結構 [來源: sandbox.json Reference, 2026]。</p>
+<p><strong>3. 跨平台實作與 Windows 路徑</strong>  </p>
+<p>工程部落格說明：macOS 以動態生成的 Seatbelt profile 限制整棵子程序樹；Linux 以 Landlock + seccomp，並對 <code>.cursorignore</code> 做「不可讀寫的映射」；<strong>Windows 則在 WSL2 內執行 Linux 沙箱</strong>，原因是通用開發工具鏈的可支援原生 Windows 沙箱仍不足，官方與 Microsoft 合作推進中 [來源: Implementing a secure sandbox for local agents · Cursor, 2026]。Microsoft Learn（zh-tw）定義 WSL2 為輕量 VM 內的完整 Linux 核心，與 Windows 共用部分資源但隔離 PID／掛載等命名空間 [來源: 什麼是 WSL／WSL2, Microsoft Learn, 2025]。因此在本專案「純 pwsh + 本機 repo」場景，若 Cursor 終端沙箱依賴 WSL2，<strong>未安裝或未啟用 WSL2</strong> 可能導致與文件敘述不一致的邊界行為，需以實機 <code>agent about</code>／實際寫檔測試佐證而非臆測。</p>
+<p><strong>4. 與 Codex 威脅模型的對照（三角佐證中的一邊）</strong>  </p>
+<p>Codex 文件將沙箱描述為「讓 agent 在受限環境內自主行動」；當指令超出邊界才進入核准流程；並列出 <code>read-only</code>、<code>workspace-write</code>、<code>danger-full-access</code> 與 <code>approval_policy</code> 的組合矩陣 [來源: OpenAI Codex — Sandbox concepts, 2026]。社群曾回報 <code>workspace-write</code> + <code>never</code> 下 <code>apply_patch</code> 與 shell 寫檔皆 <code>failed in sandbox</code> 的案例（Linux 主機；issue 已關閉），顯示<strong>非互動旗標互動</strong>仍可能踩到實作／發版邊角 [來源: GitHub openai/codex#5824, 2025-2026]。與 Cursor 對照：兩者都把「技術邊界」與「人／旗標核准」拆開，但參數名與預設不完全 1:1，遷移腳本不可直接複製 Codex 參數字串到 Cursor。</p>
+<p><strong>5. MCP 與 <code>--approve-mcps</code></strong>  </p>
+<p>中文參數表列 <code>--approve-mcps</code>：「自動核准所有 MCP 伺服器」，並有 <code>agent mcp list</code> 等子命令管理設定來源（<code>.cursor/mcp.json</code>）[來源: 參數｜Cursor Docs（zh-Hant）, 2026]。論壇存在「CLI 無法正確觸發 MCP 工具」之類報告（頁面主文未完整展開），與本專案 <code>AGENTS.md</code>「CLI 需在 <code>cli.json</code> 允許 <code>Mcp(...)</code>」敘述可並讀：代表 <strong>MCP 能力 = 設定檔允許 ∩ 執行面（IDE vs CLI）支援</strong> [來源: Cursor Community Forum #129387, 2025-08 建立；AGENTS.md 專案內規範]。</p>
+<p><strong>6. 可量測的產品宣稱（實驗／營運）</strong>  </p>
+<p>Cursor 工程文宣稱：導入沙箱後，相較未沙箱化 agent「少約 40% 的核准停頓」，並輔以內部 offline eval 調整 Shell 工具錯誤訊息，使模型在權限不足時較少無效重試 [來源: Implementing a secure sandbox for local agents · Cursor, 2026]。此數字屬單一廠商營運樣本，不宜外推為普遍 SLA，但可作為「沙箱 + 更清楚錯誤回饋 → 降低人類中斷」方向的旁證。</p>
+<h2>最佳實踐</h2>
+<ol>
+<li><strong>無頭寫檔：固定帶 <code>--workspace</code> + 明確 <code>--force</code> 策略</strong>  </li>
+</ol>
+<p>   情境：Phase 2 寫 <code>results/todoist-auto-*.json</code>。依據：cn Headless 文件寫明無 <code>--force</code> 可能只產生建議 [來源: 使用 Headless CLI（cn）, 2026]。反例：在 production branch 全域 <code>--yolo</code> 與未限制 workspace，等於把「互動確認」整段移除，與沙箱精神相悖。</p>
+<ol>
+<li><strong>在 repo 根放精簡 <code>sandbox.json</code>：預設拒絕外連、白名單套件註冊表</strong>  </li>
+</ol>
+<p>   依據：<code>networkPolicy.default: deny</code> 範本與 npm／PyPI 域名白名單示例 [來源: sandbox.json Reference, 2026]。落地：對齊本專案 <code>curl ntfy</code>、<code>Todoist API</code>、Ollama 等，把真實 hostname 列入 <code>allow[]</code>，避免 agent 在沙箱內對合法監控端點無限重試。</p>
+<ol>
+<li><strong>敏感路徑留在 deny／仰賴內建保護</strong>  </li>
+</ol>
+<p>   官方已保護 <code>.git/config</code>、<code>.cursorignore</code> 等；若仍要讀 secrets，應以「工作副本不含密文」為原則，而非關閉沙箱 [來源: sandbox.json Reference, 2026]。</p>
+<ol>
+<li><strong>MCP：排程任務顯式 <code>--approve-mcps</code> 或事先 <code>agent mcp login</code></strong>  </li>
+</ol>
+<p>   依據：參數表與 <code>mcp</code> 子命令 [來源: 參數｜Cursor Docs（zh-Hant）, 2026]。反例：假設 IDE 內已登入、CLI 排程自動繼承 OAuth state——論壇路線顯示此假設不穩。</p>
+<ol>
+<li><strong>多後端／配額降級時，把 <code>cli_exit_note_zh</code> 與實際旗標寫進結果 JSON</strong>  </li>
+</ol>
+<p>   與今日 <code>todoist-history</code> 中 <code>cursor_cli</code> fallback 敘事對齊：後端切換不改變本機沙箱檔案邏輯，但改變的是「哪個二進位在跑 agent」；結果檔應記錄 <code>task_execution</code> 歸因（若 schema 有）以利 check-health [來源: Langfuse 與 daily-digest 串接筆記提及多後端 metadata；本 repo state 觀測]。</p>
+<h2>陷阱與反例</h2>
+<ol>
+<li><strong>混淆「沙箱關閉」與「核准關閉」</strong>  </li>
+</ol>
+<p>   Codex 文件與 #5824 顯示：<code>approval never</code> 仍可能在 <code>workspace-write</code> 下被沙箱拒絕寫入 [來源: OpenAI Codex — Sandbox concepts, 2026；openai/codex#5824]。若遷移心智模型到 Cursor，亦應分開看待 <code>--sandbox disabled</code> 與 <code>--force</code>。</p>
+<ol>
+<li><strong>Windows 未準備 WSL2 卻預設「與 Linux 同級沙箱」</strong>  </li>
+</ol>
+<p>   Cursor 工程文明指 Windows 走 WSL2 內 Linux 沙箱路徑 [來源: Implementing a secure sandbox for local agents · Cursor, 2026]。反例：在純 pwsh、無 WSL 的機器以文件示例推論「一定可沙箱化 npm」。</p>
+<ol>
+<li><strong>MCP 在 CLI 失敗時盲目升級到 <code>insecure_none</code></strong>  </li>
+</ol>
+<p>   論壇路徑顯示 CLI MCP 問題可能與版本／程序有關 [來源: Cursor Community Forum #129387]。若直接 <code>type: insecure_none</code> 換取工具可用，等同放棄 networkPolicy 與檔案邊界，應先比對 <code>agent mcp list</code> 與 IDE 設定差異。</p>
+<h2>與本專案（daily-digest-prompt）關聯</h2>
+<ul>
+<li><strong>Phase 2 任務檔與 <code>agent -p</code></strong>：<code>run-todoist-agent-team.ps1</code> 產生之任務內容與 <code>results/todoist-auto-*.json</code> 守門，應假設無頭模式預設不寫檔，除非腳本層已傳 <code>--force</code>；並以 <code>--workspace</code> 鎖定本 repo，避免落到錯誤工作目錄 [來源: 使用 Headless CLI（cn）, 2026]。  </li>
+<li><strong>與 <code>ntfy</code>／<code>httpx</code> 研究銜接</strong>：先前 tech_research 已覆蓋 ntfy 與 httpx；本主題補上「沙箱 <code>networkPolicy.default: deny</code> 時，必須顯式放行 <code>ntfy.sh</code> 與 KB <code>localhost:3000</code>」否則 Phase 2 內嵌 curl 測 KB 會在沙箱視角與主機實際成功不一致——應以 <code>sandbox.json</code> allow 清單治理 [來源: sandbox.json Reference, 2026]。</li>
+</ul>
+<h2>程式碼範例</h2>
+<p>以下為官方文件拼接之<strong>可執行示意</strong>（實際環境需已安裝 Cursor CLI 並完成驗證；來源：cn Headless + CLI overview）。</p>
+<pre><code>
+# 非互動檢視（可能不套用變更）
+agent -p --workspace "D:/Source/daily-digest-prompt" \
+  "列出 tools 目錄下與 ntfy 相關的 Python 模組檔名"
+
+# 非互動且允許寫入（謹慎用於自動化）
+agent -p --force --workspace "D:/Source/daily-digest-prompt" \
+  --output-format text "將 HEARTBEAT.md 第一行加上註解時間戳（若政策不允許請跳過）"
+</code></pre>
+<h2>完整參考書目</h2>
+<ol>
+<li>Cursor. (2026). <em>Cursor CLI</em>. https://www.cursor.com/docs/cli/overview （取用：2026-05-03；source_type: official；language: en）  </li>
+<li>Cursor. (2026). <em>sandbox.json reference</em>. https://cursor.com/docs/reference/sandbox （取用：2026-05-03；source_type: official；language: en）  </li>
+<li>Cursor. (2026). <em>參數（CLI 參考，zh-Hant）</em>. https://cursor.com/zh-Hant/docs/cli/reference/parameters （取用：2026-05-03；source_type: official；language: zh）  </li>
+<li>Cursor. (2026). <em>使用 Headless CLI（cn）</em>. https://cursor.com/cn/docs/cli/headless （取用：2026-05-03；source_type: official；language: zh）  </li>
+<li>Cursor Engineering. (2026). <em>Implementing a secure sandbox for local agents</em>. https://www.cursor.com/blog/agent-sandboxing （取用：2026-05-03；source_type: blog；language: en）  </li>
+<li>OpenAI. (2026). <em>Sandbox（Codex concepts）</em>. https://developers.openai.com/codex/concepts/sandboxing/ （取用：2026-05-03；source_type: official；language: en）  </li>
+<li>Microsoft. (2025). <em>什麼是適用於 Linux 的 Windows 子系統？（zh-tw）</em>. https://learn.microsoft.com/zh-tw/windows/wsl/about （取用：2026-05-03；source_type: official；language: zh）  </li>
+<li>phubaba et al. (2025-2026). <em>Issue: codex --sandbox workspace-write --ask-for-approval never cannot write files (#5824)</em>. https://github.com/openai/codex/issues/5824 （取用：2026-05-03；source_type: community；language: en）  </li>
+<li>Cursor Community. (2025). <em>Cursor Agent CLI is unable to trigger MCP tool properly</em>. https://forum.cursor.com/t/cursor-agent-cli-is-unable-to-trigger-mcp-tool-properly/129387 （取用：2026-05-03；source_type: community；language: en）</li>
+</ol>
+<p>---</p>
+<p><strong>核心主張三角佐證摘要</strong>  </p>
+<ul>
+<li>「<code>-p</code> + 寫檔需 <code>--force</code>」：<code>zh-Hant</code> 參數表 + cn Headless 兩份官方文件交叉一致。  </li>
+<li>「沙箱與核准分層」：Cursor 工程文 + OpenAI Codex 概念文 + issue #5824 反例。  </li>
+<li>「Windows 沙箱路徑依賴 WSL2」：Cursor 工程文 + Microsoft WSL2 定義。</li>
+</ul>
+<p><strong>批判審查（Phase 7）</strong>：<code>docs.cursor.com/en/cli/reference/permissions</code> 抓取正文未展開，權限細節以 <code>zh-Hant</code> 參數表與 <code>sandbox.json</code> 參考頁為主；論壇帖主文未完整載入，僅作「存在通報型問題」之低強度旁證。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
