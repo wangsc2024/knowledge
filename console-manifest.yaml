@@ -1,0 +1,68 @@
+# knowledge console manifest（舊版，與 knowledge-f 結構類似）
+
+project:
+  id: knowledge
+  category: kb
+  description: "Knowledge 知識庫舊版（含 dist/ 部署狀態 + podcast-urls.json）"
+
+sections:
+  - name: sync_log_tail
+    type: file_jsonl_tail
+    config:
+      path: sync-log.json
+      tail_lines: 5
+    stale_minutes: 1440
+    description: "sync 紀錄"
+
+  - name: articles_count
+    type: dir_count
+    config:
+      path: articles
+      recursive: true
+      only_files: true
+    description: "articles/ 內筆記檔案數"
+
+  - name: dist_state
+    type: file_size
+    config:
+      path: dist
+      threshold_mb: 100
+    description: "dist/ 部署目錄大小"
+
+  - name: podcast_urls
+    type: file_json
+    config:
+      path: podcast-urls.json
+    description: "podcast-urls.json metadata"
+
+  - name: git
+    type: git_status
+    config: {}
+    description: "git 狀態"
+
+actions:
+  sync_now:
+    kind: business
+    runner: python_uv
+    script: sync_knowledge.py
+    timeout: 600
+    confirm: false
+    description: "立即執行 sync_knowledge.py"
+
+  build_dist:
+    kind: business
+    runner: npm
+    script: build
+    timeout: 300
+    confirm: false
+    description: "vite build"
+
+health:
+  type: composite
+  rules:
+    - if: "sync_log_tail.status == stale"
+      severity: warning
+      message: "sync 超過 24 小時"
+    - if: "dist_state.status == missing"
+      severity: warning
+      message: "dist/ 不存在（尚未 build）"
