@@ -32,6 +32,24 @@ function highlight(text: string, query: string): React.ReactNode {
   )
 }
 
+// v3-site-F: prefetch on hover — 紀錄已 prefetch 的 slug 避免重複觸發
+const prefetched = new Set<string>()
+
+function prefetchArticle(slug: string) {
+  if (prefetched.has(slug)) return
+  prefetched.add(slug)
+  const url = `/data/articles/${slug}.json`
+  // 用 fetch 觸發；Service Worker (v3-site-D) 會 cache 進 kb-articles-v1
+  // priority='low' 提示瀏覽器讓給互動優先
+  try {
+    // priority='low' 在 Chromium 102+ / Safari 17.2+ 支援，型別還沒進 lib.dom
+    const opts = { method: 'GET', priority: 'low' } as RequestInit & { priority?: string }
+    fetch(url, opts).catch(() => prefetched.delete(slug)) // 失敗則允許下次重試
+  } catch {
+    prefetched.delete(slug)
+  }
+}
+
 export default function ArticleCard({ article, searchQuery, onTagClick, isRead, isComplete, isBookmarked: initialBookmarked, onBookmarkChange, readingProgress }: Props) {
   const accentColor = CATEGORY_COLOR[article.categorySlug] ?? undefined
   const views = useViewCountRead(article.slug)
@@ -45,8 +63,17 @@ export default function ArticleCard({ article, searchQuery, onTagClick, isRead, 
     onBookmarkChange?.()
   }
 
+  // v3-site-F: 滑鼠進入立即觸發 prefetch（低 priority 不擠互動）；
+  // focus 鍵盤導航也觸發（無障礙）；已 prefetched 的 slug 自動去重
+  const handleHover = () => prefetchArticle(article.slug)
+
   return (
-    <article className="article-card" style={accentColor ? { '--card-accent': accentColor } as React.CSSProperties : undefined}>
+    <article
+      className="article-card"
+      style={accentColor ? { '--card-accent': accentColor } as React.CSSProperties : undefined}
+      onMouseEnter={handleHover}
+      onFocus={handleHover}
+    >
       <div className="card-top">
         <span className={`cat-badge ${article.categorySlug}`}>{article.category}</span>
         {article.isNew && <span className="new-badge">NEW</span>}

@@ -38,6 +38,21 @@ export interface KnowledgeIndex {
   }
 }
 
+// v3-site-A: lite 版只含首屏渲染必要欄位（沒 tags / excerpt / id / category 全名）
+export interface ArticleMetaLite {
+  title: string
+  slug: string
+  categorySlug: string
+  updatedAt: string
+  readingMin: number
+  isNew?: boolean
+}
+
+export interface KnowledgeIndexLite {
+  articles: ArticleMetaLite[]
+  stats: KnowledgeIndex['stats']
+}
+
 export const CATEGORY_ORDER: { name: string; slug: string }[] = [
   { name: '佛學', slug: 'buddhism' },
   { name: '思維方法', slug: 'thinking' },

@@ -4,7 +4,7 @@ import Header from '../components/Header'
 import CategoryChart from '../components/CategoryChart'
 import FilterBar from '../components/FilterBar'
 import ArticleCard from '../components/ArticleCard'
-import type { KnowledgeIndex, ArticleMeta } from '../types'
+import type { KnowledgeIndex, ArticleMeta, KnowledgeIndexLite, ArticleMetaLite } from '../types'
 import { getReadingHistory, getReadSlugs } from '../hooks/useReadingHistory'
 import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../hooks/useSearchHistory'
 import { getBookmarks, getBookmarkedSlugs } from '../hooks/useBookmarks'
@@ -71,22 +71,78 @@ export default function Home() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // v3-site-A: 兩段式載入
+  // 1. lite (24KB br) → 立即 render 首屏
+  // 2. full (~65KB br) 背景 fetch → 啟用 tag/excerpt 全文搜尋
+  // lite 404 → fallback 直接 fetch full（向後相容舊部署）
   useEffect(() => {
-    fetch('/data/index.json')
+    const liteToFullShape = (lite: ArticleMetaLite[]): ArticleMeta[] =>
+      lite.map(a => {
+        const catFull = CATEGORY_ORDER.find(c => c.slug === a.categorySlug)?.name ?? '其他'
+        return {
+          id: '', // 待 full 補
+          title: a.title,
+          slug: a.slug,
+          category: catFull,
+          categorySlug: a.categorySlug,
+          tags: [], // lite 不含 tags；搜尋暫退 title-only
+          updatedAt: a.updatedAt,
+          excerpt: '',
+          readingMin: a.readingMin,
+          isNew: a.isNew,
+        }
+      })
+
+    const setShowCountsAll = () => {
+      const counts: Record<string, number> = {}
+      CATEGORY_ORDER.forEach(c => { counts[c.slug] = INITIAL_SHOW })
+      setShowCounts(counts)
+    }
+
+    fetch('/data/index-lite.json')
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json() as Promise<KnowledgeIndex>
+        return r.json() as Promise<KnowledgeIndexLite>
       })
-      .then(data => {
-        setIndex(data)
-        const counts: Record<string, number> = {}
-        CATEGORY_ORDER.forEach(c => { counts[c.slug] = INITIAL_SHOW })
-        setShowCounts(counts)
+      .then(liteData => {
+        const padded: KnowledgeIndex = {
+          articles: liteToFullShape(liteData.articles),
+          stats: liteData.stats,
+        }
+        setIndex(padded)
+        setShowCountsAll()
         setLoading(false)
+
+        // 背景 fetch full；用 requestIdleCallback 避免阻塞首屏 paint
+        const fetchFull = () =>
+          fetch('/data/index.json')
+            .then(r => (r.ok ? r.json() : null))
+            .then((fullData: KnowledgeIndex | null) => {
+              if (fullData) setIndex(fullData)
+            })
+            .catch(() => {/* silent — lite 已可用 */})
+        if (typeof (window as { requestIdleCallback?: typeof requestIdleCallback }).requestIdleCallback === 'function') {
+          (window as { requestIdleCallback: typeof requestIdleCallback }).requestIdleCallback(fetchFull, { timeout: 2000 })
+        } else {
+          setTimeout(fetchFull, 200)
+        }
       })
-      .catch(e => {
-        setError(e.message)
-        setLoading(false)
+      .catch(() => {
+        // index-lite.json 不存在 → 退回直接 fetch index.json
+        fetch('/data/index.json')
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`)
+            return r.json() as Promise<KnowledgeIndex>
+          })
+          .then(data => {
+            setIndex(data)
+            setShowCountsAll()
+            setLoading(false)
+          })
+          .catch(e => {
+            setError(e.message)
+            setLoading(false)
+          })
       })
   }, [])
 

@@ -442,20 +442,43 @@ def main():
             cat_counts[cat] = len(arts)
             all_articles.extend(arts)
 
-    index_data = {
-        'articles': all_articles,
-        'stats': {
-            'total': len(all_articles),
-            'categories': cat_counts,
-            'lastSync': datetime.now().isoformat(),
-        }
+    stats_block = {
+        'total': len(all_articles),
+        'categories': cat_counts,
+        'lastSync': datetime.now().isoformat(),
     }
 
+    # v3-site-A: 拆 index.json 為 lite + full
+    # lite：首屏渲染必要欄位（slug/title/categorySlug/updatedAt/readingMin/isNew），~80 chars/筆
+    # full：完整含 tags/excerpt/id/category/categorySlug，~280 chars/筆（背景 fetch）
+    # 預期：lite 約 110 KB（24 KB br）→ TTFB 首屏 -75%
+    lite_articles = [
+        {
+            'slug': a.get('slug', ''),
+            'title': a.get('title', ''),
+            'categorySlug': a.get('categorySlug', 'other'),
+            'updatedAt': a.get('updatedAt', ''),
+            'readingMin': a.get('readingMin', 1),
+            **({'isNew': True} if a.get('isNew') else {}),
+        }
+        for a in all_articles
+    ]
+
+    # full：保留全欄位（caller 可用 lite + full 拼合）
+    index_lite = {'articles': lite_articles, 'stats': stats_block}
+    index_full = {'articles': all_articles, 'stats': stats_block}
+
+    lite_path = f"{DATA_DIR}/index-lite.json"
+    with open(lite_path, 'w', encoding='utf-8') as f:
+        json.dump(index_lite, f, ensure_ascii=False, separators=(',', ':'))
+
+    # 保留 index.json 為 full 版（向後相容；Home.tsx 主路徑改 lite + 背景 full）
     index_path = f"{DATA_DIR}/index.json"
     with open(index_path, 'w', encoding='utf-8') as f:
-        json.dump(index_data, f, ensure_ascii=False, separators=(',', ':'))
+        json.dump(index_full, f, ensure_ascii=False, separators=(',', ':'))
 
-    print(f"\n✅ index.json 已寫入：{len(all_articles)} 篇文章")
+    print(f"\n✅ index-lite.json 已寫入：{len(lite_articles)} 篇文章（首屏 critical path）")
+    print(f"✅ index.json 已寫入：{len(all_articles)} 篇文章（full metadata）")
 
     # ─── 更新 sync-log.json ───────────────────────────
     synced_notes = [
