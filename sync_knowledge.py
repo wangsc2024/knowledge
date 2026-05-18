@@ -235,7 +235,7 @@ def main():
     page = 0
     while page < max_pages:
         try:
-            resp = api_get(f"/api/notes?limit={PAGE_SIZE}&offset={offset}")
+            resp = api_get(f"/api/notes?limit={PAGE_SIZE}&offset={offset}&include_content=true")
         except RuntimeError as e:
             print(f"  ⚠ API 錯誤：{e}")
             break
