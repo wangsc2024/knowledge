@@ -1,73 +1,0 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Podcast 腳本：DBSCAN 效能優化實戰">
-  <title>Podcast 腳本：DBSCAN 效能優化實戰 | 知識庫</title>
-  <link rel="stylesheet" href="../styles.css">
-</head>
-<body>
-  <header>
-    <div class="container">
-      <a href="../" class="logo">知識庫</a>
-      <nav>
-        <a href="../#buddhism">佛學</a>
-        <a href="../#thinking">思維方法</a>
-        <a href="../#ai">AI技術</a>
-        <a href="../#claude">Claude Code</a>
-      </nav>
-    </div>
-  </header>
-
-  <main class="container">
-    <article>
-      <div class="article-header">
-        <span class="category-badge category-other">其他</span>
-        <h1>Podcast 腳本：DBSCAN 效能優化實戰</h1>
-        <div class="article-meta">
-          <div class="tags"><span class="tag">Podcast製作</span><span class="tag">對話腳本</span><span class="tag">雙主持人</span><span class="tag">note-dd4c1325-20260420-152004</span></div>
-        </div>
-      </div>
-
-      <div class="article-content">
-        <h1>Podcast 腳本：DBSCAN 效能優化實戰</h1>
-<blockquote>生成時間：20260420_152004 | 輸出：<code>D:\Source\daily-digest-prompt\output\podcasts\DBSCAN效能優化實戰_202604201520.mp3</code></blockquote>
-<h2>對話腳本</h2>
-<p><strong>曉晨（解說）</strong>：今天我們來聊一個非常實務的主題：DBSCAN 和 HDBSCAN 的效能優化。這兩個聚類演算法在處理大規模資料時，會遇到什麼樣的挑戰？</p>
-<p><strong>云哲（提問）</strong>：我聽說 DBSCAN 在處理大資料集時會特別慢，甚至可能跑不動？</p>
-<p><strong>曉晨（解說）</strong>：確實如此。根據 GitHub issue #17650 的實測，一個 74 萬 5 千筆、411 維特徵的資料集，跑了超過 6 天還沒完成。更誇張的是，約 100 萬筆資料在 750GB RAM 的機器上直接記憶體溢位。</p>
-<p><strong>云哲（提問）</strong>：那該怎麼解決？總不能就放棄 DBSCAN 吧？</p>
-<p><strong>曉晨（解說）</strong>：第一個方法是近似最近鄰加速。DBSCAN 的瓶頸在於找每個點的鄰居，傳統暴力法是 O(n²) 複雜度。如果用 KD-Tree 或 Ball-Tree 這類空間索引結構，可以降到 O(n log n)。</p>
-<p><strong>云哲（提問）</strong>：KD-Tree 和 Ball-Tree 有什麼差別？什麼時候該用哪一種？</p>
-<p><strong>曉晨（解說）</strong>：KD-Tree 是遞迴二分空間，適合低維資料，通常在 20 維以下效果最好。Ball-Tree 則是用超球分割空間，可以處理任意距離度量，維度適應性更廣。scikit-learn 的 DBSCAN 預設會自動選擇，但高維時會退化回暴力法。</p>
-<p><strong>云哲（提問）</strong>：那高維資料怎麼辦？總不能直接放棄吧？</p>
-<p><strong>曉晨（解說）</strong>：NeurIPS 2024 有一篇論文提出 sDBSCAN，用隨機投影做近似，可以處理數百萬筆資料。另外一個更實務的方法是記憶體效率優化：預先建立稀疏鄰居圖。</p>
-<p><strong>云哲（提問）</strong>：稀疏鄰居圖是什麼意思？</p>
-<p><strong>曉晨（解說）</strong>：概念是這樣：不要讓 DBSCAN 每次都重新計算距離矩陣，而是先用 NearestNeighbors 建立一個稀疏的 CSR 格式圖，只記錄在 epsilon 半徑內的鄰居。記憶體複雜度從 O(n²) 降到 O(n×平均鄰居數)。GitHub 案例顯示，這個方法可以獲得 200 倍加速和 250 倍記憶體節省。</p>
-<p><strong>云哲（提問）</strong>：聽起來很有效！但我聽說 DBSCAN 的參數很難調，epsilon 和 min_samples 該怎麼選？</p>
-<p><strong>曉晨（解說）</strong>：可以用 k-distance Elbow Method。先用 NearestNeighbors 找每個點到第 k 個最近鄰的距離，把這些距離排序後畫出曲線，用 kneed 函式庫自動找到拐點，那個拐點就是建議的 epsilon 值。至於 min_samples，業界經驗法則是資料維度的 2 倍。</p>
-<p><strong>云哲（提問）</strong>：那 HDBSCAN 呢？它不是不用調 epsilon 嗎？</p>
-<p><strong>曉晨（解說）</strong>：對，HDBSCAN 的優勢就在這裡。它用 EOM 自動選群方法，在整個 epsilon 範圍內找最穩定的群集，主要只需要調 min_cluster_size 一個參數。官方文件甚至說「不應需要調整超過 3 個參數」。而且記憶體效率更好，還能開啟 approx_min_span_tree 近似加速，對準確度影響極小。</p>
-<p><strong>云哲（提問）</strong>：如果資料真的很大，比如上百萬筆，還有其他加速方法嗎？</p>
-<p><strong>曉晨（解說）</strong>：GPU 加速。NVIDIA 的 RAPIDS cuML 提供 GPU 版 HDBSCAN，實測案例顯示 300 萬筆 300 維詞嵌入，CPU 版跑超過 24 小時還沒完成，GPU 版只需 22.8 分鐘。另一個案例是 7 萬筆肺細胞 RNA 資料，CPU 29 秒，GPU 只要 1 秒，29 倍加速。</p>
-<p><strong>云哲（提問）</strong>：效果真的很驚人。那在實務上有什麼要特別注意的陷阱嗎？</p>
-<p><strong>曉晨（解說）</strong>：第一，高維資料務必先降維，超過 50 維建議先用 PCA 或 UMAP。第二，別忘了設 n_jobs=-1 用滿多核心 CPU。第三，DBSCAN 不適合串流資料，應該改用 DenStream 或 BIRCH。最後，參數掃描要設時間預算，否則 200 萬筆資料每次測試要 45 分鐘。</p>
-<p><strong>云哲（提問）</strong>：聽下來感覺 HDBSCAN 比 DBSCAN 更適合生產環境？</p>
-<p><strong>曉晨（解說）</strong>：確實如此。HDBSCAN 記憶體效率更好、自動化程度更高，而且 hdbscan 官方文件給出的效能基準顯示，午餐時間（1 小時）內兩者都能處理 100 萬筆，但過夜（8 小時）HDBSCAN 可以處理 500 萬筆，DBSCAN 只能到 250 萬筆。</p>
-<p><strong>云哲（提問）</strong>：最後想問，這些技術在實際專案中可以怎麼應用？</p>
-<p><strong>曉晨（解說）</strong>：以 daily-digest-prompt 專案為例，可以用 HDBSCAN 對研究主題的詞嵌入做密度聚類，自動發現主題群集，不需要預先指定群集數量。label 為 -1 的雜訊點還能識別研究方向過度分散的信號，輔助系統熵增診斷。未來還可以用來替代規則式的 session 異常偵測，自動學習正常 session 的邊界。</p>
-<p><strong>云哲（提問）</strong>：真是實用的技術！從演算法到生產實踐都有很多細節要注意。感謝今天的分享！</p>
-      </div>
-
-      <a href="../" class="back-link">← 返回首頁</a>
-    </article>
-  </main>
-
-  <footer>
-    <div class="container">
-      <p>Powered by RAG Knowledge Base</p>
-    </div>
-  </footer>
-</body>
-</html>
