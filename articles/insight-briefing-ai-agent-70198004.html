@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing 深度研究洞察簡報：AI Agent I/O 預算工程 — per-call Context 控制、量化監控與動態壓縮策略（2026-05-23）">
+  <title>insight-briefing 深度研究洞察簡報：AI Agent I/O 預算工程 — per-call Context 控制、量化監控與動態壓縮策略（2026-05-23） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing 深度研究洞察簡報：AI Agent I/O 預算工程 — per-call Context 控制、量化監控與動態壓縮策略（2026-05-23）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">AI Agent</span><span class="tag">token效率</span><span class="tag">context管理</span><span class="tag">快取優化</span><span class="tag">avg_io_per_call</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent I/O 預算工程：per-call Context 控制、量化監控與動態壓縮策略（2026）</h1>
+<p><strong>日期</strong>：2026-05-23</p>
+<p><strong>任務</strong>：insight_briefing</p>
+<p><strong>主題</strong>：AI Agent Token 效率工程——per-call I/O 預算控制、量化監控與動態壓縮策略 2026</p>
+<p><strong>驅動因素</strong>：本系統 <code>avg_io_per_call=20,109</code>（超標準值 12,000 約 67%）；<code>cache_hit_ratio=0.283</code>（低於 0.4 警戒線）</p>
+<h2>摘要</h2>
+<p>AI Agent 系統中，Context 膨脹是隱性成本的主要來源：每次呼叫的輸入 token 成本隨 Context 累積線性增長，而工具輸出、歷史對話、系統提示三者合計往往佔用 70% 以上的 per-call 預算。2025–2026 年業界已發展出五條可量化的干預路徑：（1）工具輸出過濾（67% 削減）、（2）階層式記憶壓縮（60–80%）、（3）提示快取（50–90% 成本降幅）、（4）語義快取（73% 高重複工作流）、（5）動態閾值監控（三級預警 70%→85%→90% 觸發自動緊縮）。</p>
+<h2>一、問題根因：Context 膨脹的三個驅動因素</h2>
+<h3>1.1 工具輸出冗餘</h3>
+<p>工具回應是 per-call 預算最大的殺手。若 Agent 使用 46 個工具、每個工具回應平均 150 token，單次工具輸出即佔 6,900 token；過濾至 15 個相關工具後降至 2,250 token（<strong>削減 67%</strong>）。關鍵原則：<strong>在接收工具回應時立即過濾，而非推遲到壓縮階段</strong>。</p>
+<h3>1.2 對話歷史累積</h3>
+<p>無優化的 20 輪對話累積 5,000–10,000 token；加入 BufferWindow 滑動窗口（保留近 5 輪完整）+ 歷史壓縮（3:1 至 5:1 比例）後降至 500–1,000 token（<strong>削減 90%</strong>）。</p>
+<h3>1.3 靜態系統提示未快取</h3>
+<p>靜態內容本應達到 <strong>95%+ 快取命中率</strong>；而本系統 cache_hit_ratio=0.283 顯示快取利用率嚴重不足。</p>
+<h2>二、五項核心洞見</h2>
+<h3>洞見 1：工具輸出過濾效益最大，應為第一優先</h3>
+<ul>
+<li>生產建議壓縮比：工具輸出 <strong>10:1 到 20:1</strong></li>
+<li>工具數量管理：每次呼叫注入不超過 15 個相關工具</li>
+<li>avg_io_per_call=20,109；若工具輸出佔 60%，僅此項即可降至 ~12,000</li>
+</ul>
+<h3>洞見 2：三層記憶架構是 Agent 長時間運行的必需基礎設施</h3>
+<ul>
+<li>短期（最近 3–5 輪）：完整保留逐字內容</li>
+<li>中期（3–10 輪前）：摃桿萃取式摘要壓縮（3:1 至 5:1）</li>
+<li>長期（10 輪前）：只保留提取的事實與決策</li>
+<li>Auto Compaction 觸發後平均縮小 60–80%</li>
+</ul>
+<h3>洞見 3：提示快取是 cost/call 最高 ROI 的優化項</h3>
+<ul>
+<li>Prompt Cache 命中：成本降低 <strong>50–90%</strong></li>
+<li>靜態段落可達 <strong>95%+ 命中率</strong></li>
+<li>快取命中率 40% 目標：增加 static prefix 長度 + 減少 session 間靜態內容變動</li>
+</ul>
+<h3>洞見 4：動態閾值監控（三級預警）優於靜態 hard-cap</h3>
+<ul>
+<li>70%：警示 → 85%：強烈警示 → 90%：自動緊縮</li>
+<li>建議 P95 per-call 超過 15,000 → warning；超過 20,000 → 觸發 context-compressor Skill</li>
+</ul>
+<h3>洞見 5：語義快取對高重複查詢有 73% 成本降幅</h3>
+<ul>
+<li>語意等效查詢命中快取，毫秒 vs 秒回應</li>
+<li>高重複工作流（health-check / log-query）成本削減 73%</li>
+</ul>
+<h2>三、Context Utilization Rate：被忽略的核心指標</h2>
+<ul>
+<li><strong>Context Utilization Rate 目標</strong>：60–80%（低於 60% = 過度配置；高於 80% = 容量風險）</li>
+<li>模型實際有效利用率僅 30–60%（「lost in the middle」問題）</li>
+<li><strong>量化指標組合</strong>：avg_io_per_call + P95 per-call + cache_hit_ratio + context_utilization_rate</li>
+</ul>
+<h2>四、建議行動</h2>
+<p>| 優先級 | 行動 | 預期效果 | 難度 |</p>
+<p>|--------|------|---------|------|</p>
+<p>| P0 | 工具回應接收時立即截斷 | avg_io_per_call -40~60% | 中 |</p>
+<p>| P0 | 靜態系統 prompt 前綴固定化 | cache_hit_ratio +20~40% | 低 |</p>
+<p>| P1 | 實施 BufferWindow（最近 5 輪完整 + 歷史摘要） | 長時間 session token -70% | 中 |</p>
+<p>| P1 | avg_io_per_call 趨勢告警（15k→warning, 20k→auto-compact） | 預防性干預 | 低 |</p>
+<p>| P2 | 語義快取層（高重複 health-check / log-query） | per-query cost -73% | 高 |</p>
+<p>| P2 | 三層記憶架構 | 長期 Agent cost -60~80% | 高 |</p>
+<h2>五、參考來源</h2>
+<ol>
+<li>Context Engineering for AI Agents: Token Economics — Maxim AI</li>
+<li>LLM Token Optimization: Cut Costs & Latency in 2026 — Redis</li>
+<li>Context Window Management for Long-Context AI Agents — Maxim AI</li>
+<li>AI Agent Token Budget Management: Claude Code — MindStudio</li>
+<li>Active Context Compression: Autonomous Memory Management — arXiv 2601.07190</li>
+<li>ACON: Optimizing Context Compression for Long-horizon LLM Agents — arXiv 2510.00615</li>
+<li>ContextBudget: Budget-Aware Context Management — arXiv 2604.01664</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
