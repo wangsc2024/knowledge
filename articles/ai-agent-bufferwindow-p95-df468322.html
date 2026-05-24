@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Agent 記憶壓縮實作模式：BufferWindow 三層架構與 P95 監控閾值設計（insight-briefing 2026-05-24）">
+  <title>AI Agent 記憶壓縮實作模式：BufferWindow 三層架構與 P95 監控閾值設計（insight-briefing 2026-05-24） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AI Agent 記憶壓縮實作模式：BufferWindow 三層架構與 P95 監控閾值設計（insight-briefing 2026-05-24）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">AI記憶架構</span><span class="tag">BufferWindow</span><span class="tag">LangGraph</span><span class="tag">token預算</span><span class="tag">記憶壓縮</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent 記憶壓縮實作模式：BufferWindow 三層架構與 P95 監控閾值設計</h1>
+<p><strong>日期</strong>：2026-05-24</p>
+<p><strong>類型</strong>：insight_briefing</p>
+<p><strong>主題 slug</strong>：ai-agent-memory-compression-bufferwindow-2026</p>
+<p><strong>研究策略</strong>：延續 2026-05-23 I/O 預算工程報告，深化記憶架構具體實作</p>
+<p>---</p>
+<h2>摘要</h2>
+<p>隨著 LLM Agent 部署規模擴大，記憶體管理成為成本與效能的核心瓶頸。2025–2026 年學術與工程界同步提出多種壓縮策略：從 LangGraph checkpointing 取代 BufferWindow、Active Context Compression 鋸齒形壓縮、兩層語義記憶到 P95 監控告警體系。本次研究梳理 4 個主要實作方向，整合指標數字，提出適用於本系統（avg_io_per_call=20,109、cache_hit_ratio=0.283）的優先改善路徑。</p>
+<p>---</p>
+<h2>核心洞見</h2>
+<h3>洞見 1：LangChain 官方已廢棄 BufferWindow，遷移至 LangGraph Checkpointing</h3>
+<p>LangChain v0.3.1 起，ConversationBufferWindowMemory、ConversationBufferMemory、ConversationSummaryMemory 全部標記為 <strong>deprecated</strong>。官方推薦改用 <strong>LangGraph checkpointing</strong>，原因：</p>
+<ul>
+<li>內建多執行緒持久化（跨 session 不需手動序列化）</li>
+<li>支援 time travel（可回退至特定檢查點）</li>
+<li>與 LangGraph StateGraph 深度整合，無需另外管理 memory 物件</li>
+</ul>
+<p><strong>對本系統影響</strong>：若任何 workflow 仍使用 <code>ConversationBufferWindowMemory</code>，需優先遷移；否則 v0.3.x 升版後靜默 fallback 到無記憶模式，導致 quality 分數下降而難以察覺。</p>
+<p>---</p>
+<h3>洞見 2：Active Context Compression（Focus 架構）—— 鋸齒形壓縮降低 22.7% token</h3>
+<p>Focus 架構（Active Context Compression，arXiv 2601.07190）採用兩個核心原語：</p>
+<ul>
+<li><strong><code>start_focus</code></strong>：標記探索起點</li>
+<li><strong><code>complete_focus</code></strong>：生成學習總結 + 刪除原始交互，僅保留「知識區塊」</li>
+</ul>
+<p>效果（SWE-bench 基準）：</p>
+<p>| 指標 | 數字 |</p>
+<p>|------|------|</p>
+<p>| 總 token 削減 | 22.7%（1,490 萬 → 1,150 萬）|</p>
+<p>| 最高單任務壓縮率 | 57% |</p>
+<p>| 平均每任務壓縮次數 | 6.0 次 |</p>
+<p>| 準確率影響 | 0%（60% → 60%，無犧牲）|</p>
+<p><strong>關鍵設計原則</strong>：每 10–15 次工具呼叫強制壓縮一次（積極提示策略）。探索密集型任務效益最大；反覆迭代型任務可能增加額外開銷，需按任務類型分類應用。</p>
+<p>---</p>
+<h3>洞見 3：兩層記憶架構 vs 全文脈——P95 延遲降幅 92%，準確率反升</h3>
+<p>LoCoMo benchmark 多 session 回憶測試數據：</p>
+<p>| 架構 | 準確率 | P95 延遲 | 每查詢 token 數 |</p>
+<p>|------|--------|----------|----------------|</p>
+<p>| 全文脈（Full-context）| 72.9% | 17.12 秒 | 26,000 |</p>
+<p>| <strong>兩層記憶架構</strong> | <strong>91.6%</strong> | <strong>1.44 秒</strong> | <strong>6,956</strong> |</p>
+<p>兩層架構設計：</p>
+<ol>
+<li><strong>工作記憶（短期）</strong>：最近 K 次交互的滑窗，直接放入 prompt</li>
+<li><strong>知識記憶（長期）</strong>：語義壓縮後的事實庫，透過向量相似度按需檢索</li>
+</ol>
+<p>反直覺結論：<strong>壓縮後準確率反而更高</strong>，原因是全文脈中大量低熵噪聲（重複日誌、非任務對話）會干擾模型注意力機制。</p>
+<p>---</p>
+<h3>洞見 4：SimpleMem 語義壓縮——事實化去重解決多 session 參照漂移</h3>
+<p>SimpleMem（arXiv 2601.02553）的三步壓縮流水線：</p>
+<ol>
+<li><strong>事實化（Factification）</strong>：將對話片段轉為獨立、自含事實（消除「它」「上一個」等指代歧義）</li>
+<li><strong>時間正規化</strong>：統一時態，避免「明天」「昨天」等相對時間在後續 session 產生誤判</li>
+<li><strong>冗餘過濾</strong>：語義 + 詞彙 + 符號三訊號聯合去重，保留高資訊密度內容</li>
+</ol>
+<p>適用場景：跨 session 長期對話（如本系統的 continuity 記憶機制），比 SummaryMemory 更精準，因為保留了獨立事實粒度而非連貫敘事。</p>
+<p>---</p>
+<h3>洞見 5：Token 預算監控告警體系——62% 支出來自重複發送</h3>
+<p>根據 LeanOps 2026 報告（實測 production Agent 成本分析）：</p>
+<ul>
+<li><strong>62% 支出</strong>用於重新發送相同內容（系統提示 + 工具定義 + 歷史對話）</li>
+<li>5 步 Agent 迴圈成本 = 單次呼叫的 <strong>3.2 倍</strong></li>
+<li>P10-P90 成本差距達 <strong>20 倍</strong>（取決於模型選擇與快取命中率）</li>
+</ul>
+<p>推薦監控告警閾值體系：</p>
+<p>| 層級 | 條件 | 動作 |</p>
+<p>|------|------|------|</p>
+<p>| 軟告警 | 日支出 > $50 或 avg_io > 15,000 | ntfy priority=3，記錄 backlog |</p>
+<p>| 硬限制 | 日支出 > $100 或 avg_io > 20,000 | 強制切換至較小模型 |</p>
+<p>| 月上限 | 月支出 > $1,000 | 需人工批准繼續 |</p>
+<p>| 單 session | 單 session > $20 或 > 50,000 tokens | 即時觸發壓縮 |</p>
+<p><strong>對本系統直接映射</strong>：avg_io_per_call=20,109 已觸達「硬限制」區間（閾值 20,000），cache_hit_ratio=0.283 遠低於 40% 目標 → P0 優先治理。</p>
+<p>---</p>
+<h2>建議行動</h2>
+<ol>
+<li><strong>P0（立即）</strong>：確認所有 LangGraph workflow 已遷移 BufferWindow → Checkpointing；若有 ConversationBufferWindowMemory 殘留，開啟 deprecation warning 觀察</li>
+<li><strong>P0（本週）</strong>：avg_io_per_call 超 20,000 觸發硬限制 → 在 <code>tools/context_budget_monitor.py</code> 或 <code>config/benchmark.yaml</code> 補入 <code>hard_cap: 20000</code>，超標自動切換 haiku 系列</li>
+<li><strong>P1（本週）</strong>：在 <code>check-health.ps1</code> 加入 P95 延遲監控區塊（per task_key，目標 P95 < 5 秒）</li>
+<li><strong>P1（下週）</strong>：對 research 類任務試點 Active Context Compression 的「每 10–15 工具呼叫強制壓縮」策略，預期削減 token 22–57%</li>
+<li><strong>P2（月底）</strong>：評估 SimpleMem 事實化機制應用於 <code>context/continuity/</code> 記憶層，解決跨 session 指代漂移問題</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://arxiv.org/html/2601.07190v1">Active Context Compression: Autonomous Memory Management in LLM Agents</a> — arXiv 2601.07190</li>
+<li><a href="https://arxiv.org/html/2601.02553v1">SimpleMem: Efficient Lifelong Memory for LLM Agents</a> — arXiv 2601.02553</li>
+<li><a href="https://arxiv.org/pdf/2603.07670">Memory for Autonomous LLM Agents: Mechanisms, Evaluation, and Emerging Frontiers</a> — arXiv 2603.07670</li>
+<li><a href="https://muegenai.com/docs/data-science/building-llm-powered-applications-with-langchain-langgraph/module-2-langchain-core-concepts/langchain-memory-conversationbuffer-tokenbuffer-summarymemory/">LangChain Memory Types 2026 — BufferWindow, SummaryMemory 實作指引</a></li>
+<li><a href="https://leanopstech.com/blog/agentic-ai-cost-runaway-token-budget-2026/">AI Agents Burn 50x More Tokens Than Chats — LeanOps 2026</a></li>
+<li><a href="https://medium.com/predict/context-management-for-ai-agents-the-definitive-guie-ad2c859fa5e9">Context Management for AI Agents: The Definitive Guide (May 2026)</a></li>
+<li><a href="https://dev.to/waxell/ai-agent-context-window-cost-the-compounding-math-your-architecture-is-hiding-2227">AI Agent Context Window Cost: The Compounding Math</a></li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
