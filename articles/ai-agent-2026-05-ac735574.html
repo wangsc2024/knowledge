@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Agent 工具呼叫品質工程：三層錯誤分類、精準度量化與自動糾錯機制設計（2026-05-25）">
+  <title>AI Agent 工具呼叫品質工程：三層錯誤分類、精準度量化與自動糾錯機制設計（2026-05-25） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>AI Agent 工具呼叫品質工程：三層錯誤分類、精準度量化與自動糾錯機制設計（2026-05-25）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">AI Agent</span><span class="tag">工具呼叫品質</span><span class="tag">ReAct</span><span class="tag">自動糾錯</span><span class="tag">ToolCritic</span><span class="tag">RAG-Repair</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI Agent 工具呼叫品質工程：三層錯誤分類、精準度量化與自動糾錯機制設計（2026-05-25）</h1>
+<p><strong>研究日期</strong>：2026-05-25</p>
+<p><strong>Task Type</strong>：insight_briefing</p>
+<p><strong>Topic Slug</strong>：agent-tool-call-quality-engineering-2026</p>
+<p><strong>研究深度</strong>：adequate（4 個來源，A 級 2 個、B 級 1 個，交叉驗證 3 個核心事實）</p>
+<p>---</p>
+<h2>執行摘要（約 200 字）</h2>
+<p>2025-2026 年間，AI Agent 工具呼叫品質工程從「結果正確性」進化為「多層精準度量化 + 閉環自動糾錯」的工程實踐。ToolCritic（2025）定義 8 類工具呼叫錯誤並透過診斷回饋實現 +13% 準確率提升；RAG-Repair 針對執行後語義錯誤，結合 RAG 上下文修復達 7-15% pass rate 改善。Datadog 2026 年生產數據揭示：每月 840 萬次 LLM 錯誤中 rate limit 佔 1/3，僅 28% 利用 prompt cache，工具呼叫品質監控尚未成業界標配。</p>
+<p>本報告提煉 5 項核心洞見，涵蓋三層錯誤分類框架、多維精準度指標、雙軌自動糾錯設計、生產觀測盲點，以及評估閉環架構，可直接對映本系統 <code>tool_calling_quality_audit</code> 自動任務的改善方向。</p>
+<p>---</p>
+<h2>核心洞見</h2>
+<h3>洞見 1：工具呼叫錯誤的三層分類框架</h3>
+<p>ToolCritic（arXiv:2510.17052）定義 <strong>8 類工具呼叫錯誤</strong>，可按偵測時機分為三層：</p>
+<p>| 層級 | 偵測時機 | 典型錯誤類型 | 修復難度 |</p>
+<p>|------|---------|------------|---------|</p>
+<p>| L1 靜態 | 執行前 | 工具名稱幻覺（hallucination）、語法錯誤、參數類型不符 | 低（規則可偵測）|</p>
+<p>| L2 動態 | 執行中 | 參數值語義錯誤、提前呼叫（premature invocation）| 中（需上下文判斷）|</p>
+<p>| L3 反思 | 執行後 | 輸出誤解（argument misalignment）、結果循環依賴 | 高（需 RAG 修復）|</p>
+<p><strong>來源</strong>：<a href="https://arxiv.org/pdf/2510.17052">ToolCritic: Detecting and Correcting Tool-Use Errors in Dialogue Systems</a> — A 級</p>
+<p><strong>本系統對映</strong>：<code>tools/tool_calling_quality_audit</code> 的三層管線（parse→validate→semantic）對應此框架，但 L3 反思層尚無自動修復機制。</p>
+<p>---</p>
+<h3>洞見 2：工具選擇精準度的五維量化指標</h3>
+<p>Maxim AI 評估指南（getmaxim.ai）與 TRAJECT-Bench（arXiv:2510.04550）定義工具呼叫精準度需同時量化 <strong>5 個維度</strong>：</p>
+<ol>
+<li><strong>工具選擇準確率</strong>（Tool Selection Accuracy）：是否選對工具（0-1 分）</li>
+<li><strong>呼叫決策 F1</strong>（Invocation F1）：是否該呼叫工具 — 偽陽性（無需呼叫卻呼叫）vs 偽陰性（需要呼叫卻不呼叫）</li>
+<li><strong>參數生成精準率</strong>（Parameter Accuracy）：工具選對但參數錯誤（最常見缺口）</li>
+<li><strong>執行成功率</strong>（Execution Success Rate）：工具呼叫實際成功比例</li>
+<li><strong>工具序列精準率</strong>（Sequence Accuracy）：多步驟工具呼叫的順序與依賴正確性</li>
+</ol>
+<p><strong>來源</strong>：<a href="https://www.getmaxim.ai/articles/observability-and-evaluation-strategies-for-tool-calling-ai-agents-a-complete-guide">Observability and Evaluation Strategies for Tool-Calling AI Agents</a> — B 級</p>
+<p><strong>本系統對映</strong>：現有 <code>tool_calling_quality_audit</code> 僅追蹤第 1、4 維度，缺乏呼叫決策 F1 與序列精準率。</p>
+<p>---</p>
+<h3>洞見 3：雙軌自動糾錯架構 — 前置診斷 + 後置 RAG 修復</h3>
+<p>2025 年研究收斂出「雙軌」自動糾錯設計：</p>
+<p><strong>軌道 A：ToolCritic 前置診斷回饋</strong></p>
+<pre><code>
+工具呼叫生成 → ToolCritic 偵測錯誤 → 生成 "thought" 回饋 → 主 LLM 自我修正
+準確率提升：+13%（vs zero-shot baseline）
+</code></pre>
+<p><strong>軌道 B：RAG-Repair 後置反思修復</strong>（arXiv:2510.17874）</p>
+<pre><code>
+工具執行失敗 → 分析失敗類型 → RAG 從官方文件檢索修復上下文 → 重生成工具呼叫
+pass rate 改善：+7 至 +15%（因模型而異）
+correctness 改善：+36%
+最大受益：小模型（Llama3.1 8B: +24%）
+</code></pre>
+<p><strong>關鍵發現</strong>：troubleshooting 文件作為 RAG 來源比官方文件高出 <strong>10%</strong> pass rate，因其含有具體的錯誤情境與修復路徑。</p>
+<p><strong>來源</strong>：<a href="https://arxiv.org/html/2510.17874v1">Repairing Tool Calls Using Post-tool Execution Reflection and RAG</a> — A 級</p>
+<p>---</p>
+<h3>洞見 4：生產觀測盲點 — 2026 Datadog 數據揭示三個缺口</h3>
+<p><a href="https://www.datadoghq.com/state-of-ai-engineering/">Datadog State of AI Engineering 2026</a> 揭示生產環境現況：</p>
+<p>| 指標 | 數值 | 意涵 |</p>
+<p>|------|------|------|</p>
+<p>| LLM 呼叫錯誤率（2026-03）| 2% | 840 萬次/月錯誤 |</p>
+<p>| Rate limit 佔比 | ~1/3 錯誤 | 容量設計問題，非工具品質問題 |</p>
+<p>| Single-service-call agents | 59% | 多數 Agent 為 monolithic，工具序列品質問題被低估 |</p>
+<p>| Prompt cache 利用率 | 28% | 嚴重低估，與工具呼叫重複成本直接相關 |</p>
+<p>| Agent 框架採用率 | 9% → 18%（2025-2026）| 可觀測性需求倍增 |</p>
+<p><strong>三個工具品質盲點</strong>：</p>
+<ol>
+<li>Rate limit 錯誤與工具呼叫品質問題混合統計，掩蓋真實工具錯誤率</li>
+<li>59% 單次呼叫 agents 的品質監控完全缺失（沒有序列追蹤）</li>
+<li>工具呼叫評估尚未成為業界標配（相較對話品質評估普遍滯後）</li>
+</ol>
+<p>---</p>
+<h3>洞見 5：「推理陷阱」— 強化 LLM 推理反而加劇工具幻覺</h3>
+<p>The Reasoning Trap（arXiv:2510.22977，2025）提出反直覺發現：<strong>強化 LLM 推理能力（chain-of-thought、long reasoning）反而會放大工具幻覺</strong>。</p>
+<p>機制：</p>
+<ul>
+<li>更長的推理鏈 → 更多中間步驟 → 更多「自圓其說」機會 → 工具呼叫決策更易偏離事實</li>
+<li>工具幻覺（fabricating tool name / parameters）在 reasoning-enhanced 模型中高於同等 instruct 模型</li>
+</ul>
+<p><strong>實務建議</strong>：</p>
+<ol>
+<li>工具路由層應保持<strong>短路徑決策</strong>（routing logic 越簡單越好，勿在工具選擇前做多步推理）</li>
+<li>高精準度場景：工具選擇用 classifier（deterministic）而非 LLM reasoning</li>
+<li>評估時分開追蹤 reasoning-trace 步驟數 vs 工具呼叫準確率，尋找「甜蜜點」</li>
+</ol>
+<p><strong>來源</strong>：<a href="https://arxiv.org/html/2510.22977v1">The Reasoning Trap: How Enhancing LLM Reasoning Amplifies Tool Hallucination</a> — A 級</p>
+<p>---</p>
+<h2>建議行動</h2>
+<ol>
+<li><strong>補齊 5 維量化指標</strong>：<code>tool_calling_quality_audit</code> 補充呼叫決策 F1（偽陽性/偽陰性）與工具序列精準率追蹤</li>
+<li><strong>建立 troubleshooting 文件 RAG 庫</strong>：將 <code>tools/TOOL_INDEX.md</code> 與常見錯誤模式建立 RAG 快捷索引，支援 L3 自動修復</li>
+<li><strong>隔離 rate limit 錯誤</strong>：從工具品質指標中過濾 <code>429/rate_limit</code> 錯誤，確保真實工具選擇準確率可見</li>
+<li><strong>工具路由保持 deterministic</strong>：高頻工具路由（ntfy/KB/Todoist）改用規則路由或分類器，避免 LLM reasoning 引入幻覺</li>
+</ol>
+<p>---</p>
+<h2>來源品質評估</h2>
+<pre><code>
+{
+  "research_topic": "AI Agent 工具呼叫品質工程：三層錯誤分類、精準度量化與自動糾錯機制",
+  "queries_used": [
+    "AI Agent tool calling quality engineering ReAct framework tool routing accuracy 2026",
+    "LLM agent tool call error classification automatic correction mechanism 2025 2026",
+    "agent tool calling benchmark evaluation tool selection accuracy false positive 2025",
+    "ToolCritic post-execution repair tool call hallucination correction LLM agent 2025"
+  ],
+  "sources_count": 5,
+  "grade_distribution": {"A": 3, "B": 1, "C": 0, "D": 0},
+  "cross_verified_facts": 3,
+  "unverified_claims": 1,
+  "research_depth": "adequate",
+  "confidence_level": "high"
+}
+</code></pre>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://arxiv.org/pdf/2510.17052">ToolCritic: Detecting and Correcting Tool-Use Errors in Dialogue Systems</a> — A 級 | arXiv:2510.17052 (2025)</li>
+<li><a href="https://arxiv.org/html/2510.17874v1">Repairing Tool Calls Using Post-tool Execution Reflection and RAG</a> — A 級 | arXiv:2510.17874 (2025)</li>
+<li><a href="https://arxiv.org/html/2510.22977v1">The Reasoning Trap: How Enhancing LLM Reasoning Amplifies Tool Hallucination</a> — A 級 | arXiv:2510.22977 (2025)</li>
+<li><a href="https://www.getmaxim.ai/articles/observability-and-evaluation-strategies-for-tool-calling-ai-agents-a-complete-guide">Observability and Evaluation Strategies for Tool-Calling AI Agents</a> — B 級 | Maxim AI (2025)</li>
+<li><a href="https://www.datadoghq.com/state-of-ai-engineering/">State of AI Engineering 2026</a> — B 級 | Datadog (2026)</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
