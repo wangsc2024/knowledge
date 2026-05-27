@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="kb_system_optimize 2026-05-27：post_tool_logger 監控盲區修補（kb_hybrid_cached cache-read 標籤缺失）">
+  <title>kb_system_optimize 2026-05-27：post_tool_logger 監控盲區修補（kb_hybrid_cached cache-read 標籤缺失） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>kb_system_optimize 2026-05-27：post_tool_logger 監控盲區修補（kb_hybrid_cached cache-read 標籤缺失）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">kb_system_optimize</span><span class="tag">monitoring</span><span class="tag">cache</span><span class="tag">post_tool_logger</span><span class="tag">技術修補</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>問題診斷</h2>
+<p><strong>cache_hit_ratio = 0.202</strong> 假警報根因：<code>kb_hybrid_cached.py</code> 透過 Bash 呼叫時，<code>classify_bash()</code> 只加 <code>python</code> tag，未加 <code>cache-read</code>（命中）或 <code>api-call</code>（未命中），導致 <code>compute_system_metrics.py</code> 的公式分子分母皆缺失。</p>
+<p>公式：<code>cache_hit_ratio = cache_reads / (cache_reads + cacheable_api_calls)</code></p>
+<ul>
+<li><code>cache_reads</code>：計 <code>cache-read</code> tag 的事件</li>
+<li><code>cacheable_api_calls</code>：計 <code>api-call</code> tag 且 summary 含 <code>/api/search/hybrid</code> 的事件</li>
+</ul>
+<p>7 天滾動視窗混入前幾日大量原始 API 呼叫，使比例失真；單日 5/26、5/27 實際比例均為 1.000。</p>
+<h2>修補方案（Plan B）</h2>
+<p>新增 <code>_apply_kb_hybrid_cached_tags(cmd, tool_output, tags, summary)</code> helper（<code>hooks/post_tool_logger.py</code>），在 <code>main()</code> Bash 分支呼叫 <code>classify_bash</code> 後緊接呼叫：</p>
+<ul>
+<li><code>status=hit</code> 或 <code>status=miss_stale_fallback</code> → 加 <code>cache-read</code>（計入分子）</li>
+<li><code>status=miss</code> → 加 <code>api-call</code> + summary 補 <code> [/api/search/hybrid]</code>（計入分母，<code>classify_api_call</code> 辨識為 <code>cacheable_kb_search</code>）</li>
+</ul>
+<h2>驗證結果</h2>
+<ul>
+<li><code>uv run pytest tests/hooks/test_post_tool_logger.py -q</code>：137/137 PASS（+5 新增迴歸測試）</li>
+<li><code>hooks/validate_config.py --check-auto-tasks</code>：96 個自動任務一致</li>
+<li>Plan A（tests/console 5 errors）：已由 <code>tests/console/conftest.py</code> 的 <code>pytest_ignore_collect</code> 在 5/24 前修復，無需重複處理</li>
+</ul>
+<h2>標籤</h2>
+<p><code>kb_system_optimize</code>, <code>monitoring</code>, <code>cache</code>, <code>post_tool_logger</code>, <code>技術修補</code></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
