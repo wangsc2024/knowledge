@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing 深度研究洞察簡報：可觀測性工程進階 — OpenTelemetry 分散式追蹤、AI 管線 Span 設計與成本歸因實踐">
+  <title>insight-briefing 深度研究洞察簡報：可觀測性工程進階 — OpenTelemetry 分散式追蹤、AI 管線 Span 設計與成本歸因實踐 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing 深度研究洞察簡報：可觀測性工程進階 — OpenTelemetry 分散式追蹤、AI 管線 Span 設計與成本歸因實踐</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">OpenTelemetry</span><span class="tag">可觀測性</span><span class="tag">分散式追蹤</span><span class="tag">LLM成本</span><span class="tag">AI管線</span><span class="tag">軟體工程</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>可觀測性工程進階：OpenTelemetry 分散式追蹤、AI 管線 Span 設計與成本歸因實踐</h1>
+<p><strong>日期</strong>：2026-05-28</p>
+<p><strong>類別</strong>：軟體工程方法論 / 可觀測性</p>
+<p><strong>來源品質</strong>：A 級 3 篇（opentelemetry.io 官方、uptrace.dev、redhat.com），B 級 2 篇</p>
+<h2>摘要</h2>
+<p>OpenTelemetry 的 GenAI 語義約定（Semantic Conventions）在 2026 Q1 進入穩定版，為 LLM 呼叫的 token 計數、成本歸因、多 Agent 追蹤提供了跨廠商統一標準。關鍵數據：output tokens 成本為 input tokens 的 4–8 倍，cache_read tokens 已納入標準屬性集，auto-instrumentation 的 OTel overhead 不足 1ms/call。</p>
+<h2>核心洞見</h2>
+<h3>洞見 1：GenAI 語義約定 2026 Q1 穩定版——標準屬性集已確立</h3>
+<p>必填：gen_ai.operation.name、gen_ai.provider.name</p>
+<p>推薦（token 計數）：gen_ai.usage.input_tokens、gen_ai.usage.output_tokens、gen_ai.usage.cache_read.input_tokens、gen_ai.usage.cache_creation.input_tokens</p>
+<p>Span 命名：{gen_ai.operation.name} {gen_ai.request.model}</p>
+<h3>洞見 2：成本歸因公式與 Output Token 主導性</h3>
+<p>Cost (USD) = (input_tokens × input_rate + output_tokens × output_rate) / 1,000,000</p>
+<p>2026 年 4 月定價：Claude Sonnet 4.6 $3.00/$15.00（5×），GPT-5 $1.25/$10.00（8×）</p>
+<p>Output tokens 成本為 input tokens 的 4–8 倍，completion 長度是主要成本驅動。</p>
+<h3>洞見 3：Span 層級設計——父子結構與 Context Propagation</h3>
+<p>父 span（agent.run）聚合總成本，子 span 記錄各步驟成本。W3C traceparent header 跨服務邊界傳遞 trace context。Auto-instrumentation overhead < 1ms/call。</p>
+<h3>洞見 4：隱私優先的 Prompt 捕捉設計</h3>
+<p>Prompt 預設不捕捉（privacy-first），改用 Span Events（可在 Collector 層過濾）而非 Span Attributes。內容上限 500–1000 字元。</p>
+<h3>洞見 5：四大成本優化信號</h3>
+<ol>
+<li>模型降級空間：output_tokens 少但成本高</li>
+<li>Prompt 膨脹：input_tokens 單調增長</li>
+<li>重試循環：同 operation 多次 LLM 呼叫</li>
+<li>對話歷史增長：per turn input_tokens 線性增加</li>
+</ol>
+<h2>建議行動（本系統）</h2>
+<ol>
+<li>近期：post_tool_logger.py 拆分 cache_read_tokens 與 billable_tokens</li>
+<li>中期：autonomous_harness.py 加入 phase_cost_usd 至 spans 結構</li>
+<li>長期：評估整合 opentelemetry-instrumentation-anthropic 套件</li>
+</ol>
+<h2>參考來源</h2>
+<ul>
+<li>[A] https://opentelemetry.io/blog/2025/ai-agent-observability/</li>
+<li>[A] https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/</li>
+<li>[A] https://developers.redhat.com/articles/2026/04/06/distributed-tracing-agentic-workflows-opentelemetry</li>
+<li>[B] https://uptrace.dev/blog/llm-cost-monitoring</li>
+<li>[B] https://oneuptime.com/blog/post/2026-02-06-track-token-usage-prompt-costs-model-latency-opentelemetry/view</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
