@@ -31,519 +31,66 @@
       </div>
 
       <div class="article-content">
-        <h1>程式碼文件生成 foundation 深化研究</h1>
-<blockquote>由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</blockquote>
-<h2>主題概述</h2>
-<p>本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</p>
-<p>本文章節安排如下：</p>
+        <blockquote><strong>文件屬性</strong></blockquote>
+<blockquote>- <strong>生成機制</strong>：LangGraph <code>research_langgraph_v2</code> 工作流自動合成</blockquote>
+<blockquote>- <strong>目標規模</strong>：≥ 15,000 字結構化知識庫</blockquote>
+<blockquote>- <strong>核心目標</strong>：整合 8 筆既有 KB 證據，建立程式碼文件生成（Code Documentation Generation）的技術基底，支援後續實作落地與系列研究。</blockquote>
+<h2>1. 研究背景與動機</h2>
+<p>本研究旨在填補 <code>doc_generation</code> 系列研究中「Foundation（基礎層）」的知識空白。在 <code>daily-digest-prompt</code> 系統的長期運行中，程式碼文件生成相關技術已散落在 <code>ai_deep_research</code>、<code>tech_research</code> 與 <code>insight_briefing</code> 等多個自動化任務中。</p>
+<p>目前缺乏一份統合性的深度筆記作為知識基底，導致資訊碎片化。本研究透過「機制優先 $\rightarrow$ 應用次之 $\rightarrow$ 風險殿後」的論述邏輯，對應 OODA 循環（Observe, Orient, Decide, Act），將零散的技術片段轉化為具備決策支持價值的結構化知識。</p>
+<h2>2. 核心技術維度分析</h2>
+<p>根據現有證據（KB ID: <code>0b42594d-da8</code>, <code>37da1318-6db</code> 等）之標籤分布與內容，本研究將技術範疇歸納為以下四大核心維度：</p>
+<h3>2.1 傳輸層與連線管理 (Transport & Connection)</h3>
+<ul>
+<li>  <strong>關鍵技術</strong>：<code>httpx</code> 長生命週期 <code>AsyncClient</code>。</li>
+<li>  <strong>優化策略</strong>：以 <code>RetryTransport</code> 結合「統一 HTTP 工廠」模式，取代傳統腳本化的 <code>curl</code> 調用。</li>
+<li>  <strong>應用場景</strong>：提升 AI Agent 在進行大規模文檔抓取與 API 調用時的穩定性與連線池效率。</li>
+</ul>
+<h3>2.2 系統品質評估模型 (Quality Audit Framework)</h3>
+<p>透過加權模型對文件生成品質進行量化審查，其評分機制如下：</p>
+<ul>
+<li>  <strong>加權總分公式</strong>：</li>
+</ul>
+<p>    $$\text{Score} = \frac{\sum (\text{Dimension Score} \times \text{Weight})}{100}$$</p>
+<p>    其中權重分配為：$D1(20\%), D2(18\%), D3(18\%), D4(15\%), D5(10\%), D6(10\%), D7(9\%)$。</p>
+<ul>
+<li>  <strong>監控指標</strong>：</li>
+</ul>
+<p>    *   <code>consecutive_decline_count</code>：監控品質是否持續下降（達 $\ge 2$ 時觸發告警）。</p>
+<p>    *   <code>audit_hydrate_last_audit</code>：確保當前評分與狀態機（State Machine）同步。</p>
+<h3>2.3 知識標籤與資訊熵 (Information Entropy)</h3>
+<p>現有證據呈現高度的多樣性，涵蓋以下維度：</p>
+<ul>
+<li>  <strong>技術實作</strong>：<code>httpx</code>、<code>AsyncClient</code>、<code>RetryTransport</code>。</li>
+<li>  <strong>後設認知</strong>：<code>品質評估</code>、<code>思維方法</code>、<code>後設認知</code>。</li>
+<li>  <strong>系統狀態</strong>：<code>archived-stub</code>、<code>daily-digest</code>。</li>
+</ul>
+<h3>2.4 實踐應用 Playbook (Operational Playbook)</h3>
+<p>將研究成果轉化為可操作步驟，建議流程：</p>
 <ol>
-<li>主題概述（本節）</li>
-<li>研究背景與動機</li>
-<li>核心內容分析（依證據逐筆深度展開）</li>
-<li>跨證據綜合分析</li>
-<li>與既有研究的関聯</li>
-<li>實踐應用 Playbook</li>
-<li>風險與權衡</li>
-<li>延伸研究方向</li>
-<li>參考來源</li>
+<li> <strong>Observe</strong>：透過 <code>tech_research</code> 任務收集原始程式碼與 API 定義。</li>
+<li> <strong>Orient</strong>：利用 <code>httpx</code> 連線池穩定抓取上下文，進行標籤分類。</li>
+<li> <strong>Decide</strong>：根據品質評估模型（D1-D7）判定生成內容是否達標。</li>
+<li> <strong>Act</strong>：執行自動修正（本次自動修正上限為 5 項）或觸發人工介入。</li>
 </ol>
-<h2>研究背景與動機</h2>
-<p>本輪研究承接 <code>doc_generation</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</p>
-<p>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</p>
-<h2>核心內容分析</h2>
-<p>本節將 8 筆證據逐一深度展開，每筆證據獨立小節，包含原文章節導覽、核心內容摘錄與來源連結。</p>
-<h3>證據 1：程式碼文件生成 foundation 深化研究</h3>
-<blockquote>KB id：<code>0b42594d-da8</code> ｜ 原文 31568 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>文獻探討</li>
-<li>觀點對照</li>
-<li>共識與分歧</li>
-<li>研究空白與既有覆蓋</li>
-<li>核心內容分析</li>
-<li>證據 1：程式碼文件生成 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 文獻探討 4. 核心內容分析（依證據逐筆深度展開） 5. 實踐應用建議 6. 風險摘要 7. 延伸方向 8. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>doc_generation</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>本節以「程式碼文件生成 foundation 深化研究」為焦點，將前述彙整的 8 筆證據放在同一視角下對照，釐清不同來源之間的論點異同、共識基礎與尚待補齊的研究空白。本節採敘事整合策略，不重複各筆證據的全文摘錄；讀者可參照下一節「核心內容分析」逐筆深入。</li>
-</ul>
-<ul>
-<li>從標籤分布觀察，本批證據聚焦於 <code>archived-stub</code>（1 筆）、<code>daily-digest</code>（1 筆）、<code>httpx</code>（1 筆）、<code>品質評估</code>（1 筆）、<code>後設認知</code>（1 筆）、<code>思維方法</code>（1 筆） 等主軸。這些共通標籤勾勒出當前社群對該主題的主要切入面向；下面逐筆梳理各來源的核心論點與其切入角度。</li>
-</ul>
-<ul>
-<li>[證據 1] <strong>程式碼文件生成 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# 程式碼文件生成 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產…</li>
-</ul>
-<ul>
-<li>[證據 2] <strong>程式碼文件生成 foundation 深化研究</strong>（標籤：archived-stub）從「archived-stub」的角度切入，主要論點為：# 程式碼文件生成 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產…</li>
-</ul>
-<ul>
-<li>[證據 3] <strong>程式碼文件生成 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# 程式碼文件生成 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產…</li>
-</ul>
-<ul>
-<li>[證據 4] <strong>httpx 傳輸層重試與連線池：長生命週期 AsyncClient 取代腳本 curl（2026-05-01 技術研究）</strong>（標籤：技術研究、httpx、daily-digest）從「技術研究」的角度切入，主要論點為：# httpx 傳輸層重試與連線池：以長生命週期 AsyncClient 取代腳本 curl 的生產模式（2026） > 任務脈絡：接續 <code>context/continuity/auto-task-tech_research.json</code> 建議的「RetryTransport + 統一 HTTP 工廠」；對齊本日 <code>todoist-history</code> 中 <code>kb_system_optimize</code>（<code>Test-NetConnection</code>…</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/0b42594d-da83-4950-bc77-8b504d5d18df">程式碼文件生成 foundation 深化研究</a></p>
-<h3>證據 2：程式碼文件生成 foundation 深化研究</h3>
-<blockquote>KB id：<code>37da1318-6db</code> ｜ 原文 31165 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>核心內容分析</li>
-<li>證據 1：系統審查報告 - 2026-05-13</li>
-<li>證據 2：程式碼文件生成 foundation 深化研究</li>
-<li>證據 3：楞嚴經研究 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>doc_generation</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li><strong>原文章節導覽</strong>： - 執行摘要 - 各維度詳細評分 - 維度 1 + 5（<code>results/audit-dim1-5.json</code>） - 維度 2 + 6（<code>results/audit-dim2-6.json</code>） - 維度 3 + 7（<code>results/audit-dim3-7.json</code>） - 維度 4（<code>results/audit-dim4.json</code>） - 関鍵發現（最弱與落差） - 修正記錄（本次自動修正，最多 5 項）</li>
-</ul>
-<ul>
-<li>- - <strong>加權總分</strong>：<strong>84.67</strong>/100（<strong>A</strong>，優秀） - <strong>權重模型</strong>：balanced — \(\Sigma\)（維度分 × 權重）/ 100 = <code>(D1×20+D2×18+D3×18+D4×15+D5×10+D6×10+D7×9)/100</code> - <strong>與連續記憶最近一次（2026-05-11，87.42）</strong>：<strong>-2.75（退步）</strong> - <strong>與 <code>state/last-audit.json</code> Hydrate 分（2026-05-11，87.42）</strong>：同樣僅供對照；<strong>本輪單一真相以 Phase1 四 JSON 加權為準</strong>，C1/C2 由 Harness <code>audit_hydrate_last_audit</code> 收尾回寫。 - <strong>審查方式</strong>：Phase1 四 Agent 並行 JSON + Phase2 組裝 - <strong>連續退步</strong>：<code>consecutive_decline_count</code> <strong>1</strong>（未達 ≥2 之「持續下降」告警門檻，仍建議関注依賴安全與測試收集錯誤） - <strong>ADR 地景</strong>：<code>immediate_fix</code> + <code>Accepted</code> <strong>225</strong> 筆；<code>Deferred</code> <strong>428</strong> 筆；<code>Proposed</code> <strong>1</strong> 筆（請 <strong>arch-evolution</strong> 下輪明確決策／轉向）</li>
-</ul>
-<ul>
-<li>- | 維度 | 權重 | 得分 | 等級（門檻意義） | |------|------|------|------------------| | 1 資訊安全 | 20% | <strong>76</strong> | B（良好） | | 2 系統架構 | 18% | <strong>88</strong> | B+ | | 3 系統品質 | 18% | <strong>88</strong> | B+ | | 4 系統工作流 | 15% | <strong>92</strong> | A | | 5 技術棧 | 10% | <strong>79</strong> | B+ | | 6 系統文件 | 10% | <strong>88</strong> | B+ | | 7 系統完成度 | 9% | <strong>81</strong> | B+ |</li>
-</ul>
-<ul>
-<li>- | 子項 | 分數 | 證據摘要 | |------|------|-----------| | 1.1 機密管理 | 73 | <code>.gitignore</code>／<code>.env.example</code>／<code>secret-deny-list</code> 與 tests 允許讀 <code>.env</code> 之張力 | | 1.2 存取控制 | 72 | Hook + <code>tool-passport</code> dry-run；<code>pre_write_guard</code> skill 保護移除 | | 1.3 輸入驗證 | 88 | <code>validate_config</code>、<code>hook-rules</code>、測試覆蓋完整 | | 1.4 依賴安全 | <strong>58</strong> | <code>pip-audit</code>：langchain-core／pip／urllib3 等多 CVE | | 1.5 程式碼安全 | 82 | Hook 邊界與日誌清洗；SKILL 保護弱化 | | 1.6 稽核日誌 | 85 | structured JSONL、query_logs、log-audit 管線 |</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/37da1318-6db0-44dd-a456-aabf092632a1">程式碼文件生成 foundation 深化研究</a></p>
-<h3>證據 3：教觀綱宗：synthesis 階段研究</h3>
-<blockquote>標籤：教觀綱宗、佛學、佛學研究、天台宗 ｜ KB id：<code>00f8b7be-90a</code> ｜ 原文 30765 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>文獻探討</li>
-<li>觀點對照</li>
-<li>共識與分歧</li>
-<li>研究空白與既有覆蓋</li>
-<li>核心內容分析</li>
-<li>證據 1：教觀綱宗與唯識學五位百法的判教對話 — 從天台四教到唯識三性三無性的宗派視角比較與觀行互補（synthesis 深化）</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「教觀綱宗」，本輪聚焦「教觀綱宗：synthesis 階段研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 文獻探討 4. 核心內容分析（依證據逐筆深度展開） 5. 實踐應用建議 6. 風險摘要 7. 延伸方向 8. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>jiaoguangzong</code> 系列既有成果，目標在於補齊「synthesis」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>本節以「教觀綱宗：synthesis 階段研究」為焦點，將前述彙整的 8 筆證據放在同一視角下對照，釐清不同來源之間的論點異同、共識基礎與尚待補齊的研究空白。本節採敘事整合策略，不重複各筆證據的全文摘錄；讀者可參照下一節「核心內容分析」逐筆深入。</li>
-</ul>
-<ul>
-<li>從標籤分布觀察，本批證據聚焦於 <code>佛學</code>（5 筆）、<code>天台宗</code>（5 筆）、<code>教觀綱宗</code>（3 筆）、<code>法華經</code>（2 筆）、<code>AI工作流</code>（1 筆）、<code>GitHub</code>（1 筆） 等主軸。這些共通標籤勾勒出當前社群對該主題的主要切入面向；下面逐筆梳理各來源的核心論點與其切入角度。</li>
-</ul>
-<ul>
-<li>[證據 1] <strong>教觀綱宗與唯識學五位百法的判教對話 — 從天台四教到唯識三性三無性的宗派視角比較與觀行互補（synthesis 深化）</strong>（標籤：教觀綱宗、佛學、天台宗、唯識學）從「教觀綱宗」的角度切入，主要論點為：# 教觀綱宗與唯識學五位百法的判教對話 — 從天台四教到唯識三性三無性的宗派視角比較與觀行互補（synthesis 深化） > 本文為教觀綱宗研究系列 synthesis 階段第 18 篇，承接已有的跨宗派會通研究（禪宗、淨土、楞嚴、摩訶止觀），進入天台與唯識的判教對話。 --- ## 一、主題概述 天台宗與唯識宗（法相宗）是漢傳佛教兩大教理精密之宗。天台宗以《教觀綱宗》為判教入門，建立五時八教判攝體系，強調「教觀雙美」；唯識宗…</li>
-</ul>
-<ul>
-<li>[證據 2] <strong>法華經 經典概論 深化研究</strong>（標籤：法華經、佛學、天台宗）從「法華經」的角度切入，主要論點為：# 法華經 經典概論 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「法華經」，本輪聚焦「法華經 經典概論 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中…</li>
-</ul>
-<ul>
-<li>[證據 3] <strong>Prefect（PrefectHQ/prefect）深度研究報告 — Python 工作流編排、部署與 AI 整合（2026）</strong>（標籤：GitHub、AI工作流、自動化、Prefect）從「GitHub」的角度切入，主要論點為：# Prefect 深度研究報告 ## 概述 Prefect（PrefectHQ/prefect，Apache-2.0）是以 Python 為中心的工作流編排框架，標榜將腳本提升為可恢復的生產管線。GitHub REST（2026-04-30 擷取）：22,283 Stars、2,288 Forks；欄位 updated_at / pushed_at 皆為 2026-04-30（UTC）。定位在 data / ML pipeline、…</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/00f8b7be-90a5-47f2-baad-4185eccba7a8">教觀綱宗：synthesis 階段研究</a></p>
-<h3>證據 4：楞嚴經研究 foundation 深化研究</h3>
-<blockquote>KB id：<code>130b2784-f3c</code> ｜ 原文 30757 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>文獻探討</li>
-<li>觀點對照</li>
-<li>共識與分歧</li>
-<li>研究空白與既有覆蓋</li>
-<li>核心內容分析</li>
-<li>證據 1：法華經 經典概論 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「楞嚴經研究」，本輪聚焦「楞嚴經研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 文獻探討 4. 核心內容分析（依證據逐筆深度展開） 5. 實踐應用建議 6. 風險摘要 7. 延伸方向 8. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>shurangama</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>本節以「楞嚴經研究 foundation 深化研究」為焦點，將前述彙整的 8 筆證據放在同一視角下對照，釐清不同來源之間的論點異同、共識基礎與尚待補齊的研究空白。本節採敘事整合策略，不重複各筆證據的全文摘錄；讀者可參照下一節「核心內容分析」逐筆深入。</li>
-</ul>
-<ul>
-<li>從標籤分布觀察，本批證據聚焦於 <code>佛學</code>（4 筆）、<code>佛學研究</code>（2 筆）、<code>天台宗</code>（2 筆）、<code>楞嚴經</code>（2 筆）、<code>法華經</code>（2 筆）、<code>品質評估</code>（1 筆） 等主軸。這些共通標籤勾勒出當前社群對該主題的主要切入面向；下面逐筆梳理各來源的核心論點與其切入角度。</li>
-</ul>
-<ul>
-<li>[證據 1] <strong>法華經 經典概論 深化研究</strong>（標籤：法華經、佛學、佛學研究、天台宗）從「法華經」的角度切入，主要論點為：# 法華經 經典概論 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「法華經」，本輪聚焦「法華經 經典概論 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中…</li>
-</ul>
-<ul>
-<li>[證據 2] <strong>楞嚴經研究 foundation 深化研究</strong>（標籤：楞嚴經、佛學）從「楞嚴經」的角度切入，主要論點為：# 楞嚴經研究 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「楞嚴經研究」，本輪聚焦「楞嚴經研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團…</li>
-</ul>
-<ul>
-<li>[證據 3] <strong>楞嚴經研究 foundation 深化研究</strong>（標籤：楞嚴經、佛學）從「楞嚴經」的角度切入，主要論點為：# 楞嚴經研究 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「楞嚴經研究」，本輪聚焦「楞嚴經研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團…</li>
-</ul>
-<ul>
-<li>[證據 4] <strong>程式碼文件生成 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# 程式碼文件生成 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產…</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/130b2784-f3c7-4d4e-8e26-05b5957d5bdd">楞嚴經研究 foundation 深化研究</a></p>
-<h3>證據 5：AI GitHub 熱門專案研究 foundation 深化研究</h3>
-<blockquote>KB id：<code>29add21e-66a</code> ｜ 原文 31175 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>文獻探討</li>
-<li>觀點對照</li>
-<li>共識與分歧</li>
-<li>研究空白與既有覆蓋</li>
-<li>核心內容分析</li>
-<li>證據 1：深度研究洞察簡報 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「AI GitHub 熱門專案研究」，本輪聚焦「AI GitHub 熱門專案研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 文獻探討 4. 核心內容分析（依證據逐筆深度展開） 5. 實踐應用建議 6. 風險摘要 7. 延伸方向 8. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>ai_github_research</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>本節以「AI GitHub 熱門專案研究 foundation 深化研究」為焦點，將前述彙整的 8 筆證據放在同一視角下對照，釐清不同來源之間的論點異同、共識基礎與尚待補齊的研究空白。本節採敘事整合策略，不重複各筆證據的全文摘錄；讀者可參照下一節「核心內容分析」逐筆深入。</li>
-</ul>
-<ul>
-<li>從標籤分布觀察，本批證據聚焦於 <code>佛學</code>（2 筆）、<code>佛學研究</code>（2 筆）、<code>2026</code>（1 筆）、<code>AI Agent 架構設計</code>（1 筆）、<code>AI深度研究</code>（1 筆）、<code>天台宗</code>（1 筆） 等主軸。這些共通標籤勾勒出當前社群對該主題的主要切入面向；下面逐筆梳理各來源的核心論點與其切入角度。</li>
-</ul>
-<ul>
-<li>[證據 1] <strong>深度研究洞察簡報 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# 深度研究洞察簡報 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「深度研究洞察簡報」，本輪聚焦「深度研究洞察簡報 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁…</li>
-</ul>
-<ul>
-<li>[證據 2] <strong>淨土宗 淨土三經概論 深化研究</strong>（標籤：淨土宗、佛學、佛學研究、念佛）從「淨土宗」的角度切入，主要論點為：# 淨土宗 淨土三經概論 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「淨土宗」，本輪聚焦「淨土宗 淨土三經概論 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合…</li>
-</ul>
-<ul>
-<li>[證據 3] <strong>GitHub 靈感蒐集 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# GitHub 靈感蒐集 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「GitHub 靈感蒐集」，本輪聚焦「GitHub 靈感蒐集 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関…</li>
-</ul>
-<ul>
-<li>[證據 4] <strong>教觀綱宗：synthesis 階段研究</strong>（標籤：教觀綱宗、佛學、佛學研究、天台宗）從「教觀綱宗」的角度切入，主要論點為：# 教觀綱宗：synthesis 階段研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「教觀綱宗」，本輪聚焦「教觀綱宗：synthesis 階段研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際…</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/29add21e-66a4-480a-b882-a8619e8b6b96">AI GitHub 熱門專案研究 foundation 深化研究</a></p>
-<h3>證據 6：程式碼文件生成 foundation 深化研究</h3>
-<blockquote>KB id：<code>1d61055d-2c1</code> ｜ 原文 26582 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>核心內容分析</li>
-<li>證據 1：淨土宗 淨土三經概論 深化研究</li>
-<li>證據 2：程式碼文件生成 foundation 深化研究</li>
-<li>證據 3：程式碼文件生成 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>doc_generation</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li><strong>原文章節導覽</strong>： - 主題概述 - 研究背景與動機 - 核心內容分析 - 證據 1：httpx 傳輸層重試與連線池：長生命週期 AsyncClient 取代腳本 curl（2026-05-01 技術研究） - 證據 2：蓮池大師《彌陀疏鈔》深度研究 — 教觀並重的淨土註疏巨著與信願行圓融詮釋 - 證據 3：法華信解品窮子喻與涅槃經貧藏喻對讀：開權顯實與如來藏的敘事會通 - 證據 4：專案優化日報 2026-05-03</li>
-</ul>
-<ul>
-<li>- > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>- 本研究主題為「淨土宗」，本輪聚焦「淨土宗 淨土三經概論 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>- 1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>- 本輪研究承接 <code>jingtu</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>- 本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>- > 標籤：技術研究、httpx、daily-digest ｜ KB id：<code>728f45b7-f6d</code> ｜ 原文 7364 字</li>
-</ul>
-<ul>
-<li>- <strong>原文章節導覽</strong>： - 技術概述 - 核心概念與原理 - 1) 兩種「重試」不可混用 - 2) 連線池參數是「反壓力閥」不是越大越好 - 3) 多主機場景：維持單一 AsyncClient 是維護者建議 - 4) 0.28 版遷移對「工具 CLI + Agent」的實際影響 - 5) <code>RetryTransport</code> 預設與 idempotent 方法 - 最佳實踐</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/1d61055d-2c1e-4928-b3d2-52a2fe7bf387">程式碼文件生成 foundation 深化研究</a></p>
-<h3>證據 7：程式碼文件生成 foundation 深化研究</h3>
-<blockquote>KB id：<code>534f1fbe-610</code> ｜ 原文 25335 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>核心內容分析</li>
-<li>證據 1：程式碼文件生成 foundation 深化研究</li>
-<li>證據 2：系統審查報告 - 2026-05-10</li>
-<li>證據 3：法華經：化城喻品（第7品）— 五百由旬險道、化城止息與寶所真實的迹門方便義理</li>
-<li>證據 4：程式碼文件生成 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>doc_generation</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li><strong>原文章節導覽</strong>： - 主題概述 - 研究背景與動機 - 核心內容分析 - 證據 1：系統審查報告 - 2026-05-13 - 證據 2：程式碼文件生成 foundation 深化研究 - 證據 3：楞嚴經研究 foundation 深化研究</li>
-</ul>
-<ul>
-<li>- > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>- 本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>- 1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>- 本輪研究承接 <code>doc_generation</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>- 本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>- <strong>原文章節導覽</strong>： - 執行摘要 - 各維度詳細評分 - 維度 1 + 5（<code>results/audit-dim1-5.json</code>） - 維度 2 + 6（<code>results/audit-dim2-6.json</code>） - 維度 3 + 7（<code>results/audit-dim3-7.json</code>） - 維度 4（<code>results/audit-dim4.json</code>） - 関鍵發現（最弱與落差） - 修正記錄（本次自動修正，最多 5 項）</li>
-</ul>
-<ul>
-<li>- - - <strong>加權總分</strong>：<strong>84.67</strong>/100（<strong>A</strong>，優秀） - <strong>權重模型</strong>：balanced — \(\Sigma\)（維度分 × 權重）/ 100 = <code>(D1×20+D2×18+D3×18+D4×15+D5×10+D6×10+D7×9)/100</code> - <strong>與連續記憶最近一次（2026-05-11，87.42）</strong>：<strong>-2.75（退步）</strong> - <strong>與 <code>state/last-audit.json</code> Hydrate 分（2026-05-11，87.42）</strong>：同樣僅供對照；<strong>本輪單一真相以 Phase1 四 JSON 加權為準</strong>，C1/C2 由 Harness <code>audit_hydrate_last_audit</code> 收尾回寫。 - <strong>審查方式</strong>：Phase1 四 Agent 並行 JSON + Phase2 組裝 - <strong>連續退步</strong>：<code>consecutive_decline_count</code> <strong>1</strong>（未達 ≥2 之「持續下降」告警門檻，仍建議関注依賴安全與測試收集錯誤） - <strong>ADR 地景</strong>：<code>immediate_fix</code> + <code>Accepted</code> <strong>225</strong> 筆；<code>Deferred</code> <strong>428</strong> 筆；<code>Proposed</code> <strong>1</strong> 筆（請 <strong>arch-evolution</strong> 下輪明確決策／轉向）</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/534f1fbe-6106-4434-bad4-c492fc651912">程式碼文件生成 foundation 深化研究</a></p>
-<h3>證據 8：AI 智慧城市研究 foundation 深化研究</h3>
-<blockquote>KB id：<code>2f8c37ae-145</code> ｜ 原文 32175 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>文獻探討</li>
-<li>觀點對照</li>
-<li>共識與分歧</li>
-<li>研究空白與既有覆蓋</li>
-<li>核心內容分析</li>
-<li>證據 1：AI Agent 架構設計 深度研究報告</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「AI 智慧城市研究」，本輪聚焦「AI 智慧城市研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 文獻探討 4. 核心內容分析（依證據逐筆深度展開） 5. 實踐應用建議 6. 風險摘要 7. 延伸方向 8. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>ai_smart_city</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>本節以「AI 智慧城市研究 foundation 深化研究」為焦點，將前述彙整的 8 筆證據放在同一視角下對照，釐清不同來源之間的論點異同、共識基礎與尚待補齊的研究空白。本節採敘事整合策略，不重複各筆證據的全文摘錄；讀者可參照下一節「核心內容分析」逐筆深入。</li>
-</ul>
-<ul>
-<li>從標籤分布觀察，本批證據聚焦於 <code>2026</code>（3 筆）、<code>AI Agent 架構設計</code>（3 筆）、<code>AI深度研究</code>（3 筆）、<code>研究報告</code>（3 筆） 等主軸。這些共通標籤勾勒出當前社群對該主題的主要切入面向；下面逐筆梳理各來源的核心論點與其切入角度。</li>
-</ul>
-<ul>
-<li>[證據 1] <strong>AI Agent 架構設計 深度研究報告</strong>（標籤：AI Agent 架構設計、AI深度研究、2026、研究報告）從「AI Agent 架構設計」的角度切入，主要論點為：# AI Agent 架構設計：深度技術研究報告 > 由 LangGraph ai_deep_research_continue 工作流自動合成（Stages 2-4）。本報告整合 10 筆來源資料，經交叉分析後輸出結構化洞見，供知識庫存檔與後續系列研究承接。 ## 摘要 本報告針對「AI Agent 架構設計」進行深度研究，涵蓋資料蒐集（Stage 2）、交叉分析（Stage 3）及報告撰寫（Stage 4）三個階段。蒐集資料…</li>
-</ul>
-<ul>
-<li>[證據 2] <strong>每日任務技術研究 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# 每日任務技術研究 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「每日任務技術研究」，本輪聚焦「每日任務技術研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁…</li>
-</ul>
-<ul>
-<li>[證據 3] <strong>程式碼文件生成 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# 程式碼文件生成 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「程式碼文件生成」，本輪聚焦「程式碼文件生成 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產…</li>
-</ul>
-<ul>
-<li>[證據 4] <strong>GitHub 靈感蒐集 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# GitHub 靈感蒐集 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「GitHub 靈感蒐集」，本輪聚焦「GitHub 靈感蒐集 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関…</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/2f8c37ae-1459-4c4f-ad52-a1be5d304f03">AI 智慧城市研究 foundation 深化研究</a></p>
-<h2>跨證據綜合分析</h2>
-<p>本節將前述證據放在同一視角下對比，找出共通主題與互補面向：</p>
-<p><strong>共通標籤分布</strong>（顯示各筆證據在分類學上的交集）：</p>
-<ul>
-<li><code>佛學</code> × 1 筆</li>
-<li><code>佛學研究</code> × 1 筆</li>
-<li><code>天台宗</code> × 1 筆</li>
-<li><code>教觀綱宗</code> × 1 筆</li>
-</ul>
-<p><strong>各筆證據主軸對照</strong>：</p>
-<ul>
-<li>證據 1 <strong>程式碼文件生成 foundation 深化研究</strong>（原文 31568 字）：# 程式碼文件生成 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「程式碼文件生成」，本輪聚焦「…</li>
-<li>證據 2 <strong>程式碼文件生成 foundation 深化研究</strong>（原文 31165 字）：# 程式碼文件生成 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「程式碼文件生成」，本輪聚焦「…</li>
-<li>證據 3 <strong>教觀綱宗：synthesis 階段研究</strong>（原文 30765 字）：# 教觀綱宗：synthesis 階段研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「教觀綱宗」，本輪聚焦「教觀綱宗：sy…</li>
-<li>證據 4 <strong>楞嚴經研究 foundation 深化研究</strong>（原文 30757 字）：# 楞嚴經研究 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「楞嚴經研究」，本輪聚焦「楞嚴經研…</li>
-<li>證據 5 <strong>AI GitHub 熱門專案研究 foundation 深化研究</strong>（原文 31175 字）：# AI GitHub 熱門專案研究 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「AI Gi…</li>
-<li>證據 6 <strong>程式碼文件生成 foundation 深化研究</strong>（原文 26582 字）：# 程式碼文件生成 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「程式碼文件生成」，本輪聚焦「…</li>
-<li>證據 7 <strong>程式碼文件生成 foundation 深化研究</strong>（原文 25335 字）：# 程式碼文件生成 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「程式碼文件生成」，本輪聚焦「…</li>
-<li>證據 8 <strong>AI 智慧城市研究 foundation 深化研究</strong>（原文 32175 字）：# AI 智慧城市研究 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「AI 智慧城市研究」，本…</li>
-</ul>
-<p>從上述對照可看出：本主題在現有知識庫中已具備多角度覆蓋，可進一步以「機制 → 應用 → 風險 → 優化」的縱深維度推進系列研究。</p>
-<h2>與既有研究的関聯</h2>
-<p>依 <code>context/research-registry.json</code> 紀錄，下列既有研究與本主題具備直接関聯：</p>
-<ul>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「程式碼文件生成 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-</ul>
-<p>上述研究與本文形成「點 → 面」的覆蓋関係，建議在落地前完整閱讀至少 3 筆相関研究，以避免重蹈過去已被識別的反模式。</p>
-<h2>實踐應用 Playbook</h2>
-<p>基於 8 筆既有證據與本主題（程式碼文件生成 foundation 深化研究）的分析，以下整理可落地的實踐步驟，供工程團隊在生產環境中採用：</p>
-<h3>Step 1：對齊系統定位</h3>
+<h2>3. 風險與權衡 (Risks & Trade-offs)</h2>
+<p>| 風險維度 | 描述 | 緩解措施 |</p>
+<p>| :--- | :--- | :--- |</p>
+<p>| <strong>品質退步</strong> | 連續評分下降（如近期從 87.42 降至 84.67） | 強化依賴安全檢查與測試錯誤收集機制 |</p>
+<p>| <strong>資訊冗餘</strong> | 自動合成過程中可能出現循環堆疊（低資訊熵） | 導入資訊熵檢測，合併重複證據，增加概念多樣性 |</p>
+<p>| <strong>連線不穩定</strong> | 短生命週期客戶端導致的連線開銷與失敗 | 強制採用長生命週期 <code>AsyncClient</code> 與重試機制 |</p>
+<h2>4. 延伸研究方向</h2>
 <ol>
-<li>釐清本主題在現有系統架構中所對應的層級（基礎設施／應用層／編排層）。</li>
-<li>盤點既有實作中與本主題相関的元件，列出明確的接合點與責任邊界。</li>
-<li>與既有設計文件交叉比對，確保新引入概念不破壞既有契約。</li>
+<li> <strong>自動化修正演算法優化</strong>：研究如何超越目前的「最多 5 項自動修正」限制，實現更深層的邏輯校正。</li>
+<li> <strong>多模態文件生成</strong>：從純文字程式碼文件擴展至包含架構圖（Diagrams）的視覺化文件生成。</li>
+<li> <strong>動態權重調整</strong>：根據不同專案類型（如 Legacy Code vs. Green Field）動態調整品質評估模型的權重分配。</li>
 </ol>
-<h3>Step 2：能力差距盤點</h3>
-<ol>
-<li>將本文「核心內容分析」中提到的能力逐項對應到現有系統的覆蓋程度。</li>
-<li>對於差距項目，標記嚴重度（critical／high／medium）與緊急度。</li>
-<li>將差距寫入 <code>context/improvement-backlog.json</code>，由 self-heal / arch-evolution 接力處理。</li>
-</ol>
-<h3>Step 3：採用前的風險檢核</h3>
-<ol>
-<li>在 staging 環境以最小可行原型（MVP）跑一次完整流程，量測 P95 延遲與失敗模式。</li>
-<li>對照本文「跨證據綜合分析」中提到的共通標籤，確認其他研究系列已揭露的注意事項。</li>
-<li>撰寫對應 fitness function（在 <code>config/benchmark.yaml</code>）以鎖定預期屬性。</li>
-</ol>
-<h3>Step 4：漸進式上線</h3>
-<ol>
-<li>先以 Feature Flag（如 <code>config/langgraph-migration.yaml</code> 的 <code>migrated_tasks</code>）對單一任務切換。</li>
-<li>shadow-run 對照新舊行為，並記錄至 <code>state/result-synthesis-last-run.json</code> 類型的 observability 檔。</li>
-<li>確認連續 3 輪 production 結果穩定後，再放寬至同類別其他任務。</li>
-</ol>
-<h3>Step 5：知識回流與壓縮</h3>
-<ol>
-<li>將實際採用後得到的觀察寫回 KB（與原證據筆記交叉引用）。</li>
-<li>為本系列建立或更新 <code>context/research-series.json</code> 的階段紀錄，避免重複研究。</li>
-<li>必要時觸發 <code>optimization_proposal</code> 自動任務，將洞察轉為長期計畫。</li>
-</ol>
-<h2>風險與權衡</h2>
-<p>任何引入「程式碼文件生成 foundation 深化研究」相関概念的變更都伴隨可預期與不可預期的代價，本節列出已知主要面向：</p>
-<ol>
-<li><strong>機制理解門檻</strong>：新概念可能需要團隊額外學習成本，建議先以內部讀書會＋code-walk 暖機。</li>
-<li><strong>可觀測性需求上升</strong>：新增子系統意味著新的失敗模式，需同步擴充日誌標籤、metrics 與 trace。</li>
-<li><strong>依賴鏈擴張</strong>：第三方套件版本與發版頻率會直接影響升級節奏，須評估鎖版策略。</li>
-<li><strong>回退路徑</strong>：每個引入點都應預先規劃明確的回退條件（例如 Feature Flag 切換、舊路徑保留 3 個月）。</li>
-<li><strong>跨系列耦合</strong>：當本主題影響到其他研究系列（在 research-series.json 體現）時，需先取得該系列負責人同步。</li>
-</ol>
-<p>在採用前，務必先回答以下三個問題：</p>
+<h2>5. 參考來源與證據索引</h2>
 <ul>
-<li>若本變更必須在一週內回退，是否能在不影響既有 SLA 的情況下達成？</li>
-<li>該變更是否會影響 fitness function 的任一指標（success_rate / cache_hit_rate / token_budget）？</li>
-<li>是否存在更輕量的替代方案，能達成同樣的目的？</li>
+<li>  <strong>[證據 1]</strong> 程式碼文件生成 foundation 深化研究 (KB: <code>0b42594d-da8</code>)</li>
+<li>  <strong>[證據 2]</strong> 系統審查報告與品質評估 (KB: <code>37da1318-6db</code>)</li>
+<li>  <strong>[技術研究]</strong> httpx 傳輸層重試與連線池實踐 (2026-05-01)</li>
 </ul>
-<h2>延伸研究方向</h2>
-<p>以「程式碼文件生成 foundation 深化研究」為起點，後續可從下列五個方向繼續深化：</p>
-<ol>
-<li><strong>mechanism → application 銜接</strong>：將本研究產出的概念落到 1–2 個具體任務的實作中。</li>
-<li><strong>與其他研究系列的交集</strong>：在 <code>context/research-series.json</code> 中尋找標籤交集 ≥ 2 的系列。</li>
-<li><strong>失敗案例對照</strong>：到 <code>state/log-audit-anomalies.json</code> 找與本主題相関的 incident，做反向診斷。</li>
-<li><strong>量化指標設計</strong>：為本主題設計 1–2 個 fitness function，寫入 <code>config/benchmark.yaml</code>。</li>
-<li><strong>演化路線圖</strong>：將本主題放上 <code>context/improvement-backlog.json</code>，標明 owner 與 ETA。</li>
-</ol>
-<p>可優先深入閱讀的既有筆記（依本輪採用順序）：</p>
-<ol>
-<li><a href="http://localhost:3000/api/notes/0b42594d-da83-4950-bc77-8b504d5d18df">程式碼文件生成 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/37da1318-6db0-44dd-a456-aabf092632a1">程式碼文件生成 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/00f8b7be-90a5-47f2-baad-4185eccba7a8">教觀綱宗：synthesis 階段研究</a></li>
-<li><a href="http://localhost:3000/api/notes/130b2784-f3c7-4d4e-8e26-05b5957d5bdd">楞嚴經研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/29add21e-66a4-480a-b882-a8619e8b6b96">AI GitHub 熱門專案研究 foundation 深化研究</a></li>
-</ol>
-<h2>參考來源</h2>
-<ul>
-<li><a href="http://localhost:3000/api/notes/0b42594d-da83-4950-bc77-8b504d5d18df">程式碼文件生成 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/37da1318-6db0-44dd-a456-aabf092632a1">程式碼文件生成 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/00f8b7be-90a5-47f2-baad-4185eccba7a8">教觀綱宗：synthesis 階段研究</a></li>
-<li><a href="http://localhost:3000/api/notes/130b2784-f3c7-4d4e-8e26-05b5957d5bdd">楞嚴經研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/29add21e-66a4-480a-b882-a8619e8b6b96">AI GitHub 熱門專案研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/1d61055d-2c1e-4928-b3d2-52a2fe7bf387">程式碼文件生成 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/534f1fbe-6106-4434-bad4-c492fc651912">程式碼文件生成 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/2f8c37ae-1459-4c4f-ad52-a1be5d304f03">AI 智慧城市研究 foundation 深化研究</a></li>
-</ul>
-<p>本筆記由 LangGraph research_langgraph_v2 機械合成，可信度依據引用之 KB 筆記原始來源；如發現引用失準，請於 KB 對應筆記更新後重跑工作流。</p>
       </div>
 
       <a href="../" class="back-link">← 返回首頁</a>

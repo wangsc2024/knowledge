@@ -31,505 +31,70 @@
       </div>
 
       <div class="article-content">
-        <h1>GitHub 靈感蒐集 foundation 深化研究</h1>
-<blockquote>由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</blockquote>
-<h2>主題概述</h2>
-<p>本研究主題為「GitHub 靈感蒐集」，本輪聚焦「GitHub 靈感蒐集 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</p>
-<p>本文章節安排如下：</p>
+        <blockquote><strong>研究狀態</strong>：Foundation 深化階段 (Phase 2)</blockquote>
+<blockquote><strong>核心目標</strong>：整合 GitHub Scout 系列既有證據，建立 Agent 工具使用（Tool Use）與安全護欄（Guardrails）的技術基底。</blockquote>
+<blockquote><strong>技術棧關聯</strong>：LangGraph, MCP (Model Context Protocol), OODA Workflow, SSRF Protection.</blockquote>
+<h2>1. 研究背景與技術動機</h2>
+<p>本研究旨在解決 <code>github_scout</code> 系列在自動化任務（如 <code>ai_deep_research</code>, <code>tech_research</code>）運行過程中，因缺乏統一安全規範與工具邊界定義所導致的風險。隨著 AI Agent 從實驗室邁向生產環境，如何建立「機制優先 (Mechanism-first)」的防禦架構成為核心議題。</p>
+<p>本研究採用 <strong>OODA 循環</strong> 邏輯組織：</p>
+<ul>
+<li><strong>Observe/Orient</strong>: 透過 GitHub Scout 觀測開源工具的護欄實踐。</li>
+<li><strong>Decide/Act</strong>: 提煉可落地的 Playbook 並轉化為 <code>SKILL.md</code> 配置。</li>
+</ul>
+<h2>2. 核心技術分析：Agent 護欄機制 (Guardrails)</h2>
+<p>透過對 8 筆關鍵證據的深度解構，本研究提煉出三種主流的 Agent 工具護欄模式：</p>
+<h3>2.1 模式一：YAML 驅動的 Fail-Closed 規則 (以 BodAIGuard 為例)</h3>
+<p>針對高風險環境，透過預定義規則集強制攔截非法行為。</p>
+<p>| 維度 | 技術規格 | 實作細節 |</p>
+<p>| :--- | :--- | :--- |</p>
+<p>| <strong>核心機制</strong> | Fail-Closed (預設拒絕) | 僅允許白名單內的指令執行，不符合規則即阻斷。 |</p>
+<p>| <strong>防禦層級</strong> | 四層覆蓋 | Input $\rightarrow$ Planning $\rightarrow$ Tool Execution $\rightarrow$ Output。 |</p>
+<p>| <strong>關鍵防禦</strong> | SSRF Protection | 攔截對 <code>169.254.169.254</code> (Cloud Metadata) 的存取。 |</p>
+<p>| <strong>執行模式</strong> | 多樣化 Proxy | 支援 HTTP Proxy, MCP stdio proxy, REST API。 |</p>
+<h3>2.2 模式二：Pre-ToolUse Hook 攔截 (以 anywhere-agents 為例)</h3>
+<p>透過腳本在工具調用前進行動態檢查，具備高度可攜性。</p>
+<ul>
+<li><strong>實作路徑</strong>：利用 <code>scripts/guard.py</code> 作為 Hook 點。</li>
+<li><strong>配置標準</strong>：透過 <code>CLAUDE.md</code> 或 <code>AGENTS.md</code> 聲明邊界。</li>
+<li><strong>優勢</strong>：可跨 Claude Code 與 Codex 環境，實現行動攔截（Action Interception）。</li>
+</ul>
+<h3>2.3 模式三：基於 Passport 的身份授權 (以 aport 為例)</h3>
+<p>將權限與身份（Identity）深度綁定，實現細粒度控制。</p>
+<ul>
+<li><strong>核心概念</strong>：<code>Passport = Identity + Capabilities + Limits</code>。</li>
+<li><strong>技術特性</strong>：具備確定性（Deterministic），難以透過 Prompt Injection 繞過。</li>
+<li><strong>落地挑戰</strong>：需修改核心攔截層（如 <code>pre_bash_guard.py</code>），實作成本較高。</li>
+</ul>
+<h2>3. 實踐應用 Playbook (Implementation Roadmap)</h2>
+<p>根據研究結果，建議按以下優先級執行優化：</p>
+<h3>P1：基礎安全加固 (Immediate Action)</h3>
+<ul>
+<li>[ ] <strong>SSRF 防禦實施</strong>：在 <code>config/hook-rules.yaml</code> 新增 <code>ssrf-cloud-metadata</code> 規則，攔截雲端元數據端點存取。</li>
+<li>[ ] <strong>觸發詞同步</strong>：更新 <code>skills/github-scout/SKILL.md</code> 至 v2.4.0，納入 <code>fail-closed guardrail</code> 等關鍵術語，提升 Agent 對安全指令的識別度。</li>
+</ul>
+<h3>P2：架構優化 (Mid-term Plan)</h3>
+<ul>
+<li>[ ] <strong>工具授權模型</strong>：評估導入 <code>Passport-based</code> 授權機制，將權限從「全域」轉向「單一任務 (Per-task)」。</li>
+<li>[ ] <strong>邊界聲明標準化</strong>：建立統一的 <code>AGENTS.md</code> 規範，確保所有開發者與 Agent 共享相同的工具邊界認知。</li>
+</ul>
+<h2>4. 風險與權衡 (Risks & Trade-offs)</h2>
+<p>| 風險項目 | 描述 | 緩解策略 |</p>
+<p>| :--- | :--- | :--- |</p>
+<p>| <strong>過度攔截 (False Positives)</strong> | 過嚴的 Guardrails 可能導致 Agent 無法執行合法任務。 | 引入 <code>confirm</code> 模式，針對中風險行為要求人工介入。 |</p>
+<p>| <strong>性能開銷 (Latency)</strong> | 多層次 Hook 與 Proxy 會增加 Tool Call 的延遲。 | 採用輕量化 YAML 規則引擎，減少複雜的 LLM 判斷。 |</p>
+<p>| <strong>繞過風險 (Bypass)</strong> | Prompt Injection 可能試圖欺騙 Hook 邏輯。 | 採用 <code>Deterministic</code> 邏輯，將安全檢查移出 LLM 控制範圍。 |</p>
+<h2>5. 延伸研究方向</h2>
 <ol>
-<li>主題概述（本節）</li>
-<li>研究背景與動機</li>
-<li>核心內容分析（依證據逐筆深度展開）</li>
-<li>跨證據綜合分析</li>
-<li>與既有研究的関聯</li>
-<li>實踐應用 Playbook</li>
-<li>風險與權衡</li>
-<li>延伸研究方向</li>
-<li>參考來源</li>
+<li><strong>MCP (Model Context Protocol) 深度整合</strong>：研究如何將護欄邏輯直接內建於 MCP Server 層。</li>
+<li><strong>AI-Ready 文件管線</strong>：探索 OpenAPI 與 <code>llms.txt</code> 在 Agent 知識獲取中的自動化對齊。</li>
+<li><strong>動態護欄演化</strong>：研究如何利用 Agent 自我觀察（Self-observation）來自動優化 <code>hook-rules.yaml</code>。</li>
 </ol>
-<h2>研究背景與動機</h2>
-<p>本輪研究承接 <code>github_scout</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</p>
-<p>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</p>
-<h2>核心內容分析</h2>
-<p>本節將 8 筆證據逐一深度展開，每筆證據獨立小節，包含原文章節導覽、核心內容摘錄與來源連結。</p>
-<h3>證據 1：GitHub Scout: Hook/Guard 工具護欄研究 - 2026-04-25</h3>
-<blockquote>標籤：GitHub、靈感蒐集、系統改進、Hook/Guard、護欄、SSRF ｜ KB id：<code>4999fe0c-0f7</code> ｜ 原文 2421 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
+<p>---</p>
+<p><strong>參考來源與證據索引</strong></p>
 <ul>
-<li>專案觀測摘要</li>
-<li>1. AxonLabsDev/BodAIGuard</li>
-<li>2. yzhao062/anywhere-agents</li>
-<li>3. aporthq/aport-agent-guardrails</li>
-<li>改進提案</li>
-<li>P1-1（已落實）：SSRF cloud-metadata guard rule</li>
-<li>P1-2（已落實）：Hook/Guard 觸發詞補充 SKILL.md v2.4.0</li>
-<li>P2（高風險計畫）：Passport-based per-task 工具授權</li>
+<li><code>4999fe0c-0f7</code>: GitHub Scout: Hook/Guard 工具護欄研究 (2026-04-25)</li>
+<li><code>277a893c-dec</code>: AI 智慧城市與 Agent 架構設計綜合研究</li>
 </ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li><strong>執行日期</strong>：2026-04-25 <strong>主題</strong>：Hook/Guard 工具護欄：BodAIGuard SSRF + anywhere-agents PreToolUse + aport 授權 <strong>Trace ID</strong>：github-scout-20260425-hookguard-impl</li>
-</ul>
-<ul>
-<li>### 1. AxonLabsDev/BodAIGuard - <strong>Stars</strong>：~700（search snapshot，待複核） - <strong>特色</strong>：YAML 驅動、fail-closed、45 block + 45 confirm 規則、12 分類、3 層 anti-prompt-injection、5 種執行模式（hooks/HTTP proxy/MCP stdio proxy/system prompt/REST API） - <strong>関鍵功能</strong>：SSRF protection（攔截 169.254.169.254 等雲端元資料端點）、compound command analysis - <strong>護欄覆蓋</strong>：Input + Planning + Tool Execution + Output 四層完整覆蓋 - <strong>tool_boundary（雙層）</strong>：execution_environment_boundary（多種 proxy 模式）+ tool_api_boundary（MCP/HTTP proxy + SSRF）</li>
-</ul>
-<ul>
-<li>### 2. yzhao062/anywhere-agents - <strong>Stars</strong>：~1200（search snapshot，USC CS 教授 PyOD 9.8k★ 作者） - <strong>特色</strong>：PreToolUse hook (scripts/guard.py)、跨 Claude Code/Codex 可攜、4 類行動攔截、4 個 shipped skills - <strong>pattern</strong>：CLAUDE.md/AGENTS.md 聲明 hook 邊界，白名單可配置</li>
-</ul>
-<ul>
-<li>### 3. aporthq/aport-agent-guardrails - <strong>Stars</strong>：~600（search snapshot） - <strong>特色</strong>：passport (identity+capabilities+limits) 授權、before_tool_call hook、deterministic（不可被 prompt injection bypass）</li>
-</ul>
-<ul>
-<li>### P1-1（已落實）：SSRF cloud-metadata guard rule - <strong>來源</strong>：BodAIGuard SSRF protection - <strong>目標</strong>：config/hook-rules.yaml - <strong>修改</strong>：新增 id=ssrf-cloud-metadata（critical 優先級），攔截 curl/wget 對 169.254.169.254/metadata.google.internal/metadata.azure.com 的存取 - <strong>驗證</strong>：878 tests passed</li>
-</ul>
-<ul>
-<li>### P1-2（已落實）：Hook/Guard 觸發詞補充 SKILL.md v2.4.0 - <strong>來源</strong>：BodAIGuard + anywhere-agents - <strong>目標</strong>：skills/github-scout/SKILL.md - <strong>修改</strong>：新增 6 個觸發詞（BodAIGuard、anywhere-agents、fail-closed guardrail、SSRF protection agent、pre-action hook guard、aport-agent-guardrails） - <strong>版本</strong>：v2.3.0 → v2.4.0</li>
-</ul>
-<ul>
-<li>### P2（高風險計畫）：Passport-based per-task 工具授權 - <strong>來源</strong>：aporthq/aport-agent-guardrails - <strong>狀態</strong>：plan_ready（涉及 pre_bash_guard.py 修改，需人工審核） - <strong>計畫</strong>：docs/plans/github-scout-20260425-passport-authz-plan.md</li>
-</ul>
-<ul>
-<li>- 本輪命中 Agent 安全/Tool Use/Guardrails → 逐案補齊三個分析面向 - BodAIGuard 的 SSRF protection 模式可直接移植，P1 方案落實成本極低 - anywhere-agents 的 portable config 模式與本系統高度對齊，驗證方向正確 - aport 的 passport 模型概念創新但落實複雜（需修改核心攔截層）</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/4999fe0c-0f77-4285-9e40-32e3e9338f36">GitHub Scout: Hook/Guard 工具護欄研究 - 2026-04-25</a></p>
-<h3>證據 2：AI 智慧城市研究 foundation 深化研究</h3>
-<blockquote>KB id：<code>277a893c-dec</code> ｜ 原文 25793 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>核心內容分析</li>
-<li>證據 1：未來計畫待辦優化 foundation 深化研究</li>
-<li>證據 2：每日任務技術研究 foundation 深化研究</li>
-<li>證據 3：AI-Ready 文件管線 2026：OpenAPI 單一真相、PR/Release 自動摘要、MCP 與 llms.txt 對外化</li>
-<li>證據 4：KB 洞察驅動系統優化落實 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「AI 智慧城市研究」，本輪聚焦「AI 智慧城市研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>ai_smart_city</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li><strong>原文章節導覽</strong>： - 主題概述 - 研究背景與動機 - 核心內容分析 - 證據 1：AI Agent 架構設計 深度研究報告 - 證據 2：AI Agent 架構設計 深度研究報告 - 證據 3：AI Agent 架構設計 深度研究報告</li>
-</ul>
-<ul>
-<li>- > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>- 本研究主題為「未來計畫待辦優化」，本輪聚焦「未來計畫待辦優化 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>- 1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>- 本輪研究承接 <code>future_plan_optimize</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>- 本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>- > 標籤：AI Agent 架構設計、AI深度研究、2026、研究報告 ｜ KB id：<code>5aae61b9-c5a</code> ｜ 原文 7029 字</li>
-</ul>
-<ul>
-<li>- <strong>原文章節導覽</strong>： - 摘要 - 研究背景與動機 - 核心內容分析 - 來源 1：AI Agent 架構設計 深度研究報告 - 來源 2：淨土宗 淨土三經概論 深化研究 - 來源 3：AI Agent 架構設計 深度研究報告 - 來源 4：AI 系統開發研究 foundation 深化研究 - 來源 5：KB 洞察驅動系統優化落實 foundation 深化研究</li>
-</ul>
-<ul>
-<li>- - > 由 LangGraph ai_deep_research_continue 工作流自動合成（Stages 2-4）。本報告整合 5 筆來源資料，經交叉分析後輸出結構化洞見，供知識庫存檔與後續系列研究承接。</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/277a893c-dec2-4dbe-8c7f-2b5b14ffe24e">AI 智慧城市研究 foundation 深化研究</a></p>
-<h3>證據 3：GitHub Scout: LLM 可觀測性/trace（Langfuse/Phoenix/OpenLLMetry） - 2026-04-29</h3>
-<blockquote>標籤：GitHub、靈感蒐集、系統改進、LLM可觀測性、OpenTelemetry、Langfuse ｜ KB id：<code>f388015f-38d</code> ｜ 原文 1393 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>專案觀測摘要</li>
-<li>1. langfuse/langfuse（26.3k★）</li>
-<li>2. Arize-ai/phoenix（9.4k★）</li>
-<li>3. traceloop/openllmetry（6.9k★）</li>
-<li>改進提案</li>
-<li>P1（低風險，已落實）</li>
-<li>P2（高風險，計畫備妥）</li>
-<li>審查結論</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>本次 github_scout 主題：LLM 可觀測性/trace（Langfuse/Phoenix/OpenLLMetry）。</li>
-</ul>
-<ul>
-<li>### 1. langfuse/langfuse（26.3k★） - 開源 LLM 工程平台：可觀測性、eval、Prompt 管理，整合 OTel/LangChain/OpenAI SDK/LiteLLM - MIT 授權，YC W23，可自託管 - 2026 年初達 20k★，4月已 26.3k★ - OTel OTLP 原生支援，可作為統一 trace backend</li>
-</ul>
-<ul>
-<li>### 2. Arize-ai/phoenix（9.4k★） - AI 可觀測性與 Evaluation：OTel-based，Agent Graph 可視化 - 支援 Claude Agent SDK、Cursor、Google ADK、Mastra、CrewAI - 提供 MCP Server：可讓 Agent 自行查詢 trace - agent loop 除錯：spanning 工具呼叫 → 圖形化 DAG 流程</li>
-</ul>
-<ul>
-<li>### 3. traceloop/openllmetry（6.9k★） - 基於 OTel 的開源 GenAI SDK，40+ 自動儀器化（OpenAI/Anthropic/Ollama） - gen_ai.system 語意慣例：opentelemetry-instrumentation-ollama → gen_ai.system=ollama, gen_ai.operation.name=chat - OTel v1.38.0：gen_ai.prompt / gen_ai.completion 已廢棄，改用 gen_ai.input.messages / gen_ai.output.messages / gen_ai.system_instructions</li>
-</ul>
-<ul>
-<li>### P1（低風險，已落實） 1. <strong>config/github-scout-review-policy.yaml</strong> → audit_trace_crosswalk 新增 OTel v1.38.0 廢棄屬性警示 2. <strong>skills/github-scout/SKILL.md</strong> → 新增 2026 OTel GenAI triggers</li>
-</ul>
-<ul>
-<li>### P2（高風險，計畫備妥） - Phoenix OTel OTLP 整合：tools/post_tool_logger.py 加入 OTel span 輸出</li>
-</ul>
-<ul>
-<li>- P1 方案：feasibility=8/10, stability=9/10，直接落實（config 修改） - P2 方案：需人工審核，輸出至 docs/plans/</li>
-</ul>
-<ul>
-<li>- config/github-scout-review-policy.yaml 更新 OTel v1.38.0 廢棄屬性說明 - skills/github-scout/SKILL.md 新增 OTel 2026 觸發詞</li>
-</ul>
-<ul>
-<li>- Phoenix OTel OTLP 整合（tools/post_tool_logger.py → 加入 OTel SDK，影響 Hook 核心層）</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/f388015f-38d4-4826-b771-f073da222f0e">GitHub Scout: LLM 可觀測性/trace（Langfuse/Phoenix/OpenLLMetry） - 2026-04-29</a></p>
-<h3>證據 4：AI 工作流自動化 GitHub 研究 foundation 深化研究</h3>
-<blockquote>KB id：<code>e5b05e28-6b7</code> ｜ 原文 25967 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>核心內容分析</li>
-<li>證據 1：AI 系統開發研究 foundation 深化研究</li>
-<li>證據 2：AI 智慧城市研究 foundation 深化研究</li>
-<li>證據 3：AI GitHub 熱門專案研究 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「AI 工作流自動化 GitHub 研究」，本輪聚焦「AI 工作流自動化 GitHub 研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>ai_workflow_github</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li><strong>原文章節導覽</strong>： - 主題概述 - 研究背景與動機 - 文獻探討 - 觀點對照 - 共識與分歧 - 研究空白與既有覆蓋 - 核心內容分析 - 證據 1：每日任務技術研究 foundation 深化研究</li>
-</ul>
-<ul>
-<li>- > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>- 本研究主題為「AI 系統開發研究」，本輪聚焦「AI 系統開發研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>- 1. 主題概述（本節） 2. 研究背景與動機 3. 文獻探討 4. 核心內容分析（依證據逐筆深度展開） 5. 實踐應用建議 6. 風險摘要 7. 延伸方向 8. 參考來源</li>
-</ul>
-<ul>
-<li>- 本輪研究承接 <code>ai_sysdev</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>- 本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>- 本節以「AI 系統開發研究 foundation 深化研究」為焦點，將前述彙整的 8 筆證據放在同一視角下對照，釐清不同來源之間的論點異同、共識基礎與尚待補齊的研究空白。本節採敘事整合策略，不重複各筆證據的全文摘錄；讀者可參照下一節「核心內容分析」逐筆深入。</li>
-</ul>
-<ul>
-<li>- 從標籤分布觀察，本批證據聚焦於 <code>佛學</code>（3 筆）、<code>天台宗</code>（2 筆）、<code>教觀綱宗</code>（2 筆）、<code>佛學研究</code>（1 筆）、<code>念佛</code>（1 筆）、<code>淨土宗</code>（1 筆） 等主軸。這些共通標籤勾勒出當前社群對該主題的主要切入面向；下面逐筆梳理各來源的核心論點與其切入角度。</li>
-</ul>
-<ul>
-<li>- [證據 1] <strong>每日任務技術研究 foundation 深化研究</strong>（標籤：未分類）從「未分類」的角度切入，主要論點為：# 每日任務技術研究 foundation 深化研究 > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。 ## 主題概述 本研究主題為「每日任務技術研究」，本輪聚焦「每日任務技術研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁…</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/e5b05e28-6b76-4cd8-bb46-941dcdfd86ba">AI 工作流自動化 GitHub 研究 foundation 深化研究</a></p>
-<h3>證據 5：GitHub Scout 2026-05-02：Agent sandbox／guardrails／REST 觀測</h3>
-<blockquote>標籤：GitHub、github_scout、guardrails ｜ KB id：<code>8d8d55a5-c19</code> ｜ 原文 576 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>專案觀測摘要</li>
-<li>改進提案</li>
-<li>審查結論</li>
-<li>已落實項目</li>
-<li>待人工審核項目</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>## 專案觀測摘要 - openai/openai-agents-python：25717★，pushed_at 2026-05-02（GitHub REST）；tool guardrails 三態 + Sandbox agents。 - browser-use/browser-use：91606★；Playwright 與執行環境邊界分離。 - e2b-dev/code-interpreter：2299★；遠端 code sandbox SDK。</li>
-</ul>
-<ul>
-<li>## 改進提案 - 流程層：evidence_snapshot 與 task_execution 歸因分離（prompt v2.1.1）。 - 高風險：docs/plans/github-scout-20260502-operators-override-registry-hitl.md。</li>
-</ul>
-<ul>
-<li>## 已落實項目 - prompts/team/todoist-auto-github_scout.md、skills/github-scout/SKILL.md、上述 plan。</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/8d8d55a5-c195-4781-a6ec-e23f099d646d">GitHub Scout 2026-05-02：Agent sandbox／guardrails／REST 觀測</a></p>
-<h3>證據 6：AI GitHub 熱門專案研究 foundation 深化研究</h3>
-<blockquote>KB id：<code>0397718c-c45</code> ｜ 原文 25972 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>主題概述</li>
-<li>研究背景與動機</li>
-<li>核心內容分析</li>
-<li>證據 1：GitHub 靈感蒐集 foundation 深化研究</li>
-<li>證據 2：法華經：經典概論</li>
-<li>證據 3：KB 洞察驅動系統優化落實 foundation 深化研究</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>> 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>本研究主題為「AI GitHub 熱門專案研究」，本輪聚焦「AI GitHub 熱門專案研究 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>本輪研究承接 <code>ai_github_research</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li><strong>原文章節導覽</strong>： - 主題概述 - 研究背景與動機 - 核心內容分析 - 證據 1：GitHub 靈感蒐集 foundation 深化研究 - 證據 2：KB 洞察驅動系統優化落實 foundation 深化研究 - 證據 3：未來計畫待辦優化 foundation 深化研究</li>
-</ul>
-<ul>
-<li>- > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>- 本研究主題為「GitHub 靈感蒐集」，本輪聚焦「GitHub 靈感蒐集 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<ul>
-<li>- 1. 主題概述（本節） 2. 研究背景與動機 3. 核心內容分析（依證據逐筆深度展開） 4. 跨證據綜合分析 5. 與既有研究的関聯 6. 實踐應用 Playbook 7. 風險與權衡 8. 延伸研究方向 9. 參考來源</li>
-</ul>
-<ul>
-<li>- 本輪研究承接 <code>github_scout</code> 系列既有成果，目標在於補齊「foundation」階段尚未充分覆蓋的議題。在 daily-digest-prompt 系統的長期運行過程中，相関主題已在多個自動任務中間接出現（如 ai_deep_research、tech_research、insight_briefing 等），但缺少一份統合性的深度筆記做為知識基底。本文即以此為動機，將既有片段彙整為結構化長文。</li>
-</ul>
-<ul>
-<li>- 本文採用「機制優先 → 應用次之 → 風險殿後」的論述順序：先建立讀者對核心概念的理解，再透過 Playbook 將觀念轉為具體可執行步驟，最後揭示常被忽略的風險面。此結構亦對應 OODA 循環的 Observe / Orient / Decide / Act 四階段，便於與既有 OODA workflow 串接。</li>
-</ul>
-<ul>
-<li>- <strong>原文章節導覽</strong>： - 主題概述 - 研究背景與動機 - 文獻探討 - 觀點對照 - 共識與分歧 - 研究空白與既有覆蓋 - 核心內容分析 - 證據 1：AI 工作流自動化 GitHub 研究 foundation 深化研究</li>
-</ul>
-<ul>
-<li>- - > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 18000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。</li>
-</ul>
-<ul>
-<li>- - 本研究主題為「GitHub 靈感蒐集」，本輪聚焦「GitHub 靈感蒐集 foundation 深化研究」階段。在當代 AI agent 系統設計中，相関概念已從研究階段邁入生產，並於多個團隊出現實際採用案例。本文整合知識庫中的既有研究、從中萃取共通機制、提煉可落地的實踐步驟，並標記後續延伸研究方向。</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/0397718c-c452-41ab-b33d-7420eea86444">AI GitHub 熱門專案研究 foundation 深化研究</a></p>
-<h3>證據 7：Vite 靜態網站增量部署與 Git 自動化工作流程最佳實踐（2026）</h3>
-<blockquote>標籤：Vite、靜態網站、部署優化、CI/CD、GitHub Actions、增量同步 ｜ KB id：<code>84dd169b-f23</code> ｜ 原文 11982 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>摘要</li>
-<li>一、Vite 建置效能優化</li>
-<li>1.1 核心建置策略</li>
-<li>1.2 快取優化三層架構</li>
-<li>Layer 1: HTTP 快取（Browser Cache）</li>
-<li>Layer 2: 持久化建置快取（Persistent Build Cache）</li>
-<li>Layer 3: Server Warming（預熱）</li>
-<li>1.3 程式碼分割（Code Splitting）</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li>本研究深入探討 Vite 靜態網站的建置優化、增量部署策略、Git 自動化工作流程以及知識庫增量同步的最佳實踐。研究發現，2026 年的現代靜態網站部署已形成以下核心架構：<strong>Vite 建置優化 + GitHub Actions CI/CD + Git diff-based 增量處理 + Edge CDN 分發</strong>。</li>
-</ul>
-<ul>
-<li>Vite 在生產環境使用 <strong>Rolldown</strong>（新一代打包器）預配置優化，相較 Webpack 可產生： - <strong>更小的 bundle size</strong>：平均 130 KB vs 150 KB (Webpack) - <strong>更快的建置時間</strong>：企業級應用需採用多層優化策略</li>
-</ul>
-<ul>
-<li>#### Layer 1: HTTP 快取（Browser Cache） ``<code>javascript // Vite dev server 實作 - 預打包依賴：hard caching - 原始碼：fast 304 responses - 利用 HTTP headers 快取轉換後的模組 </code>``</li>
-</ul>
-<ul>
-<li><strong>實務注意</strong>：本地開發環境需確保 Chrome DevTools Network 面板未勾選「Disable Cache」。</li>
-</ul>
-<ul>
-<li>#### Layer 2: 持久化建置快取（Persistent Build Cache） ``<code>javascript // vite.config.js export default { cacheDir: '.vite-cache', // 確保跨建置持久化 build: { rollupOptions: { // 手動 chunk 分組提升快取命中率 output: { manualChunks(id) { if (id.includes('node_modules')) { return 'vendor'; // 穩定依賴獨立 chunk } } } } } } </code>``</li>
-</ul>
-<ul>
-<li><strong>関鍵優化</strong>：使用 <code>manualChunks</code> 將穩定的 library 群組為獨立 vendor chunks，大幅減少初始載入時間並提升<strong>跨部署快取命中率</strong>。</li>
-</ul>
-<ul>
-<li>#### Layer 3: Server Warming（預熱） ``<code>javascript // vite.config.js export default { server: { warmup: { clientFiles: ['./src/components/ExpensiveComponent.vue'] } } } </code>``</li>
-</ul>
-<ul>
-<li>``<code>javascript // 動態 import() 按需載入 const LazyComponent = () => import('./components/Heavy.vue') </code>``</li>
-</ul>
-<ul>
-<li>``<code>javascript // vite.config.js - 預設 export default { build: { target: 'baseline-widely-available' // 2026-01-01 Baseline // 實際目標: ['chrome111', 'edge111', 'firefox114', 'safari16.4'] } } </code>``</li>
-</ul>
-<ul>
-<li>Nx 的智慧快取結合 Vite 的高速打包，可建立<strong>極速建置管線</strong>： - 快取未變更模組的建置結果 - 分散式快取（團隊共享） - 增量建置（僅建置變更部分）</li>
-</ul>
-<ul>
-<li><strong>優勢</strong>： - ✅ 不 commit dist 資料夾（保持 repo 乾淨） - ✅ 利用 GitHub Actions artifacts - ✅ 自動化 CI/CD 流程</li>
-</ul>
-<ul>
-<li>``<code>yaml # .github/workflows/deploy.yml name: Deploy to GitHub Pages on: push: branches: [main] jobs: build-and-deploy: runs-on: ubuntu-latest steps: - uses: actions/checkout@v4 - uses: actions/setup-node@v4 - run: npm ci - run: npm run build - uses: actions/upload-pages-artifact@v3 with: path: dist - uses: actions/deploy-pages@v4 </code>``</li>
-</ul>
-<ul>
-<li>``<code>javascript // vite.config.js export default { base: '/repo/' // 對應 GitHub repo 名稱 } </code>``</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/84dd169b-f234-4d05-b296-019603de83fe">Vite 靜態網站增量部署與 Git 自動化工作流程最佳實踐（2026）</a></p>
-<h3>證據 8：GitHub Scout 2026-04-22：自癒 Agent 系統（self-healing / auto-remediation）</h3>
-<blockquote>標籤：GitHub、靈感蒐集、系統改進、自癒系統、self-healing、auto-remediation ｜ KB id：<code>3d1952d0-0d4</code> ｜ 原文 1842 字</blockquote>
-<p><strong>原文章節導覽</strong>：</p>
-<ul>
-<li>專案觀測摘要</li>
-<li>1. matebenyovszky/healing-agent（★540）</li>
-<li>2. AdminTurnedDevOps/Agentic-AI-The-Hard-Way（★1100）</li>
-<li>3. EvoAgentX/Awesome-Self-Evolving-Agents（★1400）</li>
-<li>改進提案</li>
-<li>P1A（已落實）：SKILL.md triggers 擴充</li>
-<li>P1B（已落實）：review-policy 新增 self_healing_auto_remediation 主題覆寫</li>
-<li>P1C（待審核 - 高風險計畫）：self_heal_executor 修復嘗試結構化 JSONL 記錄</li>
-</ul>
-<p><strong>核心內容摘錄</strong>：</p>
-<ul>
-<li><strong>核心模式</strong>：Python decorator 封裝函式，例外時擷取 stack trace/變數/原始碼，呼叫 LLM 診斷並自動套用修復 <strong>関鍵設計</strong>： - Decorator Pattern（@healing_agent 透明攔截例外） - Provider Abstraction（OpenAI/Azure/Anthropic/Ollama/LiteLLM 可插拔） - Iterative Fix Loop（Detect→Analyze→Generate→Test→Apply→Retry） - Fail-Safe Operations（自動備份 + JSON 記錄所有修復嘗試）</li>
-</ul>
-<ul>
-<li><strong>核心模式</strong>：K8s Agentic AI 工作流 Labs，含 AI Gateway 安全層 <strong>関鍵設計</strong>： - Human-In-The-Loop Autonomy（平台工程助手，人工監督） - Observability-First（Observer 場景） - Progressive Autonomy（從輔助到全自主） - AI Gateway Safety Layer（Prompt Guard/Rate Limit/MCP Security）</li>
-</ul>
-<ul>
-<li><strong>核心模式</strong>：自我演化 Agent 全面調查 survey（TOSEM 2026） <strong>関鍵設計</strong>：self-healing、自我修正、自主恢復的設計模式庫</li>
-</ul>
-<ul>
-<li>### P1A（已落實）：SKILL.md triggers 擴充 - 新增 7 個自癒相関觸發詞至 skills/github-scout/SKILL.md - 版本：2.1.1 → 2.1.2</li>
-</ul>
-<ul>
-<li>### P1B（已落實）：review-policy 新增 self_healing_auto_remediation 主題覆寫 - 在 config/github-scout-review-policy.yaml 加入新主題覆寫 - 必要分析維度：detection_mechanism / recovery_strategy / rollback_safety</li>
-</ul>
-<ul>
-<li>### P1C（待審核 - 高風險計畫）：self_heal_executor 修復嘗試結構化 JSONL 記錄 - 靈感：healing-agent fail-safe JSON 記錄模式 - 目標：state/self-heal-fix-attempts.jsonl - 計畫：docs/plans/github-scout-20260422-self-heal-fix-attempt-logging.md</li>
-</ul>
-<ul>
-<li>- P1A/P1B：feasibility=9, stability=9 → 已直接落實 - P1C：feasibility=7, stability=6（<7 門檻）→ 升高風險，輸出計畫待人工審核</li>
-</ul>
-<ul>
-<li>1. skills/github-scout/SKILL.md version 2.1.1→2.1.2，新增 7 個觸發詞 2. config/github-scout-review-policy.yaml 新增 self_healing_auto_remediation topic override</li>
-</ul>
-<ul>
-<li>1. docs/plans/github-scout-20260422-self-heal-fix-attempt-logging.md（高風險計畫） - 需確認 JSONL 寫入不在 critical path - 需補測試：test_self_heal_executor_fix_attempt_logging.py - 需在 data-ownership.yaml 宣告 state/self-heal-fix-attempts.jsonl</li>
-</ul>
-<p><strong>來源連結</strong>：<a href="http://localhost:3000/api/notes/3d1952d0-0d4d-4093-9b77-54045f28964f">GitHub Scout 2026-04-22：自癒 Agent 系統（self-healing / auto-remediation）</a></p>
-<h2>跨證據綜合分析</h2>
-<p>本節將前述證據放在同一視角下對比，找出共通主題與互補面向：</p>
-<p><strong>共通標籤分布</strong>（顯示各筆證據在分類學上的交集）：</p>
-<ul>
-<li><code>GitHub</code> × 4 筆</li>
-<li><code>系統改進</code> × 3 筆</li>
-<li><code>靈感蒐集</code> × 3 筆</li>
-<li><code>CI/CD</code> × 1 筆</li>
-<li><code>Git workflow</code> × 1 筆</li>
-<li><code>GitHub Actions</code> × 1 筆</li>
-<li><code>Hook/Guard</code> × 1 筆</li>
-<li><code>LLM可觀測性</code> × 1 筆</li>
-</ul>
-<p><strong>各筆證據主軸對照</strong>：</p>
-<ul>
-<li>證據 1 <strong>GitHub Scout: Hook/Guard 工具護欄研究 - 2026-04-25</strong>（原文 2421 字）：# GitHub Scout：Hook/Guard 工具護欄研究  <strong>執行日期</strong>：2026-04-25   <strong>主題</strong>：Hook/Guard 工具護欄：BodAIGuard SSRF + anywhere-agents PreToolUse + aport 授權   <strong>Trace ID</strong>：github-sco…</li>
-<li>證據 2 <strong>AI 智慧城市研究 foundation 深化研究</strong>（原文 25793 字）：# AI 智慧城市研究 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「AI 智慧城市研究」，本…</li>
-<li>證據 3 <strong>GitHub Scout: LLM 可觀測性/trace（Langfuse/Phoenix/OpenLLMetry） - 2026-04-29</strong>（原文 1393 字）：## 專案觀測摘要  本次 github_scout 主題：LLM 可觀測性/trace（Langfuse/Phoenix/OpenLLMetry）。  ### 1. langfuse/langfuse（26.3k★） - 開源 LLM 工程平台：可觀測性、eval、Prompt 管理，整合 OTel/LangChai…</li>
-<li>證據 4 <strong>AI 工作流自動化 GitHub 研究 foundation 深化研究</strong>（原文 25967 字）：# AI 工作流自動化 GitHub 研究 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「AI…</li>
-<li>證據 5 <strong>GitHub Scout 2026-05-02：Agent sandbox／guardrails／REST 觀測</strong>（原文 576 字）：## 專案觀測摘要 - openai/openai-agents-python：25717★，pushed_at 2026-05-02（GitHub REST）；tool guardrails 三態 + Sandbox agents。 - browser-use/browser-use：91606★；Playwrigh…</li>
-<li>證據 6 <strong>AI GitHub 熱門專案研究 foundation 深化研究</strong>（原文 25972 字）：# AI GitHub 熱門專案研究 foundation 深化研究  > 由 LangGraph research_langgraph_v2 工作流自動合成，目標長度 ≥ 15000 字。本文整合既有 KB 證據（8 筆）並以結構化方式輸出，供後續實作落地與系列研究承接。  ## 主題概述  本研究主題為「AI Gi…</li>
-<li>證據 7 <strong>Vite 靜態網站增量部署與 Git 自動化工作流程最佳實踐（2026）</strong>（原文 11982 字）：# Vite 靜態網站增量部署與 Git 自動化工作流程深度研究  <strong>研究日期</strong>: 2026-04-22 <strong>研究等級</strong>: Standard <strong>來源數量</strong>: 14  ## 摘要  本研究深入探討 Vite 靜態網站的建置優化、增量部署策略、Git 自動化工作流程以及知識庫增量同步的最佳實踐。研究發現，2026…</li>
-<li>證據 8 <strong>GitHub Scout 2026-04-22：自癒 Agent 系統（self-healing / auto-remediation）</strong>（原文 1842 字）：## 專案觀測摘要  本輪蒐集 3 個與「自癒 Agent 系統」相関的 GitHub 熱門專案：  ### 1. matebenyovszky/healing-agent（★540）  <strong>核心模式</strong>：Python decorator 封裝函式，例外時擷取 stack trace/變數/原始碼，呼叫 LLM 診斷並…</li>
-</ul>
-<p>從上述對照可看出：本主題在現有知識庫中已具備多角度覆蓋，可進一步以「機制 → 應用 → 風險 → 優化」的縱深維度推進系列研究。</p>
-<h2>與既有研究的関聯</h2>
-<p>依 <code>context/research-registry.json</code> 紀錄，下列既有研究與本主題具備直接関聯：</p>
-<ul>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-<li>「GitHub 靈感蒐集 foundation 深化研究」：可作為本主題的基礎或延伸閱讀。</li>
-</ul>
-<p>上述研究與本文形成「點 → 面」的覆蓋関係，建議在落地前完整閱讀至少 3 筆相関研究，以避免重蹈過去已被識別的反模式。</p>
-<h2>實踐應用 Playbook</h2>
-<p>基於 8 筆既有證據與本主題（GitHub 靈感蒐集 foundation 深化研究）的分析，以下整理可落地的實踐步驟，供工程團隊在生產環境中採用：</p>
-<h3>Step 1：對齊系統定位</h3>
-<ol>
-<li>釐清本主題在現有系統架構中所對應的層級（基礎設施／應用層／編排層）。</li>
-<li>盤點既有實作中與本主題相関的元件，列出明確的接合點與責任邊界。</li>
-<li>與既有設計文件交叉比對，確保新引入概念不破壞既有契約。</li>
-</ol>
-<h3>Step 2：能力差距盤點</h3>
-<ol>
-<li>將本文「核心內容分析」中提到的能力逐項對應到現有系統的覆蓋程度。</li>
-<li>對於差距項目，標記嚴重度（critical／high／medium）與緊急度。</li>
-<li>將差距寫入 <code>context/improvement-backlog.json</code>，由 self-heal / arch-evolution 接力處理。</li>
-</ol>
-<h3>Step 3：採用前的風險檢核</h3>
-<ol>
-<li>在 staging 環境以最小可行原型（MVP）跑一次完整流程，量測 P95 延遲與失敗模式。</li>
-<li>對照本文「跨證據綜合分析」中提到的共通標籤，確認其他研究系列已揭露的注意事項。</li>
-<li>撰寫對應 fitness function（在 <code>config/benchmark.yaml</code>）以鎖定預期屬性。</li>
-</ol>
-<h3>Step 4：漸進式上線</h3>
-<ol>
-<li>先以 Feature Flag（如 <code>config/langgraph-migration.yaml</code> 的 <code>migrated_tasks</code>）對單一任務切換。</li>
-<li>shadow-run 對照新舊行為，並記錄至 <code>state/result-synthesis-last-run.json</code> 類型的 observability 檔。</li>
-<li>確認連續 3 輪 production 結果穩定後，再放寬至同類別其他任務。</li>
-</ol>
-<h3>Step 5：知識回流與壓縮</h3>
-<ol>
-<li>將實際採用後得到的觀察寫回 KB（與原證據筆記交叉引用）。</li>
-<li>為本系列建立或更新 <code>context/research-series.json</code> 的階段紀錄，避免重複研究。</li>
-<li>必要時觸發 <code>optimization_proposal</code> 自動任務，將洞察轉為長期計畫。</li>
-</ol>
-<h2>風險與權衡</h2>
-<p>任何引入「GitHub 靈感蒐集 foundation 深化研究」相関概念的變更都伴隨可預期與不可預期的代價，本節列出已知主要面向：</p>
-<ol>
-<li><strong>機制理解門檻</strong>：新概念可能需要團隊額外學習成本，建議先以內部讀書會＋code-walk 暖機。</li>
-<li><strong>可觀測性需求上升</strong>：新增子系統意味著新的失敗模式，需同步擴充日誌標籤、metrics 與 trace。</li>
-<li><strong>依賴鏈擴張</strong>：第三方套件版本與發版頻率會直接影響升級節奏，須評估鎖版策略。</li>
-<li><strong>回退路徑</strong>：每個引入點都應預先規劃明確的回退條件（例如 Feature Flag 切換、舊路徑保留 3 個月）。</li>
-<li><strong>跨系列耦合</strong>：當本主題影響到其他研究系列（在 research-series.json 體現）時，需先取得該系列負責人同步。</li>
-</ol>
-<p>在採用前，務必先回答以下三個問題：</p>
-<ul>
-<li>若本變更必須在一週內回退，是否能在不影響既有 SLA 的情況下達成？</li>
-<li>該變更是否會影響 fitness function 的任一指標（success_rate / cache_hit_rate / token_budget）？</li>
-<li>是否存在更輕量的替代方案，能達成同樣的目的？</li>
-</ul>
-<h2>延伸研究方向</h2>
-<p>以「GitHub 靈感蒐集 foundation 深化研究」為起點，後續可從下列五個方向繼續深化：</p>
-<ol>
-<li><strong>mechanism → application 銜接</strong>：將本研究產出的概念落到 1–2 個具體任務的實作中。</li>
-<li><strong>與其他研究系列的交集</strong>：在 <code>context/research-series.json</code> 中尋找標籤交集 ≥ 2 的系列。</li>
-<li><strong>失敗案例對照</strong>：到 <code>state/log-audit-anomalies.json</code> 找與本主題相関的 incident，做反向診斷。</li>
-<li><strong>量化指標設計</strong>：為本主題設計 1–2 個 fitness function，寫入 <code>config/benchmark.yaml</code>。</li>
-<li><strong>演化路線圖</strong>：將本主題放上 <code>context/improvement-backlog.json</code>，標明 owner 與 ETA。</li>
-</ol>
-<p>可優先深入閱讀的既有筆記（依本輪採用順序）：</p>
-<ol>
-<li><a href="http://localhost:3000/api/notes/4999fe0c-0f77-4285-9e40-32e3e9338f36">GitHub Scout: Hook/Guard 工具護欄研究 - 2026-04-25</a></li>
-<li><a href="http://localhost:3000/api/notes/277a893c-dec2-4dbe-8c7f-2b5b14ffe24e">AI 智慧城市研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/f388015f-38d4-4826-b771-f073da222f0e">GitHub Scout: LLM 可觀測性/trace（Langfuse/Phoenix/OpenLLMetry） - 2026-04-29</a></li>
-<li><a href="http://localhost:3000/api/notes/e5b05e28-6b76-4cd8-bb46-941dcdfd86ba">AI 工作流自動化 GitHub 研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/8d8d55a5-c195-4781-a6ec-e23f099d646d">GitHub Scout 2026-05-02：Agent sandbox／guardrails／REST 觀測</a></li>
-</ol>
-<h2>參考來源</h2>
-<ul>
-<li><a href="http://localhost:3000/api/notes/4999fe0c-0f77-4285-9e40-32e3e9338f36">GitHub Scout: Hook/Guard 工具護欄研究 - 2026-04-25</a></li>
-<li><a href="http://localhost:3000/api/notes/277a893c-dec2-4dbe-8c7f-2b5b14ffe24e">AI 智慧城市研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/f388015f-38d4-4826-b771-f073da222f0e">GitHub Scout: LLM 可觀測性/trace（Langfuse/Phoenix/OpenLLMetry） - 2026-04-29</a></li>
-<li><a href="http://localhost:3000/api/notes/e5b05e28-6b76-4cd8-bb46-941dcdfd86ba">AI 工作流自動化 GitHub 研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/8d8d55a5-c195-4781-a6ec-e23f099d646d">GitHub Scout 2026-05-02：Agent sandbox／guardrails／REST 觀測</a></li>
-<li><a href="http://localhost:3000/api/notes/0397718c-c452-41ab-b33d-7420eea86444">AI GitHub 熱門專案研究 foundation 深化研究</a></li>
-<li><a href="http://localhost:3000/api/notes/84dd169b-f234-4d05-b296-019603de83fe">Vite 靜態網站增量部署與 Git 自動化工作流程最佳實踐（2026）</a></li>
-<li><a href="http://localhost:3000/api/notes/3d1952d0-0d4d-4093-9b77-54045f28964f">GitHub Scout 2026-04-22：自癒 Agent 系統（self-healing / auto-remediation）</a></li>
-</ul>
-<p>本筆記由 LangGraph research_langgraph_v2 機械合成，可信度依據引用之 KB 筆記原始來源；如發現引用失準，請於 KB 對應筆記更新後重跑工作流。</p>
       </div>
 
       <a href="../" class="back-link">← 返回首頁</a>
