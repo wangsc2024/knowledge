@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 自動測試生成閉環：Copilot、Playwright 與 Mutation Testing 的工程化落地（2026）">
+  <title>AI 自動測試生成閉環：Copilot、Playwright 與 Mutation Testing 的工程化落地（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 自動測試生成閉環：Copilot、Playwright 與 Mutation Testing 的工程化落地（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">自動測試生成</span><span class="tag">software-engineering</span><span class="tag">Playwright</span><span class="tag">MutationTesting</span><span class="tag">GitHubCopilot</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 自動測試生成閉環：Copilot、Playwright 與 Mutation Testing 的工程化落地（2026）</h1>
+<h2>技術概述</h2>
+<p>2026 年的 AI 測試生成已從「叫模型寫幾個單元測試」走向閉環工程：先用生成式工具快速產生初稿，再用真實執行、瀏覽器互動與 mutation testing 反向檢驗測試是否真的能抓錯。GitHub Copilot 官方文件已把單元測試生成、E2E 測試生成與測試更新列成標準用法；Playwright 同時提供 <code>codegen</code> 與 MCP testing capability，讓代理能直接觀察 DOM、補 assertions、再輸出可維護的 Playwright 程式碼；Stryker 則補上最容易被 AI 偽裝掉的缺口：coverage 很高，但測試其實抓不到錯。研究面上，TestForge（2025-03-18）與 AdverTest（2026-02-08）都指出，單次生成不夠，必須把執行回饋與 mutation score 拉進迭代迴圈。</p>
+<h2>核心方法與工具</h2>
+<ol>
+<li>GitHub Copilot 產生單元測試骨架</li>
+<li>GitHub Docs 指出 Copilot Chat 可直接為程式產生 unit tests，也支援 <code>/tests</code> slash command，但官方同時提醒生成結果不會覆蓋所有情境，仍要人工補齊邊界案例。</li>
+<li>Microsoft Learn 2026 版 <code>.NET</code> 文件進一步把這件事產品化：<code>@Test</code> agent 會在獨立 test project 產生測試、建置、嘗試修正錯誤，並重新執行測試。</li>
+</ol>
+<ol>
+<li>Playwright 補齊 E2E 與真實互動證據</li>
+<li><code>npx playwright codegen <url></code> 可直接錄製互動並產出測試碼。</li>
+<li>Playwright MCP 的 testing capability 可「驗證頁面狀態並生成 Playwright test code」，適合代理先跑站點、確認 DOM 狀態，再把穩定 locator 與 assertions 寫回測試檔。</li>
+</ol>
+<ol>
+<li>Mutation testing 反證 AI 測試是否有效</li>
+<li>Stryker 的核心不是看 coverage，而是故意改壞程式，再跑測試看是否有 mutant 存活。</li>
+<li>官方文件明講：若 mutant 存活，通常代表缺測某個條件分支或 assertion 不夠強。</li>
+</ol>
+<ol>
+<li>以回饋驅動的多輪生成取代單輪生成</li>
+<li>TestForge 將 zero-shot 生成後的測試，持續用執行結果與 coverage report 重寫；論文報告平均達到 pass@1 84.3%、line coverage 44.4%、mutation score 33.8%，平均成本約每檔 0.63 美元。</li>
+<li>AdverTest 更進一步把測試代理與 mutant 代理對打，讓 mutation score 直接成為下一輪 prompt 的優化訊號。</li>
+</ol>
+<h2>實際工作流程（step-by-step）</h2>
+<ol>
+<li>先選高價值模組，不要全 repo 盲打。優先挑純函式、規則引擎、API schema 驗證器、UI 核心流程。</li>
+<li>用 Copilot 產生第一版單元測試，prompt 必須明寫：</li>
+<li>使用既有測試框架</li>
+<li>要涵蓋 happy path、invalid input、edge case、exception path</li>
+<li>要避免 mock 掉真正的核心規則</li>
+<li>先跑一次單元測試，刪掉不穩定或重複 assertion。</li>
+<li>對 UI 流程用 Playwright <code>codegen</code> 或 MCP 錄製最短關鍵路徑，先拿到可執行腳本。</li>
+<li>再讓代理補 assertions，不接受只有 click/fill、沒有驗證結果的腳本。</li>
+<li>跑 mutation testing。</li>
+<li>把 surviving mutants 轉成下一輪 prompt，例如：「以下 mutant 存活：<code>price <= 0</code> 變成 <code>price < 0</code> 仍通過。請補能殺死該 mutant 的測試，不要改 production code。」</li>
+<li>只保留通過三關的測試：可執行、可讀、能提升 mutation score。</li>
+</ol>
+<h2>程式碼 / 配置範例</h2>
+<h3>Copilot 測試生成 prompt</h3>
+<pre><code>
+為 OrderPricingService 產生 pytest 測試。
+要求：
+1. 覆蓋折扣上限、負數數量、空購物車、VIP 疊加規則。
+2. 每個測試只驗證一個商業規則。
+3. 若需要 fixtures，沿用現有 tests/conftest.py 風格。
+4. 不要修改 production code。
+</code></pre>
+<h3>Playwright MCP 設定</h3>
+<pre><code>
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest", "--caps=testing"]
+    }
+  }
+}
+</code></pre>
+<h3>Playwright codegen</h3>
+<pre><code>
+npx playwright codegen http://localhost:8000
+</code></pre>
+<h3>StrykerJS 起手式</h3>
+<pre><code>
+npm init stryker@latest
+npx stryker run
+</code></pre>
+<h3>Stryker.NET 起手式</h3>
+<pre><code>
+dotnet tool install -g dotnet-stryker
+dotnet stryker
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>TestForge（arXiv:2503.14713，2025-03-18）：</li>
+</ul>
+<p>  pass@1 84.3%、line coverage 44.4%、mutation score 33.8%、平均成本 0.63 美元/檔。</p>
+<ul>
+<li>AdverTest（arXiv:2602.08146，2026-02-08）：</li>
+</ul>
+<p>  不是只追 coverage，而是把 coverage 與 mutation score 同時當作對抗迭代目標。這代表後續工程不該只看覆蓋率報表，而要看「模型寫出的測試到底能不能殺 mutant」。</p>
+<ul>
+<li>GitHub Copilot testing for .NET（Microsoft Learn，2026-02/03 文件）：</li>
+</ul>
+<p>  官方產品設計已內建「生成→建置→嘗試修復→重跑」，說明單輪生成已不足，執行回饋是標配。</p>
+<h2>與本專案應用場景</h2>
+<p>本專案是 <code>uv + Python + FastAPI</code>，最適合直接落三段式：</p>
+<ol>
+<li><code>pytest</code> 單元測試</li>
+<li>針對 <code>tools/</code>、研究流程規則、JSON schema 驗證與 prompt 組裝器做 AI 輔助生成。</li>
+</ol>
+<ol>
+<li>Playwright E2E</li>
+<li>若有 FastAPI 托管前端或本機管理頁，直接用 Playwright 驗證關鍵流程，不把 UI 測試留在純文字推理層。</li>
+</ol>
+<ol>
+<li>mutation / survivor 回饋</li>
+<li>即使語言工具鏈不完全等於 StrykerJS/.NET，流程也應保留：先找到 surviving mutants 或等價弱點，再把它們回餵給模型補測。</li>
+</ol>
+<p>最實際的導入方式不是「讓 AI 一次寫完所有測試」，而是：</p>
+<ul>
+<li>PR 前：Copilot 產生草稿</li>
+<li>CI 中：pytest / Playwright 執行</li>
+<li>夜間或重點模組：mutation testing</li>
+<li>失敗回饋：把 surviving mutants 與 flaky case 餵回下一輪提示</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>官方文件已提醒 Copilot 產生的 tests 可能漏情境；不能把生成結果當完成品。</li>
+<li>Playwright 錄製很快，但 locator 仍可能脆弱；要優先使用 role、label、text 與穩定 data-testid。</li>
+<li>coverage 不能替代 mutation score。高 coverage 但 mutant 大量存活，通常只是測到行，沒測到規則。</li>
+<li>AI 很容易重複產生語義等價的測試，拉高案例數卻不提升缺陷檢出率。</li>
+<li>對外部 I/O、時間、隨機數、並發流程，若沒有明確 test seam，AI 會傾向過度 mock，導致測試失真。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>GitHub Docs: https://docs.github.com/en/copilot/tutorials/write-tests</li>
+<li>GitHub Docs Cookbook: https://docs.github.com/en/copilot/tutorials/copilot-cookbook/testing-code</li>
+<li>Playwright codegen: https://playwright.dev/docs/codegen</li>
+<li>Playwright MCP testing: https://playwright.dev/mcp/tools/assertions</li>
+<li>Stryker mutation testing: https://stryker-mutator.io/docs/</li>
+<li>StrykerJS getting started: https://stryker-mutator.io/docs/stryker-js/getting-started/</li>
+<li>Microsoft Learn Copilot testing for .NET: https://learn.microsoft.com/en-us/visualstudio/test/unit-testing-with-github-copilot-test-dotnet?view=visualstudio</li>
+<li>Microsoft Learn mutation testing for .NET: https://learn.microsoft.com/en-us/dotnet/core/testing/mutation-testing</li>
+<li>TestForge paper: https://arxiv.org/abs/2503.14713</li>
+<li>AdverTest paper: https://arxiv.org/abs/2602.08146</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
