@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SGLang — 新世代高效能 LLM 推論框架深度研究報告">
+  <title>SGLang — 新世代高效能 LLM 推論框架深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>SGLang — 新世代高效能 LLM 推論框架深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">SGLang</span><span class="tag">LLM推論</span><span class="tag">Inference</span><span class="tag">RadixAttention</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>SGLang — 新世代高效能 LLM 推論框架深度研究報告</h1>
+<h2>一、執行摘要</h2>
+<p>SGLang（Structured Generation Language）是由 UC Berkeley、CMU 等頂尖學術機構共同孵化、並於 2026 年 1 月以「RadixArk」品牌完成 4 億美元估值融資的開源 LLM 推論框架 [來源:SGLang spins out as RadixArk,2026]。以 28,800 顆 GitHub Stars（截至 2026-06-01）與全球超過 400,000 GPU 的生產部署規模來看，SGLang 已從實驗室成果躍升為業界真實採用的基礎設施層元件，xAI、AMD、NVIDIA、LinkedIn、Cursor 均在其採用清單之上 [來源:GitHub sgl-project/sglang,2026]。</p>
+<p>本文主張：<strong>SGLang 的核心優勢並非全場景吞吐量冠軍，而是「有前綴共享語意的工作負載」的最佳化引擎。</strong> RadixAttention 的跨請求 KV cache 重用機制在 multi-turn 對話、RAG、few-shot learning 等場景可帶來 3x–6.4x 的吞吐提升，這是同時期所有競品均未能在架構層面實現的能力 [來源:SGLang vs vLLM in 2026,2026]。但在完全唯一提示（如批量文件摘要）的場景下，此優勢幾乎消失，使 SGLang 成為一個「場景敏感型」而非「萬用型」的選擇。</p>
+<p>對於台灣與華人工程師社群而言，SGLang 的重要性在於：它是目前<strong>對 DeepSeek 系列模型最完整的官方支援框架</strong>（V3/V4/R1 全支援），且在 DeepSeek MLA 優化上比 vLLM 快 7x，這讓任何以 DeepSeek 為核心的推論服務部署幾乎都應優先評估 SGLang [來源:開源AI推理引擎的未來：SGLang與DeepSeek的技術突破,2025]。</p>
+<h2>二、研究背景與動機</h2>
+<p>LLM 推論服務的根本困境在於 <strong>GPU 記憶體頻寬的稀缺性</strong>：Transformer 的 KV cache 在長上下文場景下呈線性增長，而每個請求獨立生命週期的假設讓大量計算重複發生。2023 年的 vLLM 以 PagedAttention 解決了單請求內的碎片化問題，2024 年的 SGLang 則進一步問：「為什麼每個請求都要重新計算相同的前綴？」</p>
+<p>具體數字展示了這個問題的規模：在 RAG 場景中，系統提示（system prompt）通常佔請求 token 的 30–60%；在 multi-turn 對話中，歷史對話的 token 佔比更高達 70–80%。如果這些前綴 token 的 KV cache 能被下一個請求重用，prefill 計算成本（這是 TTFT 的主要貢獻）就會大幅降低 [來源:Fast and Expressive LLM Inference with RadixAttention and SGLang,2024]。</p>
+<p>從生態系定位看，SGLang 誕生於學術機構（LMSYS Org / UC Berkeley）的 research-first 文化，但 2026 年 RadixArk 4 億美元融資標誌著它正式進入商業競爭軌道，與 Anyscale（vLLM 商業支援）、NVIDIA（TensorRT-LLM）形成直接競爭。Stars 從 2024 年的 11K 成長至 2026 年 6 月的 28.8K，年增率超過 150%，是推論框架領域成長最快的開源專案之一 [來源:GitHub sgl-project/sglang,2026]。</p>
+<h2>三、文獻探討</h2>
+<p><strong>學術視角：</strong> LMSYS Org 的原創技術部落格（[來源:Fast and Expressive LLM Inference with RadixAttention and SGLang,2024]）奠定了 RadixAttention 的理論基礎。文章量化了 few-shot learning 場景的 cache hit rate 從 vLLM 的 15–25% 提升至 85–95%，並在 8-GPU Mixtral-8x7B 測試中展示最高 5x 的吞吐提升。這個數字在業界後續的獨立驗測中被部分確認（Particula Tech 2026 年測試在 8B 模型共享前綴場景下取得 2.17x），但在無前綴共享的場景下僅有 1.3x。這說明原始論文的測試條件（高前綴共享率）是 SGLang 優勢的充分但非必要條件。</p>
+<p><strong>工業評測視角：</strong> Spheron Network（[來源:vLLM vs TensorRT-LLM vs SGLang: H100 Benchmarks,2026]）在 Llama 3.3 70B + H100 的三方評測中發現，SGLang 在所有並發級別下吞吐量均優於 vLLM（最高 3.9%），但被 TensorRT-LLM 超越（約 9%）。此文章的重要性在於揭示：在「無前綴共享的大模型場景」下，三個框架的差距已收斂到 5–10% 以內，選擇框架的決策因子應從「誰最快」轉向「誰最容易部署、維護、整合」。</p>
+<p><strong>社群視角：</strong> Hacker News 討論（[來源:SGLang spins out as RadixArk $400M,2026]）中，工程師社群對 SGLang 的商業化表達了複雜情緒。一方面，RadixArk 的融資被視為「學術研究能成功商業化的正面案例」；另一方面，有資深 ML 工程師擔憂「商業壓力是否會讓社群貢獻決策在 12 個月後逐漸關閉」，這是開源基礎設施商業化的永恆張力 [來源:The Community Stories of vLLM and SGL,2025]。</p>
+<p><strong>中文社群視角：</strong> 中文技術社群（[來源:開源AI推理引擎的未來：SGLang與DeepSeek的技術突破,2025]）對 SGLang 的認知主要通過 DeepSeek 模型的優化路徑建立。由於 DeepSeek 在中文技術社群中的影響力，SGLang 在 2025 年初就被視為「運行 DeepSeek 的首選框架」，這與西方社群以 vLLM 為默認起點的偏好形成了有趣的分野。</p>
+<h2>四、核心論證</h2>
+<h3>4.1 RadixAttention：架構差異的關鍵</h3>
+<p>SGLang 的核心創新是 <strong>RadixAttention</strong>，它用 radix tree（基數樹）管理跨請求的 KV cache 生命週期。傳統的 PagedAttention（vLLM）以固定大小的 block 管理 KV cache，但 cache 的重用範圍被限制在單一請求生命週期內——請求完成後，KV cache 即被回收。</p>
+<p>RadixAttention 的根本不同在於：<strong>KV cache 在請求完成後不被立即回收，而是作為共享資源持久化於 GPU 記憶體中，新的請求如果與已快取的 token 序列有共同前綴，則直接重用對應的 KV cache 而跳過 prefill 計算。</strong> 採用 LRU 策略淘汰最久未使用的節點，確保 GPU 記憶體不被耗盡 [來源:Fast and Expressive LLM Inference with RadixAttention and SGLang,2024]。</p>
+<p><strong>佐證：</strong> 在 Particula Tech 2026 年的 RAG 場景獨立測試中，SGLang 的 TTFT（首 token 時間）為 79ms，vLLM 為 103ms，快 23%；輸出吞吐量 SGLang 894 tok/s 對比 vLLM 413 tok/s，領先 117%。這個 2x+ 的差距正是因為 RAG 場景中 context injection 的高度重複性 [來源:SGLang vs vLLM in 2026,2026]。</p>
+<p><strong>推論：</strong> 對於 RAG 應用，SGLang 不只是「稍微快一點」，而是在特定場景下能讓同樣的硬體服務兩倍的請求量，直接影響 GPU 成本計算。Particula 試算：在 H100 每日 100 萬請求規模下，使用 SGLang 可節省約 $15,000/月。</p>
+<h3>4.2 零開銷排程器與 CUDA 圖最佳化</h3>
+<p>v0.4 引入的 <strong>Zero-Overhead CPU Scheduler</strong> 用 CUDA event 機制讓 CPU batch 準備與 GPU 計算完全重疊，GPU 利用率從傳統的 78–85% 提升至 95–98%。搭配 Piecewise CUDA Graphs（v0.5.10 起預設開啟）讓動態 batch size 場景也能享受 CUDA Graph 的 kernel launch 最小化優勢，避免了靜態 CUDA Graph 的「每個 batch size 都要預捕獲」限制 [來源:GitHub sgl-project/sglang,2026]。</p>
+<h3>4.3 DeepSeek 生態的深度整合</h3>
+<p>SGLang 是目前對 DeepSeek 架構最佳化最深的開源框架：</p>
+<ul>
+<li><strong>MLA（Multi-head Latent Attention）TokenSpeed 後端</strong>：透過 KV 壓縮解壓縮的計算換記憶體策略，在 FP8 KV cache 基礎上進一步提升 decode 吞吐量，相比前版本快 7x [來源:開源AI推理引擎的未來：SGLang與DeepSeek的技術突破,2025]</li>
+<li><strong>DeepSeek-V3/V4 完整推理路徑</strong>：v0.5.12 是第一個完整支援 DeepSeek-V4 推理路徑的開源框架（2026-05-16 發布）</li>
+<li><strong>EP（Expert Parallelism）容錯機制</strong>：Elastic EP 支援 MoE 架構的彈性並行，直接對應 DeepSeek-V3/V4 的 MoE 設計</li>
+</ul>
+<p>三方比較（H100, Llama 3.3 70B, 50 並發）：TensorRT-LLM 2,100 tok/s > SGLang 1,920 tok/s > vLLM 1,850 tok/s，框架間差距在同等條件下已收斂至 15% 以內 [來源:vLLM vs TensorRT-LLM vs SGLang: H100 Benchmarks,2026]。</p>
+<h2>五、一家之言</h2>
+<p>SGLang 的定位在 2026 年已相當清晰：它是一個<strong>為「有結構」的工作負載而生的推論框架</strong>。所謂「有結構」，指的是請求之間存在語意上的相關性——共享的系統提示、相同的背景文件、重複的 few-shot 示例。這類工作負載在現實 AI 應用中佔大多數：RAG 聊天機器人、客服系統、程式碼補全、文件問答——它們都有。</p>
+<p>然而，市面上關於 SGLang 的評測普遍<strong>低估了「場景適配」的重要性，高估了平均性能指標的說服力</strong>。當 Spheron 展示「SGLang 比 vLLM 快 3.9%」時，這個數字建立在「所有提示完全唯一」的測試假設上——這恰恰是 RadixAttention 優勢最小的場景。真實生產環境中，大多數應用的 cache hit rate 應在 40–70% 之間，此時 SGLang 的優勢會是 1.5x–3x，而非 3.9%。</p>
+<p>另一個被低估的風險是<strong>商業化軌跡</strong>。RadixArk 4 億美元融資是好事，也是潛在隱患。目前 SGLang 仍是 Apache 2.0 授權，但 VC 壓力下的授權策略可能在 18–24 個月內改變。若計畫將 SGLang 嵌入核心推論棧，建議現在就在合約與技術架構層面為替換方案預留空間 [來源:The Community Stories of vLLM and SGL,2025]。</p>
+<p>總結：SGLang 是值得投入的推論框架，但「值得」的前提是你能確認自己的工作負載屬於「有前綴共享語意」的類型，且願意接受比 vLLM 小一半的開源社群帶來的維護支援風險。</p>
+<h2>六、實踐建議</h2>
+<p><strong>場景一：DeepSeek 系列模型生產部署</strong></p>
+<p>直接採用 SGLang，這是目前無爭議的最佳選擇。啟動指令：<code>python -m sglang.launch_server --model deepseek-ai/DeepSeek-V3 --tp 4</code>。啟用 <code>--enable-torch-compile</code> 和 <code>--quantization fp8</code> 可進一步提升吞吐量 15–30%。風險：V3 需要 8x 80GB GPU 或 4x H100 以上。</p>
+<p><strong>場景二：RAG 聊天機器人</strong></p>
+<p>SGLang 的 RadixAttention 在此場景提供最大化收益。建議在 <code>--mem-fraction-static 0.7</code> 配置下預留足夠 KV cache 空間。測量你的實際 cache hit rate（<code>/metrics</code> endpoint），如低於 30% 則重新評估遷移必要性。</p>
+<p><strong>場景三：既有 vLLM 遷移評估</strong></p>
+<p>建議先用生產流量的 10% 進行 A/B 測試，重點測量 p50/p99 TTFT 和每 GPU 每小時可服務的請求數。如改善超過 20%，遷移成本（約 2–3 週工程時間）即回收。注意確認 Python 版本與 CI/CD pipeline 相容性。</p>
+<p><strong>場景四：多模型服務閘道</strong></p>
+<p>此場景目前建議保留 vLLM。vLLM 的模型支援廣度（包含 encoder-decoder 如 T5/BART）和非 NVIDIA 硬體支援（TPU、Gaudi）使它在需要快速切換模型的場景下更具彈性 [來源:vLLM vs TensorRT-LLM vs SGLang: H100 Benchmarks,2026]。</p>
+<h2>七、風險與限制</h2>
+<p><strong>技術層風險：</strong></p>
+<ul>
+<li><strong>場景依賴性高</strong>：在完全唯一提示的批量場景（如文件翻譯）中，SGLang 相對 vLLM 的吞吐優勢僅 3–9%，不足以覆蓋遷移成本 [來源:vLLM vs TensorRT-LLM vs SGLang: H100 Benchmarks,2026]</li>
+<li><strong>社群規模差距</strong>：貢獻者數量約為 vLLM 的 1/3，GitHub issue 回應時間 3–5 天（vLLM 約 12 小時），生產環境緊急問題支援能力較弱 [來源:The Community Stories of vLLM and SGL,2025]</li>
+<li><strong>CPU 使用率問題</strong>：idle 狀態下 CPU 使用率可能達 100%（排程器輪詢機制，官方確認為預期行為），可能增加雲端計費成本</li>
+</ul>
+<p><strong>商業化與授權風險：</strong></p>
+<ul>
+<li>RadixArk 4 億美元融資後，授權策略長期走向存在不確定性，建議關注 2027 年的授權條款更新</li>
+<li>核心貢獻者相對集中（UC Berkeley 團隊），人員流動或商業化決策可能影響開源維護節奏</li>
+</ul>
+<p><strong>硬體限制：</strong></p>
+<ul>
+<li>官方最佳化集中於 NVIDIA GPU（CUDA），AMD ROCm、Intel GPU 的支援成熟度明顯低於 vLLM</li>
+</ul>
+<h2>八、參考來源</h2>
+<p>| # | 標題 | 作者/機構 | 年份 | URL | source_type | 語言 |</p>
+<p>|---|------|---------|------|-----|-------------|------|</p>
+<p>| 1 | GitHub: sgl-project/sglang | sgl-project | 2026 | https://github.com/sgl-project/sglang | official | en |</p>
+<p>| 2 | vLLM vs TensorRT-LLM vs SGLang: H100 Benchmarks | Mitrasish / Spheron Network | 2026 | https://www.spheron.network/blog/vllm-vs-tensorrt-llm-vs-sglang-benchmarks/ | comparison | en |</p>
+<p>| 3 | Fast and Expressive LLM Inference with RadixAttention and SGLang | Lianmin Zheng et al. / LMSYS Org | 2024 | https://www.lmsys.org/blog/2024-01-17-sglang/ | blog | en |</p>
+<p>| 4 | SGLang spins out as RadixArk with $400M valuation | TechCrunch | 2026 | https://techcrunch.com/2026/01/21/sources-project-sglang-spins-out-as-radixark-with-400m-valuation-as-inference-market-explodes/ | community | en |</p>
+<p>| 5 | The Community Stories of vLLM and SGL | Ant Open Source / INCLUSION AI | 2025 | https://www.inclusion-ai.org/blog/llm-landscape-vllm-sgl/ | community | en |</p>
+<p>| 6 | SGLang vs vLLM in 2026: Benchmarks, Architecture, and When to Use Each | Particula Tech | 2026 | https://particula.tech/blog/sglang-vs-vllm-inference-engine-comparison | comparison | en |</p>
+<p>| 7 | 開源 AI 推理引擎的未來：SGLang 與 DeepSeek 的技術突破 | iDataAgent | 2025 | https://www.idataagent.com/2025/03/07/the-future-of-open-source-ai-inference-engines-sglang-and-deepseeks-technological-breakthroughs/ | blog | zh |</p>
+<p>| 8 | A Beginner's Guide to Inference with the SGLang Framework | Wilson Wu | 2025 | https://wilsonwu.me/en/blog/2025/getting-started-with-sglang/ | blog | en |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

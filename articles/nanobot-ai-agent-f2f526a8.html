@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NanoBot — 港大超輕量 AI Agent 運行時深度研究報告">
+  <title>NanoBot — 港大超輕量 AI Agent 運行時深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>NanoBot — 港大超輕量 AI Agent 運行時深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">NanoBot</span><span class="tag">Agent</span><span class="tag">MCP</span><span class="tag">HKUDS</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>NanoBot — 港大超輕量 AI Agent 運行時深度研究報告</h1>
+<h2>執行摘要</h2>
+<p>本文主張：NanoBot（HKUDS/nanobot）以約 4,000 行 Python 核心程式碼，在保留多平台聊天、MCP 工具、長期記憶與定時任務等完整 Agent 閉環的前提下，將 OpenClaw 級個人助手能力壓縮至可一個下午通讀的可審計框架，是 2026 年 AI Agent「做減法」設計哲學的代表作 [來源:HKUDS/nanobot README,2026][來源:OpenClaw vs Nanobot Comparison,2026]。截至 2026-06-01，GitHub Stars 43,447、Forks 7,675、Open Issues 934，最後推送 2026-05-31，社群活躍度極高 [來源:GitHub API HKUDS/nanobot,2026-06-01]。</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p>NanoBot 由香港大學數據智能實驗室（HKUDS）於 2026-02-01 開源，MIT 授權，定位為「可自託管的超輕量 Agent 運行時」——讓開發者、研究者與隱私敏感用戶能在本機或低規格 VPS 上部署 24/7 個人 AI 助手 [來源:3.5 個月 4.3 万 Star：nanobot,2026][來源:HKUDS/nanobot,2026]。</p>
+<p><strong>解決的問題</strong>：OpenClaw 等全功能平台雖功能完整（210K+ Stars、ClawHub 數千技能），但程式碼量達 43 萬行以上、記憶體占用 >1GB、啟動慢，且 Karpathy 等開發者對其龐大攻擊面與 prompt injection 風險公開質疑 [來源:The Six Claws Field Guide,2026][來源:Is OpenClaw Overhyped,2026]。NanoBot 針對「想理解並掌控 Agent 核心迴圈」的用戶，提供可讀、可改、可審計的替代方案。</p>
+<p><strong>目標使用者</strong>：個人開發者、AI 研究者、需要接入微信/飛書/QQ/釘釘等亞太通訊平台的用戶、以及希望在 1C2G VPS 或樹莓派上跑 Agent 的場景 [來源:OpenClaw vs nanobot Asia Channels,2026][來源:Nanobot 超轻量个人 AI 智能体,2026]。</p>
+<p><strong>核心價值主張</strong>：用「輕量、可讀、可擴展」三詞概括——核心 Agent Loop 約 100 行、整體核心約 4,000 行，卻支援 14+ 聊天平台、25+ LLM 供應商、MCP 多伺服器、五層記憶 + Dream 長期蒸餾、自然語言 Cron 與內建 WebUI [來源:博客园 nanobot 深度剖析,2026][來源:SegmentFault 港大 nanobot 教程,2026]。</p>
+<p>---</p>
+<h2>二、技術架構</h2>
+<p>NanoBot 採<strong>單進程、事件驅動、以 Agent Loop 為中心</strong>的分層架構，刻意避免 LangGraph/AutoGen 式的 DAG 編排或多進程 Gateway/Node 拓撲 [來源:Viblo nanobot Build Guide,2026][來源:Jose Nobile Nanobot Guide,2026]。</p>
+<h3>2.1 分層模組</h3>
+<p>| 層級 | 職責 | 技術要點 |</p>
+<p>|------|------|----------|</p>
+<p>| <strong>Channels</strong> | 多平台訊息接入 | Telegram、Discord、Slack、WhatsApp、Feishu、QQ、Email、WeChat 等；統一匯入 Message Bus |</p>
+<p>| <strong>Agent Loop</strong> | 核心推理迴圈 | ~100 行 ReAct 式迭代：收訊息 → LLM 決策 → 調工具 → 寫回；無獨立 Planner/Executor 分裂 |</p>
+<p>| <strong>Providers</strong> | LLM 後端抽象 | 統一 <code>chat()</code> 介面；支援 OpenAI/Anthropic/DeepSeek/Groq/Moonshot/智譜/vLLM 等 25+ 供應商與 fallback |</p>
+<p>| <strong>Tools</strong> | 工具執行 | Python <code>Tool</code> 子類 + MCP Stdio/HTTP 包裝 + Sub-agent spawn |</p>
+<p>| <strong>Memory</strong> | 持久化狀態 | 檔案型 <code>MEMORY.md</code>/<code>SOUL.md</code>/<code>USER.md</code>/<code>history.jsonl</code> + Dream 兩階段長期記憶 |</p>
+<p>| <strong>Cron/Heartbeat</strong> | 定時觸發 | 自然語言排程描述 → 轉 cron；Heartbeat 以 inbound message 餵回 Loop |</p>
+<p>| <strong>Security</strong> | 沙箱與存取控制 | <code>restrictToWorkspace</code>、<code>allowFrom</code> 白名單、bwrap 沙箱、workspace  confinement |</p>
+<p>| <strong>API/WebUI</strong> | 人機介面 | OpenAI 相容 API、WebSocket 多會話、10 種語言 UI |</p>
+<p>[來源:Viblo nanobot Build Guide,2026][來源:andrew.ooo Nanobot Review,2026][來源:Clawdbook OpenClaw vs Nanobot,2026]</p>
+<h3>2.2 Agent Loop 設計決策</h3>
+<p>與 OpenClaw 的 Gateway→Node 分散式模型不同，NanoBot 以<strong>單 Python 進程</strong>處理 LLM 互動、通道適配、記憶、排程與工具執行，部署路徑為 <code>pip install nanobot-ai && nanobot onboard && nanobot gateway</code> [來源:Jose Nobile Nanobot Guide,2026]。這換取的是部署極簡（<1 秒啟動 vs OpenClaw 數十秒）與程式碼可讀性，代價是缺乏跨機器分散式節點能力 [來源:searchmytool OpenClaw vs Nanobot vs PicoClaw,2026]。</p>
+<p><strong>MCP-first 擴展</strong>：核心保持薄 orchestrator，能力透過 MCP 伺服器外掛（web search、檔案操作、程式碼執行、圖像生成），啟動時 auto-discover 註冊工具——新增能力 = 接新 MCP server，而非改核心程式碼 [來源:ibl.ai Six Claws Field Guide,2026][來源:Medium What is NanoBot,2026]。</p>
+<h3>2.3 Dream 記憶系統（v0.1.5+）</h3>
+<p>兩階段設計取代「全塞 prompt」或「強制向量 DB」：</p>
+<ol>
+<li><strong>Consolidator（短期）</strong>：滾動整理當前會話 history，控制 context 窗口</li>
+<li><strong>Dream（長期）</strong>：週期性將重要互動蒸餾寫入 markdown 檔案，供後續 session 檢索</li>
+</ol>
+<p>[來源:andrew.ooo Nanobot Review,2026][來源:GitHub nanobot discussions/566,2026]</p>
+<p>架構圖（概念）：</p>
+<pre><code>
+[Chat Apps] → [Message Bus] → [Agent Loop] ←→ [Providers/LLM]
+                    ↑                ↓
+              [Cron/Heartbeat]   [Tools/MCP]
+                    ↑                ↓
+              [Sessions JSON]  [Memory/Dream]
+                    ↑
+              [WebUI/API]
+</code></pre>
+<p>---</p>
+<h2>三、功能特色與競品比較</h2>
+<p>| 維度 | NanoBot | OpenClaw | Claude Code | LangChain |</p>
+<p>|------|---------|----------|-------------|-----------|</p>
+<p>| 核心程式碼 | ~4,000 行 | 430,000+ 行 | 閉源 CLI | 數萬行 |</p>
+<p>| Stars (2026-06) | 43,447 | 210,000+ | N/A | 138,000+ |</p>
+<p>| RAM 占用 | ~100–191 MB | >1 GB | 雲端 | 依部署 |</p>
+<p>| 啟動時間 | <1 秒 | 數十秒 | 即時 | 依配置 |</p>
+<p>| 聊天平台 | 14+（含微信/飛書） | 50+（亞太弱） | Terminal only | 需自建 |</p>
+<p>| MCP | ✅ 多 server | ✅ | ✅ | 需整合 |</p>
+<p>| 長期記憶 | Dream 五層 | 內建 | 僅當前會話 | 需自建 |</p>
+<p>| 技能生態 | Dream 發現 + SKILL.md | ClawHub 3200+ | 有限 | 程式碼級 |</p>
+<p>| 協議 | MIT | 多種 | 私有 | MIT |</p>
+<p>| 瀏覽器自動化 | ❌ | ✅ | Via MCP | 外掛 |</p>
+<p>[來源:博客园 4.3万 Star nanobot,2026][來源:Clawdbook Comparison,2026][來源:Jishuzhan Nanobot 深度剖析,2026]</p>
+<p><strong>差異化亮點</strong>：</p>
+<ul>
+<li><strong>亞太通訊原生支援</strong>：微信、飛書、QQ、釘釘——OpenClaw 對國內生態支援弱 [來源:Clawrapid OpenClaw vs nanobot,2026]</li>
+<li><strong>自然語言 Cron</strong>：用 plain English 描述排程，無需手寫 cron 語法 [來源:Jose Nobile Guide,2026]</li>
+<li><strong>Research-ready</strong>：一個下午可通讀全部核心，適合教學與論文引用 [來源:博客园 blfbuaa 4000行剖析,2026]</li>
+</ul>
+<p>---</p>
+<h2>四、使用方式</h2>
+<h3>4.1 快速上手</h3>
+<pre><code>
+# 安裝（Python ≥3.11）
+pip install nanobot-ai
+# 或
+uv tool install nanobot-ai
+
+# 初始化配置（~/.nanobot/config.json）
+nanobot onboard
+
+# 啟動 Gateway（WebUI + 通道 + Agent）
+nanobot gateway
+
+# Docker 部署
+docker compose up -d
+</code></pre>
+<p>[來源:HKUDS/nanobot README,2026][來源:Clawdbook Comparison,2026]</p>
+<h3>4.2 配置 LLM Provider 範例</h3>
+<pre><code>
+{
+  "providers": {
+    "default": "openai",
+    "openai": {
+      "api_key": "sk-...",
+      "model": "gpt-4o"
+    },
+    "deepseek": {
+      "api_key": "...",
+      "model": "deepseek-chat"
+    }
+  }
+}
+</code></pre>
+<p>支援 provider pinning（特定任務綁定特定模型）與 fallback 鏈 [來源:Medium What is NanoBot,2026]。</p>
+<h3>4.3 接入 MCP 工具</h3>
+<p>啟動時在 config 中宣告 MCP servers（Stdio 或 HTTP），Agent Loop 自動 discover 並註冊為可調用工具——與 daily-digest-prompt 現有 MCP 生態（n8n-mcp、playwright 等）對齊 [來源:ibl.ai Six Claws,2026]。</p>
+<p>---</p>
+<h2>五、社群活躍度</h2>
+<p>| 指標 | 數值 | 觀測日期 |</p>
+<p>|------|------|----------|</p>
+<p>| Stars | 43,447 | 2026-06-01 |</p>
+<p>| Forks | 7,675 | 2026-06-01 |</p>
+<p>| Open Issues | 934 | 2026-06-01 |</p>
+<p>| Contributors | 290+ | 2026-05 |</p>
+<p>| 建立日期 | 2026-02-01 | — |</p>
+<p>| 最新 Release | v0.2.0 (2026-05-16) | — |</p>
+<p>| 近 90 天提交 | 幾乎每日 | 2026-03~05 |</p>
+<p>2026-02-02 正式發布後，3.5 個月內達 4.3 萬 Star，成長速度在 AI Agent 賽道屬頂尖 [來源:博客园 4.3万 Star,2026]。2026-05-31 仍有 5+ commits（README/WebUI 文檔更新），顯示持續維護 [來源:GitHub API commits,2026-06-01]。</p>
+<p>HKUDS 同團隊亦維護 ClawWork（Agent 經濟評估框架 6.7K Stars），研究取向直接影響 NanoBot 的「最小資源消耗、最大 API 價值產出」設計 [來源:Jose Nobile Guide,2026]。</p>
+<p>---</p>
+<h2>六、潛在應用（daily-digest-prompt 落地場景）</h2>
+<h3>場景 1：ntfy HITL 檢查點輕量 Bot</h3>
+<p><strong>問題</strong>：現有 HITL sweep 需 Phase 2 Agent 全量啟動，成本高。</p>
+<p><strong>落地</strong>：以 NanoBot + MCP（讀 <code>state/human-review-queue.json</code>、發 ntfy）做常駐輕量監聽 Bot；自然語言 Cron「每 30 分鐘檢查待審佇列」。</p>
+<p><strong>步驟</strong>：① Docker 部署 nanobot gateway；② 註冊 readonly MCP 讀 state；③ 配置 ntfy topic；④ allowFrom 白名單限制觸發源。</p>
+<h3>場景 2：Todoist 自動任務失敗即時告警通道</h3>
+<p><strong>問題</strong>：Phase 2 失敗目前依排程下一輪才發現。</p>
+<p><strong>落地</strong>：NanoBot 監聽 <code>results/todoist-auto-*.json</code> 變更（filesystem MCP），失敗時推 Telegram/微信摘要。</p>
+<p><strong>步驟</strong>：① workspace restrictToWorkspace 指向 repo；② MCP file watcher；③ Provider fallback（DeepSeek→Groq）；④ Dream 記憶累積常見 RCA 模式。</p>
+<h3>場景 3：研究 Agent 原型驗證沙盒</h3>
+<p><strong>問題</strong>：daily-digest 的 ai_github_research 管線迭代成本高。</p>
+<p><strong>落地</strong>：用 NanoBot 核心 Loop（~100 行）作為「最小可跑 research agent」原型，驗證新 prompt/工具組合後再移植回 <code>run-todoist-agent-team.ps1</code>。</p>
+<p><strong>步驟</strong>：① fork nanobot 核心；② 替換 Tools 為 WebSearch/KB import MCP；③ A/B 比較 token 消耗與完成率；④ 成熟後提取 pattern 到 planner_executor。</p>
+<p>---</p>
+<h2>七、優缺點評估</h2>
+<h3>優點</h3>
+<ol>
+<li><strong>極致可讀性</strong>：~4,000 行核心，一個下午通讀，安全審計成本低 [來源:腾讯云 Nanobot 4000行,2026]</li>
+<li><strong>資源效率高</strong>：RAM ~100–191 MB，1C2G VPS 可 24/7 運行 [來源:Jose Nobile Guide,2026][來源:Jishuzhan 深度剖析,2026]</li>
+<li><strong>亞太平台覆蓋</strong>：微信/飛書/QQ/釘釘原生，國內場景優於 OpenClaw [來源:Clawrapid Comparison,2026]</li>
+<li><strong>MCP-first 擴展</strong>：新增能力不改核心，與 AAIF 標準對齊 [來源:ibl.ai Six Claws,2026]</li>
+<li><strong>MIT 真開源</strong>：可自由修改、分發、商用 [來源:博客园 4.3万 Star,2026]</li>
+</ol>
+<h3>缺點</h3>
+<ol>
+<li><strong>功能完整性不及 OpenClaw</strong>：無 iOS/Android 伴侶 App、無 ClawHub 級技能市場（931 open issues 反映功能請求積壓）[來源:GitHub API,2026-06-01][來源:Clawrapid Comparison,2026]</li>
+<li><strong>無瀏覽器自動化內建</strong>：需靠 MCP 外掛，不如 OpenClaw 原生 browser control [來源:博客园 blfbuaa 4000行,2026]</li>
+<li><strong>單進程限制</strong>：無法像 OpenClaw Gateway/Node 分散式部署 [來源:Jose Nobile Guide,2026]</li>
+<li><strong>Issue 回應壓力</strong>：934 open issues、社群規模仍為 OpenClaw 1/5，production SLA 無保證 [來源:GitHub API,2026-06-01]</li>
+<li><strong>安全仍依賴配置</strong>：bwrap/whitelist 需使用者正確設定，API key 洩漏風險與 OpenClaw 同類 [來源:Clawdbook Comparison,2026]</li>
+</ol>
+<h3>不適用情境</h3>
+<ul>
+<li>需要企業級合規審計、托管 SaaS、ClawHub 現成技能的一站式方案 → 選 OpenClaw Launch 或商業平台</li>
+<li>需要原生瀏覽器自動化、視覺工作區、macOS/iOS 深度整合 → OpenClaw</li>
+<li>嵌入式 <10MB RAM（RISC-V 單板）→ 考慮 PicoClaw/ZeroClaw [來源:searchmytool Comparison,2026]</li>
+</ul>
+<p>---</p>
+<h2>八、一家之言</h2>
+<p>NanoBot 的 4.3 萬 Star 不僅是「OpenClaw 平替」 hype，更反映 2026 年 Agent 工程師對<strong>可審計最小核心</strong>的剛性需求。對 daily-digest-prompt 這類已有完整 Harness（Phase 0→2、llm-gate、MCP 工具鏈）的專案，NanoBot 的價值不在「替換現有管線」，而在提供<strong>可讀的 Agent Loop 參考實作</strong>——尤其是 Dream 記憶、自然語言 Cron、MCP-first 工具註冊三個 pattern，可直接啟發 <code>context/continuity/</code> 與 <code>autonomous_runtime_policy.py</code> 的下一版設計。若要做 production HITL Bot，建議先用 NanoBot 原型驗證，而非 fork OpenClaw 430K 行程式碼。</p>
+<p>---</p>
+<h2>九、完整書目</h2>
+<p>| # | 機構/作者 | 年份 | 標題 | URL | 取用日期 | source_type | 語言 |</p>
+<p>|---|----------|------|------|-----|----------|-------------|------|</p>
+<p>| 1 | HKUDS | 2026 | nanobot README | https://github.com/HKUDS/nanobot | 2026-06-01 | official | en |</p>
+<p>| 2 | GitHub API | 2026 | HKUDS/nanobot repository metadata | https://api.github.com/repos/HKUDS/nanobot | 2026-06-01 | official | en |</p>
+<p>| 3 | Andrew | 2026 | Nanobot Review: HKU's 4K-Line Personal AI Agent Framework | https://andrew.ooo/posts/nanobot-hkuds-ultra-lightweight-personal-ai-agent/ | 2026-06-01 | blog | en |</p>
+<p>| 4 | Viblo | 2026 | nanobot: A Comprehensive Build-Your-Own Guide | https://viblo.asia/p/nanobot-a-comprehensive-build-your-own-guide-y0VGwOepVPA | 2026-06-01 | blog | en |</p>
+<p>| 5 | Clawdbook | 2026 | OpenClaw vs Nanobot: Detailed Comparison & Analysis | https://clawdbook.org/blog/openclaw-vs-nanobot-comparison | 2026-06-01 | comparison | en |</p>
+<p>| 6 | iTech 博客园 | 2026 | 3.5 個月 4.3 万 Star：nanobot 凭什么成为最火的开源 AI Agent | https://www.cnblogs.com/itech/p/20127198 | 2026-06-01 | blog | zh |</p>
+<p>| 7 | 腾讯云开发者社区 | 2026 | 港大开源Nanobot：4000行代码打造最轻量OpenClaw平替 | https://cloud.tencent.com/developer/article/2637631 | 2026-06-01 | blog | zh |</p>
+<p>| 8 | ibl.ai | 2026 | The Six Claws: A Field Guide to Open-Source AI Agent Frameworks | https://ibl.ai/blog/the-six-claws-a-field-guide-to-open-source-ai-agent-frameworks | 2026-06-01 | comparison | en |</p>
+<p>| 9 | Jose Nobile | 2026 | Nanobot: The Ultra-Lightweight OpenClaw in Python | https://josenobile.co/guides/nanobot/ | 2026-06-01 | blog | en |</p>
+<p>| 10 | seqis (Gist) | 2026 | OpenClaw vs Nanobot: The 170x Reduction Explained | https://gist.github.com/seqis/0cc7b9619366949ac6864b360940a3e1 | 2026-06-01 | community | en |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

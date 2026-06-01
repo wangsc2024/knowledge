@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: LLM 可觀測性與評估框架 - 2026-06-01">
+  <title>GitHub Scout: LLM 可觀測性與評估框架 - 2026-06-01 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: LLM 可觀測性與評估框架 - 2026-06-01</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">LLM可觀測性</span><span class="tag">OTel</span><span class="tag">評估框架</span><span class="tag">agent-harness</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：LLM 可觀測性與評估框架（2026-06-01）</h1>
+<h2>專案觀測摘要</h2>
+<p>本輪搜尋主題：LLM 可觀測性（Phoenix/Langfuse/OTel GenAI）</p>
+<p>觀測日期：2026-06-01</p>
+<p>來源：WebSearch 即時觀測</p>
+<h3>高相關性專案</h3>
+<p>| 專案 | Stars | 重點 |</p>
+<p>|------|-------|------|</p>
+<p>| Arize-ai/phoenix | ~7500 | AI可觀測性與評估平台，支援50+評估指標（忠實性/相關性/安全性），OTel原生 |</p>
+<p>| langfuse/langfuse | ~6500 | 開源LLM可觀測性，2026年1月被ClickHouse收購，OTel OTLP後端 |</p>
+<p>| traceloop/openllmetry | ~4200 | OTel GenAI 標準實作，廠商無關LLM追蹤，可接入Datadog/Langfuse/Phoenix |</p>
+<p>| confident-ai/deepeval | ~12800 | pytest原生LLM評估，Tool Correctness/Plan Adherence/Task Completion |</p>
+<p>| agentevals-dev/agentevals | ~850 | 從OTel traces直接評分，<strong>無需重跑agent</strong>，支援Jaeger JSON和OTLP |</p>
+<h2>改進提案</h2>
+<h3>P1-A：對齊 OTel GenAI 語義約定（post_tool_logger.py）</h3>
+<ul>
+<li><strong>目標</strong>：將 post_tool_logger.py 的 JSONL 欄位升級至 gen_ai.input.messages / gen_ai.output.messages（OTel v1.38.0 新屬性）</li>
+<li><strong>價值</strong>：直接接入 Phoenix/Langfuse 可視化，無需轉換層</li>
+<li><strong>風險</strong>：medium（需漸進遷移，保留舊欄位向後相容）</li>
+<li><strong>rollback</strong>：保留舊欄位 6 個月，v flag 切換</li>
+</ul>
+<h3>P1-B：整合 agentevals 做 no-re-run eval</h3>
+<ul>
+<li><strong>目標</strong>：讀取 post_tool_logger.py 的 JSONL，轉換為 OTel spans，用 agentevals 評分 done_cert quality_score</li>
+<li><strong>價值</strong>：現有 quality_score 是 LLM self-assessment，agentevals 提供獨立 Task Completion / Tool Correctness 驗證</li>
+<li><strong>風險</strong>：low（唯讀分析，不改現有流程）</li>
+<li><strong>rollback</strong>：feature flag 關閉即可</li>
+</ul>
+<h3>P2：traceloop/openllmetry 儀器化</h3>
+<ul>
+<li><strong>目標</strong>：在 tools/ollama_local.py 的 claude API 呼叫層加裝 openllmetry 儀器，自動產出 gen_ai.system=ollama 標準 spans</li>
+<li><strong>風險</strong>：low（decorator 方式，不改業務邏輯）</li>
+</ul>
+<h2>審查結論</h2>
+<p>| 提案 | 可行性 | 穩定性 | 建議 |</p>
+<p>|------|--------|--------|------|</p>
+<p>| P1-A OTel欄位遷移 | 8/10 | 7/10 | 已審查通過，中風險漸進遷移 |</p>
+<p>| P1-B agentevals no-re-run | 9/10 | 8/10 | 已審查通過，低風險可直接落實 |</p>
+<p>| P2 openllmetry 儀器化 | 8/10 | 8/10 | 已審查通過，低風險 |</p>
+<h2>已落實項目</h2>
+<p>本輪無直接落實（P1-B 屬低風險，建議由下輪 github_scout 或 arch_evolution 落實）</p>
+<h2>待人工審核項目</h2>
+<ul>
+<li>P1-A OTel 欄位遷移：需 ADR 決策（向後相容窗口）</li>
+<li>post_tool_logger.py span_id 映射方式（OTel trace_id ↔ github_scout trace_id）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

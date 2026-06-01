@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動需求工程：從 Issue 到 User Story、Acceptance Criteria 與品質評分閉環（2026）">
+  <title>AI 驅動需求工程：從 Issue 到 User Story、Acceptance Criteria 與品質評分閉環（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動需求工程：從 Issue 到 User Story、Acceptance Criteria 與品質評分閉環（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">需求工程</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動需求工程：從 Issue 到 User Story、Acceptance Criteria 與品質評分閉環（2026）</h1>
+<h2>技術概述</h2>
+<p>AI 輔助系統開發的重心，正從單純寫程式往前移到需求工程。2025–2026 的研究與工具更新顯示，LLM 已能把零散 issue、截圖與自然語言需求轉成較完整的 user story、acceptance criteria 與 backlog 結構，但穩定性仍不足，必須加入品質評分與人工審閱。實務上，最新落地模式不是讓模型直接決定需求，而是建立一條可追蹤的閉環：輸入需求線索、生成 story/AC、用明確品質準則檢查、再回寫到 GitHub 或 Azure DevOps。</p>
+<h2>核心方法與工具</h2>
+<ol>
+<li>Issue/標題展開成需求</li>
+<li>GitHub Copilot 已支援從自然語言或截圖建立結構化 issue，並可依 repository 的 issue form 與 template 自動填入 title、body、labels、assignees。</li>
+<li>2026-05-26 發表的 Requirements Engineering 研究指出，LLM 可把簡短 OSS issue title 轉成品質分數高於 4.2/5 的需求敘述，但品質波動仍顯著，不能假設每次都穩定。</li>
+</ol>
+<ol>
+<li>User story 生成與品質檢查</li>
+<li>2025-07 的 arXiv 研究比較 10 個模型後發現，LLM 生成的 user story 在 coverage 與寫作風格上接近人類，但較少滿足 acceptance quality criteria，且多樣性與創造性較弱。</li>
+<li>2026-02 的 DeepQuali 研究進一步證明，LLM 可用來評估 user story 品質；專家大致同意模型對整體評分與說明，但要求更好地整合到既有工作流。</li>
+</ol>
+<ol>
+<li>Acceptance criteria 自動生成</li>
+<li>2025-08 的 RAGcceptance M2RE 以文字需求加 UI 視覺資料做多模態 RAG，研究摘要指出這能提升 AC 的 relevance、correctness、comprehensibility，並減少人工撰寫負擔。</li>
+<li>這代表 AC 生成不該只看 ticket 文字；若功能涉及 UI 或流程畫面，應把線框圖、截圖與設計稿納入檢索上下文。</li>
+</ol>
+<ol>
+<li>Prompt 與品質屬性</li>
+<li>系統性回顧指出，requirements engineering 場景中，prompt engineering 對輸出品質是關鍵，應持續優化 prompt pattern 以降低錯誤與提高 specificity。</li>
+<li>2026 的實證研究顯示，few-shot prompt 對 Singularity（單一性、避免把多個需求塞成一條）效果最好；Expert persona prompt 雖有時提升 Verifiability，卻常犧牲 Singularity。</li>
+</ol>
+<h2>實際工作流程</h2>
+<ol>
+<li>收集需求來源：issue title、使用者描述、客服回饋、螢幕截圖、Figma 畫面。</li>
+<li>先做需求標準化：拆成 actor、goal、constraint、non-functional 四欄。</li>
+<li>用 LLM 生成初稿：輸出 epic、feature、user story、acceptance criteria。</li>
+<li>套品質準則二次檢查：至少檢查 Unambiguity、Verifiability、Singularity。</li>
+<li>把 surviving 問題回饋模型：例如「這條需求同時包含驗證、設定、文件，請拆成 atomic requirements」。</li>
+<li>人工 product owner / analyst 最後審核。</li>
+<li>回寫到工作追蹤系統：GitHub issue tree 或 Azure DevOps Epic/Feature/User Story。</li>
+<li>開發前把 AC 轉成 BDD 或測試案例，避免需求與驗收脫鉤。</li>
+</ol>
+<h2>程式碼與配置範例</h2>
+<h3>GitHub Copilot issue 規劃提示</h3>
+<pre><code>
+In octo-org/octo-repo, plan a new user dashboard. Break it down into an epic, and create sub-issues for each main feature and task.
+</code></pre>
+<h3>需求生成 Prompt 範本</h3>
+<pre><code>
+請根據以下 issue title、使用者描述與 UI 截圖資訊，輸出：
+1. 一條 user story
+2. 3-5 條 acceptance criteria
+3. 品質自評：Unambiguity / Verifiability / Singularity（1-5 分）
+4. 若需求混雜多個目標，先拆成多條 atomic requirements 再輸出
+</code></pre>
+<h3>Azure DevOps MCP 任務範例</h3>
+<pre><code>
+Create a user story titled 'Add single sign-on support' with acceptance criteria in project &lt;Contoso&gt;
+</code></pre>
+<h3>AC 結構範本</h3>
+<pre><code>
+user_story: &gt;
+  As a returning employee, I want to sign in with Microsoft Entra ID
+  so that I can access the portal without managing a separate password.
+acceptance_criteria:
+  - Given 使用者位於登入頁
+    When 點擊 SSO 登入並完成企業身份驗證
+    Then 系統應在 5 秒內導向首頁
+  - Given 帳號未綁定公司網域
+    When 驗證成功但租戶不符
+    Then 系統應顯示拒絕訊息且不得建立 session
+quality_gate:
+  unambiguity: 5
+  verifiability: 5
+  singularity: 4
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>Requirements Engineering 2026 研究：由 issue title 轉需求時，LLM 在 Unambiguity、Verifiability、Singularity 三項的平均品質分數可高於 4.2/5，但品質變異明顯，代表需要 gate 而非盲信。</li>
+<li>同一研究顯示 few-shot prompt 對 Singularity 最穩定；對 o3-mini，Singularity 平均 4.77；對 DeepSeek R1，few-shot 也優於 naive 與 expert prompt。</li>
+<li>2025 user story 研究：LLM 生成故事在 coverage 與 stylistic quality 接近人類，但較少滿足 acceptance quality criteria。</li>
+<li>RAGcceptance M2RE 工業案例：系統服務約 100,000 名使用者，研究摘要指出多模態 RAG 可提升 AC 的相關性、正確性與可理解性，並減少人工 effort。</li>
+</ul>
+<h2>與本專案應用場景</h2>
+<ul>
+<li>本專案已採規格驅動與 TDD，適合把 LLM 用在「規格草案生成」而非直接寫最終程式。</li>
+<li>可在 <code>specs/<feature>/spec.md</code> 草稿期先生成 user stories 與 AC，再由人工凍結。</li>
+<li><code>tasks.md</code> 可新增品質欄位，要求每個 task 對應一組可驗證 AC。</li>
+<li>後續可建立 requirements quality judge：先檢查 Unambiguity / Verifiability / Singularity，再決定是否允許進入 plan 與 implement。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>Persona prompt 過重時，需求可能變長但不夠 atomic。</li>
+<li>只靠文字生成 AC，容易漏掉 UI 細節與例外流程。</li>
+<li>需求品質評估若未明確定義 rubric，模型自評會漂移。</li>
+<li>工具整合是採用門檻；DeepQuali 的專家回饋已明確指出，若不嵌入既有流程，使用意願會下降。</li>
+<li>涉及合規、安全或非功能需求時，必須把專家規範明文加入 prompt/context，不可只依賴通用模型常識。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>Microsoft Learn, Requirements Management for Agile Teams in Azure DevOps, https://learn.microsoft.com/en-us/azure/devops/cross-service/manage-requirements?tabs=agile-process&view=azure-devops</li>
+<li>GitHub Docs, Using GitHub Copilot to create or update issues, https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/copilot-on-github/copilot-for-github-tasks/use-copilot-to-create-or-update-issues</li>
+<li>arXiv 2602.08887, DeepQuali: Initial results of a study on the use of large language models for assessing the quality of user stories, https://arxiv.org/abs/2602.08887</li>
+<li>Requirements Engineering (2026), From issue titles to requirements: an empirical study of large language models and prompt engineering strategies, https://link.springer.com/article/10.1007/s00766-026-00462-z</li>
+<li>arXiv 2507.15157, Can LLMs Generate User Stories and Assess Their Quality?, https://arxiv.org/abs/2507.15157</li>
+<li>arXiv 2508.06888, Multi-Modal Requirements Data-based Acceptance Criteria Generation using LLMs, https://arxiv.org/abs/2508.06888</li>
+<li>Frontiers in Computer Science (2025), Research directions for using LLM in software requirement engineering: a systematic review, https://www.frontiersin.org/journals/computer-science/articles/10.3389/fcomp.2025.1519437/full</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
