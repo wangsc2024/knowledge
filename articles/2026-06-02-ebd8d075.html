@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-06-02">
+  <title>系統優化落實報告 2026-06-02 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-06-02</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-06-02</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid 4 查詢（daysAgo=2）共 32 筆；去重後可執行項 3 項。</li>
+<li><code>context/system-insight.json</code>：<code>cache_hit_ratio=0.211</code>（門檻 0.4，sample=412）。</li>
+<li>KB 洞察 <code>719455fd</code>：KB 語義快取與 API 快取分帳監控。</li>
+<li>前次落實（2026-06-01）：kb_hybrid TTL 2880→3600m。</li>
+</ul>
+<h2>方案一：kb_hybrid TTL 延長 + hit_rate_targets（評分 8）</h2>
+<ul>
+<li><strong>目標</strong>：提升 hybrid 搜尋快取重用，對齊 knowledge TTL。</li>
+<li><strong>檔案</strong>：<code>config/cache-policy.yaml</code>（version 7→8）</li>
+<li><strong>變更</strong>：<code>kb_hybrid.ttl_minutes</code> 3600→4320；新增 <code>hit_rate_targets.per_source.kb_hybrid: 0.50</code></li>
+<li><strong>驗收</strong>：✓ YAML 語法 OK；✓ validate_config 98 任務一致</li>
+<li><strong>備份 commit</strong>：<code>393670c2</code></li>
+</ul>
+<h2>方案二：insight_briefing KB 語義快取遙測（評分 8）</h2>
+<ul>
+<li><strong>目標</strong>：簡報附錄強制記錄 KB 語義快取 stats，與 API cache 分帳。</li>
+<li><strong>檔案</strong>：<code>skills/insight-briefing/SKILL.md</code>（v1.1.2 步驟 0b）、<code>prompts/team/todoist-auto-insight_briefing.md</code>（v1.0.10）、<code>tools/kb_semantic_cache.py</code>（新增 <code>stats</code> 子命令）</li>
+<li><strong>驗收</strong>：✓ <code>uv run python -m tools.kb_semantic_cache stats --days 7</code> 輸出 JSON；✓ pytest 5 項（2 passed, 3 skipped fastembed）</li>
+<li><strong>備份 commit</strong>：<code>0aa910f6</code></li>
+</ul>
+<h2>測試摘要</h2>
+<ul>
+<li>pytest filtered（autonomous/harness/hook/skill）：1848 passed, 10 skipped</li>
+<li>validate_config --check-auto-tasks：98 任務一致</li>
+<li>kb_semantic_cache stats：<code>entry_count=0</code>，<code>fastembed_available=false</code>（本機未裝 semantic-cache extra）</li>
+</ul>
+<h2>未落實（高風險／已修）</h2>
+<ul>
+<li>closed-loop M1（ntfy 直送）：程式碼已走 <code>ntfy_sender.invoke_sender_send</code>，無需重複修。</li>
+<li>backlog pending 49 項（DeepEval 閉環、quality_gate judge 等）維持 pending。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

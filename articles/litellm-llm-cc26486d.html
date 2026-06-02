@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LiteLLM — 統一 LLM 閘道與多後端路由深度研究報告">
+  <title>LiteLLM — 統一 LLM 閘道與多後端路由深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>LiteLLM — 統一 LLM 閘道與多後端路由深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">LiteLLM</span><span class="tag">LLM Gateway</span><span class="tag">多後端路由</span><span class="tag">llm-gate</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>LiteLLM — 統一 LLM 閘道與多後端路由深度研究報告</h1>
+<h2>執行摘要</h2>
+<p>本文主張：LiteLLM（BerriAI/litellm）以 OpenAI 相容 API 將 100+ LLM 供應商收斂為單一代理層，在「多後端切換、成本歸因、故障轉移」上與本專案 <code>config/llm-gate.yaml</code> + <code>frequency-limits.yaml</code> 的設計目標高度重疊，但兩者層級不同——LiteLLM 是 HTTP/SDK 層的供應商抽象，本專案 Gate 是 PowerShell 層的 CLI 編排與品質閘 [來源:TrueFoundry LiteLLM vs LangChain,2026][來源:本專案 config/CLAUDE.md,2026]。截至 2026-06-02（GitHub API），Stars 48,975、Forks 8,540、Open Issues 3,547、<code>pushed_at</code> 2026-06-02，近 90 天持續活躍 [來源:GitHub API BerriAI/litellm,2026-06-02]。</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p>LiteLLM 解決的核心問題是：應用與平台團隊在接入 OpenAI、Anthropic、Azure、Bedrock、Vertex、Ollama、vLLM 等供應商時，不必為每家 API 格式、認證、計價單位重寫客戶端 [來源:BerriAI/litellm README,2026]。目標使用者包括：需要集中管控 API Key 與預算的 ML Platform 團隊、要在多雲/多區部署間做負載均衡的後端工程師、以及希望用單一 <code>base_url</code> 切模型的應用開發者 [來源:docs.litellm.ai Proxy 文件,2026]。</p>
+<p>與 LangChain 的差異：LangChain 負責 Agent/Chain/RAG 編排；LiteLLM 負責「呼叫哪個模型、花多少錢、掛了換誰」——生產環境常並用而非二選一 [來源:Markaicode LiteLLM vs LangChain,2026][來源:TrueFoundry,2026]。</p>
+<p>---</p>
+<h2>二、技術架構</h2>
+<h3>2.1 雙模式：Python SDK vs Proxy Server</h3>
+<p>| 模式 | 部署形態 | 適用 | 關鍵能力 |</p>
+<p>|------|----------|------|----------|</p>
+<p>| Python SDK | <code>pip install litellm</code>，程式內 <code>completion()</code> | 單體腳本、快速 PoC | Router 重試/回退、應用層成本追蹤 |</p>
+<p>| AI Gateway（Proxy） | <code>litellm</code> CLI 或 Docker，預設 <code>:4000</code> | 團隊/企業、多語言客戶端 | Virtual Keys、Admin UI、Guardrails、多租戶預算 |</p>
+<p>Proxy 對外暴露 <code>/chat/completions</code>、<code>/embeddings</code>、<code>/models</code> 等 OpenAI 相容端點；對內以 <code>config.yaml</code> 的 <code>model_list</code> 映射 <code>model_name</code>（別名）→ <code>litellm_params</code>（真實 provider/model/api_base） [來源:docs.litellm.com.cn quick_start,2026][來源:docs.litellm.ai model_management,2026]。</p>
+<h3>2.2 路由與可靠性（非僅 README 宣稱）</h3>
+<ul>
+<li><strong>負載均衡 / 延遲路由</strong>：可在同一 <code>model_name</code> 下掛多個 deployment，依延遲或成本策略分流 [來源:腾讯云 LiteLLM 网关教程,2026]。</li>
+<li><strong>Fallback</strong>：主模型失敗時自動切換備援（與本專案 <code>llm-gate</code> 的 <code>quality_tier</code> + <code>allowed_adapters</code> 語意相近，但實作層級在 HTTP 而非 PS1） [來源:HN Show HN liteLLM Proxy,2023][來源:本專案 llm-gate.yaml,2026]。</li>
+<li><strong>效能</strong>：官方標稱 Proxy 在 1k RPS 下 P95 延遲約 8ms（基準見 docs.litellm.ai/benchmarks）；中文社群文件稱負載測試可達 1.5k+ RPS [來源:litellm README,2026][來源:docs.litellm.com.cn,2026]。</li>
+</ul>
+<h3>2.3 可觀測性與治理</h3>
+<ul>
+<li>內建 spend tracking、virtual keys、團隊/預算（Enterprise 擴展 SSO/SCIM）[來源:docs.litellm.ai enterprise,2026]。</li>
+<li>可掛 Langfuse、MLflow、Prometheus 等 callback [來源:BerriAI README,2026]。</li>
+<li>內建 <code>litellm_content_filter</code> guardrail（regex/關鍵字，pre/post/during_call），與本專案 <code>config/cursor-cli-architecture-guardrails.yaml</code> 的「閘道層政策」概念類似但實作在 Proxy 內 [來源:docs.litellm.ai guardrails,2026]。</li>
+</ul>
+<h3>2.4 架構分層示意</h3>
+<pre><code>
+Client (OpenAI SDK / curl / LangChain)
+        │  OpenAI-compatible HTTP
+        ▼
+┌───────────────────────────────┐
+│  LiteLLM Proxy (:4000)        │
+│  - Auth / Virtual Keys        │
+│  - Router / Fallback          │
+│  - Guardrails / Logging       │
+└───────────────┬───────────────┘
+                │ provider adapters
+    ┌───────────┼───────────┐
+    ▼           ▼           ▼
+ OpenAI    Anthropic    Ollama/vLLM
+ Azure     Bedrock      ...
+</code></pre>
+<p>---</p>
+<h2>三、功能特色與競品比較</h2>
+<p>| 維度 | LiteLLM | OpenRouter | Portkey | 本專案 llm-gate.ps1 |</p>
+<p>|------|---------|------------|---------|---------------------|</p>
+<p>| 自託管 | ✅ OSS Proxy | ❌ 雲端 | 部分 | ✅ 本機 PS1 |</p>
+<p>| 供應商數 | 100+ | 多（市集） | 多 | 依 frequency-limits backends |</p>
+<p>| 成本追蹤 | ✅ Virtual Key/團隊 | 帳單整合 | ✅ | 日誌 + token 工具鏈 |</p>
+<p>| Agent 編排 | ❌（需 LangChain 等） | ❌ | 部分 | ✅ Todoist Team Phase |</p>
+<p>| CLI 編排 | ❌ | ❌ | ❌ | ✅ claude/cursor/codex spawn |</p>
+<p>| 本地模型 | Ollama/vLLM 一級 | 弱 | 中 | 透過各 backend 腳本 |</p>
+<p>差異化亮點：① 單一 OpenAI 格式覆蓋最多供應商；② Proxy 模式讓非 Python 服務零改動接入；③ <code>/model/new</code> 熱新增模型無需重啟 Proxy [來源:docs.litellm.ai model_management,2026]。</p>
+<p>劣勢（社群與評測）：生產部署常需 Docker + Postgres + Redis，運維重量高於「三行啟動」的輕量閘道 [來源:DEV Lynkr vs LiteLLM 2026,2026]；程式庫體量大，審計成本高 [來源:DEV LiteLLM got hacked,2026]。</p>
+<p>---</p>
+<h2>四、使用方式</h2>
+<h3>4.1 快速啟動 Proxy</h3>
+<pre><code>
+uv tool install 'litellm[proxy]'
+litellm --model gpt-4o
+</code></pre>
+<h3>4.2 以 OpenAI SDK 指向 Proxy</h3>
+<pre><code>
+from openai import OpenAI
+client = OpenAI(api_key="sk-your-virtual-key", base_url="http://127.0.0.1:4000")
+resp = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "你好"}],
+)
+print(resp.choices[0].message.content)
+</code></pre>
+<h3>4.3 config.yaml 多部署範例</h3>
+<pre><code>
+model_list:
+  - model_name: gpt-4o
+    litellm_params:
+      model: azure/my-deployment
+      api_base: https://xxx.openai.azure.com/
+      api_key: os.environ/AZURE_API_KEY
+  - model_name: local-qwen
+    litellm_params:
+      model: ollama/qwen3:8b
+      api_base: http://localhost:11434
+</code></pre>
+<p>---</p>
+<h2>五、社群活躍度</h2>
+<p>| 指標 | 數值 | 觀測日 |</p>
+<p>|------|------|--------|</p>
+<p>| Stars | 48,975 | 2026-06-02 |</p>
+<p>| Forks | 8,540 | 2026-06-02 |</p>
+<p>| Open Issues | 3,547 | 2026-06-02 |</p>
+<p>| 最近推送 | 2026-06-02T03:39:31Z | GitHub API |</p>
+<p>| 建立日 | 2023-07-27 | GitHub API |</p>
+<p>2026 年 3 月 PyPI 1.82.7/1.82.8 供應鏈事件後，維護者確認 Docker 映像路徑（pinned requirements）未受影響，並暫停發版至 CI/CD 加固完成 [來源:HN item 47502858,2026]。2026 年 4 月另傳出預認證 SQL 注入 CVE（社群討論），採固定版本與隔離部署為業界建議 [來源:DEV supply chain post,2026]。Issue 量大反映採用廣，亦代表升級需鎖版本與掃描。</p>
+<p>---</p>
+<h2>六、潛在應用（daily-digest-prompt）</h2>
+<h3>場景 1：統一 OpenAI 相容後端給 `openrouter_runner`</h3>
+<p><strong>落地</strong>：在 <code>config/frequency-limits.yaml</code> 中將部分 backend 的 HTTP 端點改指向本機 LiteLLM Proxy（<code>http://127.0.0.1:4000</code>），由 Proxy 的 <code>model_list</code> 管理 Groq/OpenRouter/Azure 真實 Key，應用層只持 Virtual Key。<strong>步驟</strong>：① Docker 部署 <code>ghcr.io/berriai/litellm-database</code>；② 匯入 <code>model_list</code>；③ <code>Invoke-LlmGate</code> 測試 profile 指向 Proxy；④ 記錄 spend 到現有 token 工具鏈。</p>
+<h3>場景 2：Phase 2 多任務的成本歸因</h3>
+<p><strong>落地</strong>：為每個 <code>task_key</code> 建立 LiteLLM Virtual Key + 預算上限，對齊 <code>config/frequency-limits.yaml</code> 的配額治理。<strong>步驟</strong>：Admin UI 建 Key → 在 <code>run-todoist-agent-team.ps1</code> 注入環境變數 <code>OPENAI_API_BASE</code> → 比對 <code>state/token-efficiency</code> 與 Proxy 儀表板。</p>
+<h3>場景 3：本地 vLLM/Ollama 與雲端混合回退</h3>
+<p><strong>落地</strong>：結合已研究的 SGLang/vLLM 推理層，LiteLLM 作為統一入口：本地 deployment 優先，失敗 fallback 至 Claude/OpenRouter。<strong>步驟</strong>：<code>config.yaml</code> 設定 fallback 鏈 → 與 <code>llm-gate</code> 的 <code>quality_gate_blocked</code> 策略對照測試。</p>
+<p>---</p>
+<h2>七、優缺點評估</h2>
+<p><strong>優點</strong></p>
+<ol>
+<li>供應商覆蓋面業界領先，降低「換模型改程式」成本 [來源:BerriAI README,2026]。</li>
+<li>Proxy + Virtual Key 適合多租戶與成本中心分攤 [來源:腾讯云教程,2026]。</li>
+<li>與 LangChain/Langfuse 生態整合成熟 [來源:TrueFoundry,2026]。</li>
+<li>支援熱新增模型，利於實驗新模型而不動客戶端 [來源:model_management docs,2026]。</li>
+</ol>
+<p><strong>缺點（有來源）</strong></p>
+<ol>
+<li>2026-03 供應鏈攻擊顯示 PyPI 直裝路徑風險，必須 pin 版本並優先 Docker 映像 [來源:HN 47501426,2026]。</li>
+<li>生產拓樸複雜（DB/Redis），小團隊可能 overkill [來源:DEV Lynkr comparison,2026]。</li>
+<li>程式庫規模大、審計成本高，與本專案「機械優先、薄依賴」原則需權衡 [來源:DEV 5 issues 2026,2026]。</li>
+<li>不取代 Agent Team 編排；無法替代 <code>run-todoist-agent-team.ps1</code> 的 Phase/守衛邏輯。</li>
+</ol>
+<p><strong>不適用情境</strong>：僅用單一 Claude Code CLI、無多供應商切換需求；或必須極簡可審計閘道（<500 行）時，應維持現有 <code>llm-gate.ps1</code> 而非再疊一層 Proxy。</p>
+<p>---</p>
+<h2>八、完整書目</h2>
+<ol>
+<li>BerriAI, 2026, <em>litellm README</em>, https://github.com/BerriAI/litellm, 取用 2026-06-02, source_type: official, language: en</li>
+<li>LiteLLM Docs, 2026, <em>LiteLLM AI Gateway</em>, https://docs.litellm.ai/docs/simple_proxy, 取用 2026-06-02, source_type: official, language: en</li>
+<li>LiteLLM Docs, 2026, <em>Content Filter Guardrails</em>, https://docs.litellm.ai/docs/proxy/guardrails/litellm_content_filter, 取用 2026-06-02, source_type: official, language: en</li>
+<li>TrueFoundry, 2026-04, <em>LiteLLM vs LangChain</em>, https://www.truefoundry.com/blog/litellm-vs-langchain, 取用 2026-06-02, source_type: blog, language: en</li>
+<li>Markaicode, 2026, <em>LiteLLM vs LangChain 30min</em>, https://markaicode.com/vs/litellm-vs-langchain/, 取用 2026-06-02, source_type: blog, language: en</li>
+<li>腾讯云开发者社区, 2026, <em>如何使用 LiteLLM 网关代理统一管理你的大模型</em>, https://cloud.tencent.com/developer/article/2632121, 取用 2026-06-02, source_type: blog, language: zh</li>
+<li>liteLLM 中文文档, 2026, <em>CLI 快速入门</em>, https://docs.litellm.com.cn/docs/proxy/quick_start, 取用 2026-06-02, source_type: official, language: zh</li>
+<li>Hacker News, 2026-03, <em>Tell HN: Litellm 1.82.7 and 1.82.8 compromised</em>, https://news.ycombinator.com/item?id=47501426, 取用 2026-06-02, source_type: community, language: en</li>
+<li>Hacker News, 2023-08, <em>Show HN: liteLLM Proxy Server</em>, https://news.ycombinator.com/item?id=37095542, 取用 2026-06-02, source_type: community, language: en</li>
+<li>DEV Community, 2026-03, <em>LiteLLM got hacked</em>, https://dev.to/devansh365/litellm-got-hacked-i-built-a-simpler-llm-gateway-you-can-actually-audit-3hia, 取用 2026-06-02, source_type: blog, language: en</li>
+<li>DEV Community, 2026, <em>Lynkr vs LiteLLM vs OpenRouter</em>, https://dev.to/lynkr/lynkr-vs-litellm-vs-openrouter-vs-portkey-choosing-an-llm-gateway-in-2026-ea0, 取用 2026-06-02, source_type: comparison, language: en</li>
+<li>GitHub API, 2026-06-02, <em>repos/BerriAI/litellm</em>, https://api.github.com/repos/BerriAI/litellm, 取用 2026-06-02, source_type: official, language: en</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

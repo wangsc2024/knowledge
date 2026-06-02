@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Activepieces 深度研究報告 — AI 工作流與 MCP 一體化開源平台">
+  <title>Activepieces 深度研究報告 — AI 工作流與 MCP 一體化開源平台 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Activepieces 深度研究報告 — AI 工作流與 MCP 一體化開源平台</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">Activepieces</span><span class="tag">No-code 工作流</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Activepieces 深度研究報告</h1>
+<h2>概述</h2>
+<p>Activepieces（<a href="https://github.com/activepieces/activepieces">activepieces/activepieces</a>）是 MIT 授權的開源 AI 工作流自動化平台，定位為 Zapier / Make 的可自架替代，並在 2025–2026 年明確轉向 <strong>AI-first</strong>：內建 AI Agent、原生 MCP 工具鏈，以及線性（step-based）無程式工作流建構器。與本專案知識庫已深入的 n8n、Dify、Flowise 不同，Activepieces 的差異化在於 <strong>Pieces→MCP 一體化</strong> 與 <strong>社群版真開源（MIT）</strong>，適合評估作為非技術協作者可操作的編排層，或作為 Cursor / Claude Desktop 的外掛工具宇宙。</p>
+<h2>技術架構</h2>
+<ul>
+<li><strong>語言與單體</strong>：主倉庫約 99% TypeScript（Nx monorepo），整合以 npm <strong>Pieces</strong> 套件發佈（<code>@activepieces/*</code>）。</li>
+<li><strong>核心抽象「Piece」</strong>：每個整合（觸發器、動作、AI 區塊）是型別安全的 TS 套件，支援本機 hot-reload 開發；官方稱約 60% Pieces 來自社群。</li>
+<li><strong>執行與狀態</strong>：自架典型為 <strong>App + PostgreSQL + Redis</strong> 三容器（相較 n8n 常見的 n8n+Postgres 多一層 Redis）；流程定義版本化、支援分支、迴圈、HTTP、Code（NPM）、Human-in-the-loop（延遲／核准）。</li>
+<li><strong>AI 層</strong>：內建 OpenAI / Claude 等原生 AI pieces、Agent SDK，以及將每個 Piece <strong>自動暴露為 MCP server</strong>（標榜 280+ / ~400 MCP 端點），讓 IDE 內 Agent 直接觸發流程與 SaaS 整合。</li>
+<li><strong>授權分層</strong>：Community Edition = MIT；企業功能在 <code>packages/ee</code> 下商業授權（與 n8n Sustainable Use License 形成對照）。</li>
+</ul>
+<h2>工作流核心能力</h2>
+<p>| 能力 | 說明 |</p>
+<p>|------|------|</p>
+<p>| 觸發 | Webhook、排程、應用內事件 |</p>
+<p>| 編排 | 線性步驟 UI（非 n8n 畫布）；分支、迴圈、自動重試 |</p>
+<p>| 整合 | 200–280+ Pieces（持續增長），涵蓋 Google、Slack、Stripe、OpenAI 等 |</p>
+<p>| 人機協作 | 核准步驟、延遲執行（框架內建為 Piece 模式） |</p>
+<p>| 模板 | 可客製化流程模板，降低 onboarding |</p>
+<p>| 觀測 | 執行紀錄、重播；錯誤處理較 n8n「專用 error workflow」簡化 |</p>
+<p>相較 n8n 的節點畫布與 sub-workflow，Activepieces 刻意降低圖編輯複雜度，換取非技術使用者 <strong>分鐘級上手</strong>；複雜 ETL / 多路合併仍偏向 n8n 或 Windmill。</p>
+<h2>AI 整合機制</h2>
+<ol>
+<li><strong>Builder 內 AI</strong>：Code Piece 的「Ask AI」可協助非工程師清理資料；流程內直接串 LLM provider。</li>
+<li><strong>Agent Library</strong>：官網主推客服、郵件、日報等預製 Agent 範本。</li>
+<li><strong>MCP 雙向戰略</strong>：</li>
+</ol>
+<p>   - <strong>向外</strong>：每個 Piece 可作 MCP，供 Claude Desktop / <strong>Cursor</strong> / Windsurf 呼叫（與本 repo 已啟用之多組 MCP 同層）。</p>
+<p>   - <strong>向內</strong>：流程可編排 MCP 工具，把 LLM 決策嵌入自動化。</p>
+<ol>
+<li><strong>與產業趨勢</strong>：2026 年 MCP 由 AAIF 治理、各廠商擁抱；Activepieces 把「整合套件=MCP」綁定，降低重複建 connector 成本。</li>
+</ol>
+<h2>部署與維運</h2>
+<ul>
+<li><strong>Docker / Compose / Helm / 各雲市集</strong>；文件強調自架資料不出內網。</li>
+<li><strong>資源</strong>：輕量場景約 512MB–1GB RAM（第三方評測）；生產需規劃 Postgres 備份與 Redis 高可用。</li>
+<li><strong>企業</strong>：SSO、進階 RBAC、多環境；雲端版有免費層與按活躍流程計費模式（與 n8n 按執行次數計費不同）。</li>
+<li><strong>維運缺口</strong>：進階錯誤路由、子流程、Python code node 不如 n8n 成熟；需用 Code Piece（TS）或外部服務補足。</li>
+</ul>
+<h2>與 daily-digest-prompt 的連結</h2>
+<ol>
+<li><strong>編排哲學對照</strong>：本專案以 <code>run-todoist-agent-team.ps1</code> + <strong>planner_executor (PE)</strong> 做確定性 Phase 編排；Activepieces 適合 <strong>人類可視化</strong> 的輕量整合（通知、表單、審批），而非取代 PE 核心路徑（ADR-20260530 LangGraph 退役後仍堅持 PS/Python 機械層）。</li>
+<li><strong>MCP 生態</strong>：repo 已配置 <code>n8n-mcp</code>、Playwright、sequential thinking 等 MCP；Activepieces 的 Pieces-as-MCP 可評估是否 <strong>冗餘</strong>（重疊 SaaS 整合）或 <strong>互補</strong>（給非工程師建 flow 再 export webhook 觸發本專案 <code>todoist-auto-*</code>）。</li>
+<li><strong>開源授權</strong>：若未來需要 <strong>白標 / 嵌入</strong> 工作流 UI，MIT CE 比 n8n fair-code 風險低；<code>context/adr-registry.json</code> 已有 n8n monorepo、Dify declarative workflow 等 github_scout 紀錄，可新增「Activepieces MIT + MCP」選項 ADR。</li>
+<li><strong>觀測管線</strong>：本專案 <code>tech_research</code> 已研究 Langfuse/Phoenix/OTel；Activepieces 執行日誌可經 webhook 匯出至 <code>post_tool_logger</code> JSONL，再進既有 OTel 路線（需自訂 Piece，非內建）。</li>
+<li><strong>Harness 啟示</strong>：線性 step UI 類似 <strong>fail-fast 結果檔</strong> 思維（一步驟一產物）；Human-in-loop 對應 <code>architecture guardrails</code> 人工核准閘門。</li>
+</ol>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>MIT 社群版，商業嵌入友好</li>
+<li>UI 線性直覺，非技術團隊 onboarding 快</li>
+<li>Pieces 型別安全 + npm 生態，擴充與本專案 <code>tools/*.py</code> CLI 文化可並存（不同層）</li>
+<li>MCP 策略與 Cursor/Claude 工具鏈高度對齊</li>
+<li>成長快（22k+ stars，2026-05 仍活躍推送）</li>
+</ul>
+<p><strong>缺點 / 限制</strong>：</p>
+<ul>
+<li>整合數量與成熟度仍落後 n8n（~400 nodes）</li>
+<li>複雜錯誤處理、子流程、Python 節點不足</li>
+<li>自架多 Redis 依賴，運維元件較 n8n 多一層</li>
+<li>企業功能鎖在 EE 授權</li>
+<li>與本專案核心 <strong>batch auto-task</strong> 無直接替換關係，屬外圍編排選項</li>
+</ul>
+<h2>社群狀態</h2>
+<p>Stars：約 22,510 | Forks：約 3,655 | 最近更新：2026-05-15（main 推送）| 最新釋出：0.82.3（2026-05-12），標籤顯示 0.83.0（2026-05-06）</p>
+<h2>參考來源</h2>
+<ul>
+<li>https://github.com/activepieces/activepieces</li>
+<li>https://www.activepieces.com/docs</li>
+<li>https://dev.to/agntable/activepieces-vs-n8n-which-open-source-automation-tool-should-you-use-aol</li>
+<li>https://selfhostr.com/comparatifs/n8n-vs-activepieces-vs-node-red-2026/</li>
+<li>https://www.activepieces.com/blog/activepieces-vs-n8n</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
