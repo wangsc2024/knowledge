@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="n8n 深度研究報告 — AI 工作流與 LangChain/MCP 編排平台">
+  <title>n8n 深度研究報告 — AI 工作流與 LangChain/MCP 編排平台 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>n8n 深度研究報告 — AI 工作流與 LangChain/MCP 編排平台</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">n8n</span><span class="tag">No-code 工作流</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>n8n 深度研究報告</h1>
+<h2>概述</h2>
+<p>n8n（<a href="https://github.com/n8n-io/n8n">n8n-io/n8n</a>）是面向技術團隊的 <strong>fair-code</strong> 工作流自動化平台，結合視覺化節點編排與 JavaScript/Python 程式碼節點，支援 400+ 整合與原生 AI／LangChain 能力。與本知識庫已深入的 Activepieces（MIT、線性 Pieces、MCP 一體化）不同，n8n 的強項在於 <strong>成熟節點圖引擎、企業級錯誤處理、70+ AI 節點與 LangChain ReAct Agent</strong>，適合作為 daily-digest-prompt 管線外層的「可觀測、可重試」編排層候選。</p>
+<h2>技術架構</h2>
+<ul>
+<li><strong>語言與前端</strong>：TypeScript（約 91%）+ Vue 7%，單體 monorepo，預設分支 <code>master</code>。</li>
+<li><strong>執行模型</strong>：每個 workflow 由 <strong>Trigger</strong>（Webhook、Cron、手動等）啟動，資料以 <strong>JSON item</strong> 在節點間流動；支援 <strong>IF / Switch / Merge</strong> 分支與子 workflow。</li>
+<li><strong>程式碼擴充</strong>：<strong>Code</strong> 節點可寫 JS/Python、引入 npm 套件；自訂節點透過 <code>n8n-nodes-starter</code> 模板開發。</li>
+<li><strong>AI 子系統</strong>：內建 <strong>LangChain 叢集節點</strong>（Agent、Memory、Vector Store、Output Parser 等），<strong>Tools Agent</strong> 預設採 ReAct（推理→選工具→觀察→迴圈）。</li>
+<li><strong>MCP 雙向</strong>：<strong>MCP Client Tool</strong> 消費外部 MCP 工具；<strong>MCP Server Trigger</strong>／實例級 MCP Server 將 workflow 暴露給 Claude Desktop、Cursor 等客戶端。</li>
+<li><strong>授權</strong>：Sustainable Use License（fair-code，非 OSI 開源）；企業版另授權 SSO、進階權限、air-gapped。</li>
+</ul>
+<h2>工作流核心能力</h2>
+<p>| 能力 | 說明 |</p>
+<p>|------|------|</p>
+<p>| 觸發器 | Webhook、Schedule（Cron）、Email、App 事件、子 workflow 呼叫 |</p>
+<p>| 整合 | 400+ 內建節點（SaaS、DB、HTTP、通訊） |</p>
+<p>| 除錯 | 單步重跑、mock 資料、執行日誌、輸入輸出並列檢視 |</p>
+<p>| 錯誤處理 | <strong>Error Workflow</strong>、重試策略、fallback 路由（優於多數同類工具） |</p>
+<p>| 範本 | 900+ 社群 workflow 範本可匯入 |</p>
+<p>| 佇列模式 | Redis queue mode 將執行與主實例分離，利於高併發 |</p>
+<h2>AI 整合機制</h2>
+<ol>
+<li><strong>LangChain 視覺化</strong>：LLM、Embedding、Vector DB、Memory（Postgres/Redis 等）、Chains、Agents 皆以子節點掛在 Agent 下。</li>
+<li><strong>Tools Agent</strong>：連接 Calculator、HTTP、Google Sheets、Slack 等既有節點作為工具，無需另寫 Python LangChain。</li>
+<li><strong>Context Pipeline（企業實務）</strong>：Webhook → Code 組裝 <strong>Context Object</strong> → 注入 System Prompt → Agent → Output Parser 驗證 JSON → Memory 持久化。</li>
+<li><strong>與 LangGraph 分工</strong>：複雜循環推理、長期多 Agent 狀態建議在 LangGraph 實作，n8n 透過 HTTP/MCP 呼叫其邊界；簡單單 Agent 流程用 n8n 內建節點即可。</li>
+<li><strong>AI 評估</strong>：內建評估節點可對 workflow 做回歸測試（利於 prompt/工具變更驗證）。</li>
+</ol>
+<h2>部署與維運</h2>
+<ul>
+<li><strong>快速啟動</strong>：<code>npx n8n</code> 或 Docker <code>docker.n8n.io/n8nio/n8n</code>（預設 5678）。</li>
+<li><strong>生產</strong>：PostgreSQL 持久化 + 可選 Redis（queue）；<code>n8n-hosting</code> repo 提供 K8s/Docker Compose 範例。</li>
+<li><strong>雲端</strong>：n8n Cloud 按 workflow 執行次數計費；自架無執行上限。</li>
+<li><strong>安全</strong>：加密憑證庫、RBAC、SSO（企業）、可 air-gapped 自架。</li>
+<li><strong>可觀測</strong>：執行歷史、節點級日誌；可外接 Langfuse 等（本專案另有 Langfuse 研究缺口）。</li>
+</ul>
+<h2>與 daily-digest-prompt 的連結</h2>
+<p>| 本專案元件 | n8n 可承接場景 |</p>
+<p>|-----------|----------------|</p>
+<p>| <code>run-todoist-agent-team.ps1</code> Phase 2 | 以 Webhook 觸發子 workflow：KB 查詢、ntfy 通知、結果 JSON 驗證串成可視化管線 |</p>
+<p>| <code>tools/kb_hybrid_cached</code> | HTTP Request 節點呼叫本機 <code>:3000</code> hybrid search，取代 ad-hoc curl |</p>
+<p>| MCP 生態 | 將 <code>skills/*</code> 能力透過 MCP Server 暴露，n8n Agent 作 MCP Client 編排多工具 |</p>
+<p>| <code>planner_executor</code> | 複雜 PE 圖保留在 repo；n8n 負責 <strong>定時、重試、人工審批節點</strong> 等營運層 |</p>
+<p>| <code>config/failure-recovery-matrix.yaml</code> | 對齊 n8n Error Workflow + 重試，可原型化 failure_recovery_router 決策 |</p>
+<p>| Activepieces（已研究） | 非技術協作者用 Activepieces；工程團隊複雜編排與 AI Agent 優先 n8n |</p>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>GitHub 生態最大（約 19 萬 stars）、整合與範本最豐富</li>
+<li>錯誤處理與程式碼節點適合生產級自動化</li>
+<li>LangChain + MCP 雙向，與 Cursor/Claude Code 策略一致</li>
+<li>自架資料主權、queue 模式可擴展</li>
+</ul>
+<p><strong>缺點 / 限制</strong>：</p>
+<ul>
+<li>Sustainable Use License 限制部分商業再分發場景（不如 Activepieces MIT）</li>
+<li>學習曲線高於線性 builder；複雜 Agent 圖可讀性不如程式碼</li>
+<li>高併發需額外 Redis/PostgreSQL 維運</li>
+<li>與本專案「機械優先 PS > Python」哲學重疊時，應避免用 n8n 取代已有 CLI 工具鏈</li>
+</ul>
+<h2>社群狀態</h2>
+<p>Stars：約 190,673 | Forks：約 58,210 | 最近更新：2026-06-02（master 持續推送）</p>
+<h2>參考來源</h2>
+<ul>
+<li>https://github.com/n8n-io/n8n</li>
+<li>https://docs.n8n.io/advanced-ai/</li>
+<li>https://n8n.io/integrations</li>
+<li>https://dev.to/agntable/activepieces-vs-n8n-which-open-source-automation-tool-should-you-use-aol</li>
+<li>https://amjid.au/insights/n8n-mcp-server-the-enterprise-guide/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

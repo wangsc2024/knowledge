@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 驅動 CI/CD 智能化：Flaky Test 偵測、構建失敗預測與自癒管線（2026）">
+  <title>AI 驅動 CI/CD 智能化：Flaky Test 偵測、構建失敗預測與自癒管線（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 驅動 CI/CD 智能化：Flaky Test 偵測、構建失敗預測與自癒管線（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">CI/CD</span><span class="tag">software-engineering</span><span class="tag">DevOps</span><span class="tag">flaky-test</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 驅動 CI/CD 智能化：Flaky Test 偵測、構建失敗預測與自癒管線（2026）</h1>
+<h2>技術概述</h2>
+<p>2026 年 CI/CD 正從「失敗後人工排查」轉向 <strong>預測式 + 自癒式管線</strong>：以歷史測試執行資料訓練 ML 模型偵測 flaky test（同一代碼下間歇性 pass/fail），並以 LLM Agent 對失敗 log 做 RCA 與自動修復 PR。Google 報告 flaky test 消耗約 16% CI 算力；ML 偵測準確率 85–92%（閾值法僅 60–70%）。Frontiers 2026 提出 SAPAL 框架與 PHI/TSS/FPC 三項可靠性指標，將管線 KPI 從吞吐轉向決策品質。</p>
+<h2>核心方法與工具</h2>
+<h3>1. Flaky Test 預測（特徵工程 + 梯度提升）</h3>
+<p>| 訊號 | 說明 |</p>
+<p>|------|------|</p>
+<p>| pass-rate variance | 30-run 滾動窗口內通過率變異 |</p>
+<p>| execution-time std | 執行時間標準差（競態/超時指標）|</p>
+<p>| retry pass pattern | 立即重跑即通過 |</p>
+<p>| async/network density | 測試碼中 async/HTTP 呼叫密度 |</p>
+<p>| co-failure correlation | 與其他測試共失模式 |</p>
+<p><strong>模型</strong>：LightGBM / XGBoost 分類器；進階方案 DeepFlaky 結合 CodeBERT 語意嵌入。</p>
+<p><strong>平台</strong>：Harness CI（自動 quarantine）、Semaphore（統計不穩定層）、Desplega.ai（Playwright Reporter 整合）。</p>
+<h3>2. 構建失敗預測</h3>
+<ul>
+<li>輸入：commit 變更檔案、歷史 build log、依賴圖、執行時長</li>
+<li>輸出：PR 級失敗機率 → 動態測試選擇（僅跑高風險用例，案例報告 40% build 時間縮短）</li>
+<li>指標：Pipeline Health Index (PHI)、Failure Prediction Confidence (FPC)</li>
+</ul>
+<h3>3. LLM 自癒管線</h3>
+<p>| 框架 | 能力 | 量化 |</p>
+<p>|------|------|------|</p>
+<p>| LogSage (ByteDance) | log 預處理 + RAG 修復 + tool-calling | RCA F1 +38pp；1.07M 執行部署 |</p>
+<p>| GitHub Copilot SDK | JSON-RPC agent loop、自訂 tools、HITL | 2026-01 GA |</p>
+<p>| Semaphore + Copilot Agent | CI 失敗 → 自動 PR | 雲端隔離修復 |</p>
+<h2>實際工作流程（step-by-step）</h2>
+<h3>Phase A：Flaky 偵測管線（MLOps 最小版）</h3>
+<ol>
+<li><strong>收集</strong>：CI reporter 輸出 JUnit/JSON（test name, status, duration, retry, commit SHA）</li>
+<li><strong>特徵</strong>：每測試 30-run 滾動聚合 → CSV feature matrix</li>
+<li><strong>訓練</strong>：LightGBM，<code>flaky=1</code> 若同 SHA 下 pass/fail 交替</li>
+<li><strong>推論</strong>：自訂 Playwright reporter 於 <code>onTestEnd</code> 附加 <code>flakiness_score</code></li>
+<li><strong>政策</strong>：score > 0.7 → quarantine（不阻 merge）；score 0.4–0.7 → 標記 review</li>
+<li><strong>重訓</strong>：cron 每日夜間重跑 pipeline</li>
+</ol>
+<h3>Phase B：自癒 CI（GitHub Actions + Copilot SDK）</h3>
+<ol>
+<li>CI job 失敗 → <code>workflow_run</code> 觸發 heal workflow</li>
+<li>Agent 讀取 log + diff + 相關源碼</li>
+<li>生成修復 patch（path-scope 限制 + 測試必須通過）</li>
+<li>HITL：PR 需人工 approve 後 merge</li>
+<li>記錄 fix 至 RAG 知識庫供 LogSage 式重用</li>
+</ol>
+<h2>程式碼/配置範例</h2>
+<h3>Playwright Flaky Reporter（TypeScript 骨架）</h3>
+<pre><code>
+import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter';
+import flakyScores from './flaky-scores.json'; // 每日 ML 產出
+
+export default class FlakyReporter implements Reporter {
+  onTestEnd(test: TestCase, result: TestResult) {
+    const score = flakyScores[test.title] ?? 0;
+    if (score &gt; 0.7) {
+      console.warn(`[FLAKY-RISK ${score.toFixed(2)}] ${test.title}`);
+    }
+    // 附加 CI annotation
+    process.env.CI &amp;&amp; console.log(`::warning title=Flaky Risk::${test.title} score=${score}`);
+  }
+}
+</code></pre>
+<h3>Python 特徵提取（30-run 窗口）</h3>
+<pre><code>
+import pandas as pd
+from pathlib import Path
+
+runs = pd.read_json('ci-test-runs.jsonl', lines=True)
+window = runs.groupby('test_id').tail(30)
+features = window.groupby('test_id').agg(
+    pass_rate=('status', lambda s: (s == 'passed').mean()),
+    pass_var=('status', lambda s: s.eq('passed').rolling(5).mean().std()),
+    duration_std=('duration_ms', 'std'),
+    fail_count=('status', lambda s: (s == 'failed').sum()),
+).reset_index()
+features.to_parquet('flaky-features.parquet')
+</code></pre>
+<h3>GitHub Actions 自癒觸發</h3>
+<pre><code>
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+jobs:
+  auto-heal:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dispatch heal agent
+        env:
+          COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+        run: |
+          uv run python tools/heal_ci_agent.py \
+            --run-id ${{ github.event.workflow_run.id }} \
+            --max-files 5 \
+            --require-hitl
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>ML flaky 偵測：85–92% 準確率 vs 閾值法 60–70%（IEEE 2022）</li>
+<li>Microsoft Azure DevOps：ML 早期偵測後 flaky 事件降 73%</li>
+<li>智能測試選擇：build 時間降 40%（Tech360 2026 案例）</li>
+<li>LogSage：RCA precision >98%；端到端 precision >80%（ByteDance 1 年部署）</li>
+<li>DEV 實驗 repo：Logistic Regression ROC-AUC 0.944（合成資料）</li>
+</ul>
+<h2>與本專案應用場景</h2>
+<p>本 repo（daily-digest-prompt）已有：</p>
+<ul>
+<li><strong>pre-commit pytest 即時閘門</strong>（<code>SKIP_TEST_HOOK=1</code> bypass）→ 可匯出 pytest JSON report 餵 flaky 模型</li>
+<li><strong>448+ CLI 工具 + PS1 管線</strong> → 失敗叢聚於 <code>state/failed-auto-tasks.json</code>，適合 build failure 特徵</li>
+<li><strong>planner_executor 取代 LangGraph</strong> → Agent 自癒可复用 PE job 結構 + <code>results/todoist-auto-*.json</code> 作訓練標籤</li>
+<li><strong>validate_results.py 閘門</strong> → flaky 等價物是 <code>result_file_missing</code> 間歇失敗；可對 task_key 計算 pass-rate variance</li>
+</ul>
+<p><strong>建議落地順序</strong>：</p>
+<ol>
+<li>從 <code>logs/structured/post_tool_logger.jsonl</code> 提取 task 執行 pass/fail/duration</li>
+<li>對 <code>tests/</code> 下 pytest 用例做 30-run 特徵（CI nightly）</li>
+<li>score > 0.7 的測試加 <code>@pytest.mark.quarantine</code></li>
+<li>Phase 2 失敗時觸發 Cursor CLI heal（已有 <code>run-todoist-agent-team.ps1</code> 架構）</li>
+</ol>
+<h2>風險與注意事項</h2>
+<ul>
+<li><strong>False negative 成本高</strong>：quarantine 漏判會持續污染 CI；建議保守 threshold + 人工 audit</li>
+<li><strong>資料漂移</strong>：重構後特徵失效 → 必須 cron 重訓</li>
+<li><strong>LLM 自癒安全</strong>：必須 path-scope + HITL + 測試全綠才允許 merge；禁止 agent 直接 push main</li>
+<li><strong>不可取代確定性測試</strong>：smoke test 與 main branch 全量 suite 仍須保留</li>
+<li><strong>隱私</strong>：log 可能含 secret → 餵模型前須 redact</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>Desplega.ai: ML Flaky Test Prediction (2026)</li>
+<li>Semaphore: Can AI Detect Flaky Tests (2026)</li>
+<li>Harness: Flaky Tests AI Detection</li>
+<li>Frontiers 2026: AI-augmented CI/CD SAPAL Framework (PHI/TSS/FPC)</li>
+<li>arXiv: LogSage LLM CI/CD Failure Remediation (ByteDance)</li>
+<li>GitHub Copilot SDK docs (agent loop, Jan 2026)</li>
+<li>DEV: flaky-test-prediction-ml (ROC-AUC 0.944)</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

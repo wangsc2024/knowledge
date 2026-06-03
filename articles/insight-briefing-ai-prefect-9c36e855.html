@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing｜AI 工作流韌性工程：Prefect 3、PydanticAI 與 Temporal 的重試、快取與持久化分層（2026）">
+  <title>insight-briefing｜AI 工作流韌性工程：Prefect 3、PydanticAI 與 Temporal 的重試、快取與持久化分層（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing｜AI 工作流韌性工程：Prefect 3、PydanticAI 與 Temporal 的重試、快取與持久化分層（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">Prefect</span><span class="tag">PydanticAI</span><span class="tag">Temporal</span><span class="tag">workflow-resilience</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報｜AI 工作流韌性工程：Prefect 3、PydanticAI 與 Temporal 的重試、快取與持久化分層（2026）</h1>
+<h2>摘要</h2>
+<p>本次主題承接 <code>context/research-series.json</code> 的 <code>prefect-workflow-ai</code> 系列，將既有 foundation 筆記往 application 階段推進。外部資料顯示，穩定的 AI 工作流不該把「重試」當成單一機制，而應拆成三層：HTTP/Provider 重試、任務級重試、工作流級持久化恢復。Prefect 適合把最小失敗單位收斂到 task；PydanticAI 適合處理模型/HTTP 邊界的瞬時錯誤與 fallback；Temporal 適合承接長生命週期、跨程序、需要 crash recovery 的 durable execution。若三層混在一起，常見後果是 fallback 被內層重試拖慢、快取與副作用語義混淆、以及失敗後難以判定該重跑哪一層。</p>
+<h2>關鍵洞見</h2>
+<h3>1. 重試要分層，不要把所有失敗都交給同一個 retry loop</h3>
+<ul>
+<li>Prefect 的 flow 與 task 都能設定 <code>retries</code> 與 <code>retry_delay_seconds</code>，而且官方明確建議把重試收斂在「會失敗的那個 task」，避免整個 workflow 一起重跑。來源：<code>docs.prefect.io/v3/how-to-guides/workflows/retries</code></li>
+<li>PydanticAI 的 HTTP retry transport 主要處理 rate limit、timeout、5xx 這類瞬時失敗；若都丟到 agent 外層重跑，會放大成本與延遲。來源：<code>pydantic.dev/docs/ai/advanced-features/retries/</code></li>
+<li>Temporal 強調 durable execution 與 activity 自動重試，定位是「程序掛掉、網路中斷、worker crash 後仍能接續」，不是取代每個 API 客戶端自己的 backoff。來源：<code>temporal.io/</code></li>
+</ul>
+<h3>2. fallback 與 retry 不能互相遮蔽，否則故障切換會變慢</h3>
+<ul>
+<li>PydanticAI 文件指出 <code>FallbackModel</code> 預設在 <code>ModelAPIError</code> 觸發切換；同頁特別提醒 provider SDK 內建 retry 可能延遲 fallback，建議必要時把 provider retries 關掉或設低。來源：<code>pydantic.dev/docs/ai/models/overview/</code></li>
+<li>這代表系統應先決定「同一模型要不要再試一次」，再決定「是否換模型」。若兩者都在不同層無上限重試，故障切換時間會不可控。</li>
+</ul>
+<h3>3. 快取不是免費的；要先有 persistence 與 cache key 契約</h3>
+<ul>
+<li>Prefect 文件明示 task caching 依賴 result persistence；若 <code>persist_result=False</code>，task 不會真正吃到 cache。來源：<code>docs.prefect.io/v3/concepts/caching</code></li>
+<li>預設 cache key 會納入輸入、程式碼定義與 flow/task run context；若要跨流程共用，必須顯式設計 cache policy。來源：<code>docs.prefect.io/v3/concepts/caching</code></li>
+<li>這對 agent 系統的含義是：只有「純函數或可重放」步驟應直接快取；含外部副作用的步驟要先切成 idempotent activity，再談 cache 命中。</li>
+</ul>
+<h3>4. Respect backpressure 比「多試幾次」更重要</h3>
+<ul>
+<li>PydanticAI 的 <code>wait_retry_after()</code> 會解析 HTTP <code>Retry-After</code>，若沒有才退回 exponential backoff；官方範例還設 <code>max_wait</code> 避免無限拖延。來源：<code>pydantic.dev/docs/ai/advanced-features/retries/</code></li>
+<li>Prefect 也支援 list delay、<code>exponential_backoff</code> 與 jitter。來源：<code>docs.prefect.io/v3/how-to-guides/workflows/retries</code></li>
+<li>因此本 repo 若未統一 retry/backoff 契約，容易出現某層立即重打、另一層指數退避、第三層又整體重跑，最後把瞬時錯誤放大成成本尖峰。</li>
+</ul>
+<h3>5. Durable execution 應只包「值得保存流程狀態」的工作</h3>
+<ul>
+<li>Temporal 的官方敘述是 workflow state 會在每一步持久化，失敗後可從中斷處恢復；activity 則負責失敗機率高的外部互動。來源：<code>temporal.io/</code></li>
+<li>這說明 durable runtime 的最佳用法是長鏈、多工具、跨人工確認或跨基礎設施邊界的流程；短命、單請求 agent 任務則應優先用輕量 task retry 與輸出驗證，而不是一開始就上重型編排。</li>
+</ul>
+<h2>共識與分歧</h2>
+<ul>
+<li>共識：重試必須有邊界，且要盡量縮小到最小失敗單位。來源一致出現在 Prefect task retry、PydanticAI transport retry、Temporal activity retry。</li>
+<li>共識：快取/持久化與重試密切耦合；沒有 state/result 契約，就很難做到安全重跑。來源見 Prefect caching 與 Temporal durable execution。</li>
+<li>分歧：Prefect 側偏向 Python 內 workflow/task 語義；Temporal 側偏向 durable orchestration 與 replay；PydanticAI 則把重心放在模型呼叫邊界。這不是誰取代誰，而是部署層級不同。</li>
+</ul>
+<h2>建議行動</h2>
+<ol>
+<li>為本 repo 定義三層 retry policy：</li>
+</ol>
+<p>   - <code>transport_retry</code>：只處理 429/5xx/timeout，必須尊重 <code>Retry-After</code></p>
+<p>   - <code>task_retry</code>：只重跑純計算或可證明 idempotent 的步驟</p>
+<p>   - <code>workflow_resume</code>：只留給長鏈、跨程序、需要 checkpoint 的流程</p>
+<ol>
+<li>將模型 fallback 與 provider retry 解耦：</li>
+</ol>
+<p>   - fallback 前，先限制 provider SDK retries</p>
+<p>   - 在結果檔增加「何層重試成功」診斷欄位，避免觀測盲點</p>
+<ol>
+<li>為快取建立顯式語義：</li>
+</ol>
+<p>   - <code>cacheable_pure_step</code></p>
+<p>   - <code>idempotent_side_effect_step</code></p>
+<p>   - <code>non_replayable_step</code></p>
+<ol>
+<li>若未來 <code>todoist-auto-*</code> 任務出現跨多次執行恢復需求，再評估導入 durable workflow；現階段先補 transport/task 層治理，成本效益較高。</li>
+</ol>
+<h2>對本專案的直接啟發</h2>
+<ul>
+<li><code>context/system-insight.json -> metrics.cache_hit_ratio=0.327</code> 代表系統快取仍弱；但在沒有明確 cache key/persist contract 前，盲目加 cache 容易把錯誤結果也存住。</li>
+<li><code>context/research-series.json -> prefect-workflow-ai.current_stage=mechanism</code>，本次簡報可視為向 application 階段過渡：從概念理解轉為實務分層設計。</li>
+<li>適合先落地的小改動不是「全面改成 durable orchestration」，而是先把 <code>Retry-After</code>、fallback 觸發條件、task 級 idempotency 標記做成統一規範。</li>
+</ul>
+<h2>研究品質自評</h2>
+<pre><code>
+{
+  "research_topic": "AI 工作流韌性工程：Prefect 3、PydanticAI 與 Temporal 的重試、快取與持久化分層（2026）",
+  "queries_used": [
+    "Prefect 3 workflow retries caching task concurrency official docs",
+    "Pydantic AI retry fallback model official docs",
+    "Temporal durable execution crash-proof execution"
+  ],
+  "sources_count": 5,
+  "grade_distribution": {
+    "A": 5,
+    "B": 0,
+    "C": 0,
+    "D": 0
+  },
+  "cross_verified_facts": 4,
+  "unverified_claims": 0,
+  "research_depth": "adequate",
+  "confidence_level": "high"
+}
+</code></pre>
+<h2>附錄：快取遙測</h2>
+<p><code>uv run python -m tools.kb_semantic_cache stats --days 7</code></p>
+<ul>
+<li><code>cache_path</code>: <code>cache/semantic-cache-kb.json</code></li>
+<li><code>entry_count</code>: <code>0</code></li>
+<li><code>log_events_7d.lookup/store/http_fallback/degraded</code>: <code>0 / 0 / 0 / 0</code></li>
+<li><code>fastembed_available</code>: <code>false</code></li>
+<li>判讀：KB 語義快取目前幾乎未投入運作，且 fastembed 不可用；短期內應把它視為 degraded/cold-start 狀態，而不是當成已上線能力。</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>Prefect retries guide: https://docs.prefect.io/v3/how-to-guides/workflows/retries</li>
+<li>Prefect caching concepts: https://docs.prefect.io/v3/concepts/caching</li>
+<li>Pydantic AI retries: https://pydantic.dev/docs/ai/advanced-features/retries/</li>
+<li>Pydantic AI model overview / fallback: https://pydantic.dev/docs/ai/models/overview/</li>
+<li>Temporal durable execution overview: https://temporal.io/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

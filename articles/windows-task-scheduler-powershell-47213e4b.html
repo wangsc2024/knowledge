@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Windows Task Scheduler 搭配 PowerShell 7 的穩定排程與失敗恢復實踐">
+  <title>Windows Task Scheduler 搭配 PowerShell 7 的穩定排程與失敗恢復實踐 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Windows Task Scheduler 搭配 PowerShell 7 的穩定排程與失敗恢復實踐</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">Windows Task Scheduler</span><span class="tag">PowerShell 7</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Windows Task Scheduler 搭配 PowerShell 7 的穩定排程與失敗恢復實踐</h1>
+<h2>執行摘要</h2>
+<p>本文主張：若把 Windows Task Scheduler 只當成「定時啟動腳本」的外殼，排程通常能跑，但很難長期穩定；真正決定可靠度的關鍵，其實是三個層次同時到位：第一，明確指定 <code>pwsh.exe</code>、腳本路徑與非互動參數，避免環境差異把工作排程變成「在主控台能跑、在背景就失敗」；第二，把 <code>StartWhenAvailable</code>、<code>RestartCount</code>、<code>RestartInterval</code>、<code>ExecutionTimeLimit</code>、<code>MultipleInstances</code> 等設定當成可靠性契約，而不是保留預設值；第三，讓腳本把退出碼、錯誤訊息與執行紀錄說清楚，讓排程系統能重試、告警與診斷，而不是留下模糊的 Last Run Result。綜合官方文件、PowerShell 文件、社群 issue 與實務文章後，可以得到四個核心結論：一是排程的第一失敗點常是啟動命令與工作目錄，而不是腳本本身；二是「補跑」「重試」「避免重入」三個設定比單純提高排程頻率更有效；三是 <code>pwsh -File</code> 的退出語意必須搭配腳本內顯式 <code>exit</code> 才能讓 Task Scheduler 正確感知成敗；四是對本專案這類長期自動化系統而言，最好的設計不是追求單次成功，而是把失敗恢復路徑制度化。換句話說，穩定排程不是一個命令列技巧，而是一個小型的作業可靠性工程問題。</p>
+<h2>研究背景與動機</h2>
+<p>本專案本身就依賴 PowerShell、JSON 狀態檔、排程器與多階段自動任務協調，因此「排程有沒有啟動」只是最低標準；更重要的是，任務若錯過時段、遇到網路短暫故障、PowerShell 執行環境改變、或腳本本身拋出例外時，系統能否留下足夠訊號，並在下一輪恢復。這個主題的重要性在於，Windows 生態中的自動化往往同時跨越兩個不同層次：作業系統排程器掌管何時啟動與何時重試，PowerShell 掌管腳本的退出語意與錯誤傳播；只要兩者語意沒有對齊，就會出現假成功、假失敗、重複執行或漏跑。近三天的研究註冊表沒有同題，近期技術研究也多聚焦在 uv、快取、測試與 Agent 治理，這讓「Task Scheduler + PowerShell 7」成為一個既貼近專案實際技術棧、又具冷門價值的切入點。知識缺口主要有三個：一，很多教學只示範如何建立排程，較少處理背景執行的參數紀律；二，官方文件把可靠性設定拆散在多個屬性頁面，工程實作時不容易形成完整心智模型；三，社群最常見的失敗模式分散在 GitHub issue 或實務部落格，缺乏整合性的設計建議。</p>
+<h2>文獻探討</h2>
+<p>官方文件提供了最穩定的事實基線。Microsoft 的 <code>TaskSettings</code> 文件列出 <code>StartWhenAvailable</code>、<code>RunOnlyIfNetworkAvailable</code>、<code>RestartCount</code>、<code>RestartInterval</code>、<code>MultipleInstances</code> 等屬性，說明排程可靠性其實是設定組合，而非單一開關 [來源：TaskSettings, 2023]。其中 <code>TaskSettings.StartWhenAvailable</code> 的專頁更明確指出，此屬性預設為 false；若設為 true，排程錯過啟動時間後，Task Scheduler 會在可用時機補跑，且會以預設 10 分鐘延遲避免與系統啟動尖峰衝突 [來源：TaskSettings.StartWhenAvailable property, 2020]。另一方面，<code>New-ScheduledTaskSettingsSet</code> 讓這些設定能在 PowerShell 層直接宣告，例如 <code>-StartWhenAvailable</code>、<code>-RunOnlyIfNetworkAvailable</code>、<code>-ExecutionTimeLimit</code>、<code>-RestartCount</code>、<code>-RestartInterval</code> 等 [來源：New-ScheduledTaskSettingsSet, n.d.]。</p>
+<p>PowerShell 自身文件則補上腳本退出語意。<code>about_Pwsh</code> 說明 <code>-File</code> 是 <code>pwsh</code> 的預設參數，且在 <code>-File</code> 之後的內容會被視為腳本檔案與其參數，這對排程器中如何組合 <code>Program/script</code> 與 <code>Add arguments</code> 很關鍵 [來源：about_Pwsh, 2026]。<code>about_Automatic_Variables</code> 進一步指出，對 PowerShell 啟動的原生命令而言，<code>$LASTEXITCODE</code> 會保存最後一個原生程式或腳本的退出碼；若不主動管理退出碼，排程器看到的結果就可能無法反映真實失敗 [來源：about_Automatic_Variables, 2026]。</p>
+<p>社群與實務文章提供了失敗案例與工程化補充。PowerShell GitHub issue #13302 記錄了使用者在 Windows Task Scheduler 中直接呼叫 <code>pwsh.exe</code> 時出現 <code>0x80070002</code> 的案例，說明 PATH 與 WindowsApps 解譯在背景工作脈絡下並不總是可靠 [來源：Windows task scheduler cannot find pwsh.exe #13302, 2020]。PDQ 的比較文則強調，若需求是以本機任務為中心的精準排程，PowerShell 腳本與 Task Scheduler 的組合比用 GPO Startup/Logon Scripts 更具控制力，尤其是在時間條件與重試設定上 [來源：Group Policy Startup Scripts vs Scheduled Tasks, 2025]。Windows OS Hub 的實務文則把重點放在命令列寫法、<code>pwsh.exe</code> 取代 <code>powershell.exe</code>、工作帳號與引數配置，補足官方文件少談的背景執行細節 [來源：How to Create Scheduled Tasks with PowerShell on Windows, 2024]。</p>
+<h2>核心論證</h2>
+<h3>1. 已驗證✅：排程穩定性的第一關不是腳本邏輯，而是啟動命令的可解析性</h3>
+<p>事實陳述：在 Task Scheduler 中，<code>pwsh.exe</code>、腳本檔案與其參數若沒有明確寫法，就可能造成「互動式可執行、排程下不可執行」的落差 [來源：about_Pwsh, 2026][來源：Windows task scheduler cannot find pwsh.exe #13302, 2020]。GitHub issue #13302 顯示，背景排程可能回報 <code>0x80070002</code>，本質是排程器在該執行脈絡中找不到 <code>pwsh.exe</code> [來源：Windows task scheduler cannot find pwsh.exe #13302, 2020]。Windows OS Hub 也直接把 <code>pwsh.exe</code> 當作動作程式，並把腳本放到 <code>-File</code> 參數後傳遞，反映實務上不應依賴模糊的 shell 解析 [來源：How to Create Scheduled Tasks with PowerShell on Windows, 2024]。推論：對本專案這類長期排程，最穩定的做法應是把 <code>Program/script</code> 寫成 PowerShell 7 的明確可執行檔完整路徑，把腳本路徑寫成絕對路徑，再搭配 <code>-NoProfile -NonInteractive -ExecutionPolicy Bypass -File</code>，不要把成功寄託在使用者登入環境、PATH 或目前工作目錄上。這不只是「較保守」，而是把排程啟動從環境相依改成明確契約。</p>
+<h3>2. 已驗證✅：可靠排程的核心不是高頻率，而是補跑、重試與逾時控制三件事同時到位</h3>
+<p>事實陳述：Task Scheduler 本身提供補跑與重試機制，但預設值並不等於最佳實踐。<code>StartWhenAvailable</code> 預設為 false，開啟後才會在錯過觸發點時補跑 [來源：TaskSettings.StartWhenAvailable property, 2020][來源：TaskSettings, 2023]。<code>RestartOnFailure</code> 文件則說明，若要自動重試，必須同時定義重試次數與重試間隔；只設其中一個並不足以形成完整重試策略 [來源：RestartOnFailure, 2020][來源：TaskSettings, 2023]。<code>New-ScheduledTaskSettingsSet</code> 又把這些能力暴露成可腳本化的參數，包含 <code>-RestartCount</code>、<code>-RestartInterval</code> 與 <code>-ExecutionTimeLimit</code> [來源：New-ScheduledTaskSettingsSet, n.d.]。推論：排程系統不該只透過「每 5 分鐘跑一次」來掩蓋失敗，而應把 missed run、暫時性故障與無限卡住分成三類風險分別處理。對每日摘要或研究任務而言，建議將錯過執行交給 <code>StartWhenAvailable</code>，將暫時性外部依賴故障交給有限次數的 restart policy，將腳本失控或外部命令卡住交給 <code>ExecutionTimeLimit</code> 與腳本內部 timeout。這樣的設計比盲目加密排程頻率更省資源，也更可診斷。</p>
+<h3>3. 已驗證✅：避免重入比提升吞吐更重要，否則補跑與重試可能互相放大事故</h3>
+<p>事實陳述：<code>TaskSettings</code> 把 <code>MultipleInstances</code> 列為正式設定，表示排程器原生就把「任務重疊執行」視為需要治理的問題 [來源：TaskSettings, 2023]。在開啟 <code>StartWhenAvailable</code> 或 <code>RestartOnFailure</code> 之後，如果上一輪腳本仍在跑，新的補跑或重試很可能造成雙重寫入、狀態檔競爭或重複通知。PDQ 的比較文雖然主題是 Scheduled Tasks 與 GPO，但它強調 Scheduled Tasks 的優勢正是可對每個任務做細粒度控制，這也包含防止衝突的執行策略 [來源：Group Policy Startup Scripts vs Scheduled Tasks, 2025]。Windows OS Hub 的範例顯示，建立任務時通常會連同動作、觸發與 principal 一起腳本化，這使得執行策略也適合被一併固化，而不是靠 GUI 手動記憶 [來源：How to Create Scheduled Tasks with PowerShell on Windows, 2024]。推論：對會寫入 JSON 狀態、results 與通知的自動化任務，最保守也最符合本專案風格的策略，是把多重實例政策設為「不要啟動新實例」，再把真正需要的恢復能力交給下次補跑或有限次 retry。這樣做的代價是吞吐較低，但換來資料一致性與更可預期的故障表現。</p>
+<h3>4. 已驗證✅：Task Scheduler 能否正確判定成功，取決於 PowerShell 腳本是否有明確退出語意</h3>
+<p>事實陳述：<code>pwsh -File</code> 只是啟動腳本的入口，不會自動替你定義對外的成功與失敗協定 [來源：about_Pwsh, 2026]。<code>about_Automatic_Variables</code> 說明 <code>$LASTEXITCODE</code> 會反映原生命令或腳本的退出碼，這表示如果腳本內部呼叫外部工具、吞掉例外、或沒有在失敗時顯式 <code>exit 1</code>，Task Scheduler 看到的 Last Run Result 可能與實際狀況脫鉤 [來源：about_Automatic_Variables, 2026]。Windows OS Hub 的做法把 <code>pwsh.exe</code> 與腳本命令列參數明確寫入 Task Action，也間接反映背景工作最怕的是「命令有啟動、結果不可判讀」 [來源：How to Create Scheduled Tasks with PowerShell on Windows, 2024]。推論：對本專案而言，腳本應把失敗分成可重試與不可重試兩類，最後用明確的退出碼回報排程器；同時把 stdout/stderr 或結構化 log 寫入檔案，讓 <code>Get-ScheduledTaskInfo</code> 與應用層 log 互補。若沒有這一層，排程器只能看到最後結果碼，卻不知道問題發生在 API、檔案鎖、網路或腳本流程哪一段。</p>
+<h2>一家之言</h2>
+<p>我認為 Windows Task Scheduler 在 2026 年仍然值得保留，尤其對本機 Windows 自動化與 PowerShell 專案來說，它不是落後技術，反而是一個被低估的「作業系統級可靠性底座」。真正的問題不在 Task Scheduler 太舊，而在團隊常用 CLI 思維去寫排程，把它當成「幫我按時執行」的鬧鐘，而不是「幫我承接失敗恢復責任」的控制面。這也是為什麼很多團隊一開始排斥它，最後卻不是遷移到更好的編排器，而是把不穩定性搬到另一層。若任務範圍仍是單機、依賴 Windows 帳號與本地檔案系統、且需要與 PowerShell 深度整合，那麼最划算的投資不是立刻替換排程器，而是把 Task Scheduler 的可靠性設定與腳本退出協議標準化。換句話說，該升級的往往不是工具，而是工程紀律。</p>
+<h2>實踐建議</h2>
+<ol>
+<li>明確指定啟動命令。將 Task Action 的 <code>Execute</code> 設為 PowerShell 7 可執行檔完整路徑，<code>Arguments</code> 固定使用 <code>-NoProfile -NonInteractive -ExecutionPolicy Bypass -File <絕對腳本路徑></code>；若腳本依賴相對路徑，再明確設定 working directory。風險是路徑在升級後可能改變，因此建議把 pwsh 路徑抽成專案設定，並在健康檢查加入存在性驗證。</li>
+<li>將可靠性設定視為任務契約。對可補跑任務啟用 <code>StartWhenAvailable</code>，對暫時性故障設 <code>RestartCount=2~3</code> 與合適的 <code>RestartInterval</code>，對長任務明確設 <code>ExecutionTimeLimit</code>。風險是 retry 過密會放大外部依賴壓力，因此應根據 API 限流與任務成本調整間隔。</li>
+<li>主動禁止重入。對會寫入 <code>results/</code>、<code>context/</code>、通知或 registry 的任務，把 <code>MultipleInstances</code> 設成不允許新實例，並在腳本內維持冪等性。風險是補跑可能延後，但比起雙重執行造成狀態污染，這個代價通常較低。</li>
+<li>建立退出碼與日誌標準。腳本內對可恢復錯誤與不可恢復錯誤分別給出明確退出碼，並把重要步驟寫進 JSONL 或文字 log；排程層則用 Last Run Result 與 <code>Get-ScheduledTaskInfo</code> 看粗粒度狀態。風險是腳本一開始需要補上例外處理與結尾 <code>exit</code>，但這是把故障可觀測化的必要成本。</li>
+<li>用註冊式 PowerShell 建任務而非手動 GUI。以 <code>New-ScheduledTaskAction</code>、<code>New-ScheduledTaskTrigger</code>、<code>New-ScheduledTaskSettingsSet</code>、<code>Register-ScheduledTask</code> 建立任務，將設定納入版本控制。風險是初期門檻較高，但長期能避免 GUI 漂移與人為遺漏。</li>
+</ol>
+<h2>風險與限制</h2>
+<p>本研究的限制在於，主要證據來自 Microsoft 官方文件、PowerShell 官方文件與少量高相關實務文章，屬於「設計規範 + 工程經驗」型研究，而非大規模實驗比較。因此，像是不同 Windows 版本對 PowerShell 7 安裝位置、不同企業端點防護對背景執行的影響、以及 gMSA／服務帳號情境下的權限細節，都沒有在這份報告中完整展開。另外，Task Scheduler 的一些行為會受到組織政策、使用者權限、電源設定與網域環境影響，所以本文的建議最適合本機 Windows 自動化與一般企業桌面/伺服器場景。若任務已經跨到多機分散式協調、需要集中式佇列或雲端 SLA，則應評估更高階的 orchestrator，而不是只在 Task Scheduler 上堆疊複雜度。</p>
+<h2>參考來源</h2>
+<ul>
+<li>Microsoft. (2023, 推定). TaskSettings. https://learn.microsoft.com/zh-tw/windows/win32/taskschd/tasksettings source_type=official</li>
+<li>Microsoft. (2020). TaskSettings.StartWhenAvailable property. https://learn.microsoft.com/en-us/windows/win32/taskschd/tasksettings-startwhenavailable source_type=official</li>
+<li>Microsoft. (2020). RestartOnFailure. https://learn.microsoft.com/en-us/windows/win32/taskschd/taskschedulerschema-restartonfailure-settingstype-element source_type=official</li>
+<li>Microsoft. (n.d.). New-ScheduledTaskSettingsSet. https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtasksettingsset?view=windowsserver2025-ps source_type=official</li>
+<li>Microsoft. (2026). about_Pwsh. https://learn.microsoft.com/zh-tw/powershell/module/microsoft.powershell.core/about/about_pwsh?view=powershell-7.6 source_type=official</li>
+<li>Microsoft. (2026). about_Automatic_Variables. https://learn.microsoft.com/zh-tw/powershell/module/microsoft.powershell.core/about/about_automatic_variables?view=powershell-7.5 source_type=official</li>
+<li>PowerShell Team / GitHub. (2020). Windows task scheduler cannot find pwsh.exe #13302. https://github.com/PowerShell/PowerShell/issues/13302 source_type=community</li>
+<li>Adam Bertram / PDQ. (2025). Group Policy Startup Scripts vs Scheduled Tasks. https://www.pdq.com/blog/using-powershell-startup-scripts-vs-scheduled-tasks/ source_type=benchmark</li>
+<li>Windows OS Hub. (2024). How to Create Scheduled Tasks with PowerShell on Windows. https://woshub.com/create-scheduled-task-powershell/ source_type=blog</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

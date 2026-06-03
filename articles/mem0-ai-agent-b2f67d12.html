@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mem0 — AI Agent 通用記憶層深度研究報告">
+  <title>Mem0 — AI Agent 通用記憶層深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Mem0 — AI Agent 通用記憶層深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">Mem0</span><span class="tag">Memory</span><span class="tag">Agent</span><span class="tag">RAG</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Mem0 — AI Agent 通用記憶層深度研究報告</h1>
+<h2>執行摘要</h2>
+<p>本文主張：Mem0（mem0ai/mem0）以「LLM 驅動的 ADD-only 記憶管線 + 多信號混合檢索」成為 2026 年 AI Agent 長期記憶基礎設施的預設選項，在互動式場景以 p95 0.20s 級延遲與 LOCOMO 91.6 分（2026 新演算法）領先同類；但對 daily-digest-prompt 這類排程 Agent，應限於「使用者偏好／跨輪決策」子集，不可取代現有 <code>context/</code> JSON 狀態與 KB 結構化知識 [來源:GitHub mem0ai/mem0,2026][來源:Memory Evaluation Mem0 Docs,2026][來源:Atlan LangMem Guide,2026]。</p>
+<p>---</p>
+<h2>一、專案概述</h2>
+<p>Mem0（讀作 mem-zero）是專為 AI Agent 與助手設計的<strong>通用記憶層（Universal Memory Layer）</strong>，解決 LLM 無法跨 session 保留使用者偏好、歷史決策與上下文的根本限制 [來源:GitHub mem0ai/mem0,2026]。目標使用者包括：建構個人化聊天機器人、多 Agent 編排系統、企業客服與自主 Agent 的後端工程師；核心價值主張是「用結構化記憶取代每次 prompt 塞滿全歷史」，在準確率提升的同時降低 Token 成本與延遲 [來源:HN Show HN Mem0,2024][來源:Mem0 Platform Overview,2026]。</p>
+<p>截至 <strong>2026-06-03</strong>（GitHub API 實測）：Stars <strong>57,452</strong>、Forks <strong>6,565</strong>、Open Issues <strong>415</strong>、<code>pushed_at</code> <strong>2026-06-02</strong>，近 90 天持續活躍；主要語言 Python（80%+），Apache-2.0 授權，並提供託管 Platform 與自架 OSS 雙模式 [來源:GitHub API mem0ai/mem0,2026-06-03]。</p>
+<p>---</p>
+<h2>二、技術架構</h2>
+<h3>2.1 分層與記憶作用域</h3>
+<p>Mem0 將記憶分為三個作用域：<strong>User Memory</strong>（跨所有對話持久）、<strong>Session Memory</strong>（單次對話）、<strong>Agent Memory</strong>（特定 Agent 實例） [來源:Zylos Mem0 Research,2026]。這與 daily-digest-prompt 的 <code>context/continuity/*.json</code>（任務級連續記憶）與 <code>state/</code>（排程狀態，Agent 唯讀）在概念上對齊，但 Mem0 面向對話型事實抽取，而非管線 JSON schema [來源:Walking in Code Mem0 源碼解析,2026]。</p>
+<h3>2.2 2026 新演算法：ADD-only 與三層儲存</h3>
+<p>2026 年 4 月 Mem0 重設核心演算法（v3），架構變更如下 [來源:GitHub mem0ai/mem0 README,2026][來源:Mem0 OSS v2→v3 Migration,2026][來源:Memory Evaluation Docs,2026]：</p>
+<p><strong>寫入管線（5 步，非同步）：</strong></p>
+<ol>
+<li>Store New Memories — Agent 回應後非同步進管線</li>
+<li>Context Lookup — 查既有記憶避免重複</li>
+<li>Distill Memories — <strong>單次 LLM 呼叫</strong>，ADD-only 抽取事實（不再 UPDATE/DELETE 覆寫）</li>
+<li>Deduplicate + Embed — 雜湊去重後向量化</li>
+<li>Entity Linking — 抽取實體並跨記憶連結</li>
+</ol>
+<p><strong>三層儲存：</strong></p>
+<p>| 儲存層 | 內容 | 用途 |</p>
+<p>|--------|------|------|</p>
+<p>| Vector DB | 記憶文本、embedding、metadata | 語義檢索主體 |</p>
+<p>| Entity Store | 實體 embedding + 連結 memory ID | 實體匹配加分 |</p>
+<p>| SQL DB | ADD 事件歷史 + 滾動訊息窗 | 稽核與抽取上下文 |</p>
+<p>關鍵設計決策：<strong>ADD-only</strong> 使舊事實與新事實並存，由檢索時的時間感知排序決定「當前狀態」，避免過早合併造成資訊遺失 [來源:Memory Evaluation Docs,2026]。官方宣稱 LoCoMo 71.4→<strong>91.6</strong>（+20）、LongMemEval 67.8→<strong>94.8</strong>（+27）、BEAM(1M) <strong>64.1</strong> [來源:GitHub README,2026]。</p>
+<h3>2.3 多信號混合檢索</h3>
+<p>查詢時並行計分後融合 [來源:Memory Evaluation Docs,2026]：</p>
+<ol>
+<li><strong>Semantic Search</strong> — 向量相似度</li>
+<li><strong>Keyword Search</strong> — BM25 + 詞形還原</li>
+<li><strong>Entity Search</strong> — 查詢實體匹配已連結記憶</li>
+</ol>
+<p>此設計使 Mem0 在「關鍵字精確匹配 + 語義模糊匹配」混合場景優於純向量 RAG [來源:53AI Mem0 深度解析,2026]。</p>
+<h3>2.4 Provider 抽象</h3>
+<p>源碼採工廠 + 策略模式，支援 16+ LLM、16+ 向量庫（Qdrant 推薦自架）、3 種圖資料庫 [來源:Walking in Code,2026]。預設開發可用 SQLite；生產通常接 Qdrant/Pinecone/Chroma [來源:Zylos Research,2026]。</p>
+<pre><code>
+┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
+│ Agent/Chat  │────▶│ Mem0 Memory API  │────▶│ Vector DB   │
+│  (messages) │     │ add()/search()   │     │ Entity Store│
+└─────────────┘     │  LLM extraction  │     │ SQL history │
+                    └──────────────────┘     └─────────────┘
+                              │
+                    Multi-signal retrieval
+                    (semantic+BM25+entity)
+</code></pre>
+<p>---</p>
+<h2>三、功能特色與競品比較</h2>
+<p>| 維度 | Mem0 | Zep (Graphiti) | LangMem | Letta (MemGPT) |</p>
+<p>|------|------|----------------|---------|----------------|</p>
+<p>| 核心模型 | 向量+實體+ADD-only 事實 | 時序知識圖譜 | LangGraph Store SDK | OS 式分頁記憶 |</p>
+<p>| p95 檢索延遲 | ~0.20s [來源:Atlan,2026] | ~200ms [來源:AgentMarketCap,2026] | ~59.8s（不適互動）[來源:Atlan,2026] | 未公布 |</p>
+<p>| LOCOMO / LongMemEval | 91.6 / 94.8（新演算法）[來源:GitHub,2026] | 94.8% LongMemEval [來源:AgentMarketCap,2026] | 58.1% LOCOMO [來源:Atlan,2026] | 93.4%（MemGPT 時代） |</p>
+<p>| 框架整合 | 21+（LangChain/CrewAI/AWS SDK）[來源:weavai.app,2026] | 雲端為主 | LangGraph 專用 | 自建 runtime |</p>
+<p>| 圖/時序推理 | 實體連結；時序檢索已加入但弱於 Zep [來源:EverMind,2026] | valid_at/invalid_at 原生 [來源:EverMind,2026] | 無 | 中 |</p>
+<p>| 自架 | 是（MIT/Apache OSS） | 雲端為主 | 是 | 是 |</p>
+<p>| 中文實體抽取 | 預設英文 spaCy，中文需改造 [來源:53AI,2026] | 中 | 中 | 中 |</p>
+<p><strong>差異化總結</strong>：Mem0 強在<strong>速度、生態整合、開箱即用</strong>；Zep 強在<strong>事實如何隨時間變化</strong>的合規/CRM 查詢；LangMem 強在 <strong>LangGraph 程序性記憶（改寫 system prompt）</strong> 但延遲不適即時；Letta 強在<strong>自主 Agent 長期自管記憶</strong> [來源:AgentMarketCap 2026-04,2026][來源:EverMind Zep Alternative,2026]。</p>
+<p>---</p>
+<h2>四、使用方式</h2>
+<h3>4.1 快速上手（Python OSS）</h3>
+<pre><code>
+from mem0 import Memory
+
+m = Memory()  # 需 OPENAI_API_KEY；向量庫可配置 Qdrant
+
+# 寫入對話記憶
+m.add(
+    messages=[
+        {"role": "user", "content": "我偏好正體中文摘要，ntfy topic 是 wangsc2025"},
+        {"role": "assistant", "content": "已記錄您的通知偏好。"}
+    ],
+    user_id="digest-user-1"
+)
+
+# 檢索相關記憶注入 prompt
+results = m.search(query="通知設定是什麼？", user_id="digest-user-1")
+for mem in results["results"]:
+    print(mem["memory"], mem.get("score"))
+</code></pre>
+<h3>4.2 Platform 託管</h3>
+<pre><code>
+from mem0 import MemoryClient
+client = MemoryClient(api_key="...")
+client.add(messages=[...], user_id="u1")
+client.search(query="...", user_id="u1")
+</code></pre>
+<p>Platform 提供 Webhook、多模態、稽核日誌；適合不想自管 Qdrant 的團隊 [來源:Mem0 Platform Overview,2026]。</p>
+<h3>4.3 整合 LangChain / CrewAI</h3>
+<p>官方文件提供 <code>mem0</code> 作為 LangChain memory backend 與 CrewAI tool 的範例；AWS Agent SDK 亦有獨家深整合 [來源:weavai.app,2026][來源:InfoQ 火山 Mem0 QCon,2026]。</p>
+<p>---</p>
+<h2>五、社群活躍度</h2>
+<p>| 指標 | 數值 | 觀測日期 |</p>
+<p>|------|------|----------|</p>
+<p>| GitHub Stars | 57,452 | 2026-06-03 |</p>
+<p>| Forks | 6,565 | 2026-06-03 |</p>
+<p>| Open Issues | 415 | 2026-06-03 |</p>
+<p>| 最近推送 | 2026-06-02 | 2026-06-03 |</p>
+<p>| HN Show HN | item 41447317，創辦人回覆活躍 | 2024 |</p>
+<p>| 融資/背書 | YC + Peak XV $24M；字節跳動託管 Mem0 落地案例 [來源:weavai.app,2026][來源:InfoQ,2026] | 2026 |</p>
+<p>Hermes Agent 生態報告（2026-05）指出 Memory & Context 類 repo 星數 6→21 個、總星 10K→148K，Mem0 為該賽道頭部專案之一 [來源:Hermes Atlas May 2026,2026]。近 90 天 commit 頻繁（2026-06-02 仍有 push），屬第一梯隊活躍 OSS [來源:GitHub API,2026-06-03]。</p>
+<p>---</p>
+<h2>六、潛在應用（daily-digest-prompt）</h2>
+<h3>場景 1：跨次 Todoist 任務的使用者偏好記憶</h3>
+<p><strong>問題</strong>：<code>context/continuity/auto-task-*.json</code> 只存最近 5 次 runs 的結構化摘要，無法累積「使用者常改的配置偏好」（如 digest 格式、通知時段）。</p>
+<p><strong>落地步驟</strong>：</p>
+<ol>
+<li>在 Phase 3 組裝完成後，將 <code>summary</code> + 使用者透過 Todoist 留言的偏好以 <code>mem0.add()</code> 非同步寫入</li>
+<li>Phase 0 讀取 <code>mem0.search("使用者偏好 通知 digest")</code> 注入 <code>assemble-digest</code> prompt 前 200 token</li>
+<li>保留現有 continuity JSON 作為機械真相，Mem0 僅作軟性偏好層</li>
+</ol>
+<h3>場景 2：ai_github_research 去重輔助</h3>
+<p><strong>問題</strong>：<code>research-registry.json</code> 以 topic 字串去重，語義相近但命名不同的專案仍可能重複研究。</p>
+<p><strong>落地步驟</strong>：</p>
+<ol>
+<li>每次研究完成後 <code>add()</code> 專案名 + 核心架構標籤</li>
+<li>步驟 2 發現熱門專案前 <code>search()</code> 比對語義相似度 >0.85 的既有記憶</li>
+<li>與 KB hybrid search 並行，Mem0 管「研究過的事實」，KB 管「報告全文」</li>
+</ol>
+<h3>場景 3：KB 與 Mem0 分層（互補而非取代）</h3>
+<p><strong>問題</strong>：KB 適合結構化長文；Mem0 適合對話型原子事實。混用會造成雙寫。</p>
+<p><strong>落地步驟</strong>：</p>
+<ol>
+<li>定義邊界：KB = 研究報告/Skill 文件；Mem0 = 執行期學到的事實（「上次 LiteLLM 研究建議對照 Portkey」）</li>
+<li><code>next_suggested_angle</code> 改由 Mem0 search 動態生成候選</li>
+<li>監控 Mem0 API 成本（每 turn 抽取 ~$0.001–0.01）[來源:Zylos,2026]</li>
+</ol>
+<p>---</p>
+<h2>七、優缺點評估</h2>
+<h3>優點</h3>
+<ol>
+<li><strong>延遲與準確率平衡最佳</strong>：p95 ~0.20s + LOCOMO 91.6，適合即時 Agent [來源:Atlan,2026][來源:GitHub,2026]</li>
+<li><strong>生態整合廣</strong>：21+ 框架、AWS SDK 背書，降低接入成本 [來源:weavai.app,2026]</li>
+<li><strong>ADD-only 避免覆寫遺失</strong>：時序查詢「以前 vs 現在」有據可查 [來源:Memory Evaluation Docs,2026]</li>
+<li><strong>雙模式部署</strong>：OSS 自架 + Platform 託管，符合 ADR-006 狀態邊界思維 [來源:Mem0 Platform,2026]</li>
+<li><strong>中文 LLM 抽取可用</strong>：Phase 2 有中文 prompt（<code>ADDITIVE_EXTRACTION_PROMPT_ZH</code>）[來源:53AI,2026]</li>
+</ol>
+<h3>缺點</h3>
+<ol>
+<li><strong>中文實體連結預設失效</strong>：spaCy 英文模型導致 Entity Boost 對中文無效，需 LLM-NER 或 zh 模型 [來源:53AI,2026]</li>
+<li><strong>抽取成本與延遲</strong>：圖模式下一輪對話 ~10s（社群實測），不適同步 hot path [來源:微信 Mem0 實測,2026]</li>
+<li><strong>記憶衝突不穩定</strong>：本地模型對矛盾事實可能同時 ADD 兩條衝突記憶 [來源:微信實測,2026]</li>
+<li><strong>批評性基準存在反例</strong>：MemBench 上 Mem0 比全上下文貴 14–77×、召回低 31–33%（特定設定）[來源:HN Universal LLM Memory,2026]</li>
+<li><strong>非結構化狀態不適排程真相</strong>：不可用它取代 <code>state/scheduler-state.json</code>（Agent 唯讀）[來源:本專案 AGENTS.md,2026]</li>
+</ol>
+<h3>不適用情境</h3>
+<ul>
+<li>需要 <strong>valid_at/invalid_at 合規級時序圖譜</strong> → 選 Zep</li>
+<li><strong>LangGraph 程序性記憶（自我改 prompt）</strong> → 選 LangMem</li>
+<li><strong>純排程 FSM / schema 固定狀態</strong> → 維持 JSON + PS1 管線</li>
+<li><strong>零外部依賴離線環境</strong> → Mem0 仍需 LLM + 向量庫</li>
+</ul>
+<p>---</p>
+<h2>八、一家之言</h2>
+<p>Mem0 在 2026 年的定位已从「RAG 加料」升级为 Agent 基础设施中的 <strong>Working Memory 外包层</strong>。对 daily-digest-prompt 而言，最高杠杆不是全面替换 continuity/KB，而是在 <strong>Phase 0 注入 3–5 条用户偏好事实</strong> 与 <strong>研究去重语义层</strong> 两处做 POC；同时必须接受：在中文正体环境下默认配置下，Entity Linking 收益有限，应优先启用纯向量+BM25 路径，待替换 NER 后再开图增强。若下一跳要深化，建议对标 <strong>Portkey/LiteLLM 网关层</strong> 做「记忆写入成本 vs token-efficiency 管線」的 TCO 实验，而非再堆一个全量 Agent 框架。</p>
+<p>---</p>
+<h2>完整書目</h2>
+<ol>
+<li>mem0ai（2026）. <em>mem0: Universal memory layer for AI Agents</em>. GitHub. https://github.com/mem0ai/mem0 （取用：2026-06-03，source_type: official）</li>
+<li>Mem0 Team（2026）. <em>Memory Evaluation — Architecture Overview</em>. docs.mem0.ai. https://docs.mem0.ai/core-concepts/memory-evaluation （取用：2026-06-03，source_type: official）</li>
+<li>Mem0 Team（2026）. <em>Open Source: Migrating to the New Memory Algorithm</em>. docs.mem0.ai. https://docs.mem0.ai/migration/oss-v2-to-v3 （取用：2026-06-03，source_type: official）</li>
+<li>Chhikara P. et al.（2025）. <em>Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory</em>. arXiv:2504.19413 （取用：2026-06-03，source_type: official）</li>
+<li>Zylos Research（2026-01-05）. <em>Mem0 Research Summary</em>. https://zylos.ai/research/2026-01-05-mem0-research （取用：2026-06-03，source_type: blog）</li>
+<li>AgentMarketCap（2026-04-10）. <em>Agent Memory at Scale 2026: Letta, Zep, Mem0, and LangMem Compared</em>. https://agentmarketcap.ai/blog/2026/04/10/agent-memory-vendor-landscape-2026-letta-zep-mem0-langmem （取用：2026-06-03，source_type: comparison）</li>
+<li>Atlan（2026）. <em>Long-Term Memory LangChain Agents: LangGraph and LangMem Guide</em>. https://atlan.com/know/long-term-memory-langchain-agents/ （取用：2026-06-03，source_type: comparison）</li>
+<li>Taranjeet & Deshraj（2024）. <em>Show HN: Mem0 – open-source Memory Layer for AI apps</em>. Hacker News item 41447317. https://news.ycombinator.com/item?id=41447317 （取用：2026-06-03，source_type: community）</li>
+<li>fastpaca（2026）. <em>Universal LLM Memory Does Not Exist</em>（MemBench 批評）. Hacker News item 46032521. https://news.ycombinator.com/item?id=46032521 （取用：2026-06-03，source_type: community）</li>
+<li>53AI（2026）. <em>Mem0 深度解析：智能记忆层的架构原理</em>. https://www.53ai.com/news/RAG/2026042760283.html （取用：2026-06-03，source_type: blog，language: zh）</li>
+<li>InfoQ（2026）. <em>AI Agent 的记忆中间件：火山 Mem0 架构拆解及落地实践</em>. https://www.infoq.cn/article/VGTtEPwPCd101Iwm9wQi （取用：2026-06-03，source_type: blog，language: zh）</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
