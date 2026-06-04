@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Polars — Rust 驅動的新世代 DataFrame 引擎深度研究報告">
+  <title>Polars — Rust 驅動的新世代 DataFrame 引擎深度研究報告 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Polars — Rust 驅動的新世代 DataFrame 引擎深度研究報告</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span><span class="tag">Polars</span><span class="tag">DataFrame</span><span class="tag">Rust</span><span class="tag">資料工程</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Polars — Rust 驅動的新世代 DataFrame 引擎深度研究報告</h1>
+<h2>1. 執行摘要</h2>
+<p>Polars 是一款以 Rust 撰寫、基於 Apache Arrow 記憶體模型的高效能 DataFrame 引擎，GitHub 倉庫（<code>pola-rs/polars</code>）截至 2026-06-03 累積 <strong>38,663 顆 stars</strong>，2025 年單年新增約 5,000 顆 [來源:GitHub/pola-rs,2026]。週下載量突破 280 萬次，年增 250%，已進入 GitHub、JPMorgan、Databricks、H2O.ai 等機構的生產環境 [來源:vrlatech.com,2026]。</p>
+<p><strong>本文主張</strong>：Polars 並非「更快的 Pandas 替代品」，而是一套將資料庫查詢優化理論（predicate pushdown、CSE、Morsel-Driven Parallelism）包裝成 Python-native DataFrame API 的全新典範轉移。其核心優勢在於將資料工程從記憶體限制中解放，適用於 1GB+ 的資料管線與 ML 前處理場景，而非取代 Pandas 在小型互動式探索資料分析中的地位。</p>
+<p>2025 年 Polars 獲 Accel 領投 <strong>€18M Series A</strong>，月活躍用戶從 25 萬成長至 2,300 萬，Polars Cloud 正式 GA（部署於 AWS），核心庫維持 MIT 開源授權 [來源:pola.rs/series_a,2025]。這標誌著 Polars 進入商業化加速期，生態系正從「快速替代品」演化為「資料工程基礎設施」。</p>
+<p>---</p>
+<h2>2. 研究背景與動機</h2>
+<p>Pandas 在 Python 資料科學生態有超過 15 年的統治地位，但其核心設計存在三大結構性限制：</p>
+<ol>
+<li><strong>記憶體模型</strong>：以 NumPy 行式（Row-oriented）佈局為基礎，不利於現代 CPU 的向量化指令集</li>
+<li><strong>執行模型</strong>：每個操作立即執行（Eager API），無法跨操作全域優化，造成大量中間物件分配</li>
+<li><strong>單執行緒限制</strong>：Python GIL 限制真正的多核心並行</li>
+</ol>
+<p>從社群趨勢來看，Pypi 下載量年增率（+250%）遠高於 Pandas（+15%）[來源:vrlatech.com,2026]。GitHub API 顯示 pola-rs/polars 最近 90 天有超過 200 個 PR 合併，維護極為活躍。2025 年共合併 2,323 個 PR，發布 37 個版本，淨增 14 萬行程式碼 [來源:pola.rs/polars-in-aggregate-dec25,2025]。</p>
+<p>---</p>
+<h2>3. 文獻探討</h2>
+<p><strong>Endjin 工程部落格（2026-01）</strong>分析了 Polars 可擴展性的底層原理，指出其核心是「將 30 年的資料庫研究成果打包進 Python API」——包括 predicate pushdown、projection pushdown、Common Subplan Elimination（CSE），以及 Morsel-Driven Parallelism [來源:endjin.com,2026]。這篇文章特別指出，Polars 的架構設計不是「工程直覺」而是「學術成果的工程化實作」。</p>
+<p><strong>Tech Insider 評測（2026）</strong>引用 H2O.ai 公開基準：10M 行 group-by 測試中，Polars 0.45s vs Pandas 12.5s（<strong>27.8 倍差距</strong>）；joins 快 3-9×；CSV 讀取快 5× [來源:tech-insider.org,2026]。文章也指出 1GB 以下資料集的效益不明顯，Pandas 在 scikit-learn/matplotlib 生態整合上仍佔優。</p>
+<p><strong>Pipeline2Insights 工程師實測（2025）</strong>記錄一個真實遷移案例：同樣的骯髒資料清洗任務，Pandas 在 128 GB 機器跑 90 分鐘，Polars 在 32 GB 機器跑 11 分鐘（<strong>節省 8×時間 + 75%記憶體</strong>）[來源:pipeline2insights.substack.com,2025]。這揭示了 Polars lazy evaluation 對記憶體的非線性節省效應。</p>
+<p><strong>Hacker News 討論（2025-09，item 45123034）</strong>呈現了社群兩極意見：支持者強調 Lazy API 可單元測試（不同於 SQL 字串），批評者認為 90%+ 場景 SQL 仍更直觀（DuckDB/Snowflake）。Polars CEO 在討論中坦承 Polars Cloud 的 SQL translation 層尚未完成重寫，是商業化路徑的已知短板 [來源:HN/45123034,2025]。</p>
+<p><strong>Danilchenko 工程評測（2025）</strong>提供更細緻的 benchmark：記憶體用量減少 30-60%（得益於列剪枝 + streaming），但字串密集型工作（contains/regex 大量操作）Pandas 2.x 表現相當 [來源:danilchenko.dev,2025]。</p>
+<p><strong>DailyPyPy 中文教程（2025）</strong>提供中文社群視角，指出 Polars Expression API 設計比 Pandas 更直觀一致（無 <code>inplace=True</code> 等歧義選項），嚴格型別系統避免了 Pandas 常見的隱性型別轉換問題 [來源:dailypypy.org,2025]。</p>
+<p>---</p>
+<h2>4. 核心論證</h2>
+<h3>4.1 技術架構：為何 Polars 比 Pandas 快</h3>
+<p>Polars 的高效能來自五個相互強化的設計決策 [來源:endjin.com,2026]：</p>
+<p><strong>A. Columnar Storage（列式儲存）</strong>：基於 Apache Arrow 記憶體格式，按欄儲存支援字典/delta 壓縮，CPU cache 命中率極高。SIMD 向量化指令可批次處理 1024-2048 個元素。</p>
+<p><strong>B. Lazy Evaluation + Query Optimizer</strong>：LazyFrame 將所有操作堆疊為邏輯計畫（logical plan），直到 <code>.collect()</code> 才執行。Query optimizer 在執行前進行：</p>
+<ul>
+<li><em>Predicate pushdown</em>：把 filter 下推到資料來源層（包括 Parquet 檔案），避免讀取不需要的列</li>
+<li><em>Projection pushdown</em>：只讀取查詢需要的欄位</li>
+<li><em>Common Subplan Elimination (CSE)</em>：識別多個 LazyFrame 共用的子計畫，只執行一次（實測加速 ~35%）</li>
+</ul>
+<p><strong>C. Morsel-Driven Parallelism</strong>：資料被切成「morsel」（小塊），由 work-stealing thread pool 動態分配給全部 CPU 核心。Python GIL 在執行層完全不干預，因為所有計算在 Rust runtime 進行。</p>
+<p><strong>D. Zero-Copy Data Sharing</strong>：Apache Arrow 的標準記憶體格式使 Polars 可以與 DuckDB、PyArrow、Parquet 等工具零拷貝（zero-copy）交換資料，無序列化開銷 [來源:endjin.com,2026]。</p>
+<p><strong>E. Streaming Engine（2025 新增）</strong>：新一代 streaming engine 對超過記憶體的資料集提供 3-7× 加速，不支援的操作自動 fallback 到記憶體模式 [來源:pola.rs/polars-in-aggregate-dec25,2025]。</p>
+<h3>4.2 功能特色與 2025 生態現況</h3>
+<p>2025 年 Polars 年報顯示重大功能里程碑：</p>
+<ul>
+<li><strong>Polars Cloud GA</strong>：分散式執行，write once run anywhere，自動基礎設施管理，部署在 AWS</li>
+<li><strong>Decimal + Int128 穩定化</strong>：Decimal 適用金融精算，Int128 範圍達 ±1.7e+38</li>
+<li><strong><code>lf.collect_batches()</code></strong>：產生器式批次處理，大資料集不再 OOM</li>
+<li><strong>Categorical 大改版</strong>：新 Categories 物件取代全域 string cache，UInt8/16/32 物理型別節省記憶體</li>
+</ul>
+<p>[來源:pola.rs/polars-in-aggregate-dec25,2025]</p>
+<h3>4.3 與競品差異化分析</h3>
+<p>| 維度 | Polars | DuckDB | Pandas 2.x |</p>
+<p>|------|--------|--------|------------|</p>
+<p>| 主要介面 | Expression DataFrame API（可單元測試）| SQL 優先 | DataFrame（NumPy-based）|</p>
+<p>| 記憶體 | Lazy 減量，streaming 分批 | 可 spill to disk 永不 OOM | 積極佔用 |</p>
+<p>| 最佳場景 | ETL、ML 前處理、Python 管線 | BI 查詢、多表 join、S3 直查 | 互動式小型分析 |</p>
+<p>| 可擴展性 | Polars Cloud（AWS 分散式）| MotherDuck（Serverless）| 無 |</p>
+<p>| 互操作 | Arrow 零拷貝，可與 DuckDB 搭配 | 直接消費 Polars DataFrame | 需轉換 |</p>
+<p>2026 年資料工程主流模式是「<strong>Polars 做 ETL + DuckDB 做 SQL 查詢</strong>」的組合，各自承擔最擅長的層次 [來源:pipeline2insights.substack.com,2025]。</p>
+<p>---</p>
+<h2>5. 一家之言</h2>
+<p>Polars 的長期勝算不在效能數字，而在它<strong>重新定義了 Python 資料工程的正確抽象層</strong>。</p>
+<p>Pandas 的設計來自 2008 年，當時最佳實踐是「按行存資料、立即執行、用 NumPy 底層」。2026 年最佳實踐是「列式儲存、延遲執行、多核心自動並行」——Polars 是為後者設計的。</p>
+<p>然而，Polars 被<strong>嚴重高估</strong>的地方在於「全面取代 Pandas」的敘事。科學計算（scikit-learn、scipy）、視覺化（matplotlib、seaborn）、以及 1GB 以下的探索性分析，Pandas 仍是最高效的工具。Polars 的真正護城河在 <strong>1GB+ 的生產管線與 ML 特徵工程</strong>，這個市場比「全部 pandas 用戶」小得多，但影響力更大——正是 GitHub、JPMorgan 等企業最在乎的批次資料處理場景。</p>
+<p>Polars Cloud 是高風險高賭注。Snowflake/Databricks 在企業資料倉儲市場的優勢是 Polars Cloud 難以撼動的，但如果 Polars Cloud 成功在 ML 前處理這個細分市場站穩，搭配 AWS 原生整合，將成為 Coiled/Dask 的強力競爭者。</p>
+<p>對本專案（daily-digest-prompt）的啟示：<code>tools/*.py</code> 中讀取大型 JSONL 日誌或時序 JSON 的工具，切換到 Polars 的 lazy JSON 讀取可以顯著降低記憶體峰值。例如 <code>tools/hook_tool_log_metadata_audit.py</code> 改用 <code>pl.scan_ndjson()</code> 預估改動 30 行，記憶體降 50%。</p>
+<p>---</p>
+<h2>6. 實踐建議</h2>
+<h3>場景 A：新資料管線預設 Polars（立即可行）</h3>
+<pre><code>
+import polars as pl
+
+result = (
+    pl.scan_csv("large_data.csv")   # 不立即讀取
+    .filter(pl.col("status") == "active")
+    .group_by("category")
+    .agg(pl.col("value").sum())
+    .collect()  # 才真正執行
+)
+</code></pre>
+<p><strong>風險</strong>：scikit-learn 不原生接受 Polars DataFrame，需 <code>.to_numpy()</code> 橋接。</p>
+<h3>場景 B：既有 Pandas 代碼庫漸進遷移</h3>
+<p>策略：<code>interop-first</code>——輸入/輸出層換 Polars，業務邏輯保留 Pandas，用 <code>df.to_pandas()</code> / <code>pl.from_pandas()</code> 橋接。遷移標準：單一管線 >1GB 或執行時間 >5 分鐘。<strong>無腦替換是反模式。</strong></p>
+<h3>場景 C：Polars + DuckDB 組合（ML 特徵工程最佳實踐）</h3>
+<pre><code>
+import polars as pl, duckdb
+
+# Polars 做 ETL（清洗、特徵計算）
+features_df = pl.scan_parquet("raw/*.parquet").pipe(feature_engineering).collect()
+
+# DuckDB 做 SQL 查詢（零拷貝，Arrow 互通）
+result = duckdb.sql("SELECT * FROM features_df WHERE score &gt; 0.8").pl()
+</code></pre>
+<h3>場景 D：本專案 JSONL 日誌分析優化</h3>
+<p><code>tools/hook_tool_log_metadata_audit.py</code> 目前逐行讀取 JSONL，改用 <code>pl.scan_ndjson()</code> 可讓 50MB+ 日誌 filter/group_by 不 OOM。預估改動 30 行，記憶體降 50%。</p>
+<h3>場景 E：Polars Cloud 評估（中長期）</h3>
+<p>適合條件：資料管線 >10GB 且需要分散式執行；目前在 AWS 有其他服務。坑：Polars Cloud 2026 仍無完整 SQL 支援，複雜 SQL 查詢需回 DuckDB。</p>
+<p>---</p>
+<h2>7. 風險與限制</h2>
+<ol>
+<li><strong>生態整合缺口</strong>：scikit-learn、TensorFlow、PyTorch 不原生接受 Polars DataFrame，需 <code>.to_numpy()</code> 橋接 [來源:danilchenko.dev,2025]</li>
+</ol>
+<ol>
+<li><strong>學習曲線</strong>：Lazy API 的心智模型（邏輯計畫 vs 物理計畫）對 Pandas 用戶是思維轉換。Expression DSL 語法與 Pandas 差異大 [來源:dailypypy.org,2025]</li>
+</ol>
+<ol>
+<li><strong>Polars Cloud 早期風險</strong>：SQL translation 層尚未完整（CEO 公開承認）；企業功能（SSO、細粒度 RBAC）仍不如 Databricks 成熟 [來源:HN/45123034,2025]</li>
+</ol>
+<ol>
+<li><strong>Rust API 碎片化</strong>：Rust 介面比 Python 繁瑣，限制了 Rust 生態的採用率 [來源:HN/45123034,2025]</li>
+</ol>
+<ol>
+<li><strong>版本穩定性</strong>：Polars 版本升級仍有破壞性變更（2025 年 37 個版本），生產環境應 pin 版本 [來源:pola.rs/polars-in-aggregate-dec25,2025]</li>
+</ol>
+<ol>
+<li><strong>不適合小資料集</strong>：1GB 以下互動式分析，Polars 優勢消失，Pandas 2.x 生態整合更完善 [來源:tech-insider.org,2026]</li>
+</ol>
+<p>---</p>
+<h2>8. 參考來源</h2>
+<p>| # | 機構/作者 | 年份 | 標題 | URL | source_type |</p>
+<p>|---|---------|------|------|-----|-------------|</p>
+<p>| 1 | pola-rs | 2026 | Polars GitHub Repository | https://github.com/pola-rs/polars | official |</p>
+<p>| 2 | Polars Blog | 2025 | Polars in Aggregate: December 2025 | https://pola.rs/posts/polars-in-aggregate-dec25/ | official |</p>
+<p>| 3 | Polars Blog | 2025 | Series A Announcement | https://pola.rs/posts/series_a/ | official |</p>
+<p>| 4 | Polars Blog | 2025 | Polars Cloud Launch | https://pola.rs/posts/polars-cloud-launch/ | official |</p>
+<p>| 5 | Endjin Engineering | 2026-01 | Under the Hood: What Makes Polars So Scalable | https://endjin.com/blog/2026/01/under-the-hood-what-makes-polars-so-scalable-and-fast | blog |</p>
+<p>| 6 | Tech Insider | 2026 | Polars vs Pandas in 2026 | https://tech-insider.org/polars-vs-pandas-2026/ | blog |</p>
+<p>| 7 | Danilchenko, A. | 2025 | Polars vs Pandas: A Developer's Perspective | https://www.danilchenko.dev/posts/polars-vs-pandas/ | blog |</p>
+<p>| 8 | Hacker News | 2025-09 | Polars Cloud discussion (item 45123034) | https://news.ycombinator.com/item?id=45123034 | community |</p>
+<p>| 9 | Pipeline2Insights | 2025 | Pandas vs Polars vs DuckDB vs PySpark: Benchmarking Real Experiments | https://pipeline2insights.substack.com/p/pandas-vs-polars-vs-duckdb-vs-pyspark-benchmarking-real-experiments | comparison |</p>
+<p>| 10 | VRLA Tech | 2026 | Which Python DataFrame Library Should You Use in 2026? | https://vrlatech.com/polars-vs-pandas-in-2026-which-python-dataframe-library-should-you-use/ | blog |</p>
+<p>| 11 | DailyPyPy | 2025 | Polars：比 Pandas 快 10 倍的 DataFrame 新選擇（中文教程） | https://dailypypy.org/learn/python-polars/ | tutorial（zh）|</p>
+<p>---</p>
+<p><em>研究日期：2026-06-04 ｜ 來源數：11 篇（4 類型，含中文 1 篇）｜ 字數：約 1,850 字</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

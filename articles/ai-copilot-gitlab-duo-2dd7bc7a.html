@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI 輔助程式碼審查：Copilot、GitLab Duo、Gemini 與 PR Gate 降噪閉環（2026）">
+  <title>AI 輔助程式碼審查：Copilot、GitLab Duo、Gemini 與 PR Gate 降噪閉環（2026） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AI 輔助程式碼審查：Copilot、GitLab Duo、Gemini 與 PR Gate 降噪閉環（2026）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">系統開發</span><span class="tag">AI 程式碼審查</span><span class="tag">software-engineering</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>AI 輔助程式碼審查：Copilot、GitLab Duo、Gemini 與 PR Gate 降噪閉環（2026）</h1>
+<h2>技術概述</h2>
+<p>AI code review 在 2026 年已從「看 diff 留幾條評論」進化成可讀取全倉上下文、套用專案規則、串接 SAST 與自動修補的 PR 工作流元件。但學術基準仍顯示它遠未取代人審：SWE-PRBench 用 350 個 PR 評測，8 個前沿模型在 diff-only 設定下只能找出 15% 到 31% 的人類問題。結論不是停用，而是把 AI review 變成分級閘門中的 advisory layer，讓規則、記憶、靜態分析與人工複核共同收斂噪音。</p>
+<h2>核心方法與工具</h2>
+<h3>1. GitHub Copilot code review</h3>
+<ul>
+<li>GitHub Docs 顯示 Copilot code review 可在 GitHub.com、CLI、VS Code、JetBrains 與 Azure DevOps（public preview）運作。</li>
+<li>它的 agentic capability 會蒐集 full project context；若 GitHub-hosted runners 不可用，仍能產生 review，但會退化成較有限模式。</li>
+<li>Low/Medium review effort 可依 PR 風險切換；Medium 適合 security-sensitive、cross-service 變更，但會增加 AI credits 與 GitHub Actions 分鐘。</li>
+<li>自 2026-06-01 起，Copilot code review 會消耗 GitHub Actions minutes，成本治理必須納入 repo policy。</li>
+</ul>
+<h3>2. Copilot Autofix + CodeQL 的修補閉環</h3>
+<ul>
+<li>GitHub 的 Copilot Autofix 直接建立在 CodeQL code scanning 上；只要啟用 CodeQL，就可得到 Autofix 建議。</li>
+<li>官方文件明載其使用 GPT-5.3-Codex，並把 code scanning alert 的位置與描述轉成修補建議。</li>
+<li>這適合做 blocking gate：CodeQL/Code Scanning 負責硬性安全告警，Copilot review 負責補充邏輯、風格與可維護性建議。</li>
+</ul>
+<h3>3. GitLab Duo 的規則化審查</h3>
+<ul>
+<li>GitLab Duo 支援自動 review，也支援在 <code>.gitlab/duo/mr-review-instructions.yaml</code> 寫專案級規則。</li>
+<li>規則不是取代標準審查條件，而是 append 到既有 criteria，適合把語言別 lint、架構邊界、測試要求寫成 machine-readable policy。</li>
+</ul>
+<h3>4. Gemini Code Assist 的 review memory</h3>
+<ul>
+<li>Google Cloud 2025-11-10 公布 Gemini Code Assist on GitHub 的 persistent memory：PR merge 後會分析 comment threads，把人類接受或否決的意見抽成可重用規則。</li>
+<li>這個設計解決 stateless reviewer 的重複抱怨問題，讓 AI 先查 repo 歷史規則，再產生 review；也會在草稿建議後再過一輪規則過濾，降低重複誤報。</li>
+</ul>
+<h3>5. 學術證據：為何 AI review 必須分層治理</h3>
+<ul>
+<li>SWE-PRBench（2026-03）指出，AI 在 PR review 對人類真實問題的覆蓋仍低，15% 到 31% 的檢出率不夠拿來單獨做 merge 決策。</li>
+<li>另一篇 2026-01 的漏洞偵測研究顯示，RAG 方案整合外部知識與 MITRE CWE 後，accuracy 0.86、F1 0.85，優於單純 baseline LLM，說明「上下文與專家知識補強」比裸模型更重要。</li>
+<li>2026-04 更新版安全研究還指出，若攻擊者能操控 PR metadata，LLM-assisted security review 可能被 framing attack 誘導；作者在 17 個 CVE / 10 個真實專案上做 iterative refinement attack，成功率達 100%。而 metadata redaction 與明示指令可恢復偵測。</li>
+</ul>
+<h2>實際工作流程（step-by-step）</h2>
+<h3>Phase 1：建立 advisory 與 blocking 的雙軌 PR gate</h3>
+<ol>
+<li>AI reviewer 先看 diff 與 repo instructions，產生 advisory comments。</li>
+<li>SAST（CodeQL / Semgrep）跑 blocking security gate。</li>
+<li>只有 blocking issue 擋 merge；AI comments 先由作者回應與修正，不直接擋線。</li>
+<li>重新掃描後才讓 human reviewer 只看高風險區塊與架構決策。</li>
+</ol>
+<h3>Phase 2：把規則寫入 repo，而不是只靠 prompt</h3>
+<ol>
+<li>GitHub：用 <code>.github/copilot-instructions.md</code> 或 path-specific <code>.github/instructions/*.instructions.md</code> 寫規則。</li>
+<li>GitLab：用 <code>.gitlab/duo/mr-review-instructions.yaml</code> 寫檔案路徑與審查指令。</li>
+<li>Gemini：把人類在 PR thread 中否決/接受的 review 留痕，讓 memory 吸收。</li>
+</ol>
+<h3>Phase 3：只把 AI 放在它擅長的位置</h3>
+<ol>
+<li>Low effort review 處理 routine change、style 與 obvious bug。</li>
+<li>Medium effort review 只留給 security-sensitive、多服務變更或大 PR。</li>
+<li>對 security review，先 redact PR metadata 中帶偏見的描述，再送 LLM。</li>
+<li>所有 AI 修補建議都要經過 test + re-scan + human spot check。</li>
+</ol>
+<h2>程式碼／配置範例</h2>
+<pre><code>
+# .github/instructions/security-review.instructions.md
+---
+applyTo: "**/*.{py,ts,tsx}"
+---
+Review for auth bypass, unsafe deserialization, secret leakage, and missing tests.
+Treat style comments as low priority unless they affect readability or correctness.
+Do not recommend merge if a CodeQL high-severity finding is still open.
+</code></pre>
+<pre><code>
+# .gitlab/duo/mr-review-instructions.yaml
+instructions:
+  - name: python-service
+    fileFilters:
+      - "services/**/*.py"
+    instructions: |
+      Verify permission checks, transaction boundaries, and pytest coverage for changed code.
+      Prefer comments that point to concrete failing paths, not generic style advice.
+</code></pre>
+<pre><code>
+# .github/workflows/pr-gates.yml
+name: pr-gates
+on: [pull_request]
+jobs:
+  codeql:
+    permissions:
+      security-events: write
+      contents: read
+    uses: github/codeql-action/.github/workflows/codeql.yml@v4
+  review-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "AI review comments are advisory; CodeQL high severity is blocking."
+</code></pre>
+<h2>效果量化</h2>
+<ul>
+<li>GitHub 官方：Medium review 會提高分析深度，但同步提高 AI credits 與 Actions minutes 成本；自 2026-06-01 起要納入分鐘數預算。</li>
+<li>SWE-PRBench：350 個 PR、8 個模型，diff-only 僅抓到 15% 至 31% 人類問題。</li>
+<li>漏洞偵測研究：RAG accuracy 0.86、F1 0.85。</li>
+<li>Contextual bias 研究：17 CVE、10 專案的 iterative refinement attack 成功率 100%，redaction + explicit instructions 可恢復偵測。</li>
+</ul>
+<h2>與本專案應用場景</h2>
+<ul>
+<li>本 repo 已大量使用 AGENTS / SKILL / workflow 檔；最適合把 review 規則顯式化，而不是留在 reviewer 腦中。</li>
+<li>可把 <code>specs/<strong></code>、<code>tools/</strong></code>、<code>config/**</code> 各自設 path-specific instructions，讓 AI reviewer 對 schema、狀態檔唯讀規則、results JSON 必填欄位給出較精準提示。</li>
+<li><code>results/todoist-auto-*.json</code> 類輸出可由 blocking schema 驗證守住；AI review 則專注在錯誤物件一致性、中文摘要品質與流程違規訊號。</li>
+</ul>
+<h2>風險與注意事項</h2>
+<ul>
+<li>不可把 AI review 當 merge authority；研究與官方文件都指出需要 human validation。</li>
+<li>不要讓 PR 標題、描述、comment 帶有「這應該沒問題」之類 framing 訊號直接進安全審查模型。</li>
+<li>規則過多會造成上下文稀釋；應依路徑分檔，避免單一 instructions 檔過胖。</li>
+<li>成本要看兩層：模型 AI credits 與 GitHub Actions minutes；大 PR、Medium effort、全倉上下文都會把成本往上推。</li>
+</ul>
+<h2>參考來源</h2>
+<ol>
+<li>GitHub Docs: About GitHub Copilot code review</li>
+<li>GitHub Docs: About Copilot Autofix for code scanning</li>
+<li>GitHub Docs: Adding repository custom instructions for GitHub Copilot</li>
+<li>GitLab Docs: Customize review instructions for GitLab Duo</li>
+<li>Google Cloud Blog: Achieve better AI-powered code reviews using new memory capabilities on Gemini Code Assist</li>
+<li>arXiv 2603.26130 SWE-PRBench</li>
+<li>arXiv 2601.00254 Vulnerability Detection with RAG / SFT / Dual-Agent Systems</li>
+<li>arXiv 2603.18740 Contextual Bias in LLM-Assisted Security Code Review</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Temporal 深度研究報告 2026-06-04">
+  <title>Temporal 深度研究報告 2026-06-04 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Temporal 深度研究報告 2026-06-04</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI工作流</span><span class="tag">自動化</span><span class="tag">Temporal</span><span class="tag">工作流引擎+AI</span><span class="tag">持久執行</span><span class="tag">Agent編排</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Temporal 深度研究報告</h1>
+<h2>概述</h2>
+<p>Temporal 是一個<strong>持久執行平台（Durable Execution Platform）</strong>，起源於 Uber 內部的 Cadence 工作流引擎，由同一批創建者持續開發維護。其核心使命是讓多步驟、長運行的業務流程對任何基礎設施故障都保持彈性——工作流自動在每個步驟捕捉狀態，發生故障後從斷點續執行，不遺失任何進度，也無需人工恢復介入。Temporal 已成為 Stripe、Netflix、Datadog 等 3,000+ 付費企業客戶的生產核心基礎設施，並在 2025-2026 年強力布局 AI Agent 編排市場。</p>
+<h2>技術架構</h2>
+<p>Temporal 的服務端由三個核心服務構成：</p>
+<ul>
+<li><strong>Frontend Service</strong>：所有 SDK 請求的公開入口（啟動工作流、查詢狀態、發送信號）</li>
+<li><strong>History Service</strong>：最關鍵的組件，擁有並管理每個 Workflow Execution 的不可變事件歷史（Event History），是所有工作流狀態的唯一真實來源</li>
+<li><strong>Matching Service</strong>：根據 Task Queue 將 Workflow Task 和 Activity Task 路由到可用的 Worker</li>
+</ul>
+<p>持久化機制基於<strong>事件溯源（Event Sourcing）+ 確定性重播（Deterministic Replay）</strong>：每個工作流動作都追加到不可變的事件日誌，持久化到 PostgreSQL 或 Cassandra。Worker 崩潰後，另一個 Worker 重播事件歷史恢復狀態，不重新執行已記錄的 Activity（避免副作用），工作流從最後未記錄的步驟繼續。</p>
+<p>SDK 支援七種語言：<strong>Go</strong>（核心語言，最成熟）、Java、Python、TypeScript、.NET、PHP、Ruby，所有主流 SDK 均支援工作流定義、Activity、Worker、Signal、Query 等完整生命週期。</p>
+<h2>工作流核心能力</h2>
+<ul>
+<li><strong>持久工作流</strong>：狀態在每個步驟自動持久化，故障後無需開發者手動恢復</li>
+<li><strong>Activity 重試</strong>：可配置重試策略（退避、最大次數、逾時），獨立於工作流主流程</li>
+<li><strong>Saga/補償模式</strong>：內建分散式事務補償支援</li>
+<li><strong>Signal</strong>：外部事件可即時注入運行中的工作流改變控制流</li>
+<li><strong>Query</strong>：不中斷地查詢運行中工作流的當前狀態</li>
+<li><strong>持久計時器</strong>：工作流可暫停數天、數月甚至數年，不占用任何計算資源</li>
+<li><strong>Worker Versioning（2025 GA）</strong>：安全的零停機代碼滾動更新，支援長運行 AI Agent 工作流的版本管理</li>
+<li><strong>Temporal Nexus（2025 GA）</strong>：跨隔離命名空間連接，實現跨團隊工作流的模組化組合與安全隔離</li>
+<li><strong>Workflow Update</strong>：同步請求-回應模式，支援更豐富的互動 Agent 模式</li>
+</ul>
+<p>2026 Replay 大會新增：Serverless Workers（無基礎設施管理）、Standalone Activities、Workflow Streams（工作流內即時串流）。</p>
+<h2>AI 整合機制</h2>
+<p>Temporal 已將 AI 工作流作為旗艦使用場景。LLM 呼叫天然是非確定性的，且速度慢、費用高、易失敗——這些正是 Temporal 持久執行最能發揮價值的場景。</p>
+<p><strong>主要整合</strong>：</p>
+<ul>
+<li><strong>OpenAI Agents SDK 整合（2026 GA）</strong>：將 OpenAI Agent 的每個工具呼叫和 LLM 推理步驟包裝成 Activity，獲得自動重試、狀態持久化和可觀測性。Agent 中途崩潰後重播至最後記錄步驟，不重新呼叫已完成的 LLM API（節省成本且保持一致性）</li>
+<li><strong>Google ADK 整合（2026 Replay 發布）</strong>：連接 Temporal 與 Google Agent Developer Kit</li>
+<li><strong>Vercel AI SDK 整合（Public Preview）</strong>：支援 TypeScript AI 應用生態</li>
+<li><strong>Mistral AI 採用案例</strong>：Mistral AI 以 Temporal 為核心推出其 Workflows 產品，每日執行數百萬次</li>
+<li><strong>LLM 非確定性相容</strong>：LLM 呼叫作為 Activity 處理，輸出記錄到事件歷史，重播時直接使用記錄結果，不重新呼叫 API</li>
+<li><strong>HITL（Human-in-the-Loop）</strong>：通過 Signal 原語，工作流可等待人工審核數天後繼續，完全持久</li>
+</ul>
+<p>Temporal 於 2025 年 12 月加入 Agentic AI Foundation 成為黃金會員。</p>
+<h2>部署與維運</h2>
+<p><strong>Temporal Cloud（SaaS）</strong>：</p>
+<ul>
+<li>按 Action 計費（每個工作流任務或 Activity 任務執行計一個 Action）</li>
+<li>完全托管，無需運維；符合 SOC 2、HIPAA 等合規要求</li>
+<li>提供多區域複製（2025 GA）和 99.99% SLA</li>
+</ul>
+<p><strong>自託管</strong>：</p>
+<ul>
+<li>MIT 開源授權，免費使用</li>
+<li>需運行多個服務（Frontend/History/Matching Service）+ Worker 進程</li>
+<li>資料庫：PostgreSQL（推薦）或 Cassandra；可在 Kubernetes 部署</li>
+<li>運維複雜度顯著高於 Prefect Cloud 等全托管方案</li>
+</ul>
+<p><strong>資源自動調整（2025 GA）</strong>：跨所有 SDK 的 Worker 資源自動調整，降低手動容量規劃負擔。</p>
+<h2>與 daily-digest-prompt 的連結</h2>
+<p>daily-digest-prompt 目前使用 PowerShell 腳本串聯多個 Phase（Phase 0→1→2→3），並以 config/timeouts.yaml 管理 per-job 超時，以 state/cron-registry.json 追蹤排程狀態。Temporal 可作為更強健的底層替換：</p>
+<ol>
+<li><strong>取代 PS1 harness 超時機制</strong>：利用 Temporal 持久工作流替代 per-job timeout 手動管理，故障後自動從斷點繼續，不再需要 FailSafePlaceholder 補丁模式</li>
+<li><strong>AI 研究 Agent 持久化</strong>：ai_workflow_github/tech_research 等長運行研究任務包裝成 Temporal Workflow，LLM 呼叫作為 Activity，自動處理 rate limit 重試和中途崩潰</li>
+<li><strong>HITL Checkpoint 原生支援</strong>：hitl_checkpoint_sweep 的人工審核等待可用 Temporal Signal 原生實現，取代現有 state/human-review-queue.json 輪詢模式</li>
+<li><strong>Planner-Executor（PE）引擎強化</strong>：PE 的多輪規劃-執行循環可映射到 Temporal 的 Workflow-Activity 模型，獲得真正的持久化與可觀測性</li>
+</ol>
+<h2>優缺點評估</h2>
+<p><strong>優點</strong>：</p>
+<ul>
+<li>持久執行保證：任何基礎設施故障都不丟失工作流狀態，是市場上最強的容錯保障</li>
+<li>原生 AI Agent 支援：OpenAI Agents SDK GA 整合，天然適配 LLM 呼叫的非確定性特質</li>
+<li>Signal/Query 模型：優雅解決 HITL 和外部事件注入問題，無需輪詢</li>
+<li>語言多元：7 種 SDK，Python 已成熟，適合 daily-digest-prompt 的 Python 生態</li>
+<li>活躍社群與商業支持：3,000+ 付費客戶，Stripe/Netflix/Datadog 背書，長期可持續</li>
+</ul>
+<p><strong>缺點 / 限制</strong>：</p>
+<ul>
+<li>學習曲線陡峭：確定性重播限制需要開發者心智模型轉換，平均需 1 個月才能流暢</li>
+<li>自託管運維複雜：多服務架構 + PostgreSQL/Cassandra 調優，遠比 PS1 腳本複雜</li>
+<li>事件歷史限制：每個 Workflow Execution 上限 51,200 events / 50MB，需 Continue-As-New 模式</li>
+<li>不適合純數據管線：無原生資產追蹤和資料血緣</li>
+<li>對本系統改動大：從 PS1 harness 遷移到 Temporal 是架構級重構</li>
+</ul>
+<h2>社群狀態</h2>
+<p>Stars：~20,700 | Forks：~1,600 | 最近更新：2026-04-29（v1.31.0）</p>
+<h2>參考來源</h2>
+<ul>
+<li>https://github.com/temporalio/temporal</li>
+<li>https://temporal.io/solutions/ai</li>
+<li>https://temporal.io/blog/replay-2026-product-announcements</li>
+<li>https://temporal.io/blog/announcing-openai-agents-sdk-integration</li>
+<li>https://medium.com/datumlabs/orchestration-showdown-airflow-vs-dagster-vs-temporal-in-the-age-of-llms-758a76876df0</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
