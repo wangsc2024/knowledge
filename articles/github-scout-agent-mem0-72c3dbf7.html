@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 長期記憶（mem0/Letta/graphiti/graphRAG）- 2026-06-05">
+  <title>GitHub Scout: Agent 長期記憶（mem0/Letta/graphiti/graphRAG）- 2026-06-05 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 長期記憶（mem0/Letta/graphiti/graphRAG）- 2026-06-05</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent記憶</span><span class="tag">mem0</span><span class="tag">graphiti</span><span class="tag">Letta</span><span class="tag">graphRAG</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout: Agent 長期記憶觀測報告 - 2026-06-05</h1>
+<h2>專案觀測摘要</h2>
+<p>本輪聚焦「Agent 長期記憶」主題，透過 GitHub REST API 即時觀測 3 個專案，搜尋快照 1 個。</p>
+<p>| 專案 | Stars | 最近更新 | 記憶架構 | 觀測方式 |</p>
+<p>|------|-------|---------|---------|--------|</p>
+<p>| mem0ai/mem0 | 57,735 | 2026-06-04 | 混合三層（向量+KV+圖譜） | REST 即時觀測 |</p>
+<p>| getzep/graphiti | 27,010 | 2026-06-04 | 時態知識圖（bi-temporal） | REST 即時觀測 |</p>
+<p>| microsoft/graphrag | 33,458 | 2026-06-03 | 圖式 RAG 兩層索引 | 搜尋快照 |</p>
+<p>| letta-ai/letta | 23,147 | 2026-05-14 | OS 式三層（core/archival/recall） | REST 即時觀測 |</p>
+<h3>mem0ai/mem0（57,735★）</h3>
+<ul>
+<li><strong>memory_architecture</strong>: 混合存儲三層（user/session/agent scope）：語義向量 + key-value + 知識圖譜並行，intelligent layer 自動決定 add/update/delete 操作，去重合併相似記憶</li>
+<li><strong>storage_backends</strong>: Qdrant（向量）、Redis（快取/KV）、SQLite（本地，可插拔 PostgreSQL/MongoDB）</li>
+<li><strong>retrieval_strategy</strong>: 語義向量 + BM25 + entity boosting 並行融合評分；跨 scope 查詢；不支援時態精確查詢</li>
+</ul>
+<h3>getzep/graphiti（27,010★）</h3>
+<ul>
+<li><strong>memory_architecture</strong>: 時態知識圖（bi-temporal model）：facts 帶 valid_from/invalid_from，支援查詢特定時刻有效的事實；即時增量更新無需批次重建</li>
+<li><strong>storage_backends</strong>: Neo4j（圖），可選 PostgreSQL（關係型 fallback）</li>
+<li><strong>retrieval_strategy</strong>: 圖遍歷 + 混合向量/BM25 + 時態過濾；精確查詢 T 時刻有效 facts</li>
+</ul>
+<h3>microsoft/graphrag（33,458★）</h3>
+<ul>
+<li><strong>memory_architecture</strong>: 圖式 RAG 兩層索引：全局 Community Summary + 局部 Entity Subgraph；批次離線建圖</li>
+<li><strong>retrieval_strategy</strong>: Global Search（廣泛問題）vs Local Search（精確問題）雙模搭配</li>
+</ul>
+<h3>letta-ai/letta（23,147★）</h3>
+<ul>
+<li><strong>memory_architecture</strong>: OS 式三層記憶：core memory（LLM context 有限工作區）、archival memory（外部無上限向量儲存）、recall memory（最近對話/事件）</li>
+<li><strong>storage_backends</strong>: core: LLM context；archival: Qdrant/Pinecone；recall: SQLite/PostgreSQL</li>
+<li><strong>retrieval_strategy</strong>: 分層路由：精確匹配（recall）、語義向量搜索（archival）；LLM 自主呼叫 memory_search 工具；memory paging 避免 context overflow</li>
+</ul>
+<h2>改進提案</h2>
+<h3>P2（已落實）：memory-policy.yaml 星數同步更新</h3>
+<ul>
+<li>更新 mem0（54.3k→57,735★）、graphiti（25.5k→27,010★）、letta（22.4k→23,147★）及觀測日期</li>
+<li>風險：低（注釋更新）</li>
+</ul>
+<h3>P1（已落實）：continuity 層新增 quality_score optional field</h3>
+<ul>
+<li>受 mem0 intelligent layer 啟發，在 memory-policy.yaml 宣告 quality_score 欄位</li>
+<li>高品質 run（quality_score≥4）的 key_findings 獲更高參考優先度</li>
+<li>風險：低（policy 宣告層，不改動 preamble 執行層）</li>
+</ul>
+<h3>P1（計畫）：Letta OS 式三層記憶 → continuity 新增 archival tier</h3>
+<ul>
+<li>高風險方案，計畫輸出至 docs/plans/github-scout-20260605-letta-archival-tier.md</li>
+<li>需修改 preamble.md 執行層，人工審核後再實施</li>
+</ul>
+<h2>審查結論</h2>
+<ul>
+<li>P2 星數更新：feasibility=10/10, stability=10/10，已落實</li>
+<li>P1 quality_score：feasibility=9/10, stability=9/10，已落實（policy 層）</li>
+<li>P1 archival tier：feasibility=7/10, stability=6/10，高風險→輸出計畫待審</li>
+</ul>
+<h2>已落實項目</h2>
+<ol>
+<li>memory-policy.yaml 星數 + 日期更新（mem0/graphiti/letta）</li>
+<li>memory-policy.yaml continuity 層新增 quality_score optional field</li>
+</ol>
+<h2>待人工審核項目</h2>
+<ol>
+<li>Letta 三層記憶 archival tier 實作計畫（docs/plans/github-scout-20260605-letta-archival-tier.md）</li>
+<li>microsoft/graphrag 社區摘要索引模式應用於 KB 分層的可行性評估</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
