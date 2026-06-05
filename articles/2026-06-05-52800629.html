@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-06-05">
+  <title>系統優化落實報告 2026-06-05 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-06-05</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-06-05</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid 4 查詢（daysAgo=2）去重 <strong>26</strong> 筆；可執行項來自 <code>docs/audit-reports/closed-loop-review-2026-06-04.md</code> <strong>M2</strong>（PS1/Python 字元截斷 vs <code>ntfy_sender</code> byte 分段）。</li>
+<li><code>context/system-insight.json</code>：<code>cache_hit_ratio=0.512</code>（≥0.4，無 cache 警告）。</li>
+<li>系統審查 KB「系統審查報告 - 2026-06-04」總分 <strong>90.68/S</strong>；6/5 報告 87.92/A，6.4 配置說明 <strong>65</strong>。</li>
+</ul>
+<h2>方案一：M2 ntfy 截斷清理（score=9）</h2>
+<ul>
+<li><strong>目標</strong>：移除 PS1/Python 層字元截斷，改由 <code>tools/ntfy_sender.py</code> <code>split_message_into_parts</code> byte-aware 分頁。</li>
+<li><strong>影響檔案</strong>：<code>scripts/auto-task-passport_calibrate.ps1</code>、<code>tools/rca/reporters.py</code></li>
+<li><strong>步驟</strong>：刪除 <code>Substring(3497)</code> 與 <code>message[:3400]</code> 截斷；加 closed-loop M2 註解。</li>
+<li><strong>驗收</strong>：✓ YAML 語法；✓ pytest -k autonomous|harness|hook|skill <strong>1856 passed</strong>；✓ validate_config --check-auto-tasks</li>
+<li><strong>回滾</strong>：<code>git revert df38ab20 --no-edit</code></li>
+<li><strong>備份 commit</strong>：<code>df38ab20</code></li>
+</ul>
+<h2>方案二：config README 6.4 補齊（score=7）</h2>
+<ul>
+<li><strong>目標</strong>：高頻新檔 <code>voice-clone-routing.yaml</code>、<code>adr-id-aliases.yaml</code> 納入 README 索引表與逐檔段落。</li>
+<li><strong>影響檔案</strong>：<code>config/README.md</code></li>
+<li><strong>驗收</strong>：✓ 同上測試全過</li>
+<li><strong>備份 commit</strong>：<code>df38ab20</code>（同批）</li>
+</ul>
+<h2>待規劃（高風險，未落實）</h2>
+<ul>
+<li>Phase2 重任務 vs global budget cap（RCA <code>kb_insight_evaluation</code>）— 需改 <code>run-todoist-agent-team.ps1</code> autonomy 選擇器。</li>
+<li>1.4 依賴 CVE 升級（aiohttp/idna/langchain-core 等）— 需 <code>uv lock</code> + 相容性回歸。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
