@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing：RAG 系統生產化評估與可觀測性（2026-06-08）">
+  <title>insight-briefing：RAG 系統生產化評估與可觀測性（2026-06-08） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing：RAG 系統生產化評估與可觀測性（2026-06-08）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">RAG</span><span class="tag">RAGAS</span><span class="tag">可觀測性</span><span class="tag">評估工程</span><span class="tag">2026</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>RAG 系統生產化評估與可觀測性：從離線指標到線上漂移監控（2026）</h1>
+<p><strong>日期</strong>：2026-06-08  </p>
+<p><strong>類別</strong>：RAG / 知識管理  </p>
+<p><strong>研究角度</strong>：離線回歸閘門 × 線上漂移監控 × 生產失敗回流閉環</p>
+<h2>執行摘要</h2>
+<p>2026 年 RAG 評估已從「開發期一次性測分」演進為<strong>雙層品質閉環</strong>：離線層以 golden dataset + CI 閘門（RAGAS/DeepEval pytest）阻擋已知回歸；線上層以 trace 可觀測性 + LLM-as-Judge 持續監控 faithfulness、context relevance 與 embedding 漂移。業界共識是將生產失敗自動轉為評估用例，形成「measure → iterate → verify」循環，而非 deploy-and-hope。對本系統而言，KB 語義快取（<code>kb_semantic_cache</code>）與 API 快取應分帳監控，並將 insight_briefing 產出納入 golden dataset 維護節奏。</p>
+<h2>關鍵洞見</h2>
+<h3>洞見 1：雙層評估是 2026 生產 RAG 的最低標配</h3>
+<p>離線評估（golden set、單元測試）與線上評估（生產監控、A/B 測試）互補：離線捕捉已知失敗模式，線上偵測分佈偏移與未預期退化（arXiv:2601.22025 MVES 框架；Evidently AI 生產監控指南）。僅做離線準確率而忽略線上 guardrail，無法發現 retrieval drift、citation mismatch 與「自信但錯誤」生成。</p>
+<p><strong>證據要點</strong>：Code Worm（2026）提出兩階段框架——retrieval quality + end-to-end grounded usefulness，並分離 offline gates 與 online guardrails；Evidently 將生命週期分為 Development / Stress testing / Production monitoring / Regression testing 四階段。</p>
+<h3>洞見 2：檢索與生成分開評估，才能精準歸因</h3>
+<p>RAG 失敗時首要問題是「檢索錯了」還是「生成幻覺」？分離評估可加速除錯：檢索側用 Recall@K、nDCG@K、Hit Rate；生成側用 faithfulness、answer relevance、groundedness（Atlan 2026 框架比較；Maxim AI 2026 平台指南）。Atlan 特別指出：faithfulness 高但檢索內容本身過時，屬於<strong>知識層錯誤</strong>，需 context-layer monitoring 而非僅 inference-layer eval。</p>
+<p><strong>證據要點</strong>：Evidently 建議 per-chunk relevance scoring 與 context quality evaluation；Microsoft 報告 GPT-4 在 chunk-level relevance 評分接近人類水準（Zhou et al., 2023）。</p>
+<h3>洞見 3：RAGAS / DeepEval / TruLens 三者互補，非互斥</h3>
+<p>| 框架 | 強項 | 適用階段 |</p>
+<p>|------|------|----------|</p>
+<p>| RAGAS | 四核心 RAG 指標、無需 ground truth、輕量 Python | 開發期快速評估 |</p>
+<p>| DeepEval | 廣泛 metric 庫、pytest CI 整合 | CI/CD 閘門 |</p>
+<p>| TruLens | OpenTelemetry tracing + feedback functions | 生產可觀測性 |</p>
+<p>（來源：Atlan 2026 框架比較；Confident AI / Braintrust 2026 工具評測）標準鏈路為 RAGAS（開發）→ DeepEval（CI）→ TruLens/Phoenix/Langfuse（生產），而非單一工具包打天下。</p>
+<h3>洞見 4：Golden dataset 必須版本化，否則無法歸因回歸</h3>
+<p>QASkills.sh（2026）強調：每次 eval run 應記錄 prompt、retriever、model、corpus 版本的 manifest，與分數並存。CI 閘門在 PR 觸及 prompt/retriever/model 時自動執行；線上監控的 alert 門檻應略高於 CI 門檻，以便在品質惡化到用戶可見前預警。合成測試資料（從知識庫 chunk 反向生成 Q&A）可加速 bootstrap，但須人工審核後納入 golden set（Evidently 合成資料指南）。</p>
+<p><strong>證據要點</strong>：Braintrust 強調 production failures → test cases 的自動轉換；Confident AI 支援 commit/merge 時 regression detection + 上線後 per-prompt-version drift alerts。</p>
+<h3>洞見 5：線上漂移監控需覆蓋四類信號</h3>
+<p>生產 RAG 應持續追蹤：（1）embedding 分佈漂移（cosine distance on identical samples）；（2）retrieval relevance 分佈；（3）LLM-as-Judge 的 faithfulness/groundedness；（4）用戶信號（thumbs、resolution rate、copied-to-ticket）。Code Worm 建議 shadow traffic + canary release with metric guardrails；Arize Phoenix 提供 OTel-based drift detection 與 Slack/PagerDuty 整合。</p>
+<p><strong>證據要點</strong>：Patronus AI 建議設定 drift threshold 並納入自動化評估管線；Maxim AI 強調 distributed tracing 揭露 retrieval/generation 瓶頸。</p>
+<h3>洞見 6：Reference-free 指標使生產監控可行</h3>
+<p>無 ground truth 時，faithfulness、context relevance、answer completeness 等 reference-free 評估可在即時流量上運行（Evidently 2025 指南）。這使團隊無需為每條生產查詢準備標註答案，仍能在幻覺率上升或格式退化時告警。LLM-as-Judge 已知有 judge failure modes，應以結構化 rubric + 抽樣校準（MVES 建議）降低誤判。</p>
+<h3>洞見 7：對本系統的映射——KB 語義快取應納入 RAG 評估分帳</h3>
+<p>本系統 <code>kb_semantic_cache</code> 與 <code>cache/status.json</code>（API 快取）應分帳遙測：語義快取 miss/degraded 不應與 HTTP API cache hit 混為一談。當 <code>fastembed_unavailable</code> 時評估管線仍應標註 degraded 原因並繼續產出（與 insight_briefing 步驟 0b 規範一致）。建議將 insight_briefing 簡報產出納入 KB 後，以合成 Q&A 擴充 RAG golden set，並在 <code>quality_gate.py</code> 或 PE 管線加入 faithfulness 抽樣檢查。</p>
+<h2>建議行動</h2>
+<ol>
+<li><strong>建立 RAG golden dataset 目錄</strong>（<code>tests/fixtures/rag-golden/</code> 或 <code>context/rag-golden/</code>），含 20–50 條本系統真實查詢與預期檢索來源。</li>
+<li><strong>在 pre-commit 或 CI 加入 DeepEval/RAGAS pytest 閘門</strong>，針對 KB hybrid search 與 insight_briefing 匯入流程做回歸防護。</li>
+<li><strong>擴充 <code>kb_semantic_cache stats</code> 輸出至 system-insight metrics</strong>，與 <code>cache_hit_ratio</code> 並列展示。</li>
+<li><strong>生產失敗回流</strong>：將 Phase 2 任務失敗 trace 自動轉為 eval case（對齊 Braintrust production-to-dataset 模式）。</li>
+</ol>
+<h2>參考來源</h2>
+<p>| 等級 | 來源 | URL |</p>
+<p>|------|------|-----|</p>
+<p>| A | Evidently AI — RAG Evaluation Guide | https://www.evidentlyai.com/llm-guide/rag-evaluation |</p>
+<p>| B | Braintrust — Best RAG Evaluation Tools 2026 | https://www.braintrust.dev/articles/best-rag-evaluation-tools |</p>
+<p>| B | Atlan — RAGAS, TruLens, DeepEval Compared | https://atlan.com/know/llm-evaluation-frameworks-compared/ |</p>
+<p>| B | QASkills.sh — RAG Regression Testing 2026 | https://qaskills.sh/blog/rag-regression-testing-guide |</p>
+<p>| B | Code Worm — RAG Evaluation Framework for Production | https://www.codeworm.dev/2026/04/rag-evaluation-framework-for-production.html |</p>
+<p>| B | arXiv:2601.22025 — MVES Evaluation Framework | https://arxiv.org/html/2601.22025v1 |</p>
+<p>| B | Confident AI — Prompt Experimentation Tools 2026 | https://www.confident-ai.com/knowledge-base/compare/best-ai-evaluation-tools-for-prompt-experimentation-2026 |</p>
+<p>| C | Patronus AI — RAG Evaluation Metrics | https://www.patronus.ai/llm-testing/rag-evaluation-metrics |</p>
+<h2>附錄：快取遙測</h2>
+<h3>API 快取（system-insight）</h3>
+<ul>
+<li><code>cache_hit_ratio</code>: 0.45（樣本數 131，來源 <code>context/system-insight.json</code>）</li>
+</ul>
+<h3>KB 語義快取（近 7 日，`kb_semantic_cache stats --days 7`）</h3>
+<p>| 指標 | 值 |</p>
+<p>|------|-----|</p>
+<p>| lookup | 0 |</p>
+<p>| store | 0 |</p>
+<p>| http_fallback | 0 |</p>
+<p>| degraded | 0 |</p>
+<p>| degraded_ratio | null |</p>
+<p>| fastembed_available | <strong>false</strong> |</p>
+<p>| cache_entry_count | 0 |</p>
+<p><strong>解讀</strong>：語義快取處於 degraded 模式（fastembed 未安裝），近 7 日無 lookup/store 事件。與 API 快取命中率 45% 分帳獨立；不視為任務失敗，但建議評估 <code>uv sync --extra semantic-cache</code> 以啟用完整語義快取能力。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 安全/Guardrails/Tool Boundary - 2026-06-08">
+  <title>GitHub Scout: Agent 安全/Guardrails/Tool Boundary - 2026-06-08 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 安全/Guardrails/Tool Boundary - 2026-06-08</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent安全</span><span class="tag">guardrails</span><span class="tag">tool-boundary</span><span class="tag">github_scout</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout: Agent 安全/Guardrails/Tool Boundary 觀測（2026-06-08）</h1>
+<h2>專案觀測摘要</h2>
+<p>本輪觀測主題：Agent 安全防護、護欄框架與工具邊界（搜尋快照來源，未做即時 REST 觀測）。</p>
+<p>| 專案 | Stars | 觀測重點 |</p>
+<p>|------|-------|----------|</p>
+<p>| guardrails-ai/guardrails | ~6700★ | Python Guard 多層驗證（input/output/tool），70+ Hub validators |</p>
+<p>| NVIDIA-NeMo/Guardrails | ~5600★ | Colang 可程式化護欄，execution rails 可封鎖特定工具呼叫 |</p>
+<p>| AxonLabsDev/BodAIGuard | ~890★ | YAML-driven fail-closed，45 block + 45 confirm rules，12 類別，MCP proxy 層攔截 |</p>
+<p>| protectai/llm-guard | ~4200★ | MIT 安全工具包，15 input + 20 output scanners，prompt injection 防護 |</p>
+<h2>改進提案</h2>
+<h3>P2（低風險）：guardrail_surface 選填欄位加入 SKILL.md frontmatter 建議</h3>
+<ul>
+<li>目標檔：skills/CLAUDE.md</li>
+<li>借鑑：guardrails-ai 多層防護標注（input/planning/tool_execution/output）</li>
+<li>對齊：autonomous-harness.yaml 既有 guardrail_surface_annotations 宣告</li>
+</ul>
+<h3>P1（中風險）：confirm_patterns 節點加入 hook-rules.yaml</h3>
+<ul>
+<li>目標檔：config/hook-rules.yaml</li>
+<li>借鑑：BodAIGuard 的 45 confirm-rules（need-operator-approval 類別）</li>
+<li>新增 batch-state-write + external-webhook-call 兩個確認類別</li>
+<li>Config-only 文件步驟；hook 實際消費此節點需獨立高風險計畫</li>
+</ul>
+<h2>審查結論</h2>
+<ul>
+<li>P2 guardrail_surface：feasibility 9 / stability 9 → approved，已落實（skills/CLAUDE.md）</li>
+<li>P1 confirm_patterns：feasibility 8 / stability 8 → approved，已落實（config/hook-rules.yaml v12）</li>
+<li>NVIDIA NeMo Guardrails：last updated 2026-01，活躍度低，暫不深入評估</li>
+</ul>
+<h2>已落實項目</h2>
+<ol>
+<li>skills/CLAUDE.md：新增 guardrail_surface 選填欄位說明段落（2026-06-08）</li>
+<li>config/hook-rules.yaml：新增 confirm_patterns 節點 v11→v12（2026-06-08）</li>
+<li>config/schemas/hook-rules.schema.json：version maximum 11→12（同步）</li>
+</ol>
+<h2>待人工審核項目</h2>
+<ul>
+<li>pre_bash_guard.py 實作 confirm 模式（消費 confirm_patterns 節點）= 高風險，需獨立計畫</li>
+<li>guardrails-ai/guardrails Hub validators 的 tool_execution 層接入本系統 hooks = 高風險</li>
+<li>BodAIGuard MCP proxy 模式評估（本系統無 MCP 但原理可借鑑）</li>
+</ul>
+<h2>安全欄位補充（guardrail/sandbox 主題）</h2>
+<p><strong>BodAIGuard guardrail_surface</strong>: input（anti-prompt-injection）+ tool_execution（45 block + 45 confirm rules via MCP proxy）</p>
+<p><strong>BodAIGuard tool_boundary（雙層）</strong>:</p>
+<ul>
+<li>execution_environment_boundary: MCP proxy intercepts at protocol layer; fail-closed on unmatched tool</li>
+<li>tool_api_boundary: YAML rule matching per tool name+args; block categories hard-deny, confirm categories require operator approval</li>
+</ul>
+<p><strong>BodAIGuard operator_override</strong>: {override_entry: "guardrails.yaml block/confirm/allow per category", default_mode: "review-only for confirm, deny for block", rollback_strategy: "Remove rule entry and restart service"}</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
