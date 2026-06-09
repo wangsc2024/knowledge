@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: LLM 可觀測性 / OTel GenAI - 2026-06-09">
+  <title>GitHub Scout: LLM 可觀測性 / OTel GenAI - 2026-06-09 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: LLM 可觀測性 / OTel GenAI - 2026-06-09</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">LLM可觀測性</span><span class="tag">OTelGenAI</span><span class="tag">github_scout</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout: LLM 可觀測性 / OTel GenAI 分析（2026-06-09）</h1>
+<h2>專案觀測摘要</h2>
+<p>本次搜尋主題：LLM 可觀測性 / OTel GenAI / Agent Eval Frameworks（OTel 整合路徑）</p>
+<p>搜尋方式：WebSearch（search_snapshot，未即時 REST 觀測）</p>
+<h3>高相關性專案（relevance=high）</h3>
+<p>| repo | stars(估計) | 摘要 | OTel 整合 |</p>
+<p>|---|---|---|---|</p>
+<p>| Arize-ai/phoenix | 10k+ | LLM 可觀測性與評估平台，原生 OTLP 攝入，支援 OpenAI Agents SDK / Claude / LangGraph / CrewAI | 原生 OTel backend；支援 OpenInference + gen_ai.* 雙命名空間 |</p>
+<p>| langfuse/langfuse | 28k | LLM 工程平台，50M+ SDK installs/月，支援 OTLP 攝入 | /api/public/otel 端點；接受 gen_ai.* attributes；與 OpenLLMetry/OpenLIT 兼容 |</p>
+<p>| traceloop/openllmetry | 7.1k | OTel 原生自動儀器化，覆蓋 40+ LLM provider | 純 OTel instrumentation；gen_ai.* semantic convention spans |</p>
+<p>| Arize-ai/openinference | 1k+ | OTel 對齊語義規範與多語言儀器庫 | OTLP spans；openinference.<em> + gen_ai.</em> 雙命名空間（向後相容） |</p>
+<p>| confident-ai/deepeval | 16k | LLM 評估框架，50+ metrics，pytest 整合 | 無直接 OTel；可接 done_cert 維度擴充 |</p>
+<p>| agentevals-dev/agentevals | 135 | 從 OTel trace 直接評分 agent 行為，無需重跑 | 原生 OTLP receiver（4317/4318）；支援 Jaeger JSON / OTLP |</p>
+<p>| promptfoo/promptfoo | 22k | 宣告式 LLM 測試 CLI，支援 red-team | 無直接 OTel；YAML 宣告式 eval |</p>
+<h2>改進提案</h2>
+<h3>P1: done_cert quality_score 推送至 Langfuse Score API（低→中風險）</h3>
+<ul>
+<li><strong>來源</strong>: langfuse/langfuse (28k★)</li>
+<li><strong>方案</strong>: 每次自動任務完成後，新增 tools/langfuse_quality_push.py，透過 POST /api/public/scores 推送 done_cert.quality_score，以 trace_id 關聯 PE step checkpoint</li>
+<li><strong>效益</strong>: 建立 longitudinal quality 追蹤 dashboard；trace_id 跨回合可對齊</li>
+<li><strong>風險</strong>: 中風險（新外部依賴 Langfuse server）；kill switch DDP_LANGFUSE_PUSH；rollback = 停用該 post-flight hook</li>
+<li><strong>feasibility</strong>: 8, <strong>stability</strong>: 8</li>
+</ul>
+<h3>P1: run_metadata.operation_name 對齊 OTel gen_ai.operation.name（低風險）</h3>
+<ul>
+<li><strong>來源</strong>: traceloop/openllmetry (7.1k★)</li>
+<li><strong>方案</strong>: config/github-scout-review-policy.yaml audit_trace_crosswalk 補充 gen_ai.agent.* 實驗草案屬性採納時程；新 github_scout 回合 operation_name 改用小寫蛇形（daily_digest.github_scout.search）</li>
+<li><strong>效益</strong>: OTel 後端相容性；forward compatibility with Langfuse/Phoenix</li>
+<li><strong>風險</strong>: 低風險（僅配置文件文件性更新）；rollback = 還原 YAML</li>
+</ul>
+<h3>P2: agentevals OTLP trace-based no-re-run eval 可行性評估（觀察期）</h3>
+<ul>
+<li><strong>來源</strong>: agentevals-dev/agentevals (135★)</li>
+<li><strong>方案</strong>: 評估 post_tool_logger.jsonl → OTel span 轉換 → agentevals 評分路徑</li>
+<li><strong>目前狀態</strong>: 135★ 屬新興框架；建議觀察至 2026-07-09 後再決策</li>
+</ul>
+<h2>審查結論</h2>
+<ul>
+<li>P1 Langfuse 推送：採納，但因需外部 Langfuse 服務，標為中風險。需確認本地 Langfuse 是否已部署（localhost:3100）或使用 Langfuse Cloud</li>
+<li>P1 OTel 對齊：採納，低風險，直接在 config YAML 補充文件性欄位</li>
+<li>P2 agentevals：deferred 到下一輪決策</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li>docs/github-scout-agent-comparables.md 新增 llm_observability_otel_comparables 段落</li>
+<li>3 筆 backlog 寫入（backlog_github_scout_20260609_145704/05/06）</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>Langfuse server 是否本地部署 → 確認後執行 P1 Langfuse push 落實</li>
+<li>agentevals OTLP 整合 → 觀察期至 2026-07-09</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
