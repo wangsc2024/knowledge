@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 長期記憶（mem0/graphiti/Letta）- 2026-06-10">
+  <title>GitHub Scout: Agent 長期記憶（mem0/graphiti/Letta）- 2026-06-10 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 長期記憶（mem0/graphiti/Letta）- 2026-06-10</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">Agent 記憶</span><span class="tag">mem0</span><span class="tag">graphiti</span><span class="tag">Letta</span><span class="tag">memory-policy</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Agent 長期記憶系統觀測（2026-06-10）</h1>
+<h2>專案觀測摘要</h2>
+<p>| 專案 | Stars | 架構 | 儲存後端 | 檢索策略 |</p>
+<p>|---|---|---|---|---|</p>
+<p>| mem0ai/mem0 | 58,200★ | hybrid-store | Qdrant + 多 vector DB + KV + graph | 語意向量 + BM25 + entity linking + 時態推理 |</p>
+<p>| getzep/graphiti | 27,200★ | temporal-KG | Neo4j / FalkorDB / Amazon Neptune | 語意嵌入 + keyword + 圖遍歷 + 雙時態 validity window |</p>
+<p>| letta-ai/letta | 23,200★ | OS-layered | SQLite/Postgres + vector recall store | 函數呼叫驅動分頁 + 語意向量搜索 |</p>
+<p>| NirDiamant/Agent_Memory_Techniques | 501★ | hybrid-store | 教學用各種後端 | 全記憶分類法覆蓋（教學資源） |</p>
+<p>（所有數值來自 WebSearch/WebFetch 快照 2026-06-10，未即時 REST 觀測；複核：gh api repos/{owner}/{repo}）</p>
+<h2>改進提案</h2>
+<h3>P1：Extract-and-Deduplicate Continuity Facts（mem0 啟發）</h3>
+<ul>
+<li><strong>目標</strong>：套用 Mem0 智能層 ADD/UPDATE/DELETE/NOOP 模式，新增 continuity run 前先對照 5 窗口抽取顯著事實，避免 append-only 語意重複</li>
+<li><strong>target_files</strong>：config/memory-policy.yaml</li>
+<li><strong>operation_name</strong>：<code>daily_digest.github_scout.implement_extract_dedup</code></li>
+<li><strong>execution_contract</strong>：operation_type=config_add, idempotency_required=true, human_review_required=false</li>
+<li><strong>killswitch</strong>：env DDP_CONTINUITY_EXTRACT=off</li>
+</ul>
+<h3>P1：Temporal Validity Windows on Archive Entries（graphiti 啟發）</h3>
+<ul>
+<li><strong>目標</strong>：在 archived_summary_fields 加入 valid_from/valid_until，支援「N 月有效事實」時態查詢</li>
+<li><strong>target_files</strong>：config/memory-policy.yaml</li>
+<li><strong>operation_name</strong>：<code>daily_digest.github_scout.implement_temporal_validity</code></li>
+<li><strong>execution_contract</strong>：operation_type=config_add, idempotency_required=true, human_review_required=false</li>
+</ul>
+<h3>P2：OS-Layered Three-Tier Paging（Letta 啟發）</h3>
+<ul>
+<li><strong>目標</strong>：L1 hot（最新 2 runs 直接注入）/ L2 warm（keyword match 最多 8 runs）/ L3 cold（archive）三層分頁</li>
+<li><strong>target_files</strong>：config/memory-policy.yaml, tools/memory_tier_selector.py, templates/shared/preamble.md</li>
+<li><strong>risk_level</strong>：medium（preamble 變更影響所有任務）</li>
+<li><strong>計畫檔</strong>：docs/plans/github-scout-20260610-letta-memory-tier.md</li>
+</ul>
+<h2>審查結論</h2>
+<ul>
+<li>P1 extract-and-deduplicate：feasibility=8, stability=8 → <strong>已落實（config 純加性）</strong></li>
+<li>P1 temporal validity windows：feasibility=9, stability=8 → <strong>已落實（config 純加性）</strong></li>
+<li>P2 OS-layered three-tier：feasibility=7, stability=7 → <strong>計畫輸出（中風險，需人工審核）</strong></li>
+</ul>
+<h2>已落實項目</h2>
+<ol>
+<li><code>config/memory-policy.yaml</code> 新增 <code>deduplication_policy</code>（mem0 啟發，DDP_CONTINUITY_EXTRACT killswitch）</li>
+<li><code>config/memory-policy.yaml</code> <code>archival_tier.archived_summary_fields</code> 新增 <code>valid_from</code>/<code>valid_until</code>（graphiti 啟發）</li>
+</ol>
+<h2>待人工審核項目</h2>
+<ol>
+<li><strong>P2 Letta 三層分頁</strong>：<code>docs/plans/github-scout-20260610-letta-memory-tier.md</code></li>
+</ol>
+<p>   - 涉及 preamble.md 修改（影響所有自動任務）</p>
+<p>   - 需 TDD：tests/config/test_memory_policy_tiered.py + tests/tools/test_memory_tier_selector.py</p>
+<p>   - killswitch：memory_tier_mode=flat</p>
+<h2>歸因說明</h2>
+<p>GitHub 觀測為 search_snapshot 非即時 REST；此與 task_execution.used_fallback/fallback_kind 無自動因果關聯（對照 config/schemas/results-auto-task-schema.json task_execution 定義）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
