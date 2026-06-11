@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統審查報告 - 2026-06-12">
+  <title>系統審查報告 - 2026-06-12 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統審查報告 - 2026-06-12</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">自動化</span><span class="tag">品質評估</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統審查報告 - 2026-06-12 00:51</h1>
+<h2>執行摘要</h2>
+<ul>
+<li>總分：<strong>81.04/100（A）</strong></li>
+<li>與前次比對：<strong>-3.22</strong>（前次 84.26，declined）</li>
+<li>審查時間：Phase 1 並行審查 + Phase 2 組裝（2026-06-12)</li>
+<li>自動修正：<strong>2</strong> 項（僅文件/證據鏈修正；未重跑 Phase 1）</li>
+<li>⚠️ 系統健康持續下降：連續下降 <strong>3</strong> 次，建議優先介入 Workflow / Self-heal 閉環</li>
+</ul>
+<h2>各維度詳細評分</h2>
+<p>| 維度 | 權重 | 分數 |</p>
+<p>|---|---:|---:|</p>
+<p>| 資訊安全 | 20% | 85 |</p>
+<p>| 系統架構 | 18% | 87 |</p>
+<p>| 系統品質 | 18% | 81 |</p>
+<p>| 系統工作流 | 15% | 69 |</p>
+<p>| 技術棧 | 10% | 80 |</p>
+<p>| 系統文件 | 10% | 87 |</p>
+<p>| 系統完成度 | 9% | 75 |</p>
+<h3>資訊安全（85/100）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 1.1 機密管理 | 72 | .gitignore 明確忽略 .env/.env.*、credentials.json、token.json、key/ 與 secrets/；.env.example 與 knowledge-base-search/.env.example 存在；但工作區 .env 有 7 個非空秘密值。git… |</p>
+<p>| 1.2 輸入驗證 | 84 | hook-rules.yaml version 12 將規則外部化；pre_write_guard.py 內使用 validate_json_schema；tests/hooks 有 46 個測試檔、142 個測試案例，提供 Hook 與規則回歸保護。 |</p>
+<p>| 1.3 存取控制 | 88 | hooks/ 有 22 個 Python hook；其中 pre_<em> 6 個、post_</em> 3 個；config/hook-rules.yaml 有 29 個 rule id；pre_read_guard.py、pre_write_guard.py、pre_bash_guard.py 與 conf… |</p>
+<p>| 1.4 依賴安全 | 84 | requirements.lock 不存在，但 config/README.md 明列 uv.lock 為 SoT；uv.lock 5289 行、1109791 bytes；uv run --group dev pip-audit --desc 於 90 秒內完成，僅回報 dev 工具 pip 2… |</p>
+<p>| 1.5 傳輸安全 | 86 | hooks/tools/*.ps1/config/.claude 的 http:// 掃描未發現非 localhost/127.0.0.1 外部明文傳輸命中；hook_utils.py 具備 Bearer header、query param、JSON body 機密遮罩 regex；動態執行掃描… |</p>
+<p>| 1.6 日誌安全 | 93 | logs/ 下有 101 個 JSONL；logs/structured 目錄有 68 個檔案；近 7 天結構化日誌 25438 筆，blocked 156、errors 0、api_calls 265；hooks/query_logs.py 支援 days/tag/blocked/errors/… |</p>
+<h3>系統架構（87/100）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 2.1 關注點分離 | 92 | 目錄分層明確：config 228 檔、templates 153 檔、skills 939 檔、hooks 44 檔、prompts 413 檔；CLAUDE.md 明訂『Prompt 薄層 + YAML 外部配置 + Markdown 模板按需載入』，SSD 3.1 另有文件驅動架構專章。 |</p>
+<p>| 2.2 配置外部化 | 80 | config/ 根層有 143 個 YAML；run-system-audit-team.ps1:50-57、run-agent-team.ps1:47-59、run-todoist-agent-team.ps1:133-147/2866-2872 皆實讀 config/timeouts.yaml… |</p>
+<p>| 2.3 耦合度 | 84 | Skills 202 份中 123 份未宣告 depends-on、79 份有依賴宣告；hooks 無 hook-to-hook 匯入鏈，主要透過 hooks/hook_utils.py 共用 YAML 載入、敏感資訊遮罩、regex cache 與 API source patterns。耦合主… |</p>
+<p>| 2.4 可擴展性 | 90 | task-manager Skill 將新增 auto-task 標準化為 6 步：收集規格、計算衍生值、分段讀取 frequency-limits、生成/修改 6 個檔案、跑 6 項驗證、輸出摘要；且明載 run-todoist-agent-team.ps1 改為動態掃描 todoist-aut… |</p>
+<p>| 2.5 容錯設計 | 89 | 容錯鏈完整：run-agent-team.ps1:644 使用 KB health probe retry 2 次；1518 有 retry/backoff+jitter；1053-1057/1509-1510 有 cache_degraded 路徑。run-todoist-agent-team.… |</p>
+<p>| 2.6 單一定義處 | 87 | 活躍 prompt/template Markdown 中 preamble 引用率 86.6%（187/216）；hooks/hook_utils.py 集中共用日誌、YAML、敏感資訊處理。實際可執行檔未掃到活躍 <code>> nul</code>/<code>2>nul</code> 違規；命中僅出現在守衛說明與測試樣本。扣分點：仍… |</p>
+<h3>系統品質（81/100）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 3.1 測試覆蓋率 | 86 | pytest --co -q 收集 14095 行；tests/ 下另有 37 個 Hook/Guard 相關測試檔。 |</p>
+<p>| 3.2 程式碼品質 | 84 | hooks/hook_utils.py 抽出 YAML 載入、regex LRU 快取、API source 偵測等共用邏輯，Hook 測試檔可見 test_hook_utils.py 與 full hook chain。 |</p>
+<p>| 3.3 錯誤處理 | 78 | hooks/tools/scripts/<em>.py 與 </em>.ps1 共命中 16632 個 try/except/catch；query-logs.ps1 對日期解析與狀態檔讀取有防呆，但錯誤處理分布不均、總量偏高。 |</p>
+<p>| 3.4 品質驗證機制 | 85 | prompts/ 與 templates/ 共 400 個 Markdown，330 個引用 templates/shared/preamble.md，引用率 82.5%。 |</p>
+<p>| 3.5 監控與可觀測性 | 88 | logs/results/analysis/output 內共 557 個 JSONL；query-logs.ps1 提供 12 種模式，含 health-score、timeline、result-diagnostics。 |</p>
+<p>| 3.6 效能基準 | 58 | config/timeouts.yaml 存在且版本 56，但 benchmark.yaml 缺失；check-health.ps1 雖有 cache_hit_ratio 40 門檻，基準文件單一真相未閉合。 |</p>
+<h3>系統工作流（69/100）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 4.1 自動化程度 | 89 | HEARTBEAT.md 集中定義 46 個排程；其中 system-audit 為 00:40 自動執行、todoist-team 為 07:00-19:00 每 30 分；setup-scheduler.ps1 會從 HEARTBEAT.md 讀取排程並批次 Register-Schedule… |</p>
+<p>| 4.2 並行效率 | 92 | run-system-audit-team.ps1 Phase 1 明確啟動 4 個並行審查 agent（dim1-5、dim2-6、dim3-7、dim4）；腳本內 Start-Job=2、Wait-Job=7。run-todoist-agent-team.ps1 Start-Job=37、Wa… |</p>
+<p>| 4.3 失敗恢復 | 88 | config/timeouts.yaml 含 audit_team.phase2_max_retries=1、todoist_team.phase1_max_retries=1、phase3_max_retries=1；run-system-audit-team.ps1 具 Circuit Bre… |</p>
+<p>| 4.4 狀態追蹤 | 87 | state/scheduler-state.json 持久化 49 筆 executions，末筆含 phase_breakdown.total_seconds=1880 與 phase1_agents=[dim1-5,dim2-6,dim3-7,dim4]；context/continuity/… |</p>
+<p>| 4.5 排程管理 | 90 | HEARTBEAT.md 以單一 schedules 區塊集中管理 46 個排程；setup-scheduler.ps1 第 147-209 行明確從 HEARTBEAT.md 解析排程，第 315-459 行以 Register-ScheduledTask 批次更新，排程管理集中且可批次擴展。 |</p>
+<p>| 4.6 OODA 週期完整性（SH01） | 60 | context/workflow-state.json updated_at=2026-06-12T00:40:07+08:00，距查核時間 2026-06-12T00:42:50+08:00 約 2.7 分鐘，未逾 48h；近 7 天 orient completed=3 筆、act compl… |</p>
+<p>| 4.7 immediate_fix 執行率（SH02） | 25 | context/arch-decision.json generated_at=2026-06-11T16:27:28，total_items=12；依規則排除 closed_unsafe/closed_research/closed_yaml 後，immediate_fix success=0、… |</p>
+<p>| 4.8 自癒修復成功率（SH03） | 20 | state/todoist-history.json 的 auto_tasks 中，最近 7 筆可用 self_heal 紀錄為 0；等效來源 state/recovery-history.json 只有 1 筆 2026-04-28 舊紀錄（repairs_succeeded=5 / repai… |</p>
+<h3>技術棧（80/100）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 5.1 技術成熟度 | 86 | 本機執行環境為 pwsh 7.6.0、Python 3.11.13，pyproject.toml 設定 target-version=py311、requires-python>=3.10。WebSearch 官方來源：learn.microsoft.com 顯示 PowerShell 7.6.2… |</p>
+<p>| 5.2 版本管理 | 93 | uv.lock 存在且 5289 行；CHANGELOG.md 存在；config/ 共有 162 個 YAML，其中 144 個含 version 欄位；pyproject.toml 亦有 project.version=0.1.0。 |</p>
+<p>| 5.3 工具鏈完整性 | 79 | pyproject.toml 有 28 個 base dependencies，另有 6 個 optional groups（gmail 3、console 8、其餘 1）；外部依賴面不小，但 config/README.md 已文件化 uv.lock、pip-audit 與 fallback 操… |</p>
+<p>| 5.4 跨平台相容性 | 72 | docs/PLATFORM.md 明確宣告 Windows-only；500 個 .ps1 檔中 349 個使用 $PSScriptRoot（69.8%）；hardcoded repo path 掃描命中 D:\Source 字面共 123 處（py 71、ps1 40、.claude 12），可… |</p>
+<p>| 5.5 技術債務 | 66 | tools/tech_stack_evidence.py 全庫掃描 TODO/FIXME/HACK 命中 py 742、ps1 10；聚焦程式碼層的 rg 掃描仍有 197 處；CHANGELOG.md 多次保留 5.5 技術債為低分項，顯示債務已被持續追蹤但尚未收斂。 |</p>
+<h3>系統文件（87/100）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 6.1 架構文件 | 94 | 架構文件齊備：CLAUDE.md 有文件驅動架構與流程摘要；docs/ARCHITECTURE.md（33,225 bytes）、docs/OPERATIONS.md（26,190 bytes）存在；specs/system-docs/status.yaml 列出 srd/ssd/ops-manu… |</p>
+<p>| 6.2 操作手冊 | 95 | ops-manual.md 有 10 個主章節，覆蓋環境準備、排程管理、日常操作、配置調整、監控與告警、故障排除、維護程序、附錄；文件內含可執行 PowerShell 指令與預期輸出範例，對應新人上手與日常維運需求。 |</p>
+<p>| 6.3 API / 介面文件 | 89 | 機械守衛 <code>uv run python hooks/validate_config.py --check-skills</code> 顯示 202 個 Skill 平均 98.7/100；199/202 Skill frontmatter 合規，僅 worktree-cleanup（40/100）、opus4… |</p>
+<p>| 6.4 配置說明 | 67 | config/README.md 目前只覆蓋根層 YAML 34/143（23.8%）；根層 YAML 共 15,603 行，其中註解行 2,027，註解率 12.99%。雖 README 已開始補高頻設定檔說明，但距離 >80% 覆蓋率與高註解密度仍有明顯差距。 |</p>
+<p>| 6.5 變更記錄 | 90 | CHANGELOG.md 存在且 1,338 行，明確採 Keep a Changelog 格式；最近 30 筆 git commit subject 有 30/30 符合 Conventional Commit / ADR / Merge 規則（100%）。扣分僅因 CHANGELOG 有重複章… |</p>
+<h3>系統完成度（75/100）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 7.1 功能完成度 | 62 | TODO/FIXME 命中 1126；skills/ 目錄 203 個 Skill，timeouts phase2_timeout_by_task 可辨識 154 個自動任務。 |</p>
+<p>| 7.2 邊界處理 | 84 | CHANGELOG.md、config/README.md、skills/SKILL_INDEX.md 皆存在；但 config/README.md 仍引用不存在的 benchmark.yaml，文件與現況有漂移。 |</p>
+<p>| 7.3 部署就緒 | 68 | setup-scheduler.ps1 與 .env.example 皆存在；全 repo 914 個 PS1 中 311 個使用 $PSScriptRoot，部署相對路徑一致性約 34.0%。 |</p>
+<p>| 7.4 整合完整性 | 85 | pytest --co -q 收集 14095 行；tests/ 下 Hook/Guard 相關測試檔 37 個，含 test_hook_utils.py、test_pre_write_guard.py、test_agent_guardian.py。 |</p>
+<p>| 7.5 生產穩定性 | 76 | hook_utils.py 共用化、CHANGELOG 與 622 個 YAML version 提供追蹤，但 TODO/FIXME 1126 與 benchmark/config 文件漂移使維護成本仍高。 |</p>
+<h3>補充觀測（非 41 子項 SoT）</h3>
+<ul>
+<li><code>3.7_observability=88</code>：Phase 1 額外觀測項，保留為補充，不併入 41 子項主表。</li>
+<li><code>5.6_configuration_management=82</code>：Phase 1 額外觀測項，保留為補充，不併入 41 子項主表。</li>
+</ul>
+<h2>關鍵發現</h2>
+<ul>
+<li>P0：4.8 自癒修復成功率（SH03） 20 分（系統工作流） — state/todoist-history.json 的 auto_tasks 中，最近 7 筆可用 self_heal 紀錄為 0；等效來源 state/recovery-history.json 只有 1 筆 2026-04-28 舊紀錄（repairs_succeeded…</li>
+<li>P0：4.7 immediate_fix 執行率（SH02） 25 分（系統工作流） — context/arch-decision.json generated_at=2026-06-11T16:27:28，total_items=12；依規則排除 closed_unsafe/closed_research/closed_yaml 後，immediate_fix …</li>
+<li>P2：3.6 效能基準 58 分（系統品質） — config/timeouts.yaml 存在且版本 56，但 benchmark.yaml 缺失；check-health.ps1 雖有 cache_hit_ratio 40 門檻，基準文件單一真相未閉合。</li>
+<li>P1：4.6 OODA 週期完整性（SH01） 60 分（系統工作流） — context/workflow-state.json updated_at=2026-06-12T00:40:07+08:00，距查核時間 2026-06-12T00:42:50+08:00 約 2.7 分鐘，未逾 48h；近 7 天 orient completed=3 筆…</li>
+<li>P2：7.1 功能完成度 62 分（系統完成度） — TODO/FIXME 命中 1126；skills/ 目錄 203 個 Skill，timeouts phase2_timeout_by_task 可辨識 154 個自動任務。</li>
+<li>⚠️ 自癒閉環：<code>4.6=60 / 4.7=25 / 4.8=20</code>，OODA 天數不足、arch-decision 沒有 immediate_fix 執行項、近 7 日缺 self-heal repairs 樣本。</li>
+</ul>
+<h2>修正記錄（本次自動修正）</h2>
+<ul>
+<li>修正 1：校正 benchmark SoT 路徑文件 — 在 config/README.md 明確 <code>config/benchmark.yaml</code> 為唯一真相來源，指出 2026-06-12 Phase1 子項 3.6 的根目錄 <code>benchmark.yaml</code> 屬檢查口徑漂移。（影響：3.6 / 7.2 / 6.4；預期：降低後續誤判與重複 SoT 風險）</li>
+<li>修正 2：追加本輪審查 Changelog — 在 CHANGELOG.md 新增 2026-06-12 audit 列，記錄加權分、連續下降與最弱子項。（影響：6.5 / 趨勢追蹤；預期：保留追溯鏈與審查證據鏈）</li>
+</ul>
+<h2>建議清單（需人工介入）</h2>
+<ul>
+<li>P0：補上 <code>immediate_fix</code> 真正執行與回寫，否則 <code>4.7</code> 會持續卡在低分。</li>
+<li>P0：讓 self-heal 近 7 日至少產生可量測 <code>repairs_attempted / repairs_succeeded</code> 樣本，否則 <code>4.8</code> 無法回升。</li>
+<li>P1：修正 Phase 1 <code>3.6</code> 檢查口徑，明確改讀 <code>config/benchmark.yaml</code>，避免把根目錄 <code>benchmark.yaml</code> 當 SoT。</li>
+<li>P1：處理 <code>7.1</code> 技術債與 TODO/FIXME 堆積，否則完成度會拖累後續維護。</li>
+<li>P2：持續提高 <code>config/README.md</code> 覆蓋率；目前 Phase 1 證據仍僅 23.8%。</li>
+</ul>
+<h2>趨勢分析</h2>
+<ul>
+<li>前次 health_score：84.26；本次：81.04；差值：-3.22。</li>
+<li>前次 top_issues：4.8 self_heal 10（近7d 無有效 repairs 統計）；4.7 immediate_fix 20（arch-decision 無 success）；4.6 OODA 60（近7d orient 3 天 / act 4 天）</li>
+<li>前次 fixes_applied 已生效的部分：<code>config/README.md</code> 與 <code>docs/PLATFORM.md</code> 的追溯列仍存在；但主風險仍集中於 SH 閉環，表示前次修正未觸及核心瓶頸。</li>
+<li><code>consecutive_decline_count</code>：3。</li>
+</ul>
+<h2>ADR 與通知摘要</h2>
+<ul>
+<li><code>immediate_fix_accepted</code>：249 筆；通知僅列前 5 筆。</li>
+</ul>
+<p>  - ADR-20260324-095 TODO/FIXME 持續清理</p>
+<p>  - ADR-20260324-096 測試覆蓋率門檻提升</p>
+<p>  - ADR-20260324-097 YAML 注釋密度持續提升</p>
+<p>  - ADR-20260324-098 Context Budget Guard 強制化</p>
+<p>  - ADR-20260325-164 TODO/FIXME 持續清理</p>
+<ul>
+<li><code>Deferred</code>：776 筆。</li>
+<li>當前 <code>context/arch-decision.json</code>：12 筆 decision，<code>execution_status=deferred</code> 共 12 筆，<code>immediate_fix</code> 執行項 0 筆。</li>
+<li>未落實 ADR（取前 5 筆）：</li>
+</ul>
+<p>  - ADR-20260324-095 TODO/FIXME 持續清理</p>
+<p>  - ADR-20260324-096 測試覆蓋率門檻提升</p>
+<p>  - ADR-20260324-097 YAML 注釋密度持續提升</p>
+<p>  - ADR-20260324-098 Context Budget Guard 強制化</p>
+<p>  - ADR-20260325-164 TODO/FIXME 持續清理</p>
+<h2>外部驗證來源</h2>
+<ul>
+<li>ntfy JSON publish 必須 POST/PUT 到根 URL，而不是 topic URL：<https://docs.ntfy.sh/publish/></li>
+<li>curl 官方手冊支援以檔案載入 JSON/資料內容，適合 Windows 避免 inline quoting 問題：<https://curl.se/docs/manpage.html></li>
+<li>HTTP 200 OK 語意參照 RFC：<https://www.rfc-editor.org/info/rfc9110/></li>
+</ul>
+<h2>契約備註</h2>
+<ul>
+<li><code>state/</code> 依專案規則唯讀；C1/C2 由 Harness <code>audit_hydrate_last_audit</code> 回寫。</li>
+<li>本報告為本輪產物；知識庫寫入與 ntfy 發送另於 Phase 2 後續步驟執行。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
