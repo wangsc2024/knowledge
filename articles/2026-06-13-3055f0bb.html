@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統審查報告 - 2026-06-13">
+  <title>系統審查報告 - 2026-06-13 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統審查報告 - 2026-06-13</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">自動化</span><span class="tag">品質評估</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統審查報告 - 2026-06-13 01:04</h1>
+<h2>執行摘要</h2>
+<ul>
+<li>總分：<strong>84.20/100（A）</strong></li>
+<li>與前次比對：<strong>+3.16</strong>（前次 2026-06-12 為 81.04/A）</li>
+<li>趨勢：<code>improved</code>；前次連續下降計數 <strong>3</strong> 已重置為 <strong>0</strong></li>
+<li>持續未解議題：<code>4.7 immediate_fix 執行率</code>、<code>4.8 自癒修復成功率</code>、<code>4.6 OODA 週期完整性</code> 連續多輪居弱項</li>
+<li>Phase 1 JSON 漂移：輸出含 <strong>43</strong> 個子項；<code>config/audit-scoring.yaml</code> SoT 為 <strong>41</strong> 個子項。多出的 <code>3.7_observability</code>、<code>5.6_configuration_management</code> 已自本輪正式報告表排除，並記錄為 drift</li>
+<li>本輪自動修正：<strong>4 項</strong></li>
+<li><code>state/</code> 依專案規則維持唯讀；<code>C1/C2</code> 由 Harness <code>audit_hydrate_last_audit</code> 於 Phase 2 結尾回寫</li>
+</ul>
+<h2>各維度總覽</h2>
+<p>| 維度 | 權重 | 分數 | 等級 | 關鍵發現 |</p>
+<p>|---|---:|---:|---|---|</p>
+<p>| 1 資訊安全 | 20 | 86 | A | Hook 與機密遮罩完整，依賴安全仍受 <code>pip</code> CVE 拖分 |</p>
+<p>| 2 系統架構 | 18 | 87 | A | 分層清楚，配置外部化與 DRY 尚有局部漂移 |</p>
+<p>| 3 系統品質 | 18 | 93 | S | 測試、DRY、錯誤處理與效能基準整體穩定 |</p>
+<p>| 4 系統工作流 | 15 | 70 | B | SH01–SH03 明顯拉低，尤其 <code>4.7=20</code>、<code>4.8=30</code> |</p>
+<p>| 5 技術棧 | 10 | 76 | B | 技術債與跨平台硬編碼仍重 |</p>
+<p>| 6 系統文件 | 10 | 84 | A | 架構與操作文件強，配置說明覆蓋率不足 |</p>
+<p>| 7 系統完成度 | 9 | 90 | S | 功能與測試完成度高，部署就緒仍受 PowerShell 路徑治理拖累 |</p>
+<h2>各維度詳細評分</h2>
+<h3>1. 資訊安全（86 / A）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 1.1 機密管理 | 88 | <code>.gitignore</code> 排除 <code>.env.*</code>、<code>secrets/</code>、<code>token.json</code>；<code>.env.example</code> 僅保留空白樣板；<code>hooks/hook_utils.py</code> 會遮罩敏感值。 |</p>
+<p>| 1.2 存取控制 | 91 | <code>config/hook-rules.yaml</code> 含 29 條規則；<code>pre_read_guard.py</code>、<code>pre_write_guard.py</code> 與 <code>Test-PathInsideRoot.ps1</code> 形成路徑防護。 |</p>
+<p>| 1.3 輸入驗證 | 82 | read/write guard 對 basename、path traversal 做機械檢查；<code>hooks/validate_config.py</code> 驗 frontmatter 與工具白名單。 |</p>
+<p>| 1.4 依賴安全 | 85 | <code>uv.lock</code> 鎖定核心依賴；<code>pip-audit</code> 已內建 timeout，但工具鏈 <code>pip</code> 仍有 CVE 需升版。 |</p>
+<p>| 1.5 程式碼安全 | 83 | 未見 production code 裸 <code>eval/exec</code>；敏感輸出經 logger 消毒，但仍有部分路徑硬編碼。 |</p>
+<p>| 1.6 日誌安全 | 89 | <code>logs/structured/</code> 為結構化 JSONL；敏感欄位經 <code>hook_utils.py</code> 過濾後再寫日誌。 |</p>
+<h3>2. 系統架構（87 / A）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 2.1 關注點分離 | 91 | <code>docs/ARCHITECTURE.md</code> 清楚定義 Prompt / Config / Workflow / Template / Hook / Script 六層邊界。 |</p>
+<p>| 2.2 配置外部化 | 84 | <code>config/</code> 共有 158 個 YAML；主流程確實讀取 <code>config/timeouts.yaml</code>、<code>config/dependencies.yaml</code>，但仍有零星硬編碼。 |</p>
+<p>| 2.3 耦合度 | 82 | <code>hook_utils.py</code> 集中 YAML 載入與敏感資料處理，降低重複但形成單一熱點。 |</p>
+<p>| 2.4 可擴展性 | 90 | <code>task-manager</code> 與團隊腳本將新增 auto-task 標準化，擴展流程已成型。 |</p>
+<p>| 2.5 容錯設計 | 90 | 存在 retry、fallback、degraded profile、circuit breaker 與 recovery guard。 |</p>
+<p>| 2.6 單一定義處 | 84 | <code>prompts/team</code> 與 <code>templates/</code> 共 389 份 Markdown，328 份引用共用 <code>preamble.md</code>，仍有少量未收斂。 |</p>
+<h3>3. 系統品質（93 / S）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 3.1 測試覆蓋率 | 97 | pytest 收集 11831 項；雖有 1 個 collect error，總量遠高於 benchmark 門檻。 |</p>
+<p>| 3.2 模板 DRY | 94 | todoist-auto prompt 114/121 引用 <code>preamble.md</code>，模板 DRY 率高。 |</p>
+<p>| 3.3 版本管理 | 93 | <code>CHANGELOG.md</code> 持續維護；多數 <code>config/*.yaml</code> 含 <code>version</code> 欄位。 |</p>
+<p>| 3.4 程式碼品質 | 89 | <code>tools/lib/</code> 模組化，<code>hook_utils.py</code> 集中共用能力，重複程式碼受控。 |</p>
+<p>| 3.5 錯誤處理 | 92 | tools + hooks 共 3703 處 <code>try:</code>；API client 與 breaker 分層清楚。 |</p>
+<p>| 3.6 效能基準 | 88 | <code>config/benchmark.yaml</code> 為 SoT，<code>config/timeouts.yaml</code> 與 cache 指標已接到主流程。 |</p>
+<h3>4. 系統工作流（70 / B）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 4.1 自動化程度 | 94 | <code>HEARTBEAT.md</code> 列 46 個排程；主 team 腳本完整自動化。 |</p>
+<p>| 4.2 並行效率 | 95 | <code>run-todoist-agent-team.ps1</code> 37 次 <code>Start-Job</code>，<code>run-system-audit-team.ps1</code> 具並行 Phase 1。 |</p>
+<p>| 4.3 失敗恢復 | 92 | <code>config/timeouts.yaml</code> 含 phase retry 與 phase1 recovery guard。 |</p>
+<p>| 4.4 狀態追蹤 | 94 | <code>state/</code>、<code>context/continuity/</code>、<code>logs/structured/</code> 與 workflow state 層次完整。 |</p>
+<p>| 4.5 排程管理 | 95 | <code>setup-scheduler.ps1</code> 與 <code>HEARTBEAT.md</code> 對 46 個 Task 做集中治理。 |</p>
+<p>| 4.6 OODA 週期完整性（SH01） | 40 | <code>context/workflow-state.json</code> 雖新鮮，但近 7 天 orient 僅 2 次、act 6 次，未達閉環門檻。 |</p>
+<p>| 4.7 immediate_fix 執行率（SH02） | 20 | <code>context/arch-decision.json</code> 的 immediate_fix 目前 success=0、pending=4，執行率為 0%。 |</p>
+<p>| 4.8 自癒修復成功率（SH03） | 30 | <code>state/todoist-history.json</code> 找不到可計算 repairs 成功率的完整 self-heal 樣本。 |</p>
+<h3>5. 技術棧（76 / B）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 5.1 技術一致性 | 87 | Python 3.11、PowerShell 7、<code>uv.lock</code> 與 <code>pyproject.toml</code> 對齊。 |</p>
+<p>| 5.2 版本控管 | 88 | Python 走 <code>uv.lock</code>、Node 走 <code>package-lock.json</code>；HEAD 與 changelog 維護正常。 |</p>
+<p>| 5.3 外部依賴 | 79 | Python 核心依賴 28 個、optional groups 10 組；能力完整但相依面較廣。 |</p>
+<p>| 5.4 跨平台相容性 | 67 | 500 個 PS1 僅 348 個含 <code>$PSScriptRoot</code>；硬編碼 repo 路徑仍有 138 次。 |</p>
+<p>| 5.5 技術債 | 58 | <code>TODO/FIXME/HACK</code> 共 752 次（Python 742、PS1 10），仍為本輪非 SH 類最弱項。 |</p>
+<h3>6. 系統文件（84 / A）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 6.1 架構文件 | 93 | <code>CLAUDE.md</code>、<code>docs/ARCHITECTURE.md</code>、<code>specs/system-docs/</code> 齊備。 |</p>
+<p>| 6.2 操作手冊 | 92 | <code>specs/system-docs/ops-manual.md</code> 與 <code>docs/OPERATIONS.md</code> 涵蓋日常操作與故障排除。 |</p>
+<p>| 6.3 API / 介面文件 | 90 | <code>skills/</code> 中 202 份 <code>SKILL.md</code> frontmatter 完整，介面文件成熟。 |</p>
+<p>| 6.4 配置說明 | 63 | <code>config/README.md</code> 原量測僅覆蓋 37/158 個 YAML（23.4%）；本輪已補 5 檔高頻設定說明，但尚未重跑審查量測。 |</p>
+<p>| 6.5 變更記錄 | 82 | <code>CHANGELOG.md</code> 符合 Keep a Changelog；近 100 筆 commit subject 有 99 筆符合 conventional style。 |</p>
+<h3>7. 系統完成度（90 / S）</h3>
+<p>| 子項 | 分數 | 證據 |</p>
+<p>|---|---:|---|</p>
+<p>| 7.1 功能完成度 | 95 | 202 個 Skill、121 個 todoist-auto prompt，核心功能面完整。 |</p>
+<p>| 7.2 文件完整度 | 93 | <code>CHANGELOG.md</code>、<code>config/README.md</code>、<code>skills/SKILL_INDEX.md</code> 三層文件齊備。 |</p>
+<p>| 7.3 部署就緒 | 78 | <code>setup-scheduler.ps1</code> 與 <code>.env.example</code> 完整，但根目錄 <code>run-*.ps1</code> 僅 18/47 使用 <code>$PSScriptRoot</code>。 |</p>
+<p>| 7.4 測試完整度 | 96 | hooks 對應測試檔密度高，pytest 收集量大。 |</p>
+<p>| 7.5 可維護性 | 90 | <code>tools/lib</code> 模組化、Hook 共用層集中、config 多數版本化。 |</p>
+<h2>關鍵發現</h2>
+<ol>
+<li><code>4.7 immediate_fix 執行率</code> 只有 <strong>20</strong> 分。<code>arch-decision</code> 有 4 筆 pending，success 為 0，已形成閉環阻塞。</li>
+<li><code>4.8 自癒修復成功率</code> 只有 <strong>30</strong> 分。self-heal 缺少可計算 repairs 成功率的結構化樣本。</li>
+<li><code>4.6 OODA 週期完整性</code> 只有 <strong>40</strong> 分。Observe 有跑，但 Orient/Act 近 7 日不平衡。</li>
+<li><code>5.5 技術債</code> <strong>58</strong> 分。<code>TODO/FIXME/HACK</code> 752 次與 138 次硬編碼 repo 路徑持續拖累。</li>
+<li><code>6.4 配置說明</code> <strong>63</strong> 分。雖有改善，但 <code>config/README.md</code> 覆蓋率仍遠低於 80%。</li>
+<li>⚠️ 自癒閉環：<code>4.6</code>、<code>4.7</code>、<code>4.8</code> 全數 < 70，且自 2026-06-10 至 2026-06-12 持續出現在最近 7 筆連續記憶中，表示問題未解。</li>
+<li>Phase1 JSON / SoT 漂移：<code>results/audit-dim3-7.json</code> 含 <code>3.7_observability</code>，<code>results/audit-dim1-5.json</code> 含 <code>5.6_configuration_management</code>；但 <code>config/audit-scoring.yaml</code> 僅定義 41 子項。</li>
+</ol>
+<h2>修正記錄（本次自動修正）</h2>
+<ol>
+<li><code>templates/audit-report.md</code> 移除陳舊 <code>3.7</code>、<code>5.6</code> 列，正式對齊 <code>config/audit-scoring.yaml</code> 的 41 子項 SoT。</li>
+<li><code>config/README.md</code> 新增 <code>dependencies.yaml</code>、<code>notification.yaml</code>、<code>hook-rules.yaml</code>、<code>health-scoring.yaml</code>、<code>llm-gate.yaml</code> 五檔高頻設定說明，補 6.4 配置文件缺口。</li>
+<li><code>CHANGELOG.md</code> 新增 2026-06-13 系統審查校正記錄，建立證據鏈。</li>
+<li><code>context/arch-decision.json</code> 將 4 筆 pending immediate_fix 的 <code>retry_count</code> 由 0 調整為 1，並改寫 <code>execution_note</code> 為本輪重新排入佇列。</li>
+</ol>
+<h2>建議清單（需人工介入）</h2>
+<p>| 優先級 | 項目 | 原因 |</p>
+<p>|---|---|---|</p>
+<p>| P1 | 執行 <code>ADR-20260426-033</code>～<code>036</code> 四筆 immediate_fix | 已重排佇列，但仍需 self-heal 真正執行並驗證。 |</p>
+<p>| P1 | 補 self-heal repair telemetry 結構化欄位 | 沒有 repairs 成功率樣本，無法關閉 <code>4.8</code>。 |</p>
+<p>| P2 | 清理 <code>TODO/FIXME/HACK</code> 與硬編碼 repo 路徑 | 直接拖累 <code>5.4</code>、<code>5.5</code>、<code>7.3</code>。 |</p>
+<p>| P2 | 擴大 <code>config/README.md</code> 逐檔覆蓋 | 本輪補 5 檔後仍遠低於 80% 目標。 |</p>
+<p>| P3 | 校正 Phase1 prompt / evaluator 使其回到 41 子項 | 目前多出 <code>3.7</code>、<code>5.6</code>，已與 SoT 漂移。 |</p>
+<h2>趨勢分析</h2>
+<ul>
+<li>健康分數由 <strong>81.04</strong> 升至 <strong>84.20</strong>，結束前輪連續下降。</li>
+<li>前次 <code>top_issues</code> 中的 <code>4.7</code>、<code>4.8</code>、<code>4.6</code> 仍未解；<code>3.6 效能基準</code> 已退出本輪最弱 5 項，表示前次 benchmark SoT 校正已生效。</li>
+<li>前次修正的 <code>config/README.md</code> 與 <code>CHANGELOG.md</code> 仍持續產生效果，本輪進一步擴充其內容。</li>
+<li><code>consecutive_decline_count</code> 將重置為 <strong>0</strong>；但若 <code>4.6</code>～<code>4.8</code> 下輪仍不改善，系統健康仍有再度下滑風險。</li>
+</ul>
+<h2>附註</h2>
+<ul>
+<li>本報告正式評分表僅採 <code>config/audit-scoring.yaml</code> 的 <strong>41</strong> 個 SoT 子項。</li>
+<li><code>3.7_observability</code>、<code>5.6_configuration_management</code> 僅保留為 drift 觀察，不納入本輪加權總分。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
