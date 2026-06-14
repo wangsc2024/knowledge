@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-06-14">
+  <title>系統優化落實報告 2026-06-14 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-06-14</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-06-14</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid 4 查詢（daysAgo=2）去重 <strong>~26</strong> 筆；可執行項來自 <code>context/system-insight.json</code>（2026-06-14T06:37:22+08:00）：</li>
+</ul>
+<p>  - <code>cache_hit_ratio=0.311</code> < 0.4 warning</p>
+<p>  - <code>avg_io_per_call=18160</code> > 12000 warning</p>
+<p>  - <code>daily_success_rate=0.949</code> < 0.95 warning</p>
+<ul>
+<li>系統審查 KB「系統審查報告 - 2026-06-11」總分 <strong>84.26/A</strong>（連續下降 2 輪）</li>
+<li>closed-loop-review-2026-06-11 <strong>M1</strong>（relay-command PII）標高風險，移 backlog</li>
+</ul>
+<h2>方案一：cache-policy TTL 微調（score=9）</h2>
+<ul>
+<li><strong>目標</strong>：提升 KB hybrid 命中率，對齊 <code>cache_hit_ratio</code> warning</li>
+<li><strong>影響檔案</strong>：<code>config/cache-policy.yaml</code> v10→v11</li>
+<li><strong>步驟</strong>：</li>
+</ul>
+<p>  1. <code>kb_hybrid.ttl_minutes</code> 5760→7200（5 天）</p>
+<p>  2. <code>stale_while_revalidate.grace_period_minutes</code> 360→480（8 小時）</p>
+<ul>
+<li><strong>驗收</strong>：✓ YAML 語法全過；✓ validate_config --check-auto-tasks</li>
+<li><strong>回滾</strong>：<code>git revert 18ef67c2 --no-edit</code></li>
+<li><strong>備份 commit</strong>：<code>18ef67c2</code></li>
+</ul>
+<h2>方案二：agent-extra-reads snapshot-first（score=8）</h2>
+<ul>
+<li><strong>目標</strong>：kb_system_optimize 前置讀取改 snapshot-first，降低 avg_io_per_call</li>
+<li><strong>影響檔案</strong>：<code>config/agent-extra-reads.yaml</code> v8→v9</li>
+<li><strong>步驟</strong>：新增 <code>kb_system_optimize.reads</code>（snapshot + cache-ttl workflow + system-insight fallback）</li>
+<li><strong>驗收</strong>：✓ validate_config 119 任務一致</li>
+<li><strong>備份 commit</strong>：<code>18ef67c2</code>（同批）</li>
+</ul>
+<h2>方案三：config README 6.4 補齊（score=7）</h2>
+<ul>
+<li><strong>目標</strong>：補 cache-health-thresholds、observation-slo、agent-extra-reads 逐檔說明</li>
+<li><strong>影響檔案</strong>：<code>config/README.md</code></li>
+<li><strong>覆蓋</strong>：41→44/147（29.9%）</li>
+<li><strong>驗收</strong>：✓ 同上</li>
+</ul>
+<h2>待規劃（高風險，未落實）</h2>
+<ul>
+<li>relay-command.yaml LINE userId PII 清除（closed-loop M1）— 需 env var 遷移</li>
+<li>Phase2 重任務 vs global budget cap — 需改 <code>run-todoist-agent-team.ps1</code></li>
+</ul>
+<h2>測試摘要</h2>
+<ul>
+<li>YAML：OK</li>
+<li>validate_config：✅ 119 任務</li>
+<li>pytest -k autonomous|harness|hook|skill：2247 passed，2 failed（<code>test_harness_capability_contract</code> 既有 passport 缺口 22 項，非本次變更引入）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
