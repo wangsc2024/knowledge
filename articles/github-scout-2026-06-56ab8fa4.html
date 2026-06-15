@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="github_scout 2026-06-15：Agent 長期記憶框架（mem0 / Letta / Graphiti）">
+  <title>github_scout 2026-06-15：Agent 長期記憶框架（mem0 / Letta / Graphiti） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>github_scout 2026-06-15：Agent 長期記憶框架（mem0 / Letta / Graphiti）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">github_scout</span><span class="tag">agent_memory</span><span class="tag">github_inspiration</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>專案觀測摘要</h2>
+<p>觀測日期：2026-06-15 | 來源：search_snapshot（建議以 <code>gh api repos/{owner}/{repo}</code> 複核 stargazers_count/pushed_at）</p>
+<p>| 專案 | Stars | 記憶架構 | 儲存後端 | 檢索策略 |</p>
+<p>|------|-------|---------|---------|--------|</p>
+<p>| mem0ai/mem0 | ~51800 | Hybrid (vector+graph+KV) | Qdrant/Chroma/Neo4j/PostgreSQL/Redis | 向量語義+多後端混合 |</p>
+<p>| letta-ai/letta | ~23200 | OS 式分層 (core/archival/recall) | MongoDB/Weaviate/PostgreSQL | 代理自策劃+向量 |</p>
+<p>| getzep/graphiti | ~27244 | 時態知識圖譜 (validity_window) | Neo4j/FalkorDB | 時態圖遍歷+語義+關鍵字混合，LongMemEval 63.8% |</p>
+<h2>改進提案</h2>
+<h3>P1：評估 mem0 作為 KB 向量記憶後端 [mem0ai/mem0]</h3>
+<ul>
+<li>可行性：7/10 | 穩定性：8/10 | 風險：Medium</li>
+<li>operation_name: <code>daily_digest.github_scout.evaluate_mem0_kb_backend</code></li>
+<li>run_metadata: {trace_id: gs-20260615, task_key: github_scout, operation_name: daily_digest.github_scout.evaluate_mem0_kb_backend}</li>
+<li>idempotency_required: true | human_review_required: true</li>
+<li>落實前提：mem0 Python SDK add/search 與 /api/search/hybrid 相容性測試；kill switch DDP_MEM0_KB_BACKEND=off 預設關閉；30天觀察期</li>
+<li>rollback：關 kill switch，恢復 KB server:3000</li>
+<li>status: plan_ready</li>
+</ul>
+<h3>P2：Letta OS 式分層設計應用至 memory-policy.yaml [letta-ai/letta]</h3>
+<ul>
+<li>可行性：9/10 | 穩定性：9/10 | 風險：Low</li>
+<li>operation_name: <code>daily_digest.github_scout.letta_memory_layer_doc</code></li>
+<li>run_metadata: {trace_id: gs-20260615, task_key: github_scout, operation_name: daily_digest.github_scout.letta_memory_layer_doc}</li>
+<li>idempotency_required: true | human_review_required: false</li>
+<li>補充三層定義：core（當前會話記憶）/ archival（MEMORY.md 話題檔）/ recall（MEMORY.md 索引）</li>
+<li>rollback：無需（純文件）</li>
+<li>status: plan_ready</li>
+</ul>
+<h3>P2：時態有效期標記（Graphiti validity-window 啟示）[getzep/graphiti]</h3>
+<ul>
+<li>可行性：8/10 | 穩定性：8/10 | 風險：Low</li>
+<li>operation_name: <code>daily_digest.github_scout.add_memory_validity_windows</code></li>
+<li>run_metadata: {trace_id: gs-20260615, task_key: github_scout, operation_name: daily_digest.github_scout.add_memory_validity_windows}</li>
+<li>idempotency_required: true | human_review_required: false</li>
+<li>MEMORY.md frontmatter 加 valid_until 欄位，超期記憶自動標記 ⚠️</li>
+<li>rollback：移除欄位，格式向後相容</li>
+<li>status: plan_ready</li>
+</ul>
+<p><strong>跳過</strong>：Graphiti 完整時態 KG 整合（feasibility 5/10，需 Neo4j/FalkorDB 依賴，高風險架構變更）</p>
+<h2>審查結論</h2>
+<p>3 筆提案審查通過（可行性≥7、穩定性≥7）。全定為 plan_ready。Graphiti 完整整合跳過，需人工架構決策。</p>
+<h2>已落實項目</h2>
+<p>無（本輪全為 plan_ready；3 筆提案已寫入 improvement-backlog）</p>
+<h2>待人工審核項目</h2>
+<ol>
+<li>mem0 P1 評估計畫：需確認 KB server 是否應引入外部向量存儲依賴（架構決策）</li>
+<li>Graphiti 完整整合：需決策 Neo4j/FalkorDB 基礎設施引入範圍</li>
+</ol>
+<h2>品質備注</h2>
+<p>本次未對 GitHub 做即時 REST 觀測（Phase 2 沙箱環境限制）。Stars 數值來自 search_snapshot，待 REST 複核。GitHub 觀測與 Phase 2 之 task_execution.used_fallback/fallback_kind 無自動因果關聯（見 config/schemas/results-auto-task-schema.json task_execution 定義）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
