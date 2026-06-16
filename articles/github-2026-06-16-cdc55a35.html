@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub 靈感蒐集 2026-06-16：Agent 架構主題（runtime_model / state_strategy / human_review_model）">
+  <title>GitHub 靈感蒐集 2026-06-16：Agent 架構主題（runtime_model / state_strategy / human_review_model） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub 靈感蒐集 2026-06-16：Agent 架構主題（runtime_model / state_strategy / human_review_model）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">github_scout</span><span class="tag">agent_architecture</span><span class="tag">hitl</span><span class="tag">runtime_model</span><span class="tag">state_strategy</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>專案觀測摘要</h2>
+<p>本輪 github_scout 主題：<strong>Agent 架構</strong>（runtime orchestration、state model、human in the loop）。觀測日期：2026-06-16。觀測方式：WebSearch snapshot（本次未對 GitHub 做即時 REST API 觀測；建議複核：<code>gh api repos/{owner}/{repo}</code> 或瀏覽器開啟 repo 主頁核對 stargazers_count、pushed_at）。</p>
+<h3>觀測專案</h3>
+<p><strong>1. openai/openai-agents-python</strong></p>
+<ul>
+<li>stars：~27,000（WebSearch 2026-06-16，待 REST 複核）</li>
+<li>last_updated：2026 年（精確值待複核）</li>
+<li>runtime_model：Handoff-based agent coordination — Agent 透過 explicit handoff 轉移控制權</li>
+<li>state_strategy：支援 Temporal / Restate / Dapr 外部 durable store</li>
+<li>human_review_model：Handoff-based（高層抽象 approval callback，適合多代理委派審查場景）</li>
+<li>相關性：Phase 1a dispatch 語義直接對應；本系統 task routing 可評估 explicit handoff 聲明</li>
+<li>evidence_snapshot: {repo_observed_at: '2026-06-16', source_type: 'search_snapshot', freshness_note: '本次未對 GitHub 做即時 REST 觀測；建議複核 gh api repos/openai/openai-agents-python，核對 stargazers_count、pushed_at'}</li>
+</ul>
+<p><strong>2. microsoft/autogen</strong></p>
+<ul>
+<li>stars：~57,700（WebSearch 2026-06-16，待 REST 複核）</li>
+<li>last_updated：2026-06-13（WebSearch 確認）</li>
+<li>runtime_model：Conversation-driven multi-agent（AgentChat）</li>
+<li>state_strategy：In-memory conversation history + optional checkpoint</li>
+<li>human_review_model：Interrupt-point（UserProxyAgent max_consecutive_auto_reply 觸發人工確認輪次）</li>
+<li>相關性：self_heal interrupt 點設計有直接對應；UserProxyAgent HITL 模式可借鑑</li>
+<li>evidence_snapshot: {repo_observed_at: '2026-06-16', source_type: 'search_snapshot', freshness_note: '本次未做即時 REST 觀測；建議複核 gh api repos/microsoft/autogen'}</li>
+</ul>
+<p><strong>3. langchain-ai/langgraph</strong></p>
+<ul>
+<li>stars：~34,500（WebSearch 2026-06-16，待 REST 複核）</li>
+<li>last_updated：2026 年（精確值待複核）</li>
+<li>runtime_model：StateGraph graph-based orchestration</li>
+<li>state_strategy：Checkpoint（SQLite / Redis），節點級持久化</li>
+<li>human_review_model：Interrupt-point（圖執行遇 breakpoint 暫停，等待人工 approve/edit）</li>
+<li>相關性：本系統已退役 langgraph（ADR-20260529-052），改純 Python 節點序列；checkpoint 概念可供 planner_executor 參考</li>
+<li>evidence_snapshot: {repo_observed_at: '2026-06-16', source_type: 'search_snapshot', freshness_note: '本次未做即時 REST 觀測；建議複核 gh api repos/langchain-ai/langgraph'}</li>
+</ul>
+<p><strong>4. wjayesh/mahilo</strong></p>
+<ul>
+<li>stars：~475（WebSearch 2026-06-16，待 REST 複核）</li>
+<li>last_updated：2026 年（精確值待複核）</li>
+<li>runtime_model：Distributed context-sharing multi-agent</li>
+<li>state_strategy：In-memory shared context with human interaction state</li>
+<li>human_review_model：Direct human-agent interaction with context propagation</li>
+<li>相關性：跨 Agent 情境傳播對本系統 Phase 間上下文共享有間接借鑑；規模較小，適合長期觀察</li>
+<li>evidence_snapshot: {repo_observed_at: '2026-06-16', source_type: 'search_snapshot', freshness_note: '本次未做即時 REST 觀測；建議複核 gh api repos/wjayesh/mahilo'}</li>
+</ul>
+<blockquote>quality.notes：本輪 GitHub 觀測採 WebSearch snapshot（非即時 REST API）；stars 與 last_updated 均為搜尋結果估算值，待 <code>gh api repos/{owner}/{repo}</code> 複核。GitHub 觀測與 Phase 2 寫入之 task_execution.used_fallback/fallback_kind 無自動因果關聯，複核時請對照 config/schemas/results-auto-task-schema.json 之 task_execution 定義。</blockquote>
+<p>---</p>
+<h2>改進提案</h2>
+<h3>P1-A：openai-agents-python handoff 借鑑 Phase 1a dispatch</h3>
+<ul>
+<li><strong>operation_type</strong>：doc_review</li>
+<li><strong>idempotency_required</strong>：true</li>
+<li><strong>human_review_required</strong>：false（文件評估，低風險）</li>
+<li><strong>run_metadata</strong>：{trace_id: 'eca493436190-r14', task_key: 'github_scout', operation_name: 'daily_digest.github_scout.review'}</li>
+<li><strong>feasibility_score</strong>：8/10（handoff 語義清晰，文件評估無技術障礙）</li>
+<li><strong>stability_score</strong>：9/10（doc 性質，無副作用）</li>
+<li><strong>review_notes</strong>：採納。主要風險：評估文件若建議遷移，後續實施需改動 run-todoist-agent-team.ps1，屬中高風險。降級路徑：維持現有 task_rules 路由不動，僅產出對照文件。</li>
+<li><strong>rollback</strong>：無需 rollback（文件評估性質）</li>
+<li><strong>status</strong>：plan_ready</li>
+</ul>
+<h3>P1-B：AutoGen AgentChat HITL 中斷點模式評估</h3>
+<ul>
+<li><strong>operation_type</strong>：doc_review</li>
+<li><strong>idempotency_required</strong>：true</li>
+<li><strong>human_review_required</strong>：false（評估性質）</li>
+<li><strong>run_metadata</strong>：{trace_id: 'eca493436190-r14', task_key: 'github_scout', operation_name: 'daily_digest.github_scout.review'}</li>
+<li><strong>feasibility_score</strong>：8/10（autogen AgentChat 文件完整，借鑑路徑清晰）</li>
+<li><strong>stability_score</strong>：8/10（對照評估，無副作用）</li>
+<li><strong>review_notes</strong>：採納。主要風險：若借鑑 UserProxyAgent 中斷點語義至 self_heal_authorization.yaml，需小心改動自癒閉環授權邏輯。降級路徑：self_heal 現行 immediate/deferred 流程不動，僅補充 HITL 對照說明。</li>
+<li><strong>rollback</strong>：維持 self-heal-authorization.yaml 現狀</li>
+<li><strong>status</strong>：plan_ready</li>
+</ul>
+<h3>P2：LangGraph 對照文件補充</h3>
+<ul>
+<li><strong>operation_type</strong>：doc_append</li>
+<li><strong>idempotency_required</strong>：true</li>
+<li><strong>human_review_required</strong>：false</li>
+<li><strong>run_metadata</strong>：{trace_id: 'eca493436190-r14', task_key: 'github_scout', operation_name: 'daily_digest.github_scout.implement'}</li>
+<li><strong>feasibility_score</strong>：9/10（純文件補充）</li>
+<li><strong>stability_score</strong>：10/10</li>
+<li><strong>review_notes</strong>：採納。在 docs/github-scout-agent-comparables.md 補充 LangGraph vs planner_executor 對照表。不引入 langgraph 依賴（守衛 W-LG1）。</li>
+<li><strong>rollback</strong>：刪除新增段落</li>
+<li><strong>status</strong>：plan_ready</li>
+</ul>
+<h3>P3：mahilo 長期觀察</h3>
+<ul>
+<li><strong>feasibility_score</strong>：7/10</li>
+<li><strong>stability_score</strong>：10/10（觀察性質）</li>
+<li><strong>review_notes</strong>：採納作為觀察項。規模尚小（~475★），建議 stars>2k 後再評估深度整合。</li>
+<li><strong>status</strong>：awaits_proposal</li>
+</ul>
+<p>---</p>
+<h2>審查結論</h2>
+<p>| 提案 | 結論 | 主要風險 | rollback |</p>
+<p>|------|------|---------|----------|</p>
+<p>| P1-A openai handoff | 採納（plan_ready）| 遷移實施高風險 | 維持現有路由 |</p>
+<p>| P1-B autogen HITL | 採納（plan_ready）| 改動自癒授權邏輯 | 現行流程不動 |</p>
+<p>| P2 LangGraph 對照文件 | 採納（plan_ready）| 無 | 刪除段落 |</p>
+<p>| P3 mahilo 觀察 | 採納（awaits_proposal）| 規模過小 | N/A |</p>
+<p>---</p>
+<h2>已落實項目</h2>
+<ul>
+<li>[x] 4 條 backlog 條目寫入 context/improvement-backlog.json（2 P1、1 P2、1 P3）</li>
+<li>[x] KB 筆記存儲（本筆記）</li>
+<li>[x] 研究主題：Agent 架構（runtime_model / state_strategy / human_review_model）</li>
+<li>[x] docs/github-scout-agent-comparables.md 待補充（P2 提案，下輪或人工執行）</li>
+</ul>
+<p>---</p>
+<h2>待人工審核項目</h2>
+<ol>
+<li><strong>P1-A</strong>：請人工確認是否值得草擬 openai-agents-python handoff 對 Phase 1a dispatch 的遷移評估文件（docs/plans/github-scout-handoff-dispatch-eval.md）</li>
+<li><strong>P1-B</strong>：請人工確認 autogen AgentChat UserProxyAgent 中斷點語義是否適合補充到 self-heal 審核流程說明</li>
+<li><strong>P2</strong>：docs/github-scout-agent-comparables.md 未在本輪更新，需人工或下輪 github_scout 補充 LangGraph vs planner_executor 對照段落</li>
+<li><strong>P3</strong>：mahilo 下次觀察時間：stars ≥ 2000 時升級評估</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

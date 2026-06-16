@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 架構主流框架觀測 - 2026-06-16">
+  <title>GitHub Scout: Agent 架構主流框架觀測 - 2026-06-16 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 架構主流框架觀測 - 2026-06-16</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent架構</span><span class="tag">HITL</span><span class="tag">多代理編排</span><span class="tag">github_scout</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>專案觀測摘要</h2>
+<h3>microsoft/agent-framework（11,367★）</h3>
+<p><strong>觀測日期</strong>：2026-06-16 | <strong>來源</strong>：GitHub REST API（api.github.com/repos/microsoft/agent-framework）</p>
+<p><strong>最近推送</strong>：2026-06-16T00:48:46Z | <strong>相關性</strong>：High</p>
+<p>2026-04-03 GA，整合 AutoGen + Semantic Kernel。支援 sequential/concurrent/handoff/group-chat 四種多代理模式。</p>
+<ul>
+<li><strong>runtime_model</strong>：多代理編排，圖式 + 事件驅動混合</li>
+<li><strong>state_strategy</strong>：Checkpointing + durable execution，支援 pause/resume 長任務</li>
+<li><strong>human_review_model</strong>：handoff-based HITL — agents 透過 explicit handoff 轉移控制權，HITL 為高層抽象 approval callback。適合多代理委派審查場景，對本系統 Phase 1a dispatch 語義有直接借鑑價值。</li>
+</ul>
+<h3>agentscope-ai/agentscope（26,873★）</h3>
+<p><strong>觀測日期</strong>：2026-06-16 | <strong>來源</strong>：GitHub REST API（api.github.com/repos/agentscope-ai/agentscope）</p>
+<p><strong>最近推送</strong>：2026-06-15T04:30:16Z | <strong>相關性</strong>：High</p>
+<p>設計哲學「agents you can see, understand and trust」，以可觀測性為核心。</p>
+<ul>
+<li><strong>runtime_model</strong>：事件驅動，unified event bus 架構，分散式多代理</li>
+<li><strong>state_strategy</strong>：事件溯源，狀態透過 event bus 流動，前端可即時監控</li>
+<li><strong>human_review_model</strong>：interrupt-point 模式 — human agent 節點插入事件流，等待 approve/edit 後繼續，適合同步短延遲審核</li>
+</ul>
+<h3>pydantic/pydantic-ai（17,775★）</h3>
+<p><strong>觀測日期</strong>：2026-06-16 | <strong>來源</strong>：GitHub REST API（api.github.com/repos/pydantic/pydantic-ai）</p>
+<p><strong>最近推送</strong>：2026-06-16T02:52:43Z | <strong>相關性</strong>：Medium-High</p>
+<p>Pydantic 型別安全 agent 框架，整合 A2A + MCP。</p>
+<ul>
+<li><strong>runtime_model</strong>：單代理型，無內建多代理編排</li>
+<li><strong>state_strategy</strong>：Pydantic 型別系統確保狀態合規，無 checkpoint</li>
+<li><strong>human_review_model</strong>：signal-based HITL — tool_approval 機制，工具執行前傳 signal 等待 operator approve，適合非同步高延遲審核</li>
+</ul>
+<h2>改進提案</h2>
+<h3>P1-1：借鑑 microsoft/agent-framework handoff-based HITL 強化 Phase 1a dispatch</h3>
+<p><strong>來源</strong>：microsoft/agent-framework | <strong>風險</strong>：中</p>
+<p><strong>execution_contract</strong>：</p>
+<ul>
+<li>operation_type: config_update</li>
+<li>idempotency_required: true</li>
+<li>human_review_required: true</li>
+<li>run_metadata: {trace_id: github_scout-20260616-r11, task_key: github_scout, operation_name: daily_digest.github_scout.review}</li>
+</ul>
+<p>在 autonomous-harness.yaml hitl_gate_classification 的 Phase 1a 分派層加入 explicit handoff 語義宣告，讓 human_review_required=true 的任務走明確的 handoff callback 路徑（ntfy→等待用戶確認→繼續）而非隱式超時。</p>
+<h3>P1-2：借鑑 agentscope unified event bus 強化 post_tool_logger 可觀測性</h3>
+<p><strong>來源</strong>：agentscope-ai/agentscope | <strong>風險</strong>：低</p>
+<p><strong>execution_contract</strong>：</p>
+<ul>
+<li>operation_type: code_patch</li>
+<li>idempotency_required: true</li>
+<li>human_review_required: false</li>
+<li>run_metadata: {trace_id: github_scout-20260616-r11, task_key: github_scout, operation_name: daily_digest.github_scout.implement}</li>
+</ul>
+<p>在 tools/post_tool_logger.py 的 JSONL envelope 加入 event_bus_envelope 欄位（event_type, agent_id, phase, parent_trace_id），使 JSONL 可聚合成事件流拓撲圖，對接 OTel GenAI Agentic Conventions（gen_ai.agent.name / gen_ai.agent.task）。</p>
+<h3>P2-1：評估 pydantic-ai tool_approval 機制用於高風險工具調用前審核</h3>
+<p><strong>來源</strong>：pydantic/pydantic-ai | <strong>風險</strong>：高（需 TDD）</p>
+<p><strong>execution_contract</strong>：</p>
+<ul>
+<li>operation_type: plan_only</li>
+<li>idempotency_required: false</li>
+<li>human_review_required: true</li>
+<li>run_metadata: {trace_id: github_scout-20260616-r11, task_key: github_scout, operation_name: daily_digest.github_scout.review}</li>
+</ul>
+<p>評估在 tools/autonomous_harness.py 加入 tool_approval_gate，對應 human_review_required=true 的 execution_contract。計畫輸出至 docs/plans/。</p>
+<h2>審查結論</h2>
+<p>| 提案 | 可行性 | 穩定性 | 狀態 |</p>
+<p>|------|--------|--------|------|</p>
+<p>| P1-1 handoff HITL | 8/10 | 7/10 | plan_ready |</p>
+<p>| P1-2 event bus 可觀測 | 9/10 | 9/10 | plan_ready |</p>
+<p>| P2-1 tool_approval | 6/10 | 6/10 | plan_ready（高風險，需 TDD） |</p>
+<h2>已落實項目</h2>
+<ul>
+<li>無（本輪主要為觀測與方案研擬）</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>P1-1：autonomous-harness.yaml hitl_gate_classification 修改需人工評估影響範圍</li>
+<li>P2-1：tool_approval_gate 實作需 TDD + 人工審核整合路徑</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
