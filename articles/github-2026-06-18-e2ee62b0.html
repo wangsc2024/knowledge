@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub 靈感蒐集 2026-06-18：Agent 評估框架（promptfoo / agentevals-dev / strands-agents）">
+  <title>GitHub 靈感蒐集 2026-06-18：Agent 評估框架（promptfoo / agentevals-dev / strands-agents） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub 靈感蒐集 2026-06-18：Agent 評估框架（promptfoo / agentevals-dev / strands-agents）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">github_scout</span><span class="tag">agent_eval</span><span class="tag">promptfoo</span><span class="tag">agentevals</span><span class="tag">otel</span><span class="tag">chaos_testing</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>專案觀測摘要</h1>
+<p>主題：Agent 評估框架（eval_scope/metrics_catalog/integration_target）。前次 2026-06-16 為 Agent 架構，本輪切換。</p>
+<h2>1. promptfoo/promptfoo（22,328★）</h2>
+<p>URL: https://github.com/promptfoo/promptfoo | 更新: 2026-06-18</p>
+<p>eval_scope: unit eval + end-to-end agent 任務完成率</p>
+<p>metrics_catalog: prompt correctness、safety/jailbreak、LLM-as-judge rubric、latency regression</p>
+<p>integration_target: CI/CD pipeline；file-provider 讀 JSON 結果檔</p>
+<p>evidence_snapshot: source_type=repo_page, REST GET api.github.com/repos/promptfoo/promptfoo → stargazers_count=22328, pushed_at=2026-06-18</p>
+<h2>2. agentevals-dev/agentevals（136★）</h2>
+<p>URL: https://github.com/agentevals-dev/agentevals | 更新: 2026-06-09</p>
+<p>eval_scope: trajectory eval（OTel span）零重跑，Jaeger JSON/OTLP</p>
+<p>metrics_catalog: tool_selection_accuracy（F1）、task_completion_rate、custom evaluator</p>
+<p>integration_target: tools/jsonl_to_otel_span.py 產出；aevals.ai REST 第二後端</p>
+<p>evidence_snapshot: source_type=repo_page, REST GET api.github.com/repos/agentevals-dev/agentevals → stargazers_count=136, pushed_at=2026-06-09</p>
+<h2>3. strands-agents/evals（145★）</h2>
+<p>URL: https://github.com/strands-agents/evals | 更新: 2026-06-17</p>
+<p>eval_scope: unit eval + chaos eval（確定性故障注入）+ red team</p>
+<p>metrics_catalog: failure_detection_rate、retry_success_rate、chaos_coverage</p>
+<p>integration_target: self_heal 重試鏈測試（monkeypatch timeout/LLM unavailable）</p>
+<p>evidence_snapshot: source_type=repo_page, REST GET api.github.com/repos/strands-agents/evals → stargazers_count=145, pushed_at=2026-06-17</p>
+<h2>4. confident-ai/deepeval（16,241★）</h2>
+<p>計畫 docs/plans/github-scout-20260611-deepeval-quality-gate.md 已於 2026-06-11 人工撤下（runtime judge 衝突）。本輪：僅開發時參考，不整合 runtime。</p>
+<p>evidence_snapshot: source_type=repo_page, REST GET api.github.com/repos/confident-ai/deepeval → stargazers_count=16241, pushed_at=2026-06-18</p>
+<h2>5. langchain-ai/agentevals（622★）</h2>
+<p>相關性中低（LangGraph 2026-05-30 退役）。僅追蹤。</p>
+<p>evidence_snapshot: source_type=repo_page, stargazers_count=622, pushed_at=2026-06-17</p>
+<p>quality.notes: GitHub 觀測與 Phase 2 task_execution.used_fallback/fallback_kind 無自動因果關聯。</p>
+<h1>改進提案</h1>
+<h2>P1-A：promptfoo YAML 回歸測試 scaffold（已實作）</h2>
+<p>已建 tests/prompts/promptfoo-github_scout.yaml（file-provider + 4 確定性 assert + 1 llm-rubric）</p>
+<p>execution_contract: { operation_type: config_write, idempotency_required: true, human_review_required: false, run_metadata: { trace_id: b932d18a121, task_key: github_scout, phase: 9, attempt: 1, operation_name: daily_digest.github_scout.implement } }</p>
+<p>feasibility_score: 9, stability_score: 8, status: implemented</p>
+<h2>P1-B：agentevals-dev Jaeger harness 橋接（Phase 5）</h2>
+<p>補充 docs/plans/github-scout-agent-eval-otel-20260607.md Phase 5</p>
+<p>execution_contract: { operation_type: plan_write, human_review_required: true, run_metadata: { trace_id: b932d18a121, task_key: github_scout, operation_name: daily_digest.github_scout.review } }</p>
+<p>feasibility_score: 7, stability_score: 7, status: backlog</p>
+<h2>P2：strands-agents/evals 混沌測試</h2>
+<p>feasibility_score: 6（低於門檻 7），status: backlog</p>
+<h1>審查結論</h1>
+<ul>
+<li>P1-A（promptfoo）: 採納落實。rollback=刪除 YAML。</li>
+<li>P1-B（agentevals-dev）: 採納為 Phase 5 補充，需人工審核 Phase 3 gating。</li>
+<li>P2（chaos）: feasibility < 7，降 P2 backlog。</li>
+<li>deepeval: 維持 2026-06-11 撤下裁決。</li>
+</ul>
+<h1>已落實項目</h1>
+<ol>
+<li>tests/prompts/promptfoo-github_scout.yaml 建立（2026-06-18）</li>
+<li>Backlog 3 筆：103523132304（promptfoo P1）、103533555980（agentevals P1）、103544872068（strands P2）</li>
+</ol>
+<h1>待人工審核項目</h1>
+<ol>
+<li>promptfoo CI 整合：決定 llm-rubric judge 後端（OPENAI_API_KEY / Gemma / 純確定性）</li>
+<li>agentevals-dev Phase 5：是否解鎖 Phase 3 runtime 觸發</li>
+<li>deepeval 裁決確認：2026-06-18 再次確認 rejected 不需重查</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
