@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：N48 adaptive-fog 資產問責 + 最低成果地板（2026-06-23）">
+  <title>深度研究洞察簡報：N48 adaptive-fog 資產問責 + 最低成果地板（2026-06-23） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：N48 adaptive-fog 資產問責 + 最低成果地板（2026-06-23）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">adaptive-fog</span><span class="tag">outcome-floor</span><span class="tag">asset-accountability</span><span class="tag">agentic-AI</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：N48 adaptive-fog 資產問責 + 最低成果地板</h1>
+<p><strong>日期</strong>：2026-06-23  </p>
+<p><strong>主題</strong>：Agentic AI 系統的可量測成果問責設計——DDP adaptive-fog 計畫解析與生產最佳實踐  </p>
+<p><strong>標籤</strong>：<code>insight-briefing</code>、<code>adaptive-fog</code>、<code>outcome-floor</code>、<code>asset-accountability</code>、<code>agentic-AI</code></p>
+<p>---</p>
+<h2>摘要（200 字）</h2>
+<p>DDP N48 adaptive-fog 計畫在 2026-06-14 落地了跨四資產（skill/tool/workflow/agent）的統一問責框架，核心創新是「最低成果地板」（outcome floor）——不只驗產物存在性，而是量化每次執行的最低可接受成果（min_kb_notes、min_items_advanced、min_repairs_or_changes 等）。外部研究印證此方向：88% AI Agent 未能進入生產的主因之一是 ROI 量測失敗（33%）；CLEAR 多維框架實證 Pass@8≥80% 才算可靠，單次 pass@1 嚴重低估脆弱性；生產環境的工具執行成功率應 >0.98。adaptive-fog 的「retry-then-observe」（streak≥2 強制觀察非無限重試）直接對應業界「漸進 enforce + 閾值畢業」最佳實踐。B 半部的資產價值評分（weighted refs/recency/success）與「improve-then-retire 永不自動刪」原則，呼應業界對 Agent 系統可觀測性應從架構設計內嵌而非事後補裝的共識。</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<h3>洞見 1：成果地板打破「存在性幻覺」——成功不等於有意義產出</h3>
+<p><strong>核心主張</strong>：傳統 success gate 只驗產物是否存在（檔案有無、exit 0），但允許 0 筆 KB 筆記的研究任務或 0 項進展的規劃任務被標記為 success。outcome_floor 引入量化最低成果閾值，強制「success 必須有實質輸出」。外部框架（CLEAR、12-metric）同樣指出單維度準確率指標遮蔽了成本與可靠性的真實故障。</p>
+<p><strong>證據要點</strong>：</p>
+<ul>
+<li>adaptive-fog plan.md：「研究任務可在 0 筆 KB note 下被標 success」</li>
+<li>CLEAR 論文：accuracy-only 評估與生產成功相關係數僅 ρ=0.41，CLEAR 框架達 ρ=0.83</li>
+<li>success-signatures.yaml v4（2026-06-22 RECALIBRATE）：violation_rate=89.5%——過早強制導致誤報率過高，驗證地板設定需數據驅動</li>
+</ul>
+<p>---</p>
+<h3>洞見 2：retry-then-observe 而非無限重試——streak 封頂是防脆弱設計</h3>
+<p><strong>核心主張</strong>：outcome_floor 的 streak≥2 強制切換到 observe（report_only）再進 self-heal 閉環，是明確的反脆弱決策：系統承認「持續未達是結構問題而非運氣問題」，停止浪費算力重試，改走改善路徑。無限重試的最大危害不是成本，而是掩蓋了需要人工介入的系統性缺陷。</p>
+<p><strong>證據要點</strong>：</p>
+<ul>
+<li>adaptive-fog plan.md R2：streak≥2 強制 observe，R3 矩陣 partial override 防遞迴</li>
+<li>生產評估指南：追蹤「metric 趨勢而非絕對值」——0.85 穩定比 0.78 下降更重要</li>
+<li>self_heal partial override 防遞迴：自動畢業只降級不刪，可逆</li>
+</ul>
+<p>---</p>
+<h3>洞見 3：資產問責需四型別統一但不單體——掃描器協定 + aggregator 是可擴展架構</h3>
+<p><strong>核心主張</strong>：adaptive-fog B 半部以「掃描器協定＋單一 aggregator」取代「四套獨立複製碼」，核心 count_skill_references 引擎只有一份（import 非複製）。這對應業界「治理從設計嵌入而非事後補裝」原則——四資產共用相同的 verdict 語義（keep/under-target/retire-candidate）使整個系統的問責語言一致。</p>
+<p><strong>證據要點</strong>：</p>
+<ul>
+<li>adaptive-fog plan.md 第 146-161 行：掃描器協定設計，單一 aggregator</li>
+<li>BCG 2026 報告：「嵌入架構的治理遠比事後補裝更具可擴展性」</li>
+<li>KPMG 2025：accountability 需從 operating architecture 起步</li>
+</ul>
+<p>---</p>
+<h3>洞見 4：report_only 先行 + SLO metric 畢業門——降低新管制機制的生產風險</h3>
+<p><strong>核心主張</strong>：全部新閘門（outcome_floor、success-signatures、asset-value）預設 report_only，以 SLO metric 工具逐任務畢業到 enforce，保留 kill switch（DDP_OUTCOME_FLOOR=off 等）。這是比直接切 enforce 風險更低的策略，同時建立了「觀察窗數據驅動決策」而非「感覺準了就上」的文化。</p>
+<p><strong>證據要點</strong>：</p>
+<ul>
+<li>success-signatures.yaml v4 RECALIBRATE：violation_rate=89.5%——驗證 report_only 先行的必要性</li>
+<li>生產評估框架：建議 dev 70%→staging 85%→prod 95% 分段驗證再切 enforce</li>
+<li>ENFORCE_READY 條件：觀察窗≥7 次 0 未達且 enforcement_safe=true</li>
+</ul>
+<p>---</p>
+<h3>洞見 5：agent 問責最薄弱——成功率應來自 continuity 歷史而非 transient 結果檔</h3>
+<p><strong>核心主張</strong>：adaptive-fog 識別到四資產中「agent 完全沒有問責機制」的缺口，並設計 scan_agents.py 以 continuity 歷史（runs[].status==completed 比例）為主訊號、禁讀 transient 結果檔。這是生產 Agent 評估的正確訊號來源——單次執行結果噪音大，長期歷史才反映真實能力。</p>
+<p><strong>證據要點</strong>：</p>
+<ul>
+<li>adaptive-fog plan.md：「agent 完全沒有問責機制」——agent 四資產中最薄弱環節</li>
+<li>CLEAR 論文：Pass@8（連續 8 次）比 pass@1 更能揭示脆弱性（72% pass@1 → 58% pass@8）</li>
+<li>2025 AI Agent Index：生產系統需追蹤多次執行模式，單次結果不可靠</li>
+</ul>
+<p>---</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇</h3>
+<ul>
+<li><strong>Sam Altman（primary）</strong>：規模化、產品落地、迭代速度視角</li>
+<li><strong>Jensen Huang（primary）</strong>：平行計算、系統吞吐量最大化視角</li>
+<li><strong>Taleb（adversarial）</strong>：反脆弱、尾部風險、脆弱性識別視角</li>
+</ul>
+<h3>框架化建議</h3>
+<p><strong>Sam Altman 視角</strong>：成果地板是 Agent 能力迭代的加速器而非煞車。有了可量化的 min_outcome，每次執行都是對 Agent 能力上限的精確刺探——miss streak 自動識別出「哪些任務需要更好的模型/更好的 prompt/更好的工具」，而不是靠人工猜測。這把技術瓶頸暴露從月度到每日。規模化後，outcome_floor 的 JSONL 歷史是 Agent 能力成長曲線的最可靠原始資料。預設 report_only 是正確的迭代策略——先收集 7-14 天數據，再用 SLO metric 工具數據驅動的切 enforce，避免在能力尚未到位時過早懲罰 Agent 系統。</p>
+<p><strong>Jensen Huang 視角</strong>：asset_value_audit 的四資產統一掃描是系統吞吐量優化的底層槓桿。死資產（under-target/retire-candidate）消耗的不只是索引空間——它們製造 LLM 上下文噪音、增加 planner 的搜索空間、降低 capability dispatch 的精確度。improve-then-retire 閉環透過機械化每日掃描（非 LLM、O(repo)）識別拖慢整體 throughput 的資產，把有限算力集中在高引用、高成功率的資產上。B 半部的 value_score 加權模型（refs 0.5/recency 0.3/success 0.2）是資產 ROI 函數，本質上是 AI 系統資源分配的 Pareto 最佳化。</p>
+<p><strong>Taleb 反模式——脆弱性識別</strong>：outcome_floor 本身可能製造新的假陽性陷阱：min_kb_notes=1 在 KB 服務暫態不可用時必然 miss（已有 89.5% 誤報率前例）；min_repairs_or_changes=1 可能激勵 self_heal 製造表面修復（加行空白）以達標。反脆弱設計建議：(1) 地板閾值應以最壞條件（服務不可用、模型降級）下的實際分布設定，而非理想條件均值；(2) 量測指標應機械可驗（git diff 行數、KB API 實際回傳數量），而非 Agent 自報；(3) streak≥2 切 observe 是正確的尾部風險防護——拒絕讓地板 miss 觸發新的級聯 LLM 操作。最大的隱性脆弱點：成果地板的量測欄位映射依賴 Agent 自報 JSON 格式一致性，任何 schema 漂移都會造成靜默漏測。</p>
+<h3>透鏡盲區自陳</h3>
+<p>三個透鏡共同偏向「改善現有 Agent」而忽略了「不做這個任務本身是否才是正確答案」（YAGNI）；outcome_floor 的存在可能強化對低價值任務的路徑依賴，正確的問題是：這個任務的最低成果門檻值得系統持續投入嗎？此外三個透鏡都假設量測基礎設施的正確性，但 89.5% 誤報率事件揭示量測本身的可靠性是先決條件。</p>
+<p>---</p>
+<h2>建議行動</h2>
+<ol>
+<li><strong>量測基礎設施防脆弱</strong>：在 outcome_floor_check.py 的 measure_outcome 加入 schema_validated 欄位，KB 相關 min_kb_notes 應以 KB API 回傳值交叉驗證而非純靠 Agent 自報</li>
+<li><strong>agent 計分卡薄資料保護</strong>：scan_agents.py 依 agent age_days 動態調整 warmup 門（warmup_days=14 內固定 verdict=warmup，避免初期失敗污染問責資料庫）</li>
+<li><strong>SLO 畢業門加量測穩定性前置條件</strong>：觀察窗內有 schema_validated=false 時強制降為 REVIEW，防假陽性路徑</li>
+<li><strong>改善閉環節流顯式記錄</strong>：ledger 每筆加 triggered_by + review_deadline，讓人工佇列有明確行動期限</li>
+<li><strong>Pass@N 語義補入 outcome_floor 分析</strong>：ENFORCE_READY 改為「met=true 比例≥85% 且無連續 2 次 miss」而非「7 次 0 未達」</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<p>| 來源 | 類型 | 品質 |</p>
+<p>|------|------|------|</p>
+<p>| <code>docs/plans/tools-skill-workflow-agent-adaptive-fog.md</code> | 內部計畫 | 最高信度（含 R1-R9 審查修正紀錄） |</p>
+<p>| <code>config/success-signatures.yaml</code> | 內部配置 | 生產真相，含 RECALIBRATE 歷史 |</p>
+<p>| <code>context/daily-digest-state-snapshot.json</code> | 內部快照 | 2026-06-23 08:59 狀態 |</p>
+<p>| Beyond Accuracy: A Multi-Dimensional Framework for Evaluating Enterprise Agentic AI Systems (CLEAR) | arXiv 2025 | N=15 expert validation，ρ=0.83 |</p>
+<p>| Building an Evaluation Harness for Production AI Agents: A 12-Metric Framework From 100+ Deployments | Towards Data Science | 100+ 生產部署實證 |</p>
+<p>| Agentic AI Statistics 2026: Business Stats | aistratagems.com | 彙整多份報告（88%、171% ROI），量級參考有效 |</p>
+<p>---</p>
+<h2>附錄：快取遙測（步驟 0b）</h2>
+<p><strong>KB 語義快取統計（過去 7 日）</strong>：</p>
+<ul>
+<li>快取條目數：0（fastembed 不可用，degraded 模式）</li>
+<li>lookup / store / http_fallback / degraded：0 / 0 / 0 / 0</li>
+<li>fastembed_available：false</li>
+<li>快取根 meta：cached_at 2026-06-19T09:35:52Z，TTL 10080min，threshold 0.85</li>
+<li>狀態：KB 語義快取目前以降級模式運行（fastembed 未啟用），所有 KB 查詢走 HTTP fallback，不影響 API 功能但語義相似度快取無效</li>
+</ul>
+<p><strong>API 快取</strong>（cache/status.json 系統快取）：N/A（本次為研究類，不走 API 快取）</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

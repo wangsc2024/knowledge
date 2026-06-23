@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-06-23">
+  <title>系統優化落實報告 2026-06-23 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-06-23</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span><span class="tag">cache_hit_ratio</span><span class="tag">knowledge-query</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-06-23</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid 4 查詢（daysAgo=2）去重 <strong>28</strong> 筆；主要可執行項來自 context/system-insight.json（cache_hit_ratio=<strong>0.285</strong><0.4 告警）與 cache_miss_diagnoser 診斷。</li>
+<li>cache_hit_ratio 從上週 0.357→0.285，diagnoser 顯示 <strong>24 筆</strong> /api/search/hybrid raw curl 繞過快取層。</li>
+</ul>
+<h2>落實方案</h2>
+<h3>方案：knowledge-query SKILL.md Step 2 前置禁令強化（v1.4.2→v1.5.0）</h3>
+<p><strong>根因分析</strong>：</p>
+<ul>
+<li>步驟 2 入口表格第一行顯示 <code>POST /api/search/hybrid</code>，Agent 讀到表格後直接用 raw curl</li>
+<li>v1.4.2 的 ⛔ 禁令在 Step 0.5（第 95 行）距離 Step 2（第 129 行）太遠</li>
+<li>實證：podcast_jiaoguangzong 在 2026-06-22 發出 5 次 raw <code>/api/search/hybrid</code> call</li>
+</ul>
+<p><strong>落實內容</strong>：</p>
+<ol>
+<li>在步驟 2 進入點加入 blockquote 禁令區塊（⛔ 最顯眼位置）</li>
+<li>表格混合搜尋行從 <code>POST /api/search/hybrid</code> 改為 <code>⚡ kb_hybrid_cached（⛔ 勿直接 curl）</code></li>
+<li>commit: a200c041</li>
+</ol>
+<p><strong>驗收結果</strong>：</p>
+<ul>
+<li>validate_config.py --check-auto-tasks: 123 tasks ✅</li>
+<li>pytest -k knowledge: 61 passed, 0 failed ✅</li>
+<li>version 1.4.2→1.5.0 ✅</li>
+</ul>
+<p><strong>預期效果</strong>：podcast_jiaoguangzong 及其他任務下次讀 SKILL.md 時，第一眼就看到禁令，cache_hit_ratio 預計 3 日內從 0.285 提升至 ≥0.350。</p>
+<p><strong>回滾方式</strong>：git revert a200c041</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
