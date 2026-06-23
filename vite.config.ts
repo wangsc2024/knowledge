@@ -20,6 +20,8 @@ export default defineConfig({
         // 略過大 article JSON 的 precache（53MB 太多）；改 runtime cache
         globIgnores: ['**/data/articles/**', '**/data/index.json'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // 排除 /presentations/* 被 NavigationRoute 攔截，讓瀏覽器直接取靜態 PDF
+        navigateFallbackDenylist: [/^\/presentations\//],
         runtimeCaching: [
           {
             // index.json (full, 850KB) — 背景 fetch，30 天 cache

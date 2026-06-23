@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-06-22">
+  <title>系統優化落實報告 2026-06-22 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-06-22</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-06-22</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid 4 查詢（daysAgo=2）cache hit，去重 ~24 筆</li>
+<li><code>context/system-insight.json</code>（2026-06-22 04:07）：<code>cache_hit_ratio=0.358</code>（<0.4 警戒）、<code>avg_io_per_call=14260</code>（>12000）</li>
+<li>backlog pending 8 項（insight_briefing 06-18~06-22）</li>
+<li>3日 <code>cache_miss_diagnoser</code>：30 unclassified、53 cacheable API calls、24 cache reads</li>
+</ul>
+<h2>落實方案</h2>
+<h3>方案：knowledge-query SKILL raw curl hybrid 禁令（評分 10）</h3>
+<p><strong>目標</strong>：封堵 <code>skills/knowledge-query/SKILL.md</code> 中兩處鼓勵 Agent 直接 curl <code>/api/search/hybrid</code> 的提示，強制改用 <code>kb_hybrid_cached</code>（含 TTL 快取）。</p>
+<p><strong>根因診斷</strong>：</p>
+<ul>
+<li><code>auto-persona_forge</code>（7次）+ <code>auto-podcast_jiaoguangzong</code>（8次）3日共 15 次 raw hybrid search</li>
+<li>這些呼叫被分類為 <code>cacheable_kb_search</code>（cache miss），佔可快取事件約 28%</li>
+<li><code>cache_hit_ratio = 24/(24+56) = 0.300</code> → 壓低比率</li>
+<li>問題根源：SKILL.md step 0.5 的「手動路徑」和依賴說明明確指向「步驟 2 curl」</li>
+</ul>
+<p><strong>影響檔案</strong>：<code>skills/knowledge-query/SKILL.md</code></p>
+<p><strong>修改內容（v1.4.1 → v1.4.2）</strong>：</p>
+<ol>
+<li>Line 95：<code>手動路徑 → ⛔ 禁止直接 curl /api/search/hybrid，改用 kb_hybrid_cached</code></li>
+<li>Line 113：<code>步驟 2 curl → uv run python -m tools.kb_hybrid_cached（⛔ 勿直接 curl）</code></li>
+</ol>
+<p><strong>備份</strong>：無暫存變更（SKILL.md 與 HEAD 一致）</p>
+<p><strong>備份 commit</strong>：c689a48e</p>
+<h2>驗收結果</h2>
+<ul>
+<li>✓ <code>validate_config --check-auto-tasks</code>：121 個任務一致</li>
+<li>✓ SKILL.md frontmatter 有效（version: 1.4.2, name: knowledge-query）</li>
+<li>✓ 兩個 ⛔ 禁令確認就位（grep 驗證）</li>
+<li>✓ <code>skill_md107</code> test 失敗是預存在（stash 前後一致，非本次引入）</li>
+<li>✓ commit <code>c689a48e</code> 成功</li>
+</ul>
+<h2>預期效果</h2>
+<p>下次 <code>auto-persona_forge</code> 和 <code>auto-podcast_jiaoguangzong</code> 執行後，raw hybrid curl 改走 <code>kb_hybrid_cached</code>：</p>
+<ul>
+<li>第一次呼叫：cache miss（寫入 cache/kb-hybrid/*.json）</li>
+<li>後續重複查詢：cache hit</li>
+<li>3日 <code>cache_hit_ratio</code> 預計從 0.300 → 逐步提升至 ≥0.400</li>
+</ul>
+<h2>待規劃（未落實）</h2>
+<ul>
+<li>Python 依賴安全基線（pip-audit CI 閘門）：高優先，但需 CI/CD 設定，超出 max 3 files 範圍</li>
+<li>LLM 模型分級路由（Haiku vs Sonnet）：中優先，已在 backlog</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
