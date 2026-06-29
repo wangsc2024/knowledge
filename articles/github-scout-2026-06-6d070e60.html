@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="github-scout 2026-06-28：Agent Architecture 研究筆記（microsoft/agent-framework、mastra、HiClaw）">
+  <title>github-scout 2026-06-28：Agent Architecture 研究筆記（microsoft/agent-framework、mastra、HiClaw） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>github-scout 2026-06-28：Agent Architecture 研究筆記（microsoft/agent-framework、mastra、HiClaw）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">github_scout</span><span class="tag">agent_architecture</span><span class="tag">hitl</span><span class="tag">handoff</span><span class="tag">multi-agent</span><span class="tag">2026-06-28</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>專案觀測摘要</h2>
+<p>主題：agent_architecture（multi-agent orchestration / HITL / handoff）。觀測日期：2026-06-28。來源：search_snapshot（非 GitHub REST 即時觀測）。數值待 gh api repos/{owner}/{repo} 複核。</p>
+<h2>1. microsoft/agent-framework（~11k stars）</h2>
+<p>runtime_model：handoff 有向邊（developer 宣告 agent 與邊，框架注入 handoff tool call）。state_strategy：durable agent（外部儲存持久化 conversation+execution state）。human_review_model：interrupt-point 模式；BUILD 2026 新增 A2A endpoint（公開預覽）+ OTel 全鏈路 trace（模型/工具/sub-agent/handoff 同管線）。evidence_snapshot: source_type=search_snapshot, repo_observed_at=2026-06-28, freshness_note=本次未對 GitHub 做即時 REST 觀測；建議複核 gh api repos/microsoft/agent-framework（stargazers_count / pushed_at）。</p>
+<h2>2. mastra-ai/mastra（22.3k stars，TypeScript）</h2>
+<p>runtime_model：suspendable graph-based state machine。state_strategy：可序列化到儲存層，跨重啟 resume。human_review_model：signal-based 模式（懸停等待外部訊號）。300k+ weekly npm downloads；TypeScript-native。evidence_snapshot: source_type=search_snapshot, repo_observed_at=2026-06-28, freshness_note=本次未做即時 REST 觀測；建議複核 gh api repos/mastra-ai/mastra。</p>
+<h2>3. agentscope-ai/HiClaw</h2>
+<p>runtime_model：Manager-Workers + Matrix 協議跨實例協作。state_strategy：Matrix room 持久化可審計。human_review_model：透明 room-based（Human 與 agents 同在 room，隨時介入）。K8s-native，Alibaba AgentScope 生態。evidence_snapshot: source_type=search_snapshot, repo_observed_at=2026-06-28。</p>
+<h2>4. ai-boost/awesome-harness-engineering（策展庫）</h2>
+<p>涵蓋 agent harness 工程：tools/patterns/evals/memory/MCP/permissions/observability/orchestration。queryable observability（OTel→SQL）；agentgateway（LLM/MCP/A2A 三合一控制平面）。evidence_snapshot: source_type=search_snapshot, repo_observed_at=2026-06-28。</p>
+<h2>改進提案</h2>
+<p><strong>P1-A</strong>（microsoft/agent-framework）：評估 handoff 有向邊模型補強 Phase 1a dispatch + OTel trace 對接 post_tool_logger。feasibility_score=8, stability_score=7（A2A/CodeAct 仍公開預覽）。rollback：維持靜態 dispatch。</p>
+<p><strong>P1-B</strong>（mastra）：評估 suspendable state 對 planner_executor 跨 session 狀態恢復借鑑。feasibility_score=7, stability_score=7（TypeScript-native 需 bridge，設計借鑑為主）。rollback：維持線性 phase 序列。</p>
+<p><strong>P2</strong>（HiClaw）：評估 Matrix HITL 整合（高風險需 docs/plans/）。feasibility_score=5, stability_score=6。rollback：維持現有 ntfy-based HITL。</p>
+<p><strong>P3</strong>（awesome-harness-engineering）：評估本系統 harness 模式外部收錄可行性。</p>
+<p>quality.notes: GitHub 觀測與 Phase 2 寫入之 task_execution.used_fallback/fallback_kind 無自動因果關聯，複核時請對照 config/schemas/results-auto-task-schema.json 之 task_execution 定義。</p>
+<h2>審查結論</h2>
+<p>P1-A 可行性高（本系統已有 jsonl_to_otel_span.py OTel 基礎；A2A/CodeAct 仍公開預覽）。rollback：維持靜態 dispatch。P1-B 可行性中（TypeScript-native 需 bridge，設計借鑑為主）。rollback：維持線性 phase 序列。P2 高風險（Matrix 架構侵入性大，暫列計畫候選）。P3 低優先。</p>
+<h2>已落實項目</h2>
+<p>本輪無直接程式碼改動。已寫入 improvement-backlog 4 筆：P1×2、P2×1、P3×1。</p>
+<p>run_metadata: {"trace_id": "900d7f9a1a01-r11", "task_key": "github_scout", "operation_name": "daily_digest.github_scout.search", "phase": "phase2", "attempt": 1}</p>
+<h2>待人工審核項目</h2>
+<p>P1-A：handoff 模型改動範圍（影響 Phase 1a dispatch 邏輯）。P1-B：suspendable state 對 planner_executor 架構影響評估。P2：HiClaw Matrix 整合需建 docs/plans/ 計畫。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

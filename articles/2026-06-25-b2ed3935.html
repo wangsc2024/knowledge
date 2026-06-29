@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-06-25">
+  <title>系統優化落實報告 2026-06-25 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-06-25</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-06-25</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid 4 查詢（daysAgo=2）去重 <strong>28</strong> 筆</li>
+<li>主要 alert：<code>context/system-insight.json</code> cache_hit_ratio=<strong>0.213</strong><0.400（warning）</li>
+</ul>
+<h2>落實方案</h2>
+<h3>cache_hit_analyzer 修正：`apis`→`sources` bug fix</h3>
+<p><strong>問題：</strong> <code>tools/cache_hit_analyzer.py</code> 的 <code>generate_ttl_suggestions</code> 函式讀取 <code>policy.get("apis", {})</code> 但正確 key 為 <code>"sources"</code>，導致：</p>
+<ul>
+<li>knowledge（TTL=8640m）、todoist（TTL=120m）全部 <code>current_ttl: null</code></li>
+<li>產生「建議新增快取配置 60 分鐘」假建議</li>
+<li>歷次 TTL 調整可能因此依據失準</li>
+</ul>
+<p><strong>修正：</strong> <code>apis = policy.get("apis", {})</code> → <code>sources = policy.get("sources", {})</code>（同步更新 loop 變數）</p>
+<p><strong>驗收結果：</strong></p>
+<ul>
+<li>✓ 修復後 knowledge/todoist 不再出現誤報</li>
+<li>✓ TTL 建議由 5 項降至 3 項（僅保留真正未配置的 unknown/ntfy/hackernews）</li>
+<li>✓ pre-commit hooks 通過（ruff 僅 style warnings，不阻擋）</li>
+<li>✓ 352 個相關測試通過，1 個預存在失敗（kb_semantic_cache Windows path issue，與本修復無關）</li>
+</ul>
+<p><strong>備份 commit：</strong> faa5d42e</p>
+<h2>評分</h2>
+<p>影響=2 + 難度=3 + 風險=3 = <strong>8/10</strong></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

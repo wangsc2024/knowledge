@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="本地 LLM 生產部署可靠性工程：VRAM 預算管理 × llama.cpp 穩定性 × 多模型共存策略（insight-briefing 2026-06-28）">
+  <title>本地 LLM 生產部署可靠性工程：VRAM 預算管理 × llama.cpp 穩定性 × 多模型共存策略（insight-briefing 2026-06-28） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>本地 LLM 生產部署可靠性工程：VRAM 預算管理 × llama.cpp 穩定性 × 多模型共存策略（insight-briefing 2026-06-28）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">local-llm</span><span class="tag">llama.cpp</span><span class="tag">VRAM</span><span class="tag">production-reliability</span><span class="tag">fallback-chain</span><span class="tag">multi-model-coexistence</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>本地 LLM 生產部署可靠性工程</h1>
+<p><strong>日期</strong>: 2026-06-28 | <strong>主題</strong>: 本地 LLM 生產部署可靠性工程：VRAM 預算管理 × llama.cpp 穩定性 × 多模型共存策略</p>
+<p><strong>研究類型</strong>: insight_briefing</p>
+<h2>摘要</h2>
+<p>本地 LLM 生產部署的可靠性問題在 2025-2026 年急遽受到重視。本報告整合 llama.cpp 社群、AI gateway 廠商與生產事故回顧，聚焦三大核心問題：VRAM 預算閘門設計（admission control 防 OOM race condition）、llama.cpp server 靜默崩潰監控（40% 生產事故發生於啟動後 10 秒）、Tier Fallback Chain 的靜默降級陷阱（100% 完成率但 0% schema 完整率）。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>VRAM 預算必須在 allocation 前計帳（mutex-protected VRAM ledger），保留 10% headroom（24GB 卡 ≤22GB 放行）</li>
+<li>靜默崩潰是頭號殺手：40% 事故在啟動後 10 秒內，systemd Restart=on-failure + /health 輪詢是最低標配</li>
+<li>KV Cache Swapping：非活躍 KV state 移至 host RAM，24GB 卡 4 並發/35B 模型可穩定在 22.05 GB</li>
+<li>Tier Fallback 靜默降級陷阱：100% 完成率但 0% schema 完整率；需 payload 正規化 + quality floor 驗證</li>
+<li>生產 Fallback 共識：hop budget cap 2-4 跳、7 類故障形狀分類器、指數退避 100ms→500ms→2000ms</li>
+</ol>
+<h2>多透鏡洞察（L2）</h2>
+<ul>
+<li>Sam Altman 透鏡：本地 LLM 可靠性工程的目標是縮小本地基礎設施與雲端 API 的可靠性差距，使 local-first 策略在成本與 SLA 上同時可行</li>
+<li>Jensen Huang 透鏡：VRAM 是 GPU 上最稀缺的資源，VRAM 預算管理是「GPU 工廠」的效能核心；KV Cache 量化是垂直整合思維</li>
+<li>Taleb 反模式：「Retry 三次」迷信（Narrative Fallacy）；靜默降級脆弱性；VRAM 容量規劃過度最佳化忽略 tail case</li>
+</ul>
+<h2>建議行動（DDP）</h2>
+<ul>
+<li>驗證 vram-arbiter headroom=2GB 在 12B server 啟動前生效</li>
+<li>補 per-port health 輪詢（port 8082）</li>
+<li>孤兒進程清理閘門：啟動前確認 port 乾淨</li>
+<li>Tier fallback schema 驗證：Sonnet45 → local Gemma 路徑</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>lmxd VRAM Ledger 技術分析（windowsforum.com）</li>
+<li>llamatelemetry ServerManager 文件</li>
+<li>markaicode: Fix llama.cpp Connection Refused Production Fix</li>
+<li>Towards Data Science: LLM Fallbacks Break Agent Pipelines</li>
+<li>FutureAGI: LLM Fallback Strategy 2026 Field Guide</li>
+<li>LocalLLM.in: llama.cpp VRAM Requirements Complete 2026 Guide</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

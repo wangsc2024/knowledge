@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing 深度研究洞察簡報：治理事件追蹤整合 OTel Span × DDP Governance Event Log 雙軌可觀測性架構（2026-06-26）">
+  <title>insight-briefing 深度研究洞察簡報：治理事件追蹤整合 OTel Span × DDP Governance Event Log 雙軌可觀測性架構（2026-06-26） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing 深度研究洞察簡報：治理事件追蹤整合 OTel Span × DDP Governance Event Log 雙軌可觀測性架構（2026-06-26）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">OpenTelemetry</span><span class="tag">governance</span><span class="tag">DDP</span><span class="tag">Langfuse</span><span class="tag">observability</span><span class="tag">govlog</span><span class="tag">OTel-span</span><span class="tag">可觀測性</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>治理事件追蹤整合：OTel Span × DDP Governance Event Log 雙軌可觀測性架構</h1>
+<p><strong>日期</strong>：2026-06-26  </p>
+<p><strong>主題 slug</strong>：govlog-otel-trace-integration  </p>
+<p><strong>研究類型</strong>：insight_briefing  </p>
+<p><strong>延續前次</strong>：AI Agent 可觀測性基礎設施（2026-06-25）→ next_suggested_angle 落實  </p>
+<p><strong>來源搜尋查詢</strong>：4 組（OTel 治理稽核、Langfuse 自架、JSONL→OTLP、治理事件 × OTel 模式）  </p>
+<p>---</p>
+<h2>摘要（Executive Summary）</h2>
+<p>2025-2026 年 LLM 可觀測性生態已以 OpenTelemetry 為強制基礎層（生產採用率年增一倍至 11%），但同時暴露出其結構極限：OTel 只記錄「發生了什麼」，無法評判「是否合乎政策」。這催生出雙層架構：<strong>OTel 遙測管線</strong>（OTLP 攝取 + Collector 扇出 + ClickHouse 列存）作為不可篡改事件記錄，加上<strong>目的性治理層</strong>於其上。</p>
+<p>對 DDP 系統而言，<code>state/governance-events.jsonl</code> 已是一套成熟的治理事件流，<code>harness_trace_id</code> 欄位提供了 trace 關聯的雛型。本簡報萃取 5 項洞見，說明如何以最小成本升格這套機制，形成「治理事件 × OTel span 雙軌關聯」可觀測性層。</p>
+<p>---</p>
+<h2>核心洞見（5 項）</h2>
+<h3>洞見 1：OTel Collector 作為治理政策執行點（Enforcement Point）</h3>
+<p><strong>核心論點</strong>：將 OTel Collector 定位為 inline PII 過濾 + OPA 政策評估點，而非只是數據路由器。</p>
+<p><strong>證據來源</strong>：</p>
+<ul>
+<li>Red Hat 生產 agentic tracing 指南（2026-04）描述 Collector processor pipeline 作為 policy enforcement point，實現 inline PII 過濾、OPA 評估、graduated enforcement</li>
+<li>實測結果：L0–L4 漸進式執行機制（L0=允許 → L1=告警 → L2=標記 → L3=重導向 → L4=隔離），P50 端到端延遲 127ms，VPR（違規偵測率）99.7%</li>
+<li>升級計算公式：<code>min(4, base + floor(violations_in_window / k))</code>，加上 per-agent circuit breaker</li>
+</ul>
+<p><strong>DDP 對應</strong>：DDP 的 <code>hooks/</code> layer 已具備類似攔截能力（PreToolUse, PostToolUse）。OTel Collector processor 是同一概念在可觀測性層的對等實作——治理決策可從 hooks 下沉到 Collector，在資料進入後端前完成。</p>
+<p>---</p>
+<h3>洞見 2：JSONL 治理事件 × OTel Span 雙流關聯設計</h3>
+<p><strong>核心論點</strong>：大 payload（prompts/completions）應掛在 span <em>events</em> 而非 span <em>attributes</em>，因此 JSONL 治理事件可視為與 OTel span 樹並行的事件流，透過 trace_id / span_id join 實現統一稽核重建。</p>
+<p><strong>證據來源</strong>：</p>
+<ul>
+<li>OTel LLM Working Group 建議：大 payload 掛 span events 而非 attributes（後端常有 attribute size 限制）</li>
+<li>Langfuse OTLP 端點（<code>/api/public/otel</code>）的雙層映射：trace-level attributes（userId、sessionId、metadata、tags）vs. observation-level attributes（個別步驟→spans/generations/events）</li>
+<li>有 <code>model</code> 屬性的 span 自動轉換為 <code>generation</code> type；<code>langfuse.*</code> namespace 優先於通用 GenAI 語義約定</li>
+</ul>
+<p><strong>實際管線設計</strong>：</p>
+<pre><code>
+JSONL 治理事件（append-only）
+   + OTel span 樹（attribute-level 輕量 metadata）
+   → 週期性 join on trace_id + span_id
+   → 統一稽核重建視圖
+</code></pre>
+<p><strong>DDP 對應</strong>：<code>state/governance-events.jsonl</code> 已含 <code>trace_id</code>（harness_trace_id），缺少的是 <code>span_id</code> 與 W3C <code>traceparent</code> 標頭傳播。最小改造路徑：在 govlog 寫入時附加 span_id，即可實現雙流關聯。</p>
+<p>---</p>
+<h3>洞見 3：W3C Trace Context 傳播完整性是跨 Agent 治理的關鍵瓶頸</h3>
+<p><strong>核心論點</strong>：自動注入只在 HTTP 路徑有效；Claude Code CLI → PS1 → MCP server 等非標準邊界需手動 inject，任何斷點都讓跨 Agent 血統追蹤（lineage）失效。</p>
+<p><strong>證據來源</strong>：</p>
+<ul>
+<li>arxiv 2604.05119 的 Governance Telemetry Schema（GTS/ATS）研究：跨 Agent 血統可見性是點對點 guardrails 無法填補的關鍵缺口</li>
+<li>案例：EU PII 跨 OrderAgent→ShippingAgent→AnalyticsAgent 的跨管轄違規，只有在完整委派鏈血統維護下才可偵測</li>
+<li>Llama Stack → MCP servers 邊界需手動呼叫 <code>opentelemetry.propagate.inject()</code>；自動插桩不覆蓋非標準 hop</li>
+</ul>
+<p><strong>DDP 對應</strong>：DDP 的 PS1 排程（<code>run-todoist-agent-team.ps1</code>）→ <code>claude -p</code> 呼叫 → 各 Agent phase 形成一個跨越三個邊界的執行鏈；目前 <code>harness_trace_id</code> 由 PS1 產生傳至 Agent，但 Agent 內部子呼叫（KB 匯入、ntfy 發送）並無 span 傳播。</p>
+<p>---</p>
+<h3>洞見 4：Langfuse 自架 TCO 分析——DDP 規模不達盈虧平衡點</h3>
+<p><strong>核心論點</strong>：Langfuse v3 自架 TCO 約 $3,000–4,000/月，雲端 Pro $199–300/月；自架只在 2–5M events/月以上或嚴格資料落地需求時才划算。</p>
+<p><strong>證據來源</strong>：</p>
+<ul>
+<li>v3 四服務架構：Postgres（交易/元資料）+ ClickHouse（分析/trace 儲存）+ Redis/Valkey（佇列/快取）+ S3 相容儲存（大型 payload）+ web/worker containers</li>
+<li>ClickHouse 是主要成本驅動；Langfuse Enterprise 授權費需加計 ClickHouse 商業授權</li>
+<li>2025-06 起核心功能改 MIT 授權（tracing、evals、prompt management、annotation queues、playground），只有薄企業合規功能保持商業授權</li>
+<li>DevOps 維護穩定期每週數小時，ClickHouse 升級時更多</li>
+</ul>
+<p><strong>DDP 對應（Taleb 反模式警告）</strong>：DDP 當前的 govlog 事件量遠低於 2M/月，Langfuse 雲端 Pro tier 在此規模下更具成本效益。自架 Langfuse 可作為中長期規劃，但短期應優先以輕量本地方案（如 Grafana Tempo + 自建 ClickHouse 小型單機）驗證雙流關聯 POC。</p>
+<p>---</p>
+<h3>洞見 5：治理遙測 Schema（GTS）pattern — 標準擴展而非替換</h3>
+<p><strong>核心論點</strong>：GTS/ATS 在標準 OTel span 之上附加治理元資料（source_agent, operation_class, jurisdiction, sensitivity, lineage, verification_status），形成「OTel GenAI 語義約定 + GTS 擴展」雙層 schema，不替換標準協議。</p>
+<p><strong>證據來源</strong>：</p>
+<ul>
+<li>arxiv 2604.05119：GTS 模式定義 8 個治理維度（source agent、receiving agent、operation、classification、jurisdiction、sensitivity、lineage、verification status）</li>
+<li>OTel 2025 趨勢報告：89% 的生產用戶視廠商規範符合性為關鍵；從供應商分發（Datadog、Grafana、Elastic）的比率 44%→60% YoY</li>
+<li><code>langfuse.*</code> attribute namespace 為同類設計先例——在標準 GenAI 語義約定之上加 product-specific namespace</li>
+</ul>
+<p><strong>DDP 對應</strong>：DDP govlog 已有隱式 GTS 欄位（task_key=source_agent, action=operation, loop_mode=enforcement_level, created_at=timestamp）。顯式化映射至 OTel attribute namespace（如 <code>ddp.gov.*</code>）即可與 GTS 模式對齊，無需重建 schema。</p>
+<p>---</p>
+<h2>多透鏡洞察（L2 Analysis）</h2>
+<h3>透鏡選擇</h3>
+<p>本次套用三組思考透鏡（來源：<code>temp/insight-briefing-lens.json</code>）：</p>
+<ul>
+<li><strong>Sam Altman（primary）</strong>：規模突破、長期投資、持續迭代 lens</li>
+<li><strong>Jensen Huang（primary）</strong>：工程加速、軟體定義、算力最大化 lens  </li>
+<li><strong>Taleb（adversarial）</strong>：反脆弱、尾部風險、反模式識別 lens</li>
+</ul>
+<h3>框架化建議</h3>
+<p><strong>Sam Altman 透鏡</strong>：治理可觀測性不是成本中心，是解鎖 <strong>Full Autonomy</strong> 的前提條件。只有當每個 Agent 決策都可追蹤、可重播、可問責，才能安全地放大自動化規模——這是 100× 而非 2× 的槓桿。OTel Collector as policy enforcement point 是把「監控」升格為「可信基礎設施」的關鍵轉折，值得長期投資。</p>
+<p><strong>Jensen Huang 透鏡</strong>：JSONL + OTLP 雙流架構是「軟體定義可觀測性」——不依賴昂貴 APM 授權，用 ClickHouse 列存引擎在標準硬體上達 10:1 壓縮；Collector processor pipeline 讓政策邏輯「燒入」資料管線，治理從應用代碼走向基礎設施。DDP 現有的 PowerShell 管線（deterministc layer first）正是這種思路的自然延伸。</p>
+<p><strong>Taleb 反模式檢查</strong>：</p>
+<ol>
+<li>❌ <strong>「監控幻覺」</strong>：只在 HTTP 邊界做 W3C Trace Context 傳播，以為覆蓋了完整可觀測性——實際 MCP、async subprocess、PWsh 跨進程邊界全是斷點，高嚴重度治理違規恰好在這些盲區發生</li>
+<li>❌ <strong>「Langfuse 自架迷信」</strong>：規模未達 2-5M events/月 就上 ClickHouse 集群，運維複雜度超過可觀測性帶來的收益</li>
+<li>❌ <strong>「完美 schema 等待主義」</strong>：等待 GTS 完整標準化才開始，錯失早期用 <code>ddp.gov.*</code> namespace 漸進驗證的機會</li>
+</ol>
+<h3>透鏡盲區自陳</h3>
+<p>三個 primary/adversarial 透鏡均偏向技術實現最優化；可能低估組織採用阻力（「誰來維護 OTel Collector 規則？」）和治理事件的隱私處理複雜度（govlog 本身可能含 PII，用 OTel 廣播前需先處理）。</p>
+<p>---</p>
+<h2>建議行動</h2>
+<ol>
+<li><strong>立即可做（一行修改）</strong>：在 <code>tools/lib/govlog.py</code> 的 <code>log_event()</code> 函式，額外記錄 <code>span_id</code>（可用 <code>uuid4()</code> 作臨時產生，後期替換為 OTel context propagation）——為雙流關聯奠基，不依賴完整 OTel 部署</li>
+</ol>
+<ol>
+<li><strong>短期 POC（1-2 週）</strong>：建立 <code>tools/gov_trace_correlate.py</code>：讀取 <code>state/governance-events.jsonl</code>，join <code>context/continuity/*.json</code> 中的 <code>harness_trace_id</code>，產生 <code>state/gov-trace-correlation-report.json</code>——用確定性 join 先驗證關聯性，不需 Langfuse</li>
+</ol>
+<ol>
+<li><strong>中期評估（觀察期後）</strong>：依 DDP govlog 實際月均事件量決定 Langfuse 部署策略——低於 500k events/月 → Langfuse Cloud Pro；500k–2M → Cloud Pro + export；2M+ → 考慮自架 Lite（Postgres only，不上 ClickHouse 集群）</li>
+</ol>
+<ol>
+<li><strong>長期基礎設施（6+ 個月）</strong>：在 PS1 排程調度層（<code>run-todoist-agent-team.ps1</code>）實作 W3C Trace Context 跨 phase 傳播，使 Phase 0→1→2→3 形成連貫 span 樹</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li>Elastic Blog — 2026 Observability Trends: Generative AI and OpenTelemetry  </li>
+</ol>
+<p>   <code>https://www.elastic.co/blog/2026-observability-trends-generative-ai-opentelemetry</code></p>
+<ol>
+<li>Langfuse — Pricing Self-Host (v3 Architecture)  </li>
+</ol>
+<p>   <code>https://langfuse.com/pricing-self-host</code></p>
+<ol>
+<li>Langfuse — OpenTelemetry Native Integration  </li>
+</ol>
+<p>   <code>https://langfuse.com/integrations/native/opentelemetry</code></p>
+<ol>
+<li>arXiv 2604.05119 — Governance-Aware Agent Tracing with GTS/ATS  </li>
+</ol>
+<p>   <code>https://arxiv.org/html/2604.05119</code></p>
+<ol>
+<li>Red Hat Developer — Distributed Tracing for Agentic Workflows (OpenTelemetry)  </li>
+</ol>
+<p>   <code>https://developers.redhat.com/articles/2026/04/06/distributed-tracing-agentic-workflows-opentelemetry</code></p>
+<ol>
+<li>OpenTelemetry Blog — LLM Observability (2024)  </li>
+</ol>
+<p>   <code>https://opentelemetry.io/blog/2024/llm-observability/</code></p>
+<p>---</p>
+<h2>附錄：KB 語義快取遙測（7 日）</h2>
+<p>| 指標 | 值 |</p>
+<p>|------|---|</p>
+<p>| 快取檔存在 | ✓ |</p>
+<p>| 條目數 | 0 |</p>
+<p>| Lookup 事件（7日） | 0 |</p>
+<p>| Store 事件（7日） | 0 |</p>
+<p>| Degraded 事件 | 0 |</p>
+<p>| fastembed 可用性 | ✗（不可用） |</p>
+<p>| 降級比例 | N/A |</p>
+<p>| 快取 TTL | 10,080 分鐘（7 天） |</p>
+<p><strong>說明</strong>：KB 語義快取目前無命中記錄（fastembed 不可用，語義向量快取處於 degraded 模式）。本次研究走 WebSearch 直連，未命中語義快取。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 架構 - 2026-06-25">
+  <title>GitHub Scout: Agent 架構 - 2026-06-25 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 架構 - 2026-06-25</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent 架構</span><span class="tag">github_scout</span><span class="tag">2026-06-25</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>專案觀測摘要（2026-06-25）</h2>
+<p>主題：Agent 架構（runtime orchestration / state management / human-in-the-loop）</p>
+<p>搜尋方向：LangGraph/AutoGen/Temporal，焦點 state management 與 HITL 設計（Haiku 建議）</p>
+<h3>LangGraph（langchain-ai/langgraph）35,681★</h3>
+<ul>
+<li><strong>runtime_model</strong>：狀態圖式編排（帶循環），事件驅動節點架構</li>
+<li><strong>state_strategy</strong>：Checkpoint-based 持久化（MemorySaver/自訂 CheckpointSaver）；thread-based 狀態快照支援 time-travel 與容錯</li>
+<li><strong>human_review_model</strong>：interrupt-point 模式 — LangGraph interrupt() API，graph 遇 breakpoint 暫停等待人工 approve/edit，適合同步短延遲審核</li>
+<li><strong>evidence</strong>：REST 觀測 stargazers_count=35681，pushed_at=2026-06-25T03:32:44Z</li>
+</ul>
+<h3>CrewAI（crewAIInc/crewAI）54,326★</h3>
+<ul>
+<li><strong>runtime_model</strong>：雙層架構 Crews + Flows（事件驅動 @router DAG 條件分支）</li>
+<li><strong>state_strategy</strong>：短期記憶 + Pydantic 狀態 + 外部持久存儲</li>
+<li><strong>human_review_model</strong>：interrupt-point 模式 — wait_for_input() 方法，Flow 節點暫停等待人工輸入</li>
+<li><strong>evidence</strong>：REST 觀測 stargazers_count=54326，pushed_at=2026-06-25T04:02:07Z</li>
+</ul>
+<h3>Microsoft Agent Framework（microsoft/agent-framework）11,641★</h3>
+<ul>
+<li><strong>runtime_model</strong>：圖式工作流（順序/並行/handoff/群組）；CodeAct 模式 hyperlight 容器隔離</li>
+<li><strong>state_strategy</strong>：Checkpoint-based 持久執行，自動狀態持久化，從最後成功步驟恢復</li>
+<li><strong>human_review_model</strong>：signal-based 模式 — RequestInfoEvent emission，workflow 暫停等外部信號注入，適合非同步高延遲審核</li>
+<li><strong>evidence</strong>：REST 觀測 stargazers_count=11641，pushed_at=2026-06-25T05:54:56Z</li>
+</ul>
+<h2>改進提案</h2>
+<p>| # | 專案 | 提案 | 優先級 | 風險 |</p>
+<p>|---|------|------|--------|------|</p>
+<p>| 1 | langchain-ai/langgraph | 評估 checkpoint state recovery 整合 planner_executor | P1 | high |</p>
+<p>| 2 | microsoft/agent-framework | RequestInfoEvent 關鍵字補充 review policy | P1 | low |</p>
+<p>| 3 | crewAIInc/crewAI | wait_for_input HITL 對 Phase 1a dispatch 影響評估 | P2 | medium |</p>
+<h2>審查結論</h2>
+<ul>
+<li>提案 1（LangGraph checkpoint）：可行性高，但修改 runner.py 屬高風險，建計畫後人工審核。</li>
+<li>提案 2（microsoft/agent-framework 關鍵字）：低風險，直接落實（更新 config/github-scout-review-policy.yaml）。</li>
+<li>提案 3（CrewAI wait_for_input）：長期觀察，本系統已有 crewai-router-dag workflow，暫不重複建計畫。</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li>config/github-scout-review-policy.yaml agent_architecture.match_any 新增 RequestInfoEvent、CodeAct</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>docs/plans/github-scout-langgraph-checkpoint-20260625.md（LangGraph checkpoint 整合 PE 計畫）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
