@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing 深度研究洞察簡報：Graphiti 時態知識圖譜 × ADR Stale Premise 精準度提升（2026-06-29）">
+  <title>insight-briefing 深度研究洞察簡報：Graphiti 時態知識圖譜 × ADR Stale Premise 精準度提升（2026-06-29） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing 深度研究洞察簡報：Graphiti 時態知識圖譜 × ADR Stale Premise 精準度提升（2026-06-29）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">graphiti</span><span class="tag">temporal-kg</span><span class="tag">self-heal</span><span class="tag">adr-stale</span><span class="tag">knowledge-graph</span><span class="tag">ddp</span><span class="tag">write-time-invalidation</span><span class="tag">stale-premise</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：Graphiti 時態知識圖譜 × ADR Stale Premise 精準度提升</h1>
+<p><strong>日期</strong>：2026-06-29</p>
+<p><strong>主題</strong>：評估 getzep/graphiti 追蹤 ADR registry invalidated_at，改善 self_heal stale premise 精準度</p>
+<p><strong>透鏡</strong>：distill-sam-altman（主）、distill-jensen-huang（主）、distill-taleb（對抗）</p>
+<h2>摘要</h2>
+<p>DDP 的 self_heal 機制反覆引用已 Deferred 或 Superseded 的 ADR 作為修復前提（stale premise），導致 self_heal 連敗後才升級至 arch_evolution，消耗大量 LLM token。核心發現：write-time invalidation 比 LLM query-time stale 偵測精準（68% vs 55.2%）。最小可行應用路徑：先機械過濾 Deferred/Superseded ADR（零成本），再引入 Graphiti FalkorDB Lite embedded 批次時態追蹤。</p>
+<h2>關鍵洞見（7 項）</h2>
+<ol>
+<li>DDP self_heal 的根本問題是 write-time vs query-time 架構選擇。STALE 論文（arXiv 2605.06527）實證：LLM query-time stale 識別精度僅 55.2%；CUPMem write-time adjudication 提升至 68%。</li>
+</ol>
+<ol>
+<li>Graphiti 雙時態模型（t_valid/t_invalid/t'_created/t'_expired）與 DDP adr-registry.json 的 created_at/decided_at/review_due/status 有直接對應。</li>
+</ol>
+<ol>
+<li>adr-registry.json 中 1281 筆 Deferred、161 筆 Superseded，其 fix_instructions 被 self_heal 引用，是 Type II 傳播衝突的系統性來源。</li>
+</ol>
+<ol>
+<li>Graphiti v0.29.2 支援 FalkorDB Lite embedded mode（Python 3.12+），uv add graphiti-core[falkordblite] 零外部基礎設施啟動。</li>
+</ol>
+<ol>
+<li>每個 episode 攝入需 LLM 呼叫，DDP 每日 ADR 異動 <10 筆，批次攝入成本估算 <$0.01/日。</li>
+</ol>
+<ol>
+<li>Graphiti 混合檢索 P95 300ms，無 LLM 呼叫，可作為 self_heal Phase 0 零成本前置守衛。</li>
+</ol>
+<ol>
+<li>Entity resolution 可消除 ADR 命名漂移導致的 dedup 失效（source_pattern 命名不一致問題）。</li>
+</ol>
+<h2>多透鏡洞察</h2>
+<h3>Sam Altman 視角</h3>
+<p>先 ship 再迭代：先以 FalkorDB Lite 嵌入跑 2 週驗證，測量 self_heal 引用 Superseded/Deferred ADR 頻率。批次模式（每日攝入 ADR 異動 diff）是唯一可接受的成本路徑。</p>
+<h3>Jensen Huang 視角</h3>
+<p>Workload first：DDP 每日 ADR 異動 <10 筆，批次 TCO 遠低於 real-time。Full-stack：graphiti-core[falkordb] + uv + 日排程，不引入 Neo4j server。</p>
+<h3>Taleb 對抗視角</h3>
+<p>Via Negativa：先移除讓 stale premise 存活的機制（依賴 LLM query-time 推理），而非新增複雜度。機械過濾 Deferred/Superseded ADR 是最先做的事。review_due 欄位是火雞安慰劑——沒有機制確認 review 實際發生。</p>
+<h2>建議行動（Ponytail 決策階梯）</h2>
+<ul>
+<li>階梯①：YAGNI 驗證——統計 Deferred/Superseded ADR 被引用比例，<5% 機械過濾即可</li>
+<li>階梯②：機械過濾——arch_decision_step_h.py pre-flight validate 加入 status in ['Deferred','Superseded','Wontfix'] 過濾，zero cost</li>
+<li>階梯⑤：Graphiti MVP——uv add graphiti-core[falkordblite]，tools/graphiti_adr_probe.py，每日批次攝入，kill switch DDP_GRAPHITI_ADR=off</li>
+</ul>
+<h2>參考來源</h2>
+<ul>
+<li>arXiv 2501.13956（Zep 時態 KG 架構論文，雙時態模型，LongMemEval +15-18%）</li>
+<li>arXiv 2605.06527（STALE：LLM stale premise 識別精度實證，CUPMem 68% vs 55.2%）</li>
+<li>GitHub getzep/graphiti v0.29.2（FalkorDB Lite embedded 支援）</li>
+<li>vectorize.io AI Agent 記憶框架比較 2026</li>
+<li>codex.danielvaughan.com Graphiti 實際整合評估（Backlog 高優先建議）</li>
+<li>arXiv 2603.01548（Graph-Based Self-Healing Tool Routing）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
