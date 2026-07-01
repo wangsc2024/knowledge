@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：Agent 記憶分層淘汰策略 — mem0/Graphiti/Letta 對照 DDP archival 設計 insight-briefing">
+  <title>深度研究洞察簡報：Agent 記憶分層淘汰策略 — mem0/Graphiti/Letta 對照 DDP archival 設計 insight-briefing | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：Agent 記憶分層淘汰策略 — mem0/Graphiti/Letta 對照 DDP archival 設計 insight-briefing</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">agent-memory</span><span class="tag">continuity</span><span class="tag">archival</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：Agent 記憶分層淘汰策略 — mem0/Graphiti/Letta 對照 DDP archival 設計</h1>
+<p><strong>日期</strong>：2026-07-02</p>
+<p><strong>研究系列</strong>：<code>agent-memory-tiering-ddp-archival</code>（階段：application，完成度 40%）</p>
+<p><strong>多透鏡</strong>：distill-sam-altman（primary）、distill-jensen-huang（primary）、distill-taleb（adversarial）</p>
+<p>---</p>
+<h2>摘要</h2>
+<p>三大主流 Agent 記憶框架各自代表一種淘汰哲學：<strong>mem0</strong> 用「搜尋時重排」的軟衰減（recency boost/damping，5 倍縮放區間）取代硬刪除；<strong>Graphiti</strong> 用雙時態圖（valid_at/invalid_at）讓過期事實「作廢不刪除」以保留可查詢的歷史軌跡，但一篇 2026-06 的 arXiv 論文實證指出，<strong>遺忘失敗（forgetting failure）在生產環境中比回想失敗更普遍</strong>，且沒有任何一種 control-plane 配置（規則式、LLM 寫入時、變異時期掛鉤）能同時兼顧「正規化」與「意圖感知刪除」；<strong>Letta</strong> 則讓 agent 用工具呼叫自主決定寫入 archival（self-edit），代價是消耗推理預算且已知有 5 種失敗模式（archival 變垃圾堆、搜尋語意失配等）。對照 DDP 現有 <code>config/memory-policy.yaml</code>：其 9 層記憶模型的<strong>設計靈感已完整覆蓋這三個框架的核心概念</strong>（quality_score 對應 mem0、archival_tier 的 valid_from/valid_until 對應 Graphiti、archival_memory 層對應 Letta），但<strong>多數停留在「policy 宣告層」，執行層從未強制</strong>——這是本次研究鎖定的核心缺口，並提出 2 條具體可執行的收斂建議。</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<h3>洞見 1：mem0 的衰減是「重排序」而非「過濾器」，DDP 的 quality_score 卻只有「宣告」沒有「排序邏輯」</h3>
+<p>mem0 官方部落格明確說明：decay factor 作用於搜尋時重排——最近存取記憶得 1.5× 加成、長期未觸及得 0.3× 衰減，形成 5 倍差距，<strong>但最低係數仍是 0.3×，代表陳舊記憶若確實是最佳匹配仍會被檢索到</strong>（<a href="https://mem0.ai/blog/introducing-memory-decay-in-mem0">mem0.ai/blog/introducing-memory-decay-in-mem0</a>）。這與硬刪除式的規則驅動保留（retention_runs=3）本質不同：mem0 從不刪除，只調整優先序。</p>
+<p>反觀 <code>config/memory-policy.yaml</code> 的 <code>continuity.quality_scoring_note</code> 明確自陳：「目前為 policy 宣告層（建議性），執行層（preamble.md）尚未強制過濾」——換言之，DDP 已經定義了 <code>quality_score</code>（0-5，對應 done_cert.quality_score）欄位，卻從未寫過任何讀取時的加權或排序邏輯。這是「有欄位、無行為」的典型死標籤模式（呼應 <code>config/CLAUDE.md</code> 的「死標籤防呆」教訓）。</p>
+<h3>洞見 2：Graphiti 的「作廢不刪除」設計，DDP 的 archival_tier 已具備但未落地驗證</h3>
+<p>Graphiti 官方文件（<a href="https://www.getzep.com/ai-agents/temporal-knowledge-graph/">getzep.com/ai-agents/temporal-knowledge-graph</a>）指出核心問題：「一個無法表達事實何時為真的圖，終究會給 agent 兩個矛盾的事實」——這正是幻覺的主因之一。解法是「關閉舊事實的有效窗（設 valid_to）而非刪除」，同時支援三種查詢能力：現狀推理、歷史查詢、可稽核溯源。</p>
+<p><code>config/memory-policy.yaml</code> 的 <code>continuity.archival_tier.archived_summary_fields</code> 已經設計了 <code>valid_from</code>/<code>valid_until</code> 欄位，並在 notes 中明確標註「靈感來源：getzep/graphiti 雙時態 validity window（2026-06-10 github_scout）」——這代表<strong>DDP 的設計吸收已經完成</strong>，但 <code>archival_tier.enabled</code> 目前狀態需與 <code>tools/archival_tier_activator.py</code> 的 SOL 驗收條件比對確認是否已啟用（本次未逐一驗證實際執行狀態，屬後續 optimization 階段工作）。</p>
+<h3>洞見 3：Letta 的 self-edit 是「agent 自主決策」，DDP 現行機制全部是「規則驅動」——這可能是正確選擇，而非缺口</h3>
+<p>Letta 讓 agent 透過 <code>archival_memory_insert()</code> 工具呼叫自主判斷「這筆資訊超過核心記憶容量但仍有長期參考價值」時寫入 archival（<a href="https://sureprompts.com/blog/letta-memgpt-walkthrough">sureprompts.com/blog/letta-memgpt-walkthrough</a>）。但官方文件同時列舉 5 個已知失敗模式：空白 human 區塊（agent 未被提示何時追加）、失控的記憶膨脹、archival 變垃圾堆（無整合機制）、語意失配的搜尋誤差、跨用戶記憶污染。且明確承認「agent 消耗部分推理預算在記憶管家工作而非任務執行」。</p>
+<p>DDP 現行的 8 層記憶模型（<code>context/continuity/*</code>、<code>research-registry.json</code>、<code>improvement-backlog.json</code> 等）<strong>全數是規則驅動</strong>（<code>retention_runs</code>、<code>max_entries</code>、<code>stale_after_days</code>），沒有 Letta 式的 agent self-edit 決策層。依 Ponytail 精簡優先原則（決策階梯③「標準庫/原生能做」優先於「才動手」），<strong>這很可能是正確的架構選擇而非缺口</strong>：Letta 的成本（token 消耗於記憶管家、5 種已知失敗模式）在 DDP 的機械化管線場景下未必划算，除非能證明規則驅動已明顯失效。</p>
+<h3>洞見 4：2026-06 arXiv 論文的核心警訊——「遺忘失敗比回想失敗更普遍」，且沒有單一 control-plane 配置能穩贏</h3>
+<p>《Control-Plane Placement Shapes Forgetting》（Dongxu Yang，2026-06-14 v1，<a href="https://arxiv.org/abs/2606.15903">arxiv.org/abs/2606.15903</a>）在 385 個對抗性測試案例、13 種系統配置上系統性比較，發表 ForgetEval 基準套件（1000 個模板化案例 + 385 對抗層）。核心結論：</p>
+<ul>
+<li><strong>確定性原始方法</strong>（規則驅動）：適用於詞彙和時間類別過濾，但在正規化（normalization）方面失效</li>
+<li><strong>LLM 寫入時處理</strong>：恢復正規化能力，但無助於「意圖感知刪除」（intent-aware deletion）</li>
+<li><strong>變異時期掛鉤</strong>（mutation-episode hooks）：恢復意圖感知刪除功能</li>
+</ul>
+<p>三者互有優劣，<strong>沒有任何單一配置全面勝出</strong>，且論文強調「生產環境中遺忘失敗（該刪的沒刪、該標記過期的沒標記）比回想失敗（該記得的沒記得）更普遍，而現有基準測試主要關注回想能力」——這對 DDP 極具參考價值：DDP 過去的 self_heal stale premise 問題（見 memory 中 2026-06-29「機械過濾 Deferred/Superseded ADR」洞見）正是「遺忘失敗」的具體案例，證實這是業界共通痛點而非 DDP 特有 bug。</p>
+<h3>洞見 5：三框架的量化前提——Graphiti stale 偵測精準度僅 55.2%，機械規則仍是低成本首選</h3>
+<p>延續 2026-06-29 已有 KB 研究（<code>github-scout 2026-06-30: Agent Memory 研究筆記</code>、<code>backlog_ib_20260629_graphiti-temporal-kg-adr-stale-tracking</code>）的實證數據：STALE 論文顯示 LLM query-time stale 識別精準度僅 55.2%。本次 WebFetch 進一步確認 Graphiti 官方文件本身也「未明確詳述精準度限制、大規模效能約束或邊界案例」——即框架宣稱的能力與第三方獨立驗證之間存在落差。</p>
+<p>這強化了既有 backlog 建議（<code>backlog_ib_20260629_..._1</code>）的方向：<strong>在 DDP 場景下，機械式狀態過濾（status in [Deferred, Superseded, Wontfix]）比引入 LLM 或圖資料庫式的 stale 偵測更低成本、更可預測</strong>——與 Ponytail「機械優先序：PowerShell > Python > … > LLM」完全一致，也與本次 arXiv 論文「確定性方法在詞彙/時間類別上有效」的結論吻合。</p>
+<p>---</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇與理由</h3>
+<p>本次研究主題（記憶系統的分層淘汰與系統整合決策）適用 Sam Altman 的「規模化與快速部署反饋」視角——判斷 DDP 是否該投入資源引入外部框架，還是持續用現有機械規則；同時適用黃仁勳的「demand-driven 創新」視角——先看 workload（DDP 實際的記憶存取模式）再決定要不要疊加新架構層。塔勒布作為對抗性透鏡，用於檢視「引入新記憶機制」本身是否製造了不必要的脆弱性。</p>
+<h3>框架化建議</h3>
+<p>依 Sam Altman 的「快速部署反饋」心智模型（模型 3）：DDP 不需要一次性導入完整的 mem0/Graphiti/Letta 三件套，而應採用「先 ship 再迭代」——本次建議的兩條 backlog 項目都刻意選擇最小可行的機械化步驟（quality_score 加權排序、archival_tier 啟用狀態稽核），而非重寫整套記憶架構，符合「先讓一個小改動跑起來看真實效果，再決定要不要擴大」的部署反饋迴路原則。</p>
+<p>依黃仁勳的「demand-driven 創新」心智模型（模型 5）：判斷是否要引入 Letta 式 self-edit 或 Graphiti 圖資料庫，第一步永遠是「workload 是什麼」——DDP 的記憶讀寫頻率、記憶條目規模（continuity 每個 task_key 僅 3-10 筆 runs、improvement-backlog 上限 200 筆）遠低於 Graphiti/Letta 設計目標的規模（企業級多用戶、持續對話式 agent）。在此 workload 下，先定義晶片（或先加基礎設施）而非先看需求，正是黃仁勳「不做無用規格」的反模式警告。</p>
+<h3>反模式檢查</h3>
+<p>依塔勒布的反模式清單（反例黑名單 #1「不做兩面論」與模型 5「Via Negativa 減法優先」）檢視本簡報的建議：本次刻意避免「一方面 mem0 好、一方面 Graphiti 也好、都各採用一點」的和稀泥式建議，而是明確指出——<strong>在 DDP 目前規模下，減法（機械規則過濾）優於加法（引入新框架依賴）</strong>。塔勒布的「Fragilista」警告在此適用：若在低 workload 場景強行導入 Graphiti FalkorDB embedded 依賴（backlog <code>_2</code> 項），是「用過度最佳化和干預製造脆弱性」的典型模式——這也是為何本次未把「導入 Graphiti」列為當前建議的第一優先，而是先完成機械過濾（更低成本、更符合遍歷性檢驗：規則驅動失敗的代價可控，圖資料庫依賴一旦導入就難以撤回）。</p>
+<h3>透鏡盲區自陳</h3>
+<p>依 distill-taleb 的誠實邊界第 6 條「調研截止時間 2026-04-04 之後的變化未覆蓋」：塔勒布本人對 LLM Agent 記憶系統工程細節並非其專長領域（其領域特異性模型明確指出「能力和理性都是領域特定的」），本次借用其風險框架分析記憶架構決策，屬於跨域套用而非其原生專業判斷，讀者應以其風險思維方法論（而非具體記憶系統建議）為主要參考價值。同樣地，Sam Altman 與黃仁勳的視角聚焦於「規模化商業決策」，對 DDP 這種單體、非商業化的個人自動化系統，其「平台生態」「AI factory」等心智模型的適用性有限，僅取其「先驗證再擴張」「先看 workload 再加基礎設施」的決策邏輯部分。</p>
+<p>---</p>
+<h2>建議行動或後續研究</h2>
+<ol>
+<li><strong>（已寫入 backlog，見下）</strong> 為 <code>quality_score</code> 補上執行層讀取邏輯：讀取 continuity runs 時，對 <code>quality_score < 2</code> 的 run 標記 <code>[low_quality]</code> 降低參考權重（memory-policy.yaml 已宣告但從未實作，屬於直接可執行的低成本收斂）</li>
+<li><strong>（已寫入 backlog，見下）</strong> 稽核 <code>tools/archival_tier_activator.py</code> 的 SOL 驗收狀態與 <code>context/continuity/auto-task-*-archive.json</code> 實際寫入情形，確認 Graphiti 啟發的 <code>valid_from</code>/<code>valid_until</code> 欄位設計是否已在生產環境驗證通過</li>
+<li><strong>後續研究方向（optimization 階段）</strong>：待建議 1 上線後，量測 quality_score 加權對 preamble.md 讀取 continuity 時的實際參考品質影響，作為系列研究下一階段（optimization：效能調校）的資料基礎</li>
+<li><strong>明確不做</strong>：本次研究不建議在當前 workload 規模下導入 Letta self-edit 或 Graphiti 圖資料庫依賴（詳見多透鏡洞察之反模式檢查）</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://mem0.ai/blog/introducing-memory-decay-in-mem0">Introducing Memory Decay in Mem0</a> — 品質等級 A（官方部落格）| mem0.ai</li>
+<li><a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026">State of AI Agent Memory 2026: Progress Benchmark Report</a> — 品質等級 A | mem0.ai</li>
+<li><a href="https://www.getzep.com/ai-agents/temporal-knowledge-graph/">Graphiti — Temporal Knowledge Graph</a> — 品質等級 A（官方文件）| getzep.com</li>
+<li><a href="https://github.com/getzep/graphiti">GitHub - getzep/graphiti</a> — 品質等級 A（官方 repo，28.2k★，v0.29.2）| github.com</li>
+<li><a href="https://sureprompts.com/blog/letta-memgpt-walkthrough">Letta (MemGPT) Walkthrough: How Self-Managing Agent Memory Works (2026)</a> — 品質等級 B | sureprompts.com</li>
+<li><a href="https://arxiv.org/abs/2606.15903">Control-Plane Placement Shapes Forgetting: An Architectural Study of Agent Memory Across Thirteen System Configurations</a>（Dongxu Yang，2026-06-14）— 品質等級 A（arXiv 論文）</li>
+<li>補充搜尋結果（未逐篇 WebFetch，供後續深化）：<a href="https://weavai.app/blog/en/2026/05/09/mem0-review-2026-ai-agent-memory-king-26-accuracy/">Mem0 Review 2026</a>、<a href="https://preuve.ai/blog/ai-memory-systems-statistics-2026">AI Memory Stats 2026</a>、<a href="https://vectorize.io/articles/mem0-vs-letta">Mem0 vs Letta comparison</a>、<a href="https://vectorize.io/articles/letta-vs-langchain-memory">Letta vs LangChain Memory</a></li>
+</ul>
+<p>---</p>
+<h2>附錄：快取遙測</h2>
+<pre><code>
+{
+  "days": 7,
+  "cache_exists": true,
+  "entry_count": 0,
+  "total_hit_count": 0,
+  "log_events_7d": {"lookup": 0, "store": 0, "http_fallback": 0, "degraded": 0},
+  "degraded_ratio": null,
+  "fastembed_available": false
+}
+</code></pre>
+<p><strong>Degraded 原因</strong>：<code>fastembed_available: false</code> — 本地 fastembed 嵌入模型未啟動/不可用，語義快取層本次執行期間降級（entry_count=0、無 lookup/store 事件）。此為已知降級模式，不影響本次研究流程（KB hybrid search 走 BM25 fallback 仍正常運作，見步驟 1 KB 感測結果）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
