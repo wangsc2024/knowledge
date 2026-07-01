@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="github-scout 2026-06-30: CrewAI Flows 與 smolagents 研究筆記（crewai_flows_orchestration + smolagents_code_agent）">
+  <title>github-scout 2026-06-30: CrewAI Flows 與 smolagents 研究筆記（crewai_flows_orchestration + smolagents_code_agent） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>github-scout 2026-06-30: CrewAI Flows 與 smolagents 研究筆記（crewai_flows_orchestration + smolagents_code_agent）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">github_scout</span><span class="tag">github_inspiration</span><span class="tag">crewai</span><span class="tag">smolagents</span><span class="tag">agent_orchestration</span><span class="tag">planner_executor</span><span class="tag">2026-06-30</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>專案觀測摘要</h2>
+<h3>1. crewAIInc/crewAI</h3>
+<ul>
+<li><strong>URL</strong>: https://github.com/crewAIInc/crewAI</li>
+<li><strong>Stars</strong>: 54,606（REST 即時觀測 2026-06-30T07:21:18Z）</li>
+<li><strong>Relevance</strong>: Agent 框架中最活躍之一；Flows @router 提供 Python 原生 DAG 條件路由</li>
+<li><strong>flow_routing_model</strong>: event-driven @router 裝飾器，條件分支（or_()）、並行、匯聚</li>
+<li><strong>state_handoff_strategy</strong>: 結構化原生 state（deterministic step execution）</li>
+<li><strong>phase_branching_pattern</strong>: @router + or_() 邏輯組合條件跳轉</li>
+<li><strong>evidence_snapshot</strong>: {"repo_observed_at": "2026-06-30", "source_type": "repo_page", "freshness_note": "GET https://api.github.com/repos/crewAIInc/crewAI stargazers_count=54606 pushed_at=2026-06-30T07:21:18Z"}</li>
+</ul>
+<h3>2. huggingface/smolagents</h3>
+<ul>
+<li><strong>URL</strong>: https://github.com/huggingface/smolagents</li>
+<li><strong>Stars</strong>: 28,105（REST 即時觀測 2026-06-23T18:34:53Z）</li>
+<li><strong>Relevance</strong>: 代碼原生代理執行，agents think in code</li>
+<li><strong>execution_mode</strong>: code_native（生成 Python 程式碼作為推理步驟）</li>
+<li><strong>tool_interface_format</strong>: @tool decorator + docstring API</li>
+<li><strong>multi_agent_delegation</strong>: ManagedAgent callable（sub-agents 作為 Python callable）</li>
+<li><strong>evidence_snapshot</strong>: {"repo_observed_at": "2026-06-30", "source_type": "repo_page", "freshness_note": "GET https://api.github.com/repos/huggingface/smolagents stargazers_count=28105 pushed_at=2026-06-23T18:34:53Z"}</li>
+</ul>
+<h2>改進提案</h2>
+<h3>P1: CrewAI Flows @router DAG 條件路由借鑑（crewAIInc/crewAI）</h3>
+<ul>
+<li><strong>feasibility_score</strong>: 8/10（框架文件完整，Python 原生實作可讀）</li>
+<li><strong>stability_score</strong>: 8/10（v1.15.1，生產就緒，100k+ 認證開發者）</li>
+<li><strong>review_notes</strong>:</li>
+</ul>
+<p>  - 採納：@router 提供的 DAG 條件路由模式可借鑑為 planner_executor 非線性 phase 跳轉設計依據</p>
+<p>  - 主要風險：直接改 runner.py/PS1 dispatch 屬高風險（影響整體編排流）</p>
+<p>  - rollback：保持現有線性 phase 序列為 fallback；任何改動需先建 docs/plans/ 計畫後人工審核</p>
+<p>  - 工具邊界影響：@router 不影響工具調用層；影響在 orchestration 層（planner → phase 序列路由）</p>
+<ul>
+<li><strong>status</strong>: plan_ready</li>
+<li><strong>operation_name</strong>: daily_digest.github_scout.review_crewai_flows</li>
+</ul>
+<h3>P2: smolagents CodeAgent 代碼原生執行評估（huggingface/smolagents）</h3>
+<ul>
+<li><strong>feasibility_score</strong>: 7/10（框架成熟但需評估沙箱安全性）</li>
+<li><strong>stability_score</strong>: 8/10（v1.26.0，HuggingFace 維護）</li>
+<li><strong>review_notes</strong>:</li>
+</ul>
+<p>  - 採納：代碼原生推理步驟適合評估 auto-task 中「確定性 CLI → LLM 生成程式碼 → 沙箱執行」混合模式</p>
+<p>  - 主要風險：沙箱安全性需仔細評估（E2B/Docker 隔離），與現有 Bash 確定性工具層整合複雜度未知</p>
+<p>  - rollback：評估為研究性質；不動現有 auto-task 執行路徑</p>
+<ul>
+<li><strong>status</strong>: plan_ready（研究評估）</li>
+<li><strong>operation_name</strong>: daily_digest.github_scout.review_smolagents</li>
+</ul>
+<h2>審查結論</h2>
+<p>兩個框架均為 2026 年生產就緒等級。CrewAI Flows 的 @router DAG 模式與本系統 planner_executor 最直接相關（線性→條件分支擴充路徑）；smolagents 的代碼原生模式提供長期架構借鑑價值但不建議短期落實。</p>
+<h2>已落實項目</h2>
+<ul>
+<li>寫入兩筆 improvement-backlog 條目（backlog_github_scout_20260630_170210536474, backlog_github_scout_20260630_170210684980）</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>P1 crewAI Flows @router: 需人工確認是否建立 docs/plans/crewai-flows-planner-executor-branching.md 計畫</li>
+<li>P2 smolagents: 如有興趣可建立沙箱安全評估計畫</li>
+</ul>
+<h2>品質注記</h2>
+<ul>
+<li>GitHub 觀測與 Phase 2 寫入之 task_execution.used_fallback/fallback_kind 無自動因果關聯，複核時請對照 config/schemas/results-auto-task-schema.json 之 task_execution 定義。</li>
+<li>本輪採 REST api.github.com 即時觀測（source_type=repo_page）；stars/last_updated 為本次 REST 回應值。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

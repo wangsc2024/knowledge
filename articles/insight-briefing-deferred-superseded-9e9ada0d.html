@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="insight-briefing: 機械過濾 Deferred/Superseded ADR 防止 self_heal stale premise（Ponytail 階梯②）（2026-06-30）">
+  <title>insight-briefing: 機械過濾 Deferred/Superseded ADR 防止 self_heal stale premise（Ponytail 階梯②）（2026-06-30） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>insight-briefing: 機械過濾 Deferred/Superseded ADR 防止 self_heal stale premise（Ponytail 階梯②）（2026-06-30）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">ADR</span><span class="tag">stale-premise</span><span class="tag">ponytail</span><span class="tag">self_heal</span><span class="tag">pre-flight</span><span class="tag">architecture-decision-records</span><span class="tag">daily-digest</span><span class="tag">2026-06-30</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>機械過濾 Deferred/Superseded ADR 防止 self_heal stale premise（Ponytail 階梯②）</h1>
+<p><strong>研究日期</strong>：2026-06-30</p>
+<p><strong>主題分類</strong>：AI Agent 架構與治理 × 軟體工程方法論</p>
+<p><strong>透鏡組合</strong>：Sam Altman（主）/ Jensen Huang（主）/ Taleb（逆向）</p>
+<h2>執行摘要</h2>
+<p>本次研究聚焦「如何防止 AI agent（尤其是 self_heal）在引用架構決策記錄（ADR）時誤用已過期的 Deferred 或 Superseded 狀態決策」。研究發現 DDP 系統中 1,281 筆 Deferred ADR（佔全體 2,197 筆的 58.3%）是 stale premise 的最高風險源，但現有機制已具備三層防線：registry staleness check、necessity-first filtering（Ponytail 階梯②）、confirmation section fitness function。最大缺口是在 prompt-injection 時尚無自動排除 Deferred/Superseded ADR 的機制，需補齊 arch_decision_step_h.py pre-flight validate 步驟。</p>
+<h2>核心洞見（7 項）</h2>
+<ol>
+<li>58.3% ADR 處於 Deferred 狀態（1,281/2,197）——最大 stale premise 風險源；self_heal 若使用全量 registry = 78% 噪訊比</li>
+<li>Confirmation Section = 可執行 Pre-Flight Guardrail（已有機制但未接 agent RAG 過濾條件）</li>
+<li>Loop Contract 三段 mode（report_only → advise → enforce）阻止 Deferred 自動執行，但不阻止被引用為依據</li>
+<li>Ponytail 階梯② = 必要性前置過濾：Accepted = 可用；Deferred/Superseded/Wontfix = 只讀參考</li>
+<li>ADR-090 季度 slimming 退役標準（90 天零觸發）可移植為 ADR freshness metric</li>
+<li>業界 OPA Policy-as-Code + CI 閘門 = 架構治理閉環（MADR 4.0、arXiv:2504.08207）</li>
+<li>三閘門過濾架構：Registry Staleness Check → Necessity Validation → Confirmation Status Verification</li>
+</ol>
+<h2>建議行動 P0</h2>
+<pre><code>
+STALE_STATUSES = {"Deferred", "Superseded", "Wontfix"}
+valid_adrs = [a for a in adr_registry if a.get("status") not in STALE_STATUSES or a.get("review_due", "9999-99-99") &gt; today_str]
+</code></pre>
+<p>加入 arch_decision_step_h.py pre-flight，一行消除 78% 噪訊比。</p>
+<h2>多透鏡洞察摘要</h2>
+<ul>
+<li>Sam Altman（主）：閘門 1 可一行實作，不等完美 OPA 基礎設施；反模式：用 LLM 判 stale</li>
+<li>Jensen Huang（主）：adr-registry.json 是「GPU driver」，已存在，問題是 agent 未正確調用；建議做 infrastructure service tools/adr_preflight.py</li>
+<li>Taleb（逆向）：1,281 筆 Deferred 1% 誤用 = 每天 12.8 筆錯誤決策；寧 false negative 不 false positive；fail-safe 方向應全量排除而非全量包含</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
