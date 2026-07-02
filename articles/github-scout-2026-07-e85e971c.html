@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="github-scout 2026-07-02: 自癒系統（Self-Healing Systems）研究筆記">
+  <title>github-scout 2026-07-02: 自癒系統（Self-Healing Systems）研究筆記 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>github-scout 2026-07-02: 自癒系統（Self-Healing Systems）研究筆記</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">自癒系統</span><span class="tag">self-healing</span><span class="tag">AIOps</span><span class="tag">github_inspiration</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：自癒系統 (Self-Healing Systems) 2026-07-02</h1>
+<h2>專案觀測摘要</h2>
+<ol>
+<li><strong>keephq/keep</strong>（11997★，pushed 2026-07-01T06:37:53Z）— 開源 AIOps 與告警管理平台。核心模式：宣告式 YAML workflow catalog（alert 條件 → action），跨監控來源的告警關聯與 fingerprint 去重，50+ 整合。</li>
+<li><strong>k8sgpt-ai/k8sgpt</strong>（7938★，pushed 2026-07-01T23:53:26Z）— Kubernetes 診斷與可選自動修復。核心模式：pluggable analyzer 產出結構化 finding（含信心指標），再依 finding 選擇 remediation workflow，而非一步到位 LLM 決策。</li>
+<li><strong>AgentWrapper/agent-orchestrator</strong>（7857★，pushed 2026-07-01T16:26:00Z，經 ComposioHQ/agent-orchestrator 301 重導向確認 canonical repo）— 平行 coding agent 編排器。核心模式：每個任務獨立 git worktree + branch + PR，CI 失敗時 agent 在該隔離 worktree 內自動修復再送審，而非直接改動共用分支。</li>
+</ol>
+<h2>改進提案</h2>
+<ul>
+<li><strong>P1（keep 借鑑）</strong>：backlog 告警關聯合併——為 improvement-backlog 補上弱關聯分組，避免單一根因（如過往 cursor 配額耗盡）拆成多筆孤立 backlog 項目。已產出計畫 <code>docs/plans/github-scout-20260702-backlog-alert-correlation.md</code>，因觸及 Pattern B SSOT <code>tools/backlog_writer.py</code>，未直接落實，待人工審核。</li>
+<li><strong>P1（k8sgpt 借鑑，暫緩）</strong>：diagnosis confidence 門檻———k8sgpt 的 analyzer confidence → remediation catalog 模式具參考價值，但 grep 確認本系統 <code>tools/failure_recovery_router.py</code> 與 <code>config/failure-recovery-matrix.yaml</code> 目前無 confidence 欄位，也無任何 RCA producer 提供信心分數。在無上游 producer 前引入 consumer 端門檻屬過早抽象，違反 YAGNI，本輪不落實，需先由人工評估是否在 RCA why-chain 補上 confidence 產出。</li>
+<li><strong>P1（三案綜合，已落實）</strong>：發現 <code>config/github-scout-review-policy.yaml</code> 的 <code>topic_overrides</code> 涵蓋 9 個研究主題，但 SKILL.md 步驟1 列出的 12 大搜尋主題中，「自癒系統」是唯一缺乏 topic_override 的主題，導致既有與未來 self-healing 相關研究缺乏結構化必填欄位。已直接新增 <code>self_healing_systems</code> topic_override（<code>diagnosis_model</code>／<code>remediation_selection_model</code>／<code>human_approval_gate</code> 三個必填欄位），並與本系統既有 <code>tools/failure_recovery_router.py</code>、<code>prompts/team/todoist-auto-self_heal.md</code> 對照。</li>
+</ul>
+<h2>審查結論</h2>
+<p>| 提案 | feasibility | stability | 結論 |</p>
+<p>|------|------------|-----------|------|</p>
+<p>| backlog 告警關聯合併 | 7 | 7 | plan_ready（觸及 Pattern B SSOT，需人工審核後才落實） |</p>
+<p>| diagnosis confidence 門檻 | 6 | 7 | needs_human_review（缺上游 producer，暫緩） |</p>
+<p>| review-policy topic_override 補齊 | 9 | 8 | implemented（低風險 config 新增欄位，已直接落實並通過 yaml.safe_load 驗證） |</p>
+<h2>已落實項目</h2>
+<ul>
+<li><code>config/github-scout-review-policy.yaml</code>：新增 <code>topic_overrides.self_healing_systems</code> 區塊（<code>diagnosis_model_expectations</code>／<code>remediation_selection_model_expectations</code>／<code>human_approval_gate_expectations</code>／<code>required_review_notes</code>／<code>notes</code>），已通過 <code>yaml.safe_load</code> 解析驗證。</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ol>
+<li><code>docs/plans/github-scout-20260702-backlog-alert-correlation.md</code>：backlog 告警關聯合併計畫，需人工審核 <code>match_fields</code> 初始欄位清單與 <code>window_minutes=30</code> 是否合理，再開啟 <code>correlation.enabled</code>。</li>
+<li>diagnosis confidence 門檻提案：需先決定是否於 RCA why-chain 工具補上 confidence 產出（目前系統無此欄位）。</li>
+<li>self_heal 隔離 worktree+PR 落實迴圈（AgentWrapper/agent-orchestrator 借鑑）：命中 <code>human_review_gates.high_risk_paths</code>（涉及 run-*.ps1 dispatch 與 self_heal 核心流程），本輪僅記錄觀察，待後續評估優先序，尚未產出計畫檔。</li>
+</ol>
+<h2>quality.notes</h2>
+<p>GitHub 觀測與 Phase 2 寫入之 <code>task_execution.used_fallback</code>／<code>fallback_kind</code> 無自動因果關聯，複核時請對照 <code>config/schemas/results-auto-task-schema.json</code> 之 <code>task_execution</code> 定義。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
