@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Hook/Guard - 2026-07-02">
+  <title>GitHub Scout: Hook/Guard - 2026-07-02 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Hook/Guard - 2026-07-02</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Hook/Guard</span><span class="tag">guardrails</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Hook/Guard 研究筆記（2026-07-02）</h1>
+<h2>專案觀測摘要</h2>
+<ul>
+<li><strong>NVIDIA-NeMo/Guardrails</strong>（6587★，REST 觀測 2026-07-02，pushed_at=2026-07-01）：LLM 對話系統的可程式化 guardrails 工具，YAML+Colang 宣告式設定，分 input/dialog/execution/output 四類 rails；default_mode=deny，設定層即可 rollback。</li>
+<li><strong>crewAIInc/crewAI</strong>（54719★，REST 觀測 2026-07-02，pushed_at=2026-07-01）：issue #4877 提出 GuardrailProvider 介面，BeforeToolCallHook 可回傳 False 阻擋工具呼叫，ToolCallHookContext 含 tool_name/tool_input/agent/task/crew，fail_closed 預設 True。</li>
+<li><strong>pre-commit/pre-commit-hooks</strong>（6604★，REST 觀測 2026-07-02，pushed_at=2026-05-19）：commit-time 同步檔案內容檢查（detect-private-key、check-added-large-files 等），與 agent runtime 無關但攔截時機（commit-time）值得借鑑。</li>
+<li>另觀測 AxonLabsDev/BodAIGuard（stars=0，REST 觀測 2026-07-02）：YAML-driven fail-closed universal agent guardrail，但未達篩選門檻（>500 stars），僅供模式參考，不計入證據鏈。</li>
+</ul>
+<h2>改進提案</h2>
+<ol>
+<li><strong>P1｜commit-time staged-diff secret 同步攔截</strong>（借鑑 pre-commit-hooks detect-private-key）：現有 <code>scripts/auto-task-secret_scan_daily.ps1</code> 為每日 01:30 排程事後掃描（最長 24h 曝險窗口）。提案在 <code>scripts/git-hooks/pre-commit</code> 新增 staged-diff secret pattern 同步掃描，commit 前即阻擋，曝險窗口收斂為 0。risk_level=high（目標檔案不在本任務步驟9允許直接修改範圍），已輸出高風險計畫。</li>
+<li><strong>P2｜review-policy 新增 hook_guard_agent_guardrails 結構化欄位</strong>（借鑑 NeMo rails 分類 + crewAI GuardrailProvider 結構化 context）：<code>config/github-scout-review-policy.yaml</code> 新增 <code>topic_overrides.hook_guard_agent_guardrails</code>（enforcement_point/fail_mode/rail_categories 三面向），供未來同類研究對齊結構化欄位，降低漂移。risk_level=low，本輪已直接落實。</li>
+</ol>
+<h2>審查結論</h2>
+<ul>
+<li>提案 1：feasibility_score=8、stability_score=6（regex 邏輯完全複用既有 pattern，技術可行；但目標檔案屬 commit-blocking 關鍵路徑且超出本任務允許直接修改範圍，需人工審核）→ status=plan_ready</li>
+<li>提案 2：feasibility_score=9、stability_score=9（純新增 YAML 欄位，無邏輯變更，風險極低）→ status=approved，已落實</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li><code>config/github-scout-review-policy.yaml</code> 新增 <code>topic_overrides.hook_guard_agent_guardrails</code>（enforcement_point/fail_mode/rail_categories 結構化欄位定義）</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li><code>docs/plans/github-scout-20260702-precommit-secret-guard.md</code>：commit-time staged-diff secret guard 落實計畫（風險：可能誤擋合法 commit；已設計白名單詞緩解；需人工審核合併至 <code>scripts/git-hooks/pre-commit</code>）</li>
+</ul>
+<h2>備註</h2>
+<p>GitHub 觀測與 Phase 2 寫入之 task_execution.used_fallback／fallback_kind 無自動因果關聯，複核時請對照 config/schemas/results-auto-task-schema.json 之 task_execution 定義。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
