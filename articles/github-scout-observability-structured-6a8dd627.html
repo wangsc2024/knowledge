@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: observability_structured_logging - 2026-07-04">
+  <title>GitHub Scout: observability_structured_logging - 2026-07-04 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: observability_structured_logging - 2026-07-04</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">observability_structured_logging</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout 研究筆記：日誌可觀測（observability_structured_logging）</h1>
+<h2>專案觀測摘要</h2>
+<p>本輪 REST 即時觀測（api.github.com/repos/{owner}/{repo}）三個專案：</p>
+<ul>
+<li><strong>SigNoz/signoz</strong>（27649★，pushed 2026-07-04）：OTel-native 觀測平台，logs/traces/metrics 三者以同一 trace_id/span_id 關聯，ClickHouse 儲存，長期保留 + 內建 trace-log correlation UI。</li>
+<li><strong>Helicone/helicone</strong>（5908★，pushed 2026-06-11）：LLM gateway，單行整合捕捉 cost_usd/latency_ms/tokens/cache_hit，Postgres 持久化 + Web UI 查詢重放。</li>
+<li><strong>apache/burr</strong>（2456★，pushed 2026-06-28）：Python 狀態機（decision-making apps），step 層級結構化記錄 + Streamlit UI 可視化 + time-travel 檢視歷史 step。</li>
+</ul>
+<p>三案共同模式：<strong>單一識別碼貫穿一次執行的所有日誌/追蹤/指標</strong>，避免人工跨檔手動比對時間戳。</p>
+<h2>改進提案</h2>
+<ol>
+<li><strong>P1（已落實）</strong>：config/github-scout-review-policy.yaml 新增 topic_override <code>observability_structured_logging</code>，補齊此主題的結構化必填欄位（log_trace_correlation_model / structured_log_schema / persistence_and_replay），對齊 SKILL.md 12 大搜尋主題中先前唯一缺此結構的主題。</li>
+<li><strong>P1（已落實）</strong>：docs/github-scout-agent-comparables.md 新增 observability_structured_logging_comparables 章節，記錄三案觀測與本系統 post_tool_logger/govlog 現況落差。</li>
+<li><strong>P1（計畫待審）</strong>：新增唯讀 CLI <code>tools/observability_trace_correlator.py</code>，聚合 post_tool_logger JSONL、govlog state/governance-events.jsonl、continuity 檔案，依 trace_id 或 task_key+時間窗做 best-effort 關聯展示。因與既有 2 份 post_tool_logger schema 計畫（github-scout-20260331-post-tool-logger-schema-linkage.md、github-scout-20260621-post-tool-logger-input-keys.md）同一敏感區塊，已輸出計畫 docs/plans/github-scout-20260704-observability-trace-correlation-tool.md 待人工審核。</li>
+<li><strong>P2（backlog 記錄）</strong>：多後端 LLM 呼叫統一成本/延遲欄位（借鑑 Helicone gateway），因觸及共用 dispatch 邏輯（config/llm-gate.yaml、tools/ps/llm-gate.ps1），本輪僅記錄不研擬完整方案。</li>
+</ol>
+<h2>審查結論</h2>
+<ul>
+<li>提案 1、2：feasibility_score=9、stability_score=9（純新增 YAML topic_override 條目與純文件對照表，向後相容、無程式讀取路徑受影響），1 輪審查即通過，直接落實。</li>
+<li>提案 3：因命中「與既有計畫同一敏感檔案」之 review_required_when 條件（proposal 影響 guarded_operations 相關日誌基礎設施），升為 risk_level=high，不進入自動落實流程，改輸出計畫。</li>
+<li>提案 4：範圍與風險評估不完整（需先確認 llm-gate.yaml dispatch 影響面），暫緩研擬完整方案，僅記錄 backlog 供後續回合評估。</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li>config/github-scout-review-policy.yaml：新增 topic_overrides.observability_structured_logging（已通過 yaml.safe_load 驗證）</li>
+<li>docs/github-scout-agent-comparables.md：新增 observability_structured_logging_comparables 章節</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>docs/plans/github-scout-20260704-observability-trace-correlation-tool.md：跨日誌 trace 關聯稽核工具是否值得建置，或應等現有 2 份 post_tool_logger schema 計畫先定案</li>
+<li>P2 backlog 項目（多後端 LLM 成本/延遲欄位）：是否值得後續研擬完整落實方案</li>
+</ul>
+<h2>證據快照</h2>
+<p>三案均為 REST api.github.com 即時觀測（source_type=repo_page），observed_at=2026-07-04。GitHub 觀測與 Phase 2 task_execution.used_fallback/fallback_kind 無自動因果關聯（見 config/schemas/results-auto-task-schema.json 之 task_execution 定義）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
