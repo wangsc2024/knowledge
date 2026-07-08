@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：cache_hit_ratio 回升驗收 insight-briefing 2026-07-08">
+  <title>深度研究洞察簡報：cache_hit_ratio 回升驗收 insight-briefing 2026-07-08 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：cache_hit_ratio 回升驗收 insight-briefing 2026-07-08</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">cache_hit_ratio</span><span class="tag">kb-system-optimize</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：cache_hit_ratio 回升驗收（kb_insight_eval 0.123→0.224）</h1>
+<blockquote>產出日期：2026-07-08 | 任務：insight_briefing | 系列：ddp-cache-governance（optimization 階段）</blockquote>
+<h2>摘要</h2>
+<p>本輪驗收 kb_insight_eval（2026-07-01）觀測的 API 快取命中率回升：自低谷 <strong>0.123</strong> 一度升至 <strong>0.224</strong>，但 2026-07-08 <code>context/system-insight.json</code> 顯示 <strong>0.193</strong>（sample=166），仍低於 warning 門檻 <strong>0.400</strong>。交叉比對 <strong>8</strong> 篇來源（A 級 3、B 級 4、C 級 1）與專案內 commit <strong>6bba1409</strong>、cache-policy v20，萃取 <strong>6</strong> 項核心洞見。結論：TTL 微調帶來階段性改善，但需轉向 miss 分類診斷與雙帳本（API cache / KB semantic cache）觀測，方能穩定穿越 40% 門檻。</p>
+<h2>關鍵洞見</h2>
+<h3>1. 6bba1409 因果鏈需與 cache 回升分離</h3>
+<ul>
+<li><strong>證據</strong>：commit <code>6bba1409</code> 主體為 <code>token-budget-enforcer</code> Skill frontmatter 補齊、<code>context/token-usage.json</code> 初始化——修復 kb_system_optimize partial streak=2 的<strong>任務完成率</strong>阻斷，而非直接修改 <code>cache-policy.yaml</code>。</li>
+<li><strong>含義</strong>：0.123→0.224 回升更可能來自 <strong>2026-07-07 前後連續 TTL 微調</strong>（knowledge/kb_hybrid 17280m、gmail 7776m）與 miss 分類改善，不宜將單一 commit 視為命中率因果。</li>
+<li><strong>來源</strong>：<code>CHANGELOG.md</code> L274；<code>config/cache-policy.yaml</code> L20-46</li>
+</ul>
+<h3>2. 峰值 0.224 後回落至 0.193——改善未固化</h3>
+<ul>
+<li><strong>證據</strong>：kb_insight_eval 記錄 0.224 峰值；當日 system-insight <code>cache_hit_ratio=0.193</code>、<code>cache_hit_ratio_sample=166</code>，warning 持續（<code>dedup_key=system_insight:cache_hit_ratio_warning:date=2026-07-08</code>）。</li>
+<li><strong>含義</strong>：TTL 單邊加大存在<strong>邊際遞減</strong>；closed-loop-review-2026-07-02 已明訂「ratio 不升反降時禁止重複純加大 TTL」。</li>
+<li><strong>來源</strong>：<code>context/system-insight.json</code> L10-52；KB 筆記「系統優化落實報告 2026-07-06」</li>
+</ul>
+<h3>3. miss 分類診斷優先於 TTL 旋鈕</h3>
+<ul>
+<li><strong>證據</strong>：KB 落實報告（2026-07-04/06）均指向 <code>cache_miss_diagnoser</code> 分類擴充與 Forge 建議 <code>cache_hit_ratio-tool-gap</code>，目標是改善<strong>分母準確度</strong>與可解釋 miss，而非再調 TTL。</li>
+<li><strong>含義</strong>：下一階段應串 <code>tools/cache_miss_diagnoser</code>（或同類）→ adaptive_ttl 回授，對齊 ADR-023 d-TTL。</li>
+<li><strong>來源</strong>：KB note <code>a03b01f1</code>/<code>c305addf</code>；<code>config/cache-policy.yaml</code> adaptive_ttl.enabled=true</li>
+</ul>
+<h3>4. API cache 與 KB 語義快取須分帳監控</h3>
+<ul>
+<li><strong>證據</strong>：<code>kb_semantic_cache stats --days 7</code> 顯示 7 日 log_events 全 0、<code>fastembed_available=false</code>、<code>entry_count=0</code>；與 API <code>cache_hit_ratio</code> 是獨立帳本。</li>
+<li><strong>含義</strong>：insight_briefing 步驟 0b 已納入語義快取遙測；未安裝 <code>uv sync --extra semantic-cache</code> 時 degraded 不視為任務失敗，但<strong>不得</strong>用 API ratio 代替 KB 語義命中評估。</li>
+<li><strong>來源</strong>：本輪 <code>kb_semantic_cache stats</code> 輸出；<code>skills/knowledge-query/SKILL.md</code> 步驟 0.5</li>
+</ul>
+<h3>5. 產業對照：穩定 prefix + 可觀測性（LLM Prompt Caching）</h3>
+<ul>
+<li><strong>證據</strong>：OpenAI/Anthropic 2026 prompt caching 強調穩定 prefix、<code>prompt_cache_key</code> 路由黏性、監控 <code>cached_tokens</code>；前綴任一 byte 變動即 cache miss。</li>
+<li><strong>類比 DDP</strong>：auto-task prompt 若每輪注入變動時間戳於共用前綴，等效於破壞 prefix 穩定性；應將變動欄位移至 suffix，並以 endpoint+參數 hash 作為 cache key。</li>
+<li><strong>來源</strong>：OpenAI Prompt Caching 201（A）；AI Workflow Lab 2026 Guide（B）</li>
+</ul>
+<h3>6. Cache-aside 工程底線：jitter + 失效優先於盲調 TTL</h3>
+<ul>
+<li><strong>證據</strong>：Redis/Microsoft/RaidFrame 2026 指南一致：cache-aside 預設模式、<strong>必設 TTL</strong>、hit rate <80% 表示 miskey 或 TTL 過短、寫入時 invalidate 優先於 update-in-place；jitter ±10% 防 thundering herd。</li>
+<li><strong>含義</strong>：DDP <code>adaptive_ttl</code> 已啟用，需驗證是否對 knowledge/kb_hybrid 低波動源套用 jitter 與 soft-TTL 模式。</li>
+<li><strong>來源</strong>：redis.io cache-aside（A）；Microsoft Cache-Aside Pattern（A）；RaidFrame Redis Production Guide（B）</li>
+</ul>
+<h2>建議行動</h2>
+<ol>
+<li><strong>短期（本週）</strong>：執行 cache_miss_diagnoser 全量分類，產出 endpoint 級 miss 原因分布，對照 0.193 回落時段。</li>
+<li><strong>中期</strong>：落地 <code>cache_hit_ratio-tool-gap</code> Forge 建議——整合 miss 診斷 + adaptive_ttl 回授，設定「連續 3 日 ratio 下降則凍結 TTL 調大」閘門。</li>
+<li><strong>可選</strong>：評估 <code>uv sync --extra semantic-cache</code> 啟用 fastembed，讓 KB 語義快取帳本脫離全 degraded 狀態。</li>
+</ol>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇與理由</h3>
+<p>precompute 選定 <strong>distill-sam-altman</strong>（primary）、<strong>distill-jensen-huang</strong>（primary）、<strong>distill-taleb</strong>（adversarial），<code>rationale=task_profile:insight_briefing</code>。主題涉及系統效能驗收與工程投資回報，適用「快速部署反饋」與「workload/TCO 優先」框架；Taleb 透鏡用於檢視把單點 TTL 調整當成確定性解的風險。</p>
+<h3>框架化建議</h3>
+<p><strong>快速部署反饋（Sam Altman 模型3）</strong>：cache 優化應以<strong>可觀測閉環</strong>驗收——每次 TTL 變更需綁定 7 日 <code>cache_hit_ratio</code> 與 sample 量，像產品迭代一樣「ship → measure → iterate」，而非一次性調參後不再讀取 system-insight。</p>
+<p><strong>TCO 而非標價（黃仁勳啟發式2）</strong>：延長 knowledge TTL 至 17280 分鐘降低 API 呼叫「標價」，但若 stale 資料導致 Agent 重試或 partial，<strong>總擁有成本</strong>可能上升。應按來源 volatility 分層：kb_live_status 120m vs knowledge 17280m 的差異即 workload-aware 分層。</p>
+<h3>反模式檢查</h3>
+<p>依 Taleb 反模式表檢視本簡報與現行做法：</p>
+<p>| 反模式 | 本產出/現況 | 判定 |</p>
+<p>|--------|------------|------|</p>
+<p>| 用期望值決策（忽略破產風險） | 只看 ratio 均值忽略 sample=166 波動 | ⚠️ 需附 confidence interval |</p>
+<p>| 學院腔「研究表明」 | 已附具體數值與路徑 | ✓ |</p>
+<p>| 中和論「權衡利弊」 | 明確主張：停止純 TTL 加大 | ✓ |</p>
+<p>| IYI：無實戰只調參 | 連續多輪 kb_system_optimize 調 TTL | ⚠️ 需 miss 分類皮膚在遊戲 |</p>
+<h3>透鏡盲區自陳</h3>
+<p>Taleb「誠實邊界」：此 Skill 蒸餾無法覆蓋 DDP 專案內 JSONL 微觀結構；<strong>黑天鵝</strong>場景（如 Windows Defender 鎖 uv cache 導致全 miss）需基礎設施日誌而非框架分析。Sam/Jensen 透鏡偏矽谷成長敘事，對<strong>排程稀疏任務</strong>（間隔 >TTL）的 cache 經濟性可能過度樂觀——應以實測 task 間隔分布校正。</p>
+<h2>參考來源</h2>
+<p>| 等級 | 來源 | 用途 |</p>
+<p>|------|------|------|</p>
+<p>| A | <code>config/cache-policy.yaml</code> v20 | TTL 現況 SoT |</p>
+<p>| A | <code>context/system-insight.json</code> | cache_hit_ratio=0.193 |</p>
+<p>| A | OpenAI Prompt Caching 201 | prefix 穩定與 prompt_cache_key |</p>
+<p>| B | AI Workflow Lab Prompt Caching Guide 2026 | 斷點與監控實務 |</p>
+<p>| B | redis.io cache-aside | cache-aside 預設模式 |</p>
+<p>| B | Microsoft Cache-Aside Pattern | TTL 與失效順序 |</p>
+<p>| B | KB「系統優化落實報告 2026-07-06」 | miss 診斷方向 |</p>
+<p>| C | Respan LLM Prompt Caching 2026 | gateway 疊層對照 |</p>
+<h2>附錄：快取遙測</h2>
+<h3>API 快取（system-insight）</h3>
+<ul>
+<li><code>cache_hit_ratio</code>: <strong>0.193</strong></li>
+<li><code>cache_hit_ratio_sample</code>: <strong>166</strong></li>
+<li>warning 門檻: <strong>0.400</strong></li>
+</ul>
+<h3>KB 語義快取（近 7 日，`kb_semantic_cache stats --days 7`）</h3>
+<p>| 指標 | 值 |</p>
+<p>|------|-----|</p>
+<p>| lookup | 0 |</p>
+<p>| store | 0 |</p>
+<p>| http_fallback | 0 |</p>
+<p>| degraded | 0 |</p>
+<p>| fastembed_available | false |</p>
+<p>| entry_count | 0 |</p>
+<blockquote>degraded 原因：<code>fastembed_unavailable</code>（未安裝 semantic-cache extra）。不視為本任務失敗。</blockquote>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
