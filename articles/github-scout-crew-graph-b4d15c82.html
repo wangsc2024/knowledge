@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: 多代理編排（Crew／Graph／對話） - 2026-07-10">
+  <title>GitHub Scout: 多代理編排（Crew／Graph／對話） - 2026-07-10 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: 多代理編排（Crew／Graph／對話） - 2026-07-10</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">多代理編排</span><span class="tag">agent_architecture</span><span class="tag">crewai_flows_orchestration</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：多代理編排研究（2026-07-10）</h1>
+<h2>專案觀測摘要</h2>
+<p>| 專案 | Stars（REST 即時觀測） | pushed_at | runtime_model | human_review_model |</p>
+<p>|------|------|------|------|------|</p>
+<p>| langchain-ai/langgraph | 36921 | 2026-07-10T01:30:24Z | 圖式編排 StateGraph | interrupt-point（同步短延遲） |</p>
+<p>| crewAIInc/crewAI | 55257 | 2026-07-09T22:30:19Z | Crew 對話式協作 + Flows 事件驅動狀態機 | handoff-based（多代理委派審查） |</p>
+<p>| temporalio/temporal | 21529 | 2026-07-10T02:49:14Z | 事件驅動 durable execution runtime | signal-based（異步高延遲） |</p>
+<p>三案分別代表本系統 <code>config/autonomous-harness.yaml</code> <code>human_review_model</code> 三大模式光譜：同步中斷（LangGraph interrupt）、多代理委派（CrewAI handoff）、非同步長時間掛起（Temporal signal）。CrewAI Flows 額外具備 <code>@router</code> 條件路由 + <code>and_/or_</code> 事件匯聚的 DAG 編排能力，可對比 planner_executor 現行線性 phase 序列。</p>
+<h2>改進提案</h2>
+<ol>
+<li><strong>langchain-ai/langgraph｜細粒度 checkpoint + time-travel 回放</strong>（P1，medium effort）：借鑑逐步 checkpoint 粒度改善 planner_executor 狀態恢復，觸及核心執行流程建議走計畫。<strong>本輪不重複建單</strong>——已於 <code>backlog_github_scout_20260616_220307721800</code>（deferred）評估過，僅本輪重新確認 REST 星數。</li>
+<li><strong>crewAIInc/crewAI｜@router 條件路由 + and_/or_ 匯聚</strong>（P1，medium effort）：擴充 <code>config/routing.yaml</code> Phase 1a 路由表達力，涉及核心路由行為建議先出計畫。<strong>本輪不重複建單</strong>——已於 <code>backlog_github_scout_20260619_140750223718</code> 與 <code>backlog_github_scout_20260620_104521949814</code>（均 deferred）評估過 3 次，僅本輪重新確認。</li>
+<li><strong>temporalio/temporal｜signal-based 異步 human-in-the-loop</strong>（P2，high effort）：現行 <code>human_review_gates</code> 假設同步/短延遲審核；Temporal signal 機制可支援長時間掛起異步審核（審核者非即時在線情境）。<strong>新發現，已寫入 backlog</strong> <code>backlog_github_scout_20260710_105733371389</code>。因需引入獨立 Temporal server 依賴，effort=high，暫不直接落實程式碼變更。</li>
+</ol>
+<h2>審查結論</h2>
+<ul>
+<li>提案 1、2：已有 3 輪先前人工審核結論為 deferred（無新資訊改變決策），本輪不重複佔用 backlog 資源，僅在 KB 記錄重新確認之 REST 觀測值供未來對照。</li>
+<li>提案 3：feasibility_score=6（需新增 Temporal server 依賴，非既有架構內可完成）、stability_score=9（若僅新增審查文件註記則純加性、無功能風險）。依 <code>config/github-scout-review-policy.yaml</code> 通過標準（≥7/≥7 才可直接落實程式碼變更），程式碼落實不通過；但「補充審查文件」子項為低風險文件性動作，可直接落實。</li>
+</ul>
+<h2>已落實項目</h2>
+<ul>
+<li>於 <code>docs/github-scout-agent-comparables.md</code> 新增 <code>#multi_agent_orchestration_comparables_2026-07-10</code> 段落，記錄三案 REST 觀測值與三種 human_review_model 光譜比較。</li>
+<li>於 <code>config/github-scout-review-policy.yaml</code> 的 <code>topic_overrides.agent_architecture.notes</code> 補充一則 Temporal signal-based 模式觀測筆記（供未來研究延伸判斷第三種 human_review_model 光譜時參照）。</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li><code>backlog_github_scout_20260710_105733371389</code>（P2）：是否評估在 <code>config/autonomous-harness.yaml</code> 正式導入 signal-based 異步審核選項（需新增 Temporal 或等效 durable execution 依賴，屬架構級決策，非本輪自動落實範圍）。</li>
+<li>若未來 CrewAI Flows 或 LangGraph checkpoint 提案有<strong>新增證據</strong>（如本系統實測 phase 失敗率上升，或 planner_executor 出現細粒度恢復需求），應重新評估已 3 次 deferred 之路由/checkpoint 提案，而非直接視為定案拒絕。</li>
+</ul>
+<h2>研究方法備註</h2>
+<p>REST 觀測：<code>GET https://api.github.com/repos/{owner}/{repo}</code> 對三個目標 repo 即時取得 stargazers_count/pushed_at；<code>quality.notes</code> 已聲明本輪為即時觀測（非離線降級路徑）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

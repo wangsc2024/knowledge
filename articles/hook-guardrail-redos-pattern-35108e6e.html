@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：規則式 Hook Guardrail 的模糊測試方法論 — ReDoS 攻擊面與 Pattern-Matching Overload DoS（2026-07-10）">
+  <title>深度研究洞察簡報：規則式 Hook Guardrail 的模糊測試方法論 — ReDoS 攻擊面與 Pattern-Matching Overload DoS（2026-07-10） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：規則式 Hook Guardrail 的模糊測試方法論 — ReDoS 攻擊面與 Pattern-Matching Overload DoS（2026-07-10）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">insight-briefing</span><span class="tag">insight_briefing</span><span class="tag">hook-guardrail</span><span class="tag">redos</span><span class="tag">security</span><span class="tag">llm-agent-guardrail-threat-model</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <p>延續 llm-agent-guardrail-threat-model 系列（foundation 2026-07-07 完成）進入 mechanism 階段，聚焦 DDP config/hook-rules.yaml 的正則規則本身之演算法複雜度風險（ReDoS/catastrophic backtracking），區別於前篇 LLM 語意層攻擊威脅模型。</p>
+<h2>核心洞見</h2>
+<ol>
+<li>ReDoS 與 arXiv:2606.14517 的 pattern-matching overload DoS 是同構但不同層威脅：前者攻擊正則引擎回溯機制，後者攻擊 LLM guardrail 推理長度（148 倍延遲放大），共同結構弱點是「決策層計算成本無固定上界」。</li>
+<li>規則式確定性過濾層免疫 LLM 語意攻擊，但繼承正則引擎自身複雜度風險（Stack Overflow 2016 全站中斷 34 分鐘、Cloudflare 2019 全球中斷 27 分鐘為經典案例）。</li>
+<li>業界已有成熟工具鏈（RegexStaticAnalysis NFA EDA/IDA 分析、PUFFERDOS 攻擊字串自動生成、ReTest grammar-aware fuzzing）可對規則清單做離線批次 ReDoS 掃描。</li>
+<li>DDP 現有約 30 條規則掃描：未見典型巢狀量詞高危結構，但 exfiltration 系列規則存在多重貪婪萬用字元鏈（<code>.*</code> × 2-3），屬多項式時間風險族群。</li>
+<li>Python 3.11+ 原生 <code>re.match(..., timeout=1.0)</code> 是零成本零新依賴的立即緩解手段。</li>
+<li>Google RE2 案例顯示架構免疫優於逐條修補，但需視規則來源信任模型決定是否值得——DDP 規則由開發者維護、非開放給不受信任使用者輸入，暫不需換引擎。</li>
+</ol>
+<h2>建議行動</h2>
+<ol>
+<li>pre_bash_guard.py/pre_write_guard.py 的 re.match/re.search 加 timeout= 參數。</li>
+<li>RegexStaticAnalysis 類工具接入 tests/hooks/ 或 pre-commit 自動掃描新增規則。</li>
+<li>exfiltration 系列規則字元類別收斂（<code>.<em></code> → <code>[^|\n]</em></code>）降低多項式放大空間。</li>
+<li>僅當規則來源擴及使用者可控輸入時才評估遷移 RE2。</li>
+</ol>
+<p>完整簡報含多透鏡洞察（Sam Altman／黃仁勳／Taleb）與 9 篇分級來源，見 context/insight-briefings/2026-07-10-hook-guardrail-redos-fuzzing.md。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
