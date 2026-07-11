@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 架構（runtime orchestration / state / HITL） - 2026-07-11">
+  <title>GitHub Scout: Agent 架構（runtime orchestration / state / HITL） - 2026-07-11 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 架構（runtime orchestration / state / HITL） - 2026-07-11</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent 架構</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Agent 架構（runtime orchestration / state / HITL）</h1>
+<p><strong>日期</strong>：2026-07-11｜<strong>主題選擇理由</strong>：LRU（Agent 架構上次 2026-06-25，16 天未搜）</p>
+<h2>專案觀測摘要</h2>
+<h3>microsoft/agent-framework（12,020★，pushed 2026-07-10）</h3>
+<ul>
+<li><strong>runtime_model</strong>：圖式編排，Executor 節點組 DAG，支援 sequential/concurrent/handoff/group 四模式；Semantic Kernel + AutoGen 合流繼任框架（2026-04 GA v1.0）</li>
+<li><strong>state_strategy</strong>：Durable checkpoint + resume，<code>workflow.run(checkpoint_id=...)</code>；遇 RequestInfoExecutor 等待輸入時自動落 checkpoint，含 pending request id；支援 time-travel</li>
+<li><strong>human_review_model</strong>：interrupt-point（同步短延遲），RequestInfoExecutor 暫停原地落 checkpoint，等回應後同一次呼叫續跑，語意近 LangGraph interrupt()</li>
+<li>REST 觀測：<code>curl https://api.github.com/repos/microsoft/agent-framework</code></li>
+</ul>
+<h3>agentscope-ai/agentscope（27,745★，pushed 2026-07-10）</h3>
+<ul>
+<li><strong>runtime_model</strong>：事件驅動 ReAct 迴圈，統一 typed event bus；多代理走 Agent-as-a-Service 多租戶部署</li>
+<li><strong>state_strategy</strong>：StateModule 組合式狀態，<code>state_dict()/load_state_dict()</code> 可遞迴序列化整個巢狀代理階層；AgentStateStore 後端可插拔（記憶體/JSON/MySQL/Redis）</li>
+<li><strong>human_review_model</strong>：signal-based 為主（asyncio cancellation），中斷本身為 observable event，保留部分執行結果後可精確恢復；敏感工具呼叫前送 user-confirmation 事件</li>
+<li>REST 觀測：<code>curl https://api.github.com/repos/agentscope-ai/agentscope</code></li>
+</ul>
+<h2>改進提案</h2>
+<ol>
+<li><strong>[P1] RequestInfoExecutor checkpoint-on-pause</strong>（來源 microsoft/agent-framework）</li>
+</ol>
+<p>   - target_files: config/autonomous-harness.yaml, context/continuity/*.json, tools/planner_executor/runner.py</p>
+<p>   - 本系統 human_review_gates 為規則式靜態判定，review-only 命中時無標準化暫停現場快照，恢復易漏欄位/狀態漂移。建議借鑑：命中時序列化該次 phase 完整輸入為獨立 checkpoint 檔，review 完成後精確 resume。</p>
+<p>   - <strong>審查結論</strong>：feasibility_score=8、stability_score=7，通過審查門檻（均≥7）；但因觸及核心執行引擎 tools/planner_executor/runner.py 且需搭配 ADR 定義 checkpoint schema，升為 risk_level=high，本輪僅輸出計畫至 docs/plans/github-scout-20260711-checkpoint-on-pause.md，不直接落實程式碼。</p>
+<ol>
+<li><strong>[P2] StateModule 組合式狀態介面</strong>（來源 agentscope-ai/agentscope）</li>
+</ol>
+<p>   - target_files: tools/planner_executor/, state/<em>.json, context/continuity/</em>.json</p>
+<p>   - 現況 state/*.json 各自為政，無統一狀態物件抽象。已寫入 backlog 供常規優化評估。</p>
+<ol>
+<li><strong>[P2] 中斷即事件（interrupt as observable event）</strong>（來源 agentscope-ai/agentscope）</li>
+</ol>
+<p>   - target_files: config/autonomous-harness.yaml, tools/self_heal/</p>
+<p>   - self_heal 命中 deny/pending 常整段視為失敗需重跑，可借鑑保留部分已完成輸出的設計。已寫入 backlog。</p>
+<h2>已落實項目</h2>
+<p>無（本輪 P1 提案因觸及核心執行引擎升為高風險，未直接落實程式碼）</p>
+<h2>待人工審核項目</h2>
+<ul>
+<li>docs/plans/github-scout-20260711-checkpoint-on-pause.md（RequestInfoExecutor checkpoint-on-pause 落實計畫，待人工審核後方可實作）</li>
+</ul>
+<h2>備註</h2>
+<p>GitHub 觀測與 Phase2 寫入之 task_execution.used_fallback／fallback_kind 無自動因果關聯。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
