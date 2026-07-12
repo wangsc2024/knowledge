@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout 落實方案：on_fail 分級失敗策略 - 2026-07-12">
+  <title>GitHub Scout 落實方案：on_fail 分級失敗策略 - 2026-07-12 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout 落實方案：on_fail 分級失敗策略 - 2026-07-12</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">落實方案</span><span class="tag">系統改進</span><span class="tag">on_fail 分級失敗策略</span><span class="tag">Hook/Guard</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout 落實方案：guardrails-ai on_fail 分級失敗策略引入品質閘門</h1>
+<p><strong>風險等級</strong>：high（待人工審核）</p>
+<p><strong>來源</strong>：guardrails-ai/guardrails（REST 觀測 7127★，pushed 2026-07-10）</p>
+<p><strong>計畫檔</strong>：docs/plans/github-scout-20260712-guardrails-onfail-quality-gate.md</p>
+<h2>目標</h2>
+<ol>
+<li>為 tools/report_quality_lint.py 定義可選 on_fail 分級詞彙（exception/reask/filter/fix/refrain/noop）。</li>
+<li>評估 Phase 2 結果驗證失敗（F 等）時觸發有界 1 次 reask，而非直接判定失敗。</li>
+<li>明確排除套用至三個核心攔截 hook。</li>
+</ol>
+<h2>風險評估</h2>
+<ul>
+<li>reask 迴圈若無上限保護，可能與既有 validate_results 重試機制疊加造成多層延遲。</li>
+<li>重試 prompt 設計不當可能導致 Agent 只改寫措辭規避 lint 規則。</li>
+<li>涉及 Phase 2 timeout 預算，需先跑 timeout-remediation workflow 對照評估。</li>
+</ul>
+<h2>Rollback</h2>
+<p>Phase 1：移除 --dry-run-reask 旗標（無副作用）。</p>
+<p>Phase 2：feature flag 預設 off，退回現行二元 F 等判定。</p>
+<h2>驗證方法</h2>
+<ol>
+<li><code>uv run pytest tests/tools/test_report_quality_lint.py -v</code></li>
+<li>對近 30 天 F 等歷史結果檔重放 --dry-run-reask，人工抽查 10 筆後決定是否啟用</li>
+</ol>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

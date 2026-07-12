@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-07-12">
+  <title>系統優化落實報告 2026-07-12 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-07-12</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-07-12</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid ×4（daysAgo=2）：去重後 25 筆可執行洞察</li>
+<li>system-insight：<code>cache_hit_ratio=0.163</code>（門檻 0.40）；<code>block_rate=0.0263</code></li>
+<li>cache_hit_analyzer 7d：cacheable 分母主因 = <code>cacheable_kb_query</code> 33（podcast raw curl <code>/api/notes/<uuid></code>）+ <code>cacheable_external</code> 27</li>
+</ul>
+<h2>方案評分（滿分 10）</h2>
+<p>| 方案 | 影響 | 難度 | 風險 | 分 |</p>
+<p>|------|------|------|------|----|</p>
+<p>| podcast notes 改 kb_hybrid_cached --note | 4 | 3 | 3 | <strong>10</strong> |</p>
+<p>| Instinct 記憶演化 | 4 | 1 | 0 | 5 → backlog |</p>
+<p>| 再 bump TTL（gmail/SWR） | 1 | 3 | 3 | 7（無效：knowledge TTL 已 max） |</p>
+<h2>落實內容</h2>
+<ol>
+<li><code>templates/auto-tasks/podcast-create.md</code>：步驟 2 raw curl → <code>uv run python -m tools.kb_hybrid_cached --note {note_id}</code></li>
+<li><code>templates/auto-tasks/podcast-jiaoguangzong.md</code>：同上</li>
+<li><code>hooks/validate_config.py</code>：<code>check_kb_hybrid_cached_adoption</code> 擴充攔 <code>/api/notes/<id></code>（排除 POST 匯入與 <code>?limit=</code> 列表）</li>
+</ol>
+<h2>驗收</h2>
+<ul>
+<li>✓ 兩 template 無 raw <code>/api/notes/<id></code></li>
+<li>✓ <code>check_kb_hybrid_cached_adoption</code> issues=0</li>
+<li>✓ <code>validate_config.py --check-auto-tasks</code>：116 任務一致</li>
+<li>✓ pytest：kb_hybrid_cached + cache_miss_diagnoser + compute_system_metrics = 99 passed</li>
+<li>✓ <code>--note</code> smoke：miss→hit</li>
+<li>預存 YAML 語法錯：<code>config/security-audit-ntfy.yaml</code>（非本輪改動）</li>
+</ul>
+<h2>備份</h2>
+<ul>
+<li><code>git commit</code> 失敗（index 含無關 staged 檔＋forge 測試紅）；基準 HEAD <code>4e10340a</code></li>
+</ul>
+<h2>回滾</h2>
+<ul>
+<li><code>git checkout HEAD -- templates/auto-tasks/podcast-create.md templates/auto-tasks/podcast-jiaoguangzong.md hooks/validate_config.py</code></li>
+</ul>
+<h2>預期效果</h2>
+<ul>
+<li>podcast_create / podcast_jiaoguangzong 重複讀同 note → cache-read（降低 cacheable_kb_query 對 cache_hit_ratio 分母污染）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
