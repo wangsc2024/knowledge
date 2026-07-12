@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: 執行沙箱 × 瀏覽器工具鏈 - 2026-07-12">
+  <title>GitHub Scout: 執行沙箱 × 瀏覽器工具鏈 - 2026-07-12 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: 執行沙箱 × 瀏覽器工具鏈 - 2026-07-12</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">執行沙箱</span><span class="tag">瀏覽器工具鏈</span><span class="tag">sandbox_runtime_fusion</span><span class="tag">github_scout</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：執行沙箱 × 瀏覽器工具鏈（2026-07-12）</h1>
+<h2>專案觀測摘要</h2>
+<p>本輪 REST 即時觀測 3 個專案（皆與近 7 天既有 github_scout 主題不重複）：</p>
+<ul>
+<li><strong>daytonaio/daytona</strong>（72221★，pushed 2026-07-09）：OCI/gVisor 容器隔離執行沙箱，冷啟<90ms，不支援 GPU passthrough；純 execution_environment_boundary，無瀏覽器/桌面工具層。<strong>新發現</strong>：2026-06 production 程式碼已閉源，原 repo 僅維持公開但不再維護，長期依賴風險升高。</li>
+<li><strong>microsoft/playwright-mcp</strong>（34968★，pushed 2026-07-09）：Playwright MCP server，純 tool_api_boundary。<code>--allowed-origins</code>/<code>--blocked-origins</code> 官方文件<strong>明言非安全邊界</strong>，可被 DNS rebinding／HTTP redirect 繞過（CVE-2025-9611，已於 0.0.40 修補）。</li>
+<li><strong>browserbase/stagehand</strong>（23462★，pushed 2026-07-11）：雙層邊界正例。execution_environment_boundary＝Browserbase 雲端 ephemeral Linux VM（獨立 fs/network/process tree，30 分鐘閒置自動銷毀）；tool_api_boundary＝全流量經 proxy 強制 domain allowlist（<code>allowManagedDomainsOnly</code> 未知網域靜默阻擋），敏感值以變數名稱替代不進 LLM context。</li>
+</ul>
+<p>三案共同印證 deny-by-default 網域邊界為業界慣例。</p>
+<h2>改進提案</h2>
+<ol>
+<li><strong>P1（已落實，低風險）</strong>：於 <code>config/github-scout-review-policy.yaml</code> 之 <code>topic_overrides.sandbox_runtime_fusion.notes</code> 與 <code>config/autonomous-harness.yaml</code> 之 <code>guardrail_surface_annotations.coverage_gaps</code> 補充本輪三案觀測；於 <code>docs/github-scout-agent-comparables.md</code> 新增 <code>sandbox_runtime_fusion_comparables_2026-07-12</code> 對照表章節。純文件/config 觀測補充，不變更任何執行行為。</li>
+<li><strong>P1（既有高風險計畫，本輪補充證據）</strong>：<code>docs/plans/github-scout-sandbox-curl-allowlist.md</code>（2026-05-31 建立，狀態待人工審核）追加「補充觀測（2026-07-12）」章節——stagehand 的統一 proxy 攔截模式回應該計畫審核要點「是否需對 WebFetch 做相同限制」；playwright-mcp 的 CVE-2025-9611 佐證純字串域名比對之繞過風險，建議新增 redirect/IP 直連繞過測試案例。因實際落實仍需修改核心攔截層 <code>hooks/pre_bash_guard.py</code>，維持 risk_level=high 與 plan_ready 狀態不變，未自動執行。</li>
+</ol>
+<h2>審查結論</h2>
+<p>提案 1：feasibility_score=9、stability_score=9（均 ≥7 通過標準），1 輪審查通過。採納原因：config-only 補充觀測，不涉及 guarded_operations 或 human_review_gates.high_risk_paths；風險：無（純新增陣列元素，向後相容）；rollback：git revert 對應 3 個檔案變更。</p>
+<p>提案 2：feasibility_score=7、stability_score=7（文件補充部分達標），1 輪審查通過；但落實本體（修改 pre_bash_guard.py）因 <code>execution_contract.human_review_required=true</code> 依規則不可直接自動落實，維持 plan_ready。</p>
+<h2>已落實項目</h2>
+<ul>
+<li><code>config/github-scout-review-policy.yaml</code>：topic_overrides.sandbox_runtime_fusion.notes 追加第 3 則觀測（version 3.0.1→3.0.2）</li>
+<li><code>config/autonomous-harness.yaml</code>：guardrail_surface_annotations.coverage_gaps 追加第 5 則觀測</li>
+<li><code>docs/github-scout-agent-comparables.md</code>：新增 sandbox_runtime_fusion_comparables_2026-07-12 表格章節</li>
+<li><code>docs/plans/github-scout-sandbox-curl-allowlist.md</code>：追加補充觀測章節（不變更計畫風險等級與狀態）</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li><code>docs/plans/github-scout-sandbox-curl-allowlist.md</code>（2026-05-31 建立）：pre_bash_guard.py curl domain allowlist enforcement，risk_level=high，仍待人工審核，本輪僅補充證據未變更狀態</li>
+</ul>
+<h2>附註</h2>
+<p>本輪意外發現：<code>context/research-registry.json</code> 僅 7 筆 github_scout 歷史記錄，遠少於 <code>context/github-scout-entries.json</code> 的 26 筆（P1-D4 遷移後之 SoT），存在歷史寫入缺口。已改以 entries 檔作為主要主題去重依據並成功識別「Pydantic AI／Graph Tool」主題已於 2026-07-05（7 天前）覆蓋，因而 pivot 至本主題（26 筆歷史中從未單獨作為主題覆蓋，符合 LRU 原則）。registry 缺口本身建議另立 backlog 追蹤，本輪未直接修復（避免範圍蔓延，需先根因分析寫入路徑）。</p>
+<p>GitHub 觀測與 Phase2 寫入之 task_execution.used_fallback／fallback_kind 無自動因果（見 config/schemas/results-auto-task-schema.json 之 task_execution 定義）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

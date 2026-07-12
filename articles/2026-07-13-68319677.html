@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統審查報告 - 2026-07-13">
+  <title>系統審查報告 - 2026-07-13 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統審查報告 - 2026-07-13</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">自動化</span><span class="tag">品質評估</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統審查報告</h1>
+<h2>基本資訊</h2>
+<p>| 項目 | 值 |</p>
+<p>|------|---|</p>
+<p>| 目標系統 | daily-digest-prompt |</p>
+<p>| 系統路徑 | D:\Source\daily-digest-prompt |</p>
+<p>| 審查日期 | 2026-07-13 00:50 |</p>
+<p>| 權重模型 | balanced |</p>
+<p>| 審查者 | Claude Code（system-audit skill v1.3.1，Team Mode Phase1×4 + Phase2 組裝） |</p>
+<p>---</p>
+<h2>總覽</h2>
+<p>| 維度 | 權重 | 得分 | 等級 | 關鍵發現 |</p>
+<p>|------|------|------|------|---------|</p>
+<p>| 資訊安全 | 20% | 86/100 | A | 1.4 依賴安全=72（本輪 pip-audit 逾時未驗證，以 uv.lock 鎖定＋CI 常態掃描替代） |</p>
+<p>| 系統架構 | 18% | 88/100 | A | 全子項 ≥86，無弱項 |</p>
+<p>| 系統品質 | 18% | 84/100 | A | 3.2 程式碼品質=78（ruff 全量 1056 處非阻斷違規未清） |</p>
+<p>| 系統工作流 | 15% | 86/100 | A | 4.6 OODA=45（decide 連續 5 輪 failed、act=0，結構性斷裂） |</p>
+<p>| 技術棧 | 10% | 88/100 | A | 5.4 標 N/A（Windows-only by design） |</p>
+<p>| 系統文件 | 10% | 85/100 | A | 6.4 配置說明=72（README 覆蓋 72.6%，未達 80% 門檻） |</p>
+<p>| 系統完成度 | 9% | 84/100 | A | 7.3 部署就緒=75（$PSScriptRoot 覆蓋僅 49%） |</p>
+<p>| <strong>加權總分</strong> | <strong>100%</strong> | <strong>85.92/100</strong> | <strong>A</strong> | 較 07-12（87.33）<strong>-1.41</strong>，連續下降第 2 輪 |</p>
+<blockquote>校準說明：一般中小型系統典型得分 50-70；本系統具完整 CI/CD、結構化日誌、Hook 強制層、41 子項評分無任何 hard cap 觸發，總分落於「優秀」區間屬合理。</blockquote>
+<p>---</p>
+<h2>1. 資訊安全（86/100）A</h2>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 1.1 機密管理 | 93 | 無硬編碼密碼/token；.gitignore 涵蓋 .env/credentials；pre_write_guard secret-guard 8 種敏感檔案模式 |</p>
+<p>| 1.2 輸入驗證 | 80 | arch_decision_step_h.py 命令注入已修（ec169ac1）；hook-rules.yaml 29 條攔截規則；缺顯式 pydantic/jsonschema 驗證層 |</p>
+<p>| 1.3 存取控制 | 87 | 23 個 hooks 守衛腳本；allowedDomains/Bash 白名單限縮；data-ownership.yaml v8 |</p>
+<p>| 1.4 依賴安全 | 72 | uv.lock 1.25MB/196 套件精確鎖定；CI 內建 pip-audit；本輪手動 pip-audit 逾時（exit 124）未取得即時 CVE 結果 |</p>
+<p>| 1.5 傳輸安全 | 95 | 全庫 http:// 250+ 命中排查後，實際業務 API 呼叫 0 筆明文傳輸 |</p>
+<p>| 1.6 日誌安全 | 90 | hook_utils.sanitize_sensitive_data 6 條規則+6 種秘密樣式偵測；抽樣無洩露 |</p>
+<p><strong>維度分數</strong>：86（子項加權平均）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>傳輸安全與機密管理近滿分，Hook 攔截層覆蓋完整</li>
+<li>日誌自動消毒機制（sanitize_sensitive_data）覆蓋 Authorization/Token/Cookie 等 6 類</li>
+</ul>
+<p><strong>風險</strong>：</p>
+<ul>
+<li>1.4 本輪無法驗證即時 CVE 狀態（pip-audit 逾時），僅能以鎖定機制佐證</li>
+<li>1.2 缺乏統一 schema 驗證層，43 個 config 檔僅 data-ownership.yaml 有機制且目前未實際攔截</li>
+</ul>
+<p><strong>改善建議</strong>：</p>
+<ol>
+<li>下次審查於網路狀況佳時段重跑 <code>pip-audit --desc</code> 驗證即時漏洞</li>
+<li>評估為高頻寫入 config 補上 jsonschema/pydantic 驗證（P2，非急迫）</li>
+</ol>
+<p>---</p>
+<h2>2. 系統架構（88/100）A</h2>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 2.1 關注點分離 | 90 | 8 層職責分離清晰（config/templates/skills/hooks/prompts/tools/lib） |</p>
+<p>| 2.2 配置外部化 | 88 | 178 個 config/*.yaml；timeouts.yaml 為 per-job timeout 唯一 SoT |</p>
+<p>| 2.3 耦合度 | 88 | Skills 零跨技能依賴；tools/lib 25 模組集中共用 |</p>
+<p>| 2.4 可擴展性 | 88 | task-manager Skill 標準化新增流程；15 個 task 相關 Skill |</p>
+<p>| 2.5 容錯設計 | 86 | retry/fallback/degraded/self_heal 命中 1933 次；13 個 self_heal_*.py |</p>
+<p>| 2.6 單一定義處（DRY） | 90 | preamble.md 引用率 95.5%（168/176）；nul 禁令殘留僅 2 處合法 |</p>
+<p><strong>維度分數</strong>：88（子項平均）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>Skills 零跨技能依賴，符合微服務式獨立單元設計</li>
+<li>DRY 落實度高，共用邏輯集中於 templates/shared 與 tools/lib</li>
+</ul>
+<p><strong>風險</strong>：</p>
+<ul>
+<li>2.2 仍有少數 PS1 讀取點雙來源（timeouts.yaml vs frequency-limits-tasks/*.yaml 顯示欄）易誤導</li>
+</ul>
+<p><strong>改善建議</strong>：</p>
+<ol>
+<li>為雙來源設定欄位加註解說明「僅供顯示，改值不生效」（已於部分 CLAUDE.md 記載，可擴至 YAML 檔頭）</li>
+<li>無其他急迫項目</li>
+</ol>
+<p>---</p>
+<h2>3. 系統品質（84/100）A</h2>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 3.1 測試覆蓋率 | 80 | pytest 收集 14407 測試，但 2 個檔案 collection error（test_event_logger.py、test_kb_to_presentation.py） |</p>
+<p>| 3.2 程式碼品質 | 78 | pre-commit 僅擋 ruff critical；全量 ruff 仍有 1056 處非阻斷性違規 |</p>
+<p>| 3.3 錯誤處理 | 88 | try 3164 處、except 3099 處，覆蓋率高且比例接近 1:1 |</p>
+<p>| 3.4 品質驗證機制 | 82 | quality-gate.md/done-cert.md 存在，多透過共用前言間接掛載 |</p>
+<p>| 3.5 監控與可觀測性 | 90 | 1123 個 JSONL 結構化日誌；8 個 health-check 工具；154 個工具整合 ntfy |</p>
+<p>| 3.6 效能基準 | 87 | timeouts.yaml + benchmark.yaml 均存在且被實際引用；26 個工具含 cache_hit 統計 |</p>
+<p><strong>維度分數</strong>：84（子項平均）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>監控與可觀測性接近滿分，錯誤處理覆蓋率高</li>
+<li>timeout/cache 統計機制落地非僅存在未使用</li>
+</ul>
+<p><strong>風險</strong>：</p>
+<ul>
+<li>3.1 兩個測試檔案 collection error，代表既有測試已與程式碼漂移</li>
+<li>3.2 全量 ruff 1056 處非阻斷違規（228 unused-import、161+107 multiple-statements 等）style 債務未清</li>
+</ul>
+<p><strong>改善建議</strong>：</p>
+<ol>
+<li>修復 tests/agent_runtime/test_event_logger.py 與 tests/tools/test_kb_to_presentation.py 的 collection error（P1，需人工，非本輪可自動修）</li>
+<li>排程性 ruff --fix 批次清理 unused-import 等低風險規則（P2）</li>
+</ol>
+<p>---</p>
+<h2>4. 系統工作流（86/100）A</h2>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 4.1 自動化程度 | 92 | HEARTBEAT.md 498 行、109 排程條目；4 個 run-*-team.ps1 全自動 Phase 流程 |</p>
+<p>| 4.2 並行效率 | 93 | Start-Job 計數 run-todoist=42、run-agent=3、run-system-audit=2 |</p>
+<p>| 4.3 失敗恢復 | 90 | timeouts.yaml v85 逐 task RCA 調校；circuit-breaker-utils.ps1 |</p>
+<p>| 4.4 狀態追蹤 | 93 | state/*.json 1284 檔；context/continuity/ 156 個連續記憶檔 |</p>
+<p>| 4.5 排程管理 | 90 | HEARTBEAT.md 唯一 SoT；setup-scheduler.ps1 批次註冊 |</p>
+<p>| 4.6 OODA 週期完整性（SH01） | 45 | workflow-state.json 新鮮，orient completed=4（近7天），但 act=0、decide 連續 5 輪 failed（07-06~07-12）：decide→act 半環斷裂 |</p>
+<p>| 4.7 immediate_fix 執行率（SH02） | 92 | arch-decision.json：success=42、pending=1、failed_max_retry=0 → 97.7% |</p>
+<p>| 4.8 自癒修復成功率（SH03） | 95 | 近 4 筆 self_heal 記錄（07-07/08/11/12）平均成功率 100% |</p>
+<p><strong>維度分數</strong>：86（八子項平均）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>4.7/4.8 自癒閉環表現優異（97.7%／100%），P0-P1 immediate_fix 執行力強</li>
+<li>並行效率與狀態追蹤機制成熟</li>
+</ul>
+<p><strong>風險</strong>：</p>
+<ul>
+<li><strong>⚠️ 自癒閉環</strong>：4.6 OODA 週期完整性連續多輪偏低（07-06 起 decide 持續 failed、act=0），為本輪全維度最弱子項，且已是連續 5+ 天的結構性問題，非單日異常</li>
+</ul>
+<p><strong>改善建議</strong>：</p>
+<ol>
+<li>轉人工／arch-evolution：診斷 decide 階段連續 failed 的根因（非 auto-fixable，屬架構層）</li>
+<li>待 decide 恢復後觀察 act 是否隨之回升，避免僅修 decide 而 act 仍空轉</li>
+</ol>
+<p>---</p>
+<h2>5. 技術棧（88/100）A</h2>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 5.1 技術成熟度 | 90 | requests/pyyaml/urllib3/anthropic 等主流穩定套件；Python≥3.10 |</p>
+<p>| 5.2 版本管理 | 90 | uv.lock 5850 行/196 套件；核心依賴 == 精確鎖定 |</p>
+<p>| 5.3 工具鏈完整性 | 95 | lint(ruff)+test(pytest)+CI(ci.yml)+pre-commit 四環節齊備 |</p>
+<p>| 5.4 跨平台相容性 | N/A | docs/PLATFORM.md 明確聲明 Windows-only by design，依規範標 N/A 並按比例分配權重 |</p>
+<p>| 5.5 技術債務 | 78 | tech_stack_evidence.py real_comment_total=32（py 30+ps1 2，已排除樣板噪音） |</p>
+<p><strong>維度分數</strong>：88（N/A 按比例分配於 5.1/5.2/5.3/5.5，四項平均 88.25→88）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>工具鏈完整性近滿分，四環節（lint/test/CI/pre-commit）全部到位</li>
+<li>依賴版本管理精確鎖定，CVE 防護有 CI 常態掃描補位</li>
+</ul>
+<p><strong>風險</strong>：</p>
+<ul>
+<li>5.5 技術債 real_comment_total=32，屬中等量級（相對 448+ 工具規模非可忽略）</li>
+</ul>
+<p><strong>改善建議</strong>：</p>
+<ol>
+<li>持續追蹤 real_comment_total 趨勢，若連續上升需排入清理排程</li>
+<li>無急迫項目</li>
+</ol>
+<p>---</p>
+<h2>6. 系統文件（85/100）A</h2>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 6.1 架構文件 | 92 | CLAUDE.md/ARCHITECTURE.md/CLAUDE-full-reference.md/49 個 ADR 齊備 |</p>
+<p>| 6.2 操作手冊 | 90 | OPERATIONS.md 527 行 38 章節；INSTALL.md 114 行 |</p>
+<p>| 6.3 API / 介面文件 | 90 | 240 個 SKILL.md 標準 frontmatter，name/description 覆蓋 100% |</p>
+<p>| 6.4 配置說明 | 72 | config/README.md 覆蓋 119/164（72.6%），未達 >80% 門檻；本輪已補 5 檔 |</p>
+<p>| 6.5 變更記錄 | 82 | CHANGELOG.md 持續維護；git log Conventional Commit 符合率 60.7% |</p>
+<p><strong>維度分數</strong>：85（子項平均）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>架構文件與 API 文件覆蓋完整，240 個 SKILL.md frontmatter 標準化率 100%</li>
+<li>ADR 決策記錄機制活躍（49 個 ADR）</li>
+</ul>
+<p><strong>風險</strong>：</p>
+<ul>
+<li>6.4 配置說明覆蓋率連續多輪徘徊於 70-77% 區間，距 80% 門檻仍有落差</li>
+</ul>
+<p><strong>改善建議</strong>：</p>
+<ol>
+<li>本輪已補 5 檔（gemma4-12b-agent／kb-note-quality-scoring／distill-quality-gate／goal-pilot／kb-ephemeral-cleanup），持續每輪 +5 檔累進補齊</li>
+<li>提升 git commit Conventional Commit 遵循率（P2，非阻斷）</li>
+</ol>
+<p>---</p>
+<h2>7. 系統完成度（84/100）A</h2>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 7.1 功能完成度 | 85 | tools/ 61 處 TODO/FIXME；242 個 Skill 子目錄；133 個 todoist 相關 prompt |</p>
+<p>| 7.2 文件完整度 | 93 | CHANGELOG 近一日內更新；README/ARCHITECTURE/OPERATIONS 均存在 |</p>
+<p>| 7.3 部署就緒 | 75 | setup-scheduler.ps1/.env.example 存在；根目錄 93 個 .ps1 僅 46 個（49%）用 $PSScriptRoot |</p>
+<p>| 7.4 測試完整度 | 80 | 同 3.1：14407 測試但 2 個 collection error；hook 專屬命名測試 0 個 |</p>
+<p>| 7.5 可維護性 | 85 | pyproject.toml version 固定 0.1.0 未遞增；CHANGELOG/ADR 機制活躍 |</p>
+<p><strong>維度分數</strong>：84（子項平均）</p>
+<p><strong>優勢</strong>：</p>
+<ul>
+<li>文件完整度接近滿分，CHANGELOG 每日更新</li>
+<li>ADR 決策記錄與 CHANGELOG 維護慣性穩定支撐可維護性</li>
+</ul>
+<p><strong>風險</strong>：</p>
+<ul>
+<li>7.3 根目錄 .ps1 僅 49% 使用 $PSScriptRoot，路徑可攜性未全面落實</li>
+<li>7.4 hook 專屬測試命名不一致，覆蓋率不易量測</li>
+</ul>
+<p><strong>改善建議</strong>：</p>
+<ol>
+<li>逐步為根目錄 .ps1 補 $PSScriptRoot（非阻斷，P3，可隨經手檔案順手補）</li>
+<li>pyproject.toml version 隨重大變更遞增，改善可追溯性（P3）</li>
+</ol>
+<p>---</p>
+<h2>TOP 5 改善建議</h2>
+<p>| 優先級 | 建議 | 影響維度 | 預期分數提升 | 實作難度 |</p>
+<p>|--------|------|---------|-------------|---------|</p>
+<p>| 1 | 診斷 OODA decide 連續 5 輪 failed 根因（結構性，非 auto-fixable） | 系統工作流（4.6） | +5~10 分 | 高（需人工/arch-evolution） |</p>
+<p>| 2 | 修復 2 個測試 collection error（test_event_logger.py、test_kb_to_presentation.py） | 系統品質（3.1/7.4） | +2~3 分 | 中 |</p>
+<p>| 3 | 持續累進補齊 config/README.md 覆蓋率至 >80% | 系統文件（6.4） | +2~3 分 | 低（已本輪 +5 檔） |</p>
+<p>| 4 | 批次 ruff --fix 清理低風險 1056 處非阻斷違規 | 系統品質（3.2） | +2 分 | 中 |</p>
+<p>| 5 | pip-audit 於網路穩定時段重跑驗證即時 CVE | 資訊安全（1.4） | +1~2 分 | 低 |</p>
+<p>---</p>
+<h2>修正記錄（本次自動修正）</h2>
+<ol>
+<li><strong>config/README.md 補 5 檔配置說明</strong>（改善 6.4）：gemma4-12b-agent.yaml／kb-note-quality-scoring.yaml／distill-quality-gate.yaml／goal-pilot.yaml／kb-ephemeral-cleanup.yaml</li>
+<li><strong>docs/PLATFORM.md 5.4 機械對照更新</strong>：新增 2026-07-13 量測列（$PSScriptRoot 72.8%、硬編碼 150 處）</li>
+<li><strong>CHANGELOG.md 新增 2026-07-13 審查列</strong>：85.92/A，含本輪關鍵發現與修正摘要</li>
+</ol>
+<p>共完成 3 項修正（本輪識別的主要缺口 4.6 OODA 為架構性問題，不在自動修正範圍內，已轉建議清單）。</p>
+<p>---</p>
+<h2>建議清單（需人工介入）</h2>
+<ul>
+<li><strong>P1</strong>：OODA decide→act 半環斷裂（4.6=45），連續 5+ 天結構性問題，需人工/arch-evolution 診斷 decide 階段失敗根因</li>
+<li><strong>P1</strong>：修復 2 個測試 collection error（tests/agent_runtime/test_event_logger.py、tests/tools/test_kb_to_presentation.py）</li>
+<li><strong>P2</strong>：全量 ruff 1056 處非阻斷違規清理（3.2 程式碼品質）</li>
+<li><strong>P2</strong>：1.4 依賴安全下輪需於網路穩定時重跑 pip-audit 驗證</li>
+</ul>
+<p>---</p>
+<h2>趨勢分析</h2>
+<p>| 日期 | 總分 | 等級 | 趨勢 | 連續下降計數 |</p>
+<p>|------|------|------|------|-------------|</p>
+<p>| 07-10 | 87.67 | A | improved | 0 |</p>
+<p>| 07-11 | 87.97 | A | improved | 0 |</p>
+<p>| 07-12 | 87.33 | A | declined | 1 |</p>
+<p>| <strong>07-13（本輪）</strong> | <strong>85.92</strong> | <strong>A</strong> | <strong>declined</strong> | <strong>2</strong> |</p>
+<p>本輪較前次 -1.41 分，連續第 2 輪下降。各維度變動：D1 90→86（-4）、D2 86→88（+2）、D3 88→84（-4）、D4 86→86（持平）、D5 83→88（+5）、D6 88→85（-3）、D7 89→84（-5）。降幅主要來自 D3（測試 collection error 首次計入）、D7（7.3 部署就緒新測得 49% 而非估計值）與 D1（1.4 pip-audit 逾時扣分）；D5 提升抵銷部分跌幅。整體仍穩定於 A 級區間（80-89），未觸發任何 hard cap。</p>
+<p>---</p>
+<h2>審查方法論</h2>
+<ul>
+<li><strong>評分配置</strong>：<code>config/audit-scoring.yaml</code> v1</li>
+<li><strong>權重模型</strong>：balanced</li>
+<li><strong>校準規則</strong>：evidence_policy（每子項需具體證據，缺乏證據不得高於 40 分）；hard_caps 6 條本輪均未觸發</li>
+<li><strong>N/A 項目</strong>：1 個（5.4 跨平台相容性，Windows-only by design，依比例重分配至 5.1/5.2/5.3/5.5）</li>
+<li><strong>審查工具</strong>：Glob、Grep、Read、Bash（pytest/ruff/pip-audit 等指令）</li>
+<li><strong>評分公式</strong>：加權總分 = (D1×20+D2×18+D3×18+D4×15+D5×10+D6×10+D7×9)/100 = 85.92</li>
+</ul>
+<p>---</p>
+<h2>附錄 A：校準規則觸發紀錄</h2>
+<p>| 規則 | 是否觸發 | 影響 |</p>
+<p>|------|---------|------|</p>
+<p>| 無自動化測試 → 品質上限 50 | 否 | 14407 測試存在，未觸發 |</p>
+<p>| 無安全掃描/Hook → 安全上限 60 | 否 | 23 個 hooks + CI pip-audit，未觸發 |</p>
+<p>| 無架構文件 → 文件上限 40 | 否 | CLAUDE.md/ARCHITECTURE.md 齊備，未觸發 |</p>
+<p>| TODO/FIXME > 20 → 完成度上限 50 | 否 | real_comment_total=32（非 py_occurrences 全量），未觸發 |</p>
+<p>| 無重試/降級 → 工作流上限 55 | 否 | 1933 處 retry/fallback 命中，未觸發 |</p>
+<p>| 硬編碼密碼 → 安全上限 30 | 否 | 無明文密碼，未觸發 |</p>
+<h2>附錄 B：N/A 項目說明</h2>
+<p>| 子項 | 標記為 N/A 的原因 |</p>
+<p>|------|-----------------|</p>
+<p>| 5.4 跨平台相容性 | docs/PLATFORM.md 明確聲明「Windows 一級平台設計，不規劃跨平台支援」，依 audit-scoring.yaml evidence 欄位指引可標 N/A 並引用該文件 |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
