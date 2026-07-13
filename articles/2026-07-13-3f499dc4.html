@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-07-13">
+  <title>系統優化落實報告 2026-07-13 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-07-13</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-07-13</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid ×4（daysAgo=2）：去重 29 筆 actionable 洞察</li>
+<li><code>context/system-insight.json</code>（2026-07-13T04:09）：<code>cache_hit_ratio=0.163</code>（門檻 0.4）、<code>block_rate=0.026</code>（門檻 0.02）</li>
+<li><code>cache_hit_analyzer --days 2</code>：overall hit=0.1857；<strong>knowledge 分源 hit=0.0278</strong>（1/36）</li>
+</ul>
+<h2>選定方案（三維評分 10/10）</h2>
+<p><strong>note-GET 呼叫端遷移至 <code>kb_hybrid_cached --note</code></strong></p>
+<ul>
+<li>影響範圍 4（核心 cache 路徑）+ 難度 3（1 session）+ 風險 3（低）</li>
+<li>根因：S1-a note 快取層已存在，但 SKILL／podcast／video prompt 仍示範 raw <code>curl /api/notes/<id></code>，且 SKILL 允許「一次性可 raw curl」例外 → 呼叫端不寫 cache、不記 cache-read</li>
+</ul>
+<h2>落實步驟</h2>
+<ol>
+<li><code>skills/knowledge-query/SKILL.md</code> v1.6.0→<strong>v1.7.0</strong>：預設一律 <code>--note</code>；移除一次性 raw curl 例外</li>
+<li><code>prompts/article-to-podcast-script.md</code>：NOTE_ID／QUERY 全文讀取改 <code>--note</code></li>
+<li><code>prompts/article-to-video-script.md</code>：同上</li>
+</ol>
+<h2>高風險未落實（已移 backlog）</h2>
+<ul>
+<li>Instinct/Letta 記憶架構升級 → <code>backlog_kb_system_optimize_20260713_084227701088</code></li>
+</ul>
+<h2>驗收</h2>
+<p>| 條件 | 結果 |</p>
+<p>|------|------|</p>
+<p>| 三檔不再示範 raw curl GET /api/notes 為預設 | ✓ |</p>
+<p>| <code>pytest</code> kb_hybrid/cache/harness 相關 | ✓ 409 passed, 1 skipped |</p>
+<p>| <code>validate_config.py --check-auto-tasks</code> | ✓ 116 任務一致 |</p>
+<h2>備份</h2>
+<ul>
+<li>pre-change HEAD：<code>c86a19c8</code>（目標檔無變更可 commit）</li>
+<li>回滾：<code>git checkout c86a19c8 -- skills/knowledge-query/SKILL.md prompts/article-to-podcast-script.md prompts/article-to-video-script.md</code></li>
+</ul>
+<h2>不做</h2>
+<ul>
+<li>不放寬 cache_hit_ratio／block_rate 門檻（反 gaming）</li>
+<li>knowledge／kb_hybrid TTL 已達 schema max 20160，本輪不空 bump</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
