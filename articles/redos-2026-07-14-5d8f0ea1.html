@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：ReDoS 靜態分析工具鏈導入應用階段——修正一則已擴散的技術前提錯誤（2026-07-14）">
+  <title>深度研究洞察簡報：ReDoS 靜態分析工具鏈導入應用階段——修正一則已擴散的技術前提錯誤（2026-07-14） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：ReDoS 靜態分析工具鏈導入應用階段——修正一則已擴散的技術前提錯誤（2026-07-14）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">ReDoS</span><span class="tag">security</span><span class="tag">llm-guardrail</span><span class="tag">hook_guard</span><span class="tag">regex-static-analysis</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：ReDoS 靜態分析工具鏈導入應用階段——修正一則已擴散的技術前提錯誤</h1>
+<p><strong>日期</strong>：2026-07-14</p>
+<p><strong>延續系列</strong>：<code>llm-agent-guardrail-threat-model</code>（foundation 2026-07-07 → mechanism 2026-07-10 → 本篇進入 application 階段）</p>
+<p><strong>選題說明</strong>：precompute 原選題「improvement-backlog.json 終態項歸檔外置」與 2026-07-13 已發布之洞察簡報撞題（同一 series <code>json-backlog-archival-compaction</code>，<code>days_since_active=1</code>，違反 <code>topic_cooldown_days=3</code>），依 dedup_check 降級規則改採 <code>research_series_advisor.py</code> 標記之 <code>mechanism_saturated</code> 推薦清單，選定本系列 application 階段。</p>
+<h2>摘要</h2>
+<p>延續 2026-07-10「規則式 Hook Guardrail 的模糊測試方法論」mechanism 階段結論，本篇將人工審計轉為可執行落地方案時，發現該篇第 5 點洞見與「建議行動」第 1 條所依賴的技術前提——「<code>re.match(pattern, string, timeout=1.0)</code> 已進入 Python 3.11+ 標準庫」——<strong>經本機 Python 3.11.13 實測證偽</strong>（<code>TypeError: match() got an unexpected keyword argument 'timeout'</code>），且此錯誤已寫入 <code>context/research-series.json</code> 的 <code>next_research_hint</code> 並被 <code>research_series_advisor.py</code> 自動推薦給後續研究輪次，屬於系統自身研究記憶的一次真實錯誤擴散案例。本篇透過 WebSearch 交叉驗證（Python.org 官方討論串、regex 模組文件）確認：timeout 能力僅存在於第三方 <code>regex</code> 套件，CPython 官方僅有一個尚未落地的 opt-in timeout 提案討論；並盤點 2026 年新出現的 Python 原生 ReDoS 靜態分析工具 <code>redos-analyzer</code>（直接分析 <code>sre_parse</code> AST）與攻擊字串生成器 <code>PUFFERDOS</code>（2026-06 arXiv 論文）的正確銜接順序。對 <code>config/hook-rules.yaml</code> 重新做啟發式掃描：82 個含正則特徵字元的欄位中，0 條命中典型指數型巢狀量詞樣式，與 mechanism 階段結論方向一致但採不同顆粒度量測。</p>
+<h2>核心洞見</h2>
+<ol>
+<li><strong>「Python 3.11+ re 支援 timeout 參數」為系統自身研究記憶中已擴散的事實錯誤</strong></li>
+</ol>
+<p>   本機環境（Python 3.11.13）實測 <code>re.match('a', 'a', timeout=1)</code> 拋出 <code>TypeError: match() got an unexpected keyword argument 'timeout'</code>；WebSearch 交叉確認 stdlib <code>re</code> 模組從未提供 <code>timeout</code> 參數，CPython 官方僅在 discuss.python.org 有一則「Add an opt-in timeout parameter to re」提案討論串（未合併進標準庫）。此錯誤源自 2026-07-10 mechanism 階段簡報第 5 點洞見，並已寫入 <code>context/research-series.json</code> 的 <code>next_research_hint</code>，經 <code>research_series_advisor.py</code> 自動推薦給本次（以及未來）研究輪次——若照字面執行「導入 Python 3.11+ re timeout 參數」會在實作第一步就因 <code>TypeError</code> 卡關。</p>
+<ol>
+<li><strong>timeout 能力的正確歸屬是第三方 <code>regex</code> 套件，但引入它與 ponytail「不新增依賴」原則存在真實張力</strong></li>
+</ol>
+<p>   PyPI <code>regex</code> 套件（API 相容 <code>re</code>）原生支援 <code>timeout=</code> 參數，對 <code>(a+)+b</code> 這類典型 ReDoS pattern 的處理速度比 stdlib <code>re</code> 快數個數量級（毫秒 vs 秒級）。但導入它是一次新依賴決策，與 CLAUDE.md「已裝依賴能做就不新增依賴」的決策階梯衝突，需要明確評估「新增一個小型、無傳遞依賴的 timeout 防護套件」是否值得，而非直接假設「反正 stdlib 就有」。</p>
+<ol>
+<li><strong>靜態預防優於執行期補救：2026 年出現更貼合 Python 生態的偵測工具</strong></li>
+</ol>
+<p>   <code>davisjam/RegexStaticAnalysis</code>（2026-07-10 簡報已盤點）是學術基礎工具、Java 實作，偵測 NFA 的 exponential/polynomial degree of ambiguity；2026 年新出現的 <code>HarshithReddy01/redos-analyzer</code> 直接分析 Python <code>sre_parse</code> AST（貼合 CPython 實際編譯後的正則行為，含 prefix factoring 等內部正規化），並帶有依上下文（是否吃使用者輸入）判斷可利用性的分類器，更適合直接嵌入 DDP 的 Python/uv 工具鏈；<code>PUFFERDOS</code>（2026-06 arXiv，<code>2606.19654</code>）本質是「攻擊字串生成器外掛」，設計上是接在既有 ReDoS 偵測器<strong>之後</strong>做真實可利用性驗證，而非與偵測工具並列執行——修正 mechanism 階段「跑 RegexStaticAnalysis/PUFFERDOS」的並列語氣為正確順序：先靜態偵測 → 再用 PUFFERDOS 驗證是否在真實輸入長度預算內可利用。</p>
+<ol>
+<li><strong>內部重新掃描結果與 mechanism 階段結論方向一致，但量測顆粒度不同，不可互相取代</strong></li>
+</ol>
+<p>   本次以「含正則特徵字元的 YAML 字串欄位」為單位掃描 <code>config/hook-rules.yaml</code>，共 82 個欄位，啟發式巢狀量詞偵測（<code>(X+)+</code>／<code>(X<em>)</em></code> 樣式）0 條命中；2026-07-10 簡報以「規則」為單位（約 30 條）得出相同方向結論（未見典型高危結構，但存在多重貪婪萬用字元鏈）。兩次量測顆粒度不同（欄位 vs 規則），啟發式方法也僅能偵測指數型巢狀量詞，無法偵測多項式回溯（如連續 <code>.*</code> 疊加），<strong>兩次「無高危發現」都不構成「規則集已安全」的證明</strong>，仍需專用靜態分析工具複驗才能下結論。</p>
+<ol>
+<li><strong>本次選題撞題事件本身即是 dedup_check 機制運作正常的證據，而非缺陷</strong></li>
+</ol>
+<p>   precompute 腳本依 <code>task_profile:insight_briefing</code> 機械選出的主題與昨日（2026-07-13）已發布簡報撞題，本應由 <code>topic_cooldown_days=3</code> 攔截；本次由執行 Agent 於 dedup_check 步驟主動比對 <code>context/research-registry.json</code> 與 <code>research_series_advisor.py</code> 才發現撞題並換題成功——顯示 precompute 層的機械選題與 Agent 層的去重驗證需保持雙層防呆，precompute 若未來要完全自動化選題，須把 registry 撞題檢查前移至 precompute 腳本本身，否則會持續依賴 Agent 人工攔截。</p>
+<h2>共識與分歧</h2>
+<p><strong>共識</strong>：所有來源一致認為「靜態預防」優於「執行期 timeout 補救」——timeout 只能限制單次攻擊的損害範圍，無法防止規則被寫入時就存在的漏洞；ReDoS 防護的正確順序應是撰寫規則當下用靜態分析工具攔截。</p>
+<p><strong>分歧</strong>：在「是否值得為 timeout 防護新增 <code>regex</code> 套件依賴」上，本研究與 mechanism 階段簡報立場不同——mechanism 階段簡報（因誤信 stdlib 已有 timeout）判定「零成本、零新依賴」，本篇修正後認為這是一次需要明確評估的依賴新增決策，不能再視為零成本。</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇與理由</h3>
+<p>本主題核心從「威脅模型分類」推進至「工具鏈選型與技術前提修正」，屬於資源配置與技術路線判斷問題，延續 mechanism 階段選用的透鏡組合：Sam Altman「compute 是否為瓶頸」「快速部署反饋」作為第一透鏡（primary, rank 1），檢視「發現前提錯誤後」應如何務實调整下一步；黃仁勳「demand-driven 創新：先看 workload 再定義解法」作為第二透鏡（primary, rank 2），檢視新工具（redos-analyzer、PUFFERDOS）與 DDP 實際 workload 的匹配度；Taleb「反模式」與「誠實邊界」作為對抗性透鏡，檢視本篇「修正錯誤」的敘事本身是否又落入新的過度自信陷阱。</p>
+<h3>框架化建議</h3>
+<p>以 Sam Altman「快速部署反饋」心智模型檢視：發現 mechanism 階段的技術前提錯誤後，正確反應不是「因為第一版建議錯了就整套推翻重來」，而是保留其正確部分（靜態分析優先於執行期補救的方向判斷不變），只修正被證偽的具體機制（timeout 參數歸屬），這正是「先 ship 再迭代」的精神——迭代對象不只是產品功能，也包含研究記憶本身的自我校正循環；本篇的存在即是這個迭代閉環的一次實例。</p>
+<p>以黃仁勳「先看 workload 再定義晶片」類比：<code>redos-analyzer</code> 直接分析 Python <code>sre_parse</code> AST 這件事之所以比 Java 實作的 <code>RegexStaticAnalysis</code> 更適合 DDP，不是因為它更新或更有名，而是因為它與 DDP 實際的 workload（純 Python/uv 工具鏈，無 JVM 依賴）匹配度更高——套用「TCO 不是標價」思維，選型判準應是「整合進既有 CI/uv pipeline 的邊際成本」，而非工具本身的學術嚴謹度或知名度。</p>
+<p>以 Sam Altman「用戶反饋閉環」延伸到系統自身：<code>context/research-series.json</code> 的 <code>next_research_hint</code> 欄位相當於系統對「下一步該做什麼」的自我建議，本次錯誤擴散案例顯示這個回饋迴圈目前缺乏「事實查核」節點——建議未來寫入 <code>next_research_hint</code> 前，若內容涉及可驗證的技術宣稱（如 API 參數是否存在），應先跑最小可行驗證（如本篇的一行 <code>re.match(..., timeout=1)</code> 測試）再落筆，而非僅憑 WebSearch 摘要或既有印象直接寫入會被自動推薦的欄位。</p>
+<h3>反模式檢查</h3>
+<p>依 Taleb「拒絕」清單逐條檢視：（1）避免「敘事謬誤」——本篇未將「發現一個錯誤」誇大包裝成「mechanism 階段研究整體不可信」的過度推論，六項原始洞見中僅第 5 點的具體機制被證偽，其餘威脅分類、工具盤點、內部掃描方向判斷仍成立；（2）避免「Fragilista 式過度反應」——不建議因這次錯誤就對所有既存 <code>next_research_hint</code> 欄位做全面重新查核（那是不成比例的干預），而是聚焦本次涉及的具體宣稱；（3）Skin in the Game 檢查——本篇的核心宣稱（stdlib re 無 timeout 參數）附上可重現的本機實測指令與確切錯誤訊息，而非僅引用二手轉述；（4）避免「中間地帶」——對「是否新增 regex 套件依賴」給出明確判準（需先評估依賴新增決策），不迴避做出立場陳述。</p>
+<h3>透鏡盲區自陳</h3>
+<p>依 Taleb「誠實邊界」自陳：Sam Altman 與黃仁勳兩透鏡（調研截止 2026-06-01）長於資源配置與技術路線框架化，但對「為何 CPython 核心開發者至今未接受 timeout 提案」這類語言治理與相容性決策的深層原因缺乏著力點——本篇對此僅止於觀察到討論串存在，未深入 CPython 核心開發郵件列表或 PEP 流程查證具體反對理由，屬本篇未覆蓋的知識缺口。Taleb「拒絕中間地帶」判準若被機械套用於「是否新增依賴」這類真正需要權衡（regex 套件輕量、無傳遞依賴、對比 stdlib 缺陷的實際攻擊面）的決策，可能誤導成「必須二選一」而忽略「先用靜態分析工具做預防、暫緩決定是否新增 timeout 依賴」這種本身就是漸進、非中間地帶的第三選項。</p>
+<h2>建議行動</h2>
+<ol>
+<li><strong>修正 <code>context/research-series.json</code> 的 <code>llm-agent-guardrail-threat-model.next_research_hint</code></strong>：移除「Python 3.11+ re timeout 參數」錯誤前提，改為「評估是否新增 <code>regex</code> 套件依賴 vs 純靜態分析工具導入」。</li>
+<li><strong>evaluate-only（非立即實作）</strong>：試評估 <code>redos-analyzer</code>（2026 Python sre_parse AST 工具）是否可直接 <code>uv add --dev</code> 並接入 <code>tests/hooks/</code> 做 CI 檢查，需先確認套件成熟度（stars、維護活躍度、授權）。</li>
+<li><strong>不建議</strong>貿然新增 <code>regex</code> 套件依賴作為 timeout 防護——待靜態分析工具導入並實測發現真實高風險 pattern 後，再評估是否需要 runtime timeout 這層額外防護。</li>
+<li><strong>提醒</strong>：任何未來 auto-task 讀取 <code>research_series_advisor.py</code> 的 <code>next_research_hint</code> 作為研究方向來源時，若內容含可驗證的技術宣稱，應先做最小驗證再採信，不可直接視為既定事實執行。</li>
+</ol>
+<h2>參考來源</h2>
+<p>| 分級 | 標題 | 連結 |</p>
+<p>|------|------|------|</p>
+<p>| A | Add an opt-in timeout parameter to re to mitigate catastrophic backtracking — Python.org Discussions | https://discuss.python.org/t/add-an-opt-in-timeout-parameter-to-re-to-mitigate-catastrophic-backtracking/107766 |</p>
+<p>| A | PUFFERDOS: Efficient and Effective Attack String Generation for ReDoS Vulnerabilities (arXiv:2606.19654) | https://arxiv.org/abs/2606.19654 |</p>
+<p>| B | redos-analyzer — Python sre_parse AST 靜態分析工具（HarshithReddy01/GitHub） | https://github.com/HarshithReddy01/redos-analyzer |</p>
+<p>| B | RegexStaticAnalysis（davisjam/GitHub）— NFA exponential/polynomial ambiguity 分析 | https://github.com/davisjam/RegexStaticAnalysis |</p>
+<p>| C | 本機實測：Python 3.11.13 <code>re.match(..., timeout=1)</code> → <code>TypeError</code>（一手驗證，非引用） | n/a（本機終端輸出） |</p>
+<h2>附錄：快取遙測</h2>
+<ul>
+<li>KB 語義快取（近 7 日）：<code>entry_count=0</code>、<code>total_hit_count=0</code>、<code>lookup/store/http_fallback/degraded</code> 事件均為 0；<code>fastembed_available=false</code>（degraded，非任務失敗）。</li>
+<li>本次 KB 知識感測查詢（hybrid search）命中 2026-07-13 已發布之「json-backlog-archival-compaction」筆記（score 0.024，關鍵字比對非語義比對，分數低但標題高度吻合），觸發本次換題決策。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
