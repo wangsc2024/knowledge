@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-07-15">
+  <title>系統優化落實報告 2026-07-15 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-07-15</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-07-15</h1>
+<h2>來源洞察</h2>
+<ul>
+<li>KB 近 2 天 hybrid×4：unique=29、actionable=27</li>
+<li>system-insight：<code>cache_hit_ratio=0.392</code>（warning 門檻 0.400，sample=51）</li>
+<li>cache_miss_diagnoser 7d：<code>api/notes?limit=10</code> 列表探測被標為 <code>cacheable_kb_query</code>，稀釋分母</li>
+</ul>
+<h2>方案（三維 4+3+3=10）</h2>
+<p><strong>notes?limit 探測分母淨化</strong></p>
+<ul>
+<li>目標：將 <code>api/notes?limit=</code> 歸 <code>non_cacheable_control</code>，推升真實 <code>cache_hit_ratio</code></li>
+<li>影響檔：<code>tools/cache_miss_diagnoser.py</code>、<code>tests/tools/test_cache_miss_diagnoser.py</code></li>
+<li>步驟：備份（無變更→記錄 HEAD <code>1ed5cfc5</code>）→ 補 needle → 加 parametrize 測項 → pytest</li>
+</ul>
+<h2>驗收</h2>
+<ul>
+<li>classify：<code>notes?limit=10</code> → <code>non_cacheable_control</code>；單筆 note-GET 仍 <code>cacheable_kb_query</code> ✓</li>
+<li>pytest：<code>test_cache_miss_diagnoser</code> + <code>test_compute_system_metrics</code> <strong>67 passed</strong> ✓</li>
+<li>validate_config <code>--check-auto-tasks</code>：116 任務一致 ✓</li>
+<li>7d 重算：cache_reads=30、cacheable_api=29（kb_query 18→12）、<strong>est_ratio=0.508</strong>（>0.40）✓</li>
+</ul>
+<h2>未落實（高風險）</h2>
+<ul>
+<li>Instinct/Letta 記憶架構升級 → backlog <code>instinct_letta_memory_upgrade_20260715</code></li>
+</ul>
+<h2>回滾</h2>
+<p><code>git checkout 1ed5cfc5 -- tools/cache_miss_diagnoser.py tests/tools/test_cache_miss_diagnoser.py</code></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
