@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統審查報告 - 2026-07-17">
+  <title>系統審查報告 - 2026-07-17 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統審查報告 - 2026-07-17</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">自動化</span><span class="tag">品質評估</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統審查報告 - 2026-07-17 00:53</h1>
+<h2>執行摘要</h2>
+<ul>
+<li><strong>Phase1 加權總分（Harness 為准）</strong>：85.89/100（A 級）</li>
+<li>與前次（07-16：81.54）比對：<strong>+4.35</strong>（改善，連續下降計數歸零）</li>
+<li><strong>已知評分矛盾（本輪重大發現）</strong>：D7 系統完成度=90 與同輪 real_comment_total=31>20 牴觸——07-15（32）／07-16（31）同一數值均正確觸發 <code>system_completeness</code> hard_cap 鎖 50，本輪 <code>fetch-audit-dim3-7</code> agent 未套用該 hard_cap（誤用未排噪音的原始 Grep 命中數評分 7.1）。<strong>若套用矯正</strong>，加權總分應為 <strong>82.29/100（A 級，+0.75 vs 07-16）</strong>。已修正 <code>prompts/team/fetch-audit-dim3-7.md</code>（見修正記錄），下輪 07-18 起應恢復正確套用。</li>
+<li>審查時間：Phase 1 並行審查（00:41-00:48）+ Phase 2 組裝（00:50-00:53）</li>
+</ul>
+<h2>各維度詳細評分（Phase1 原始分數，Harness 據此重算）</h2>
+<h3>1. 資訊安全（權重 20%）— 90 分</h3>
+<p>| 子項 | 分數 | 摘要 |</p>
+<p>|------|------|------|</p>
+<p>| 1.1 機密管理 | 95 | 硬編碼機密 Grep 命中 0；secret-guard Hook 攔截 |</p>
+<p>| 1.2 輸入驗證 | 90 | 23 個 hook；55 個 JSON Schema 驗證 |</p>
+<p>| 1.3 存取控制 | 92 | 9 個 guard 檔；allowedTools 最小權限 272 處命中 |</p>
+<p>| 1.4 依賴安全 | 85 | pip-audit 無 CVE；eval/exec/shell=True 12 筆待複核 |</p>
+<p>| 1.5 傳輸安全 | 95 | 外部明文 http:// 命中 0 |</p>
+<p>| 1.6 日誌安全 | 82 | govlog 無顯式敏感欄位遮罩函數 |</p>
+<h3>2. 系統架構（權重 18%）— 88 分</h3>
+<p>| 子項 | 分數 | 摘要 |</p>
+<p>|------|------|------|</p>
+<p>| 2.1 關注點分離 | 88 | 分層清晰；根目錄雜項資料夾降低可讀性 |</p>
+<p>| 2.2 配置外部化 | 90 | 165 個 config yaml，覆蓋率高 |</p>
+<p>| 2.3 耦合度 | 85 | 245 Skill 鬆耦合；prompt-tools 隱性路徑耦合 |</p>
+<p>| 2.4 可擴展性 | 90 | 標準化新增流程（task-manager 等） |</p>
+<p>| 2.5 容錯設計 | 86 | 58 個 PS1/tools 含 retry/fallback |</p>
+<p>| 2.6 DRY | 92 | preamble.md 引用率 100%（149/149） |</p>
+<h3>3. 系統品質（權重 18%）— 90 分</h3>
+<p>| 子項 | 分數 | 摘要 |</p>
+<p>|------|------|------|</p>
+<p>| 3.1 測試覆蓋率 | 91 | 14178 測試案例 |</p>
+<p>| 3.2 程式碼品質 | 88 | ruff critical 掛 pre-commit |</p>
+<p>| 3.3 錯誤處理 | 92 | tools/ try 3968 處 |</p>
+<p>| 3.4 品質驗證機制 | 90 | quality-gate.md+done-cert.md 存在且被引用 |</p>
+<p>| 3.5 監控可觀測性 | 95 | JSONL 日誌+govlog+ntfy/Discord 告警 |</p>
+<p>| 3.6 效能基準 | 85 | timeouts.yaml per-task SoT+benchmark.yaml |</p>
+<h3>4. 系統工作流（權重 15%）— **71 分（唯一未達 80）**</h3>
+<p>| 子項 | 分數 | 摘要 |</p>
+<p>|------|------|------|</p>
+<p>| 4.1 自動化程度 | 90 | HEARTBEAT.md 66 條排程；4 個 team.ps1 |</p>
+<p>| 4.2 並行效率 | 92 | 4 腳本合計 47 處並行任務派發 |</p>
+<p>| 4.3 失敗恢復 | 87 | timeouts.yaml 16 處 retry/circuit-breaker |</p>
+<p>| 4.4 狀態追蹤 | 90 | continuity 159 檔；state 1679 個 json |</p>
+<p>| 4.5 排程管理 | 87 | HEARTBEAT.md 集中定義 |</p>
+<p>| <strong>4.6 OODA 週期完整性（SH01）</strong> | <strong>15</strong> | 近7d decide 連續 5 輪 failed、act=0，結構性停滯 |</p>
+<p>| <strong>4.7 immediate_fix 執行率（SH02）</strong> | <strong>10</strong> | arch-decision 15 筆：12 deferred（多 degraded_from=immediate_fix）、3 pending、0 success |</p>
+<p>| 4.8 自癒修復成功率（SH03） | 95 | 近7天 self_heal 6 筆全數 100%（07-11~07-16） |</p>
+<h3>5. 技術棧（權重 10%）— 85 分</h3>
+<p>| 子項 | 分數 | 摘要 |</p>
+<p>|------|------|------|</p>
+<p>| 5.1 技術成熟度 | 92 | 64 依賴均成熟穩定 |</p>
+<p>| 5.2 版本管理 | 90 | uv.lock 鎖定 196 套件 |</p>
+<p>| 5.3 工具鏈完整性 | 90 | lint+test+CI+deploy 四環節齊全 |</p>
+<p>| 5.4 跨平台相容性 | 87 | Windows-only by design（PLATFORM.md 聲明） |</p>
+<p>| <strong>5.5 技術債務</strong> | <strong>65</strong> | real_comment_total=31（>20 門檻）；與 07-16 持平未改善 |</p>
+<h3>6. 系統文件（權重 10%）— 86 分</h3>
+<p>| 子項 | 分數 | 摘要 |</p>
+<p>|------|------|------|</p>
+<p>| 6.1 架構文件 | 92 | CLAUDE.md+AGENTS.md+specs/system-docs/ |</p>
+<p>| 6.2 操作手冊 | 88 | ops-manual.md 存在 |</p>
+<p>| 6.3 API/介面文件 | 90 | SKILL.md frontmatter 覆蓋率 100%（244/244） |</p>
+<p>| 6.4 配置說明 | 76 | README 覆蓋率本輪 Phase1 76.4%（本次修正後 79.4%） |</p>
+<p>| 6.5 變更記錄 | 85 | CHANGELOG.md 活躍維護；conventional commits 73% |</p>
+<h3>7. 系統完成度（權重 9%）— **90 分（存疑，見執行摘要）**</h3>
+<p>| 子項 | 分數 | 摘要 |</p>
+<p>|------|------|------|</p>
+<p>| 7.1 功能完成度 | 86 | ⚠️ 評分未套用 hard_cap（real_comment_total=31>20 應鎖維度上限 50），已修正 prompt |</p>
+<p>| 7.2 文檔完整性 | 92 | 四索引+docs/INDEX.md 導航完整 |</p>
+<p>| 7.3 部署就緒 | 88 | setup-scheduler.ps1+.env.example |</p>
+<p>| 7.4 測試覆蓋率 | 92 | pytest 14178 測試+pre-commit 閘門 |</p>
+<p>| 7.5 維護性 | 92 | DRY 集中+四索引自動註冊 |</p>
+<h2>關鍵發現</h2>
+<ol>
+<li><strong>⚠️ D7 評分邏輯 bug（本輪新發現）</strong>：<code>fetch-audit-dim3-7</code> 之 7.1 未依 SoT（<code>tools/tech_stack_evidence.py</code> real_comment_total）套用 <code>config/audit-scoring.yaml</code> hard_cap，導致維度 7 虛高 40 分（90 vs 應為 50）。已修正 prompt，預期下輪恢復正確。</li>
+<li><strong>⚠️ 自癒閉環（SH）</strong>：4.6 OODA=15（decide 連續 5 輪 failed、act=0，結構性停滯，非可機械修復，需人工/arch-evolution 介入）；4.7 immediate_fix=10（12/15 筆 deferred，多因 <code>missing_execution_steps</code> 被降級，非執行失敗）。</li>
+<li><strong>5.5 技術債</strong>：real_comment_total=31，與 07-15（32）、07-16（31）持平，31 處真實 TODO/FIXME/HACK 未見清理進展。</li>
+<li><strong>6.4 配置說明</strong>：README 覆蓋率本輪 Phase1 76.4%，本次修正後提升至 79.4%（+5 檔）。</li>
+</ol>
+<h2>修正記錄（本次自動修正，共 4 項）</h2>
+<ol>
+<li><strong><code>config/README.md</code></strong> +5 檔說明（<code>insight-briefing-workflow</code>／<code>knowledge-roi-metrics</code>／<code>media-pipeline</code>／<code>postmortem</code>／<code>topic-rotation</code>）→ 覆蓋率 76.4%→79.4%（改善 6.4）</li>
+<li><strong><code>prompts/team/fetch-audit-dim3-7.md</code></strong>（v1.1.0→v1.2.0）：7.1 檢查方法補強，強制引用 <code>tools/tech_stack_evidence.py</code> 的 <code>real_comment_total</code> SoT（與 5.5 同源），並明確要求套用 <code>system_completeness</code> hard_cap（>20 時維度上限 50）——修正本輪 D7 虛高 bug 的根因</li>
+<li><strong><code>docs/PLATFORM.md</code></strong>：新增 2026-07-17 5.4 機械對照條目（<code>$PSScriptRoot</code> 72.8%／硬編碼 150 處，與 07-16 持平）</li>
+<li><strong><code>CHANGELOG.md</code></strong>：新增 2026-07-17 Audit 條目 + Fixed 條目（記錄 D7 hard_cap 修正）</li>
+</ol>
+<h2>建議清單（需人工介入）</h2>
+<p>| 優先級 | 項目 | 說明 |</p>
+<p>|--------|------|------|</p>
+<p>| P0 | 4.6 OODA 結構性停滯 | decide 連續 5 輪 failed、act=0；需人工或 arch-evolution 檢視 decide→act 轉換邏輯 |</p>
+<p>| P1 | 4.7 immediate_fix 執行率 | 12/15 筆因 <code>missing_execution_steps</code> 被降級為 deferred；需補齊 fix_instructions 產生機制 |</p>
+<p>| P2 | 5.5 技術債務 | 31 處真實 TODO/FIXME/HACK 待清理，連續 3 輪未改善 |</p>
+<p>| P2 | 1.4 依賴安全 | <code>make_ai_diffusion_video.py</code> 內 1 筆 eval/exec/shell=True 建議人工複核 |</p>
+<h2>趨勢分析</h2>
+<p>| 日期 | 分數 | 等級 | 趨勢 |</p>
+<p>|------|------|------|------|</p>
+<p>| 07-13 | 85.92 | A | - |</p>
+<p>| 07-15 | 82.60 | A | 連續下降第3輪 |</p>
+<p>| 07-16 | 81.54 | A | 連續下降第4輪 |</p>
+<p>| 07-17 | 85.89（原始）／82.29（矯正後） | A | 改善，連續下降計數歸零 |</p>
+<p>連續 4 輪下降趨勢本輪中止；矯正後分數（82.29）顯示實際健康度僅小幅改善（+0.75），主要受益於 D1/D2/D3 微幅上升，4.6/4.7 結構性問題仍未解決。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
