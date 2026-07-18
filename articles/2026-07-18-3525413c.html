@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-07-18">
+  <title>系統優化落實報告 2026-07-18 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-07-18</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-07-18</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid×4（<code>filters.daysAgo=2</code>）命中 28 筆去重後候選。</li>
+<li><strong>新鮮度閘門</strong>：<code>--note</code> 核對 12 筆優先筆記，<code>updatedAt</code>/<code>createdAt</code> 全部 < 2026-07-16 → <strong>fresh=0</strong>（排除 12）。</li>
+<li>降級：改用 <code>context/improvement-backlog.json</code> pending（181 筆）選案。</li>
+</ul>
+<h2>落實方案</h2>
+<h3>cursor-agent 認證熔斷 half-open 自動解鎖（評分 10/10）</h3>
+<p>| 維度 | 分 |</p>
+<p>|------|----|</p>
+<p>| 影響範圍（核心） | 4 |</p>
+<p>| 實作難度（1 session） | 3 |</p>
+<p>| 風險（低） | 3 |</p>
+<ul>
+<li><strong>來源 backlog</strong>：<code>backlog_closed_loop_review_20260716_102850065138</code></li>
+<li><strong>目標</strong>：<code>_probe_cursor_auth()</code> 正向確認已登入時，若 <code>state/cursor-cli-auth-lock.json</code> 仍 active → 自動清除（半開恢復），避免人工 <code>agent login</code> 後仍整天 short-circuit。</li>
+<li><strong>影響檔案</strong>：</li>
+</ul>
+<p>  - <code>tools/backend_preflight.py</code>（新增 <code>_maybe_clear_cursor_auth_lock</code> + 接線）</p>
+<p>  - <code>tests/tools/test_backend_preflight_cursor_cli.py</code>（+3 測試）</p>
+<ul>
+<li><strong>步驟</strong>：</li>
+</ul>
+<p>  1. 新增靜默清鎖函式（不走 <code>cmd_clear</code> stdout，避免污染 preflight JSON）</p>
+<p>  2. auth_failed=False 時呼叫；設 <code>status["auth_lock_cleared"]=True</code></p>
+<p>  3. kill switch：<code>DDP_PREFLIGHT_AUTH_LOCK_CLEAR=off</code></p>
+<ul>
+<li><strong>驗收</strong>：</li>
+</ul>
+<p>  - ✓ <code>uv run pytest tests/tools/test_backend_preflight_cursor_cli.py</code> → 17 passed</p>
+<p>  - ✓ config YAML 語法 OK</p>
+<p>  - ✓ <code>validate_config.py --check-auto-tasks</code> → 116 任務一致</p>
+<p>  - ✓ backlog transition pending→resolved（archive_sync=moved_and_added）</p>
+<ul>
+<li><strong>回滾</strong>：<code>git checkout HEAD -- tools/backend_preflight.py tests/tools/test_backend_preflight_cursor_cli.py</code>；或設 env <code>DDP_PREFLIGHT_AUTH_LOCK_CLEAR=off</code></li>
+<li><strong>備份</strong>：目標檔落實前無未提交變更；HEAD=<code>b90a1c15</code>（backup commit 無 diff 可提交）</li>
+</ul>
+<h2>未落實（高風險／已修）</h2>
+<ul>
+<li>Letta 三層記憶／Instinct 演化：風險=0，維持 backlog</li>
+<li><code>policy-showcase-deck</code> tools_count_zero：已於 v1.5.1 修正，本輪未重複動刀</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

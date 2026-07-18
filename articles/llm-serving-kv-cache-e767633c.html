@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="推理服務層的隱形架構轉向：LLM Serving 系統從代理無關的靜態批次工程演化為代理感知排程與 KV Cache 治理層">
+  <title>推理服務層的隱形架構轉向：LLM Serving 系統從代理無關的靜態批次工程演化為代理感知排程與 KV Cache 治理層 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>推理服務層的隱形架構轉向：LLM Serving 系統從代理無關的靜態批次工程演化為代理感知排程與 KV Cache 治理層</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">AI</span><span class="tag">深度研究</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <p>---</p>
+<p>schema_version: v3</p>
+<p>report_profile: thesis</p>
+<p>topic: "推理服務層的隱形架構轉向：LLM Serving 系統從代理無關的靜態批次工程演化為代理感知排程與 KV Cache 治理層"</p>
+<p>title: "推理服務層的隱形架構轉向：LLM Serving 系統從代理無關的靜態批次工程演化為代理感知排程與 KV Cache 治理層"</p>
+<p>keywords:</p>
+<p>  - "LLM 推理服務"</p>
+<p>  - "連續批次"</p>
+<p>  - "KV Cache 治理"</p>
+<p>  - "Prefill-Decode 分離"</p>
+<p>  - "代理感知排程"</p>
+<p>  - "語意契約缺口"</p>
+<p>  - "vLLM"</p>
+<p>  - "Autellix"</p>
+<p>abstract: "本文以推理服務系統（LLM serving system）過去三年的架構演化為研究對象，檢視一個常被編排層文獻忽略的問題：從 Orca 的迭代級排程、vLLM 的 PagedAttention 到 DistServe／Splitwise／Mooncake 的 prefill-decode 分離，再到 Autellix／Astraea／Continuum 等新一代狀態感知排程系統，推理服務層的核心設計目標正從『與應用無關的通用吞吐最佳化』系統性轉向『代理程式語意感知的排程治理』。透過候選池 82 筆、精讀納入 31 筆外部來源（27 篇同行評審或頂級系統會議論文、1 篇 B 級綜述、3 篇產業技術部落格）之三角佐證，本文論證這場轉向是一場發生在應用開發者視野之外、推理服務黑箱內部的『第二層編排革命』，其根本成因在於編排框架與服務引擎分屬不同研究社群，兩者的介面被固定在 HTTP/JSON 請求-回應層，抹除了程式級的依賴語意。本文主張，代理系統可靠性與成本工程要真正成熟，需要編排層與服務層之間出現一份新的『語意契約』，而非僅靠 MCP／A2A 協定標準化即可解決；同時誠實揭露：效能最佳化手段本身引入的時序側通道安全風險，目前僅有單一來源證實，仍待更多獨立復現研究。"</p>
+<p>thesis: "本文主張，過去兩年 LLM 推理服務系統的架構演化，其實是一場被學界與業界話語體系系統性低估的『第二層編排革命』——不是發生在使用者可見的 Agent Orchestration 框架（LangGraph、AutoGen、CrewAI 等），而是發生在其下方、通常被視為『黑箱 API』的推理服務層本身。從 Orca 的 iteration-level scheduling、vLLM 的 PagedAttention，到 DistServe／Splitwise／Mooncake 的 prefill-decode 分離架構，推理服務系統的核心設計目標，正從『與呼叫方應用無關的通用吞吐最佳化』，系統性地轉向『感知代理程式語意的排程治理』——如 Autellix 將整個 agent 程式視為一級排程單位、Astraea 與 Continuum 針對工具呼叫中斷所造成的 KV cache 閒置提出狀態感知策略。本文進一步論證，這個轉向長期被編排層文獻忽視的根本原因，在於編排框架與推理服務系統分屬不同研究社群與工程團隊，其介面被固定在『HTTP/JSON 請求-回應』這一層，抹除了程式級（program-level）的依賴語意，導致頭端阻塞（head-of-line blocking）與 KV cache 重複運算等結構性效能損失長期未被編排層工程師正視。本文闡明，若代理系統的可靠性與成本工程要真正成熟，勢必需要編排層與服務層之間出現新的『語意契約』，而非僅靠協定標準化（如 MCP／A2A）即可解決，並證實這一缺口目前僅由少數系統論文（而非主流 agent 框架文獻）在填補。"</p>
+<p>methodology: "檢索策略：Phase 0 機械 harvest 以 site:arxiv.org、OpenAlex API、Semantic Scholar API 針對『LLM inference serving』『continuous batching』『KV cache management』『prefill decode disaggregation』『agent-aware scheduling』等關鍵詞組合取得候選池，另針對 PagedAttention／vLLM、Orca、SGLang、DistServe／Splitwise／Mooncake、Autellix／Astraea／Continuum 等已知關鍵系統名稱執行九輪針對性檢索補強，候選池合計 82 筆。納入排除準則：優先納入 OSDI、SOSP、ISCA、NeurIPS 等頂級系統或機器學習會議之同行評審論文（列為 A 級），或雖為 arXiv 預印本但方法論嚴謹度足以判定為系統論文者；排除純模型能力評測論文與不涉及服務層架構的一般 agent 綜述（僅保留 1 篇作對照組樣本）；語言以英文系統論文為主，輔以 3 篇官方／產業技術部落格佐證產業採用路徑。三角佐證法：每條核心主張需有 ≥3 個獨立機構或作者群之來源交叉支持，方判定『已驗證✅』；僅 1-2 個來源支持者標『部分驗證⚠️』或『待驗證⚠️』並誠實揭露證據強度。最終納入 31 篇來源，27 篇 A 級，6 條核心主張中 4 條達『已驗證✅』標準，詳見附錄三角佐證表。"</p>
+<p>independent_claims: 4</p>
+<p>external_sources_count: 31</p>
+<p>kb_sources_count: 0</p>
+<p>triangulated_claims: 4</p>
+<p>sources_screened: 82</p>
+<p>sources_included: 31</p>
+<p>quality_score: 4</p>
+<p>phase7_critique_passed: true</p>
+<p>refine_rounds_used: 0</p>
+<p>bib_file: "references.bib"</p>
+<p>masters_applied:</p>
+<p>  - "distill-fei-fei-li"</p>
+<p>  - "distill-yann-lecun"</p>
+<p>master_author_rationale: "task_profile:ai_deep_research；precompute 選角 primary=distill-fei-fei-li（人本 AI／數據即科學儀器視角，適合檢視效能最佳化背後被系統論文忽略的安全側通道與分配代價，對應誰承擔了架構轉向的隱性成本）、co_primary=distill-yann-lecun（架構創新週期／反炒作工程視角，適合判斷這是否為真正的架構層轉向而非又一輪 scaling hype，並提出可驗證、可復現的實踐介面建議）。"</p>
+<p>generated_by: "claude-sonnet-5+deep-research-v3-external+research-master-author"</p>
+<p>harvest_timestamp: "2026-07-16T23:52:07+08:00"</p>
+<p>sources:</p>
+<p>  - {citation: "Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu, C. H., Gonzalez, J. E., Zhang, H., & Stoica, I. (2023). Efficient Memory Management for Large Language Model Serving with PagedAttention. SOSP 2023.", url: "https://arxiv.org/abs/2309.06180", source_type: "paper", tier: "A", year: 2023, language: "en"}</p>
+<p>  - {citation: "Yu, G.-I., Jeong, J. S., Kim, G.-W., Kim, S., & Chun, B.-G. (2022). Orca: A Distributed Serving System for Transformer-Based Generative Models. OSDI 2022.", url: "https://www.usenix.org/conference/osdi22/presentation/yu", source_type: "conference", tier: "A", year: 2022, language: "en"}</p>
+<p>  - {citation: "Zheng, L. et al. (2024). SGLang: Efficient Execution of Structured Language Model Programs. NeurIPS 2024.", url: "https://arxiv.org/abs/2312.07104", source_type: "paper", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Zhong, Y., Liu, S., Chen, J., Hu, J., Zhu, Y., Liu, X., Jin, X., & Zhang, H. (2024). DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving. OSDI 2024.", url: "https://arxiv.org/abs/2401.09670", source_type: "paper", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Patel, P., Choukse, E., Zhang, C., Shah, A., Goiri, Í., Maleki, S., & Bianchini, R. (2024). Splitwise: Efficient Generative LLM Inference Using Phase Splitting. ISCA 2024.", url: "https://arxiv.org/abs/2311.18677", source_type: "conference", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Qin, R., Li, Z., He, W., Zhang, M., Wu, Y., Zheng, W., & Xu, X. (2024). Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving.", url: "https://arxiv.org/abs/2407.00079", source_type: "paper", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Luo, M., Shi, X., Cai, C., Zhang, T., Wong, J., Wang, Y., Wang, C., Huang, Y., Chen, Z., Gonzalez, J. E., & Stoica, I. (2025). Autellix: An Efficient Serving Engine for LLM Agents as General Programs.", url: "https://arxiv.org/abs/2502.13965", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "Ni, H., Zhang, J., Li, G., Wang, Z., Wu, R., Zhang, C., & Tan, H. (2025). Astraea: A State-Aware Scheduling Engine for LLM-Powered Agents.", url: "https://arxiv.org/abs/2512.14142", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "Continuum: Efficient and Robust Multi-Turn LLM Agent Scheduling with KV Cache Time-to-Live (2025).", url: "https://arxiv.org/pdf/2511.02230", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "Act While Thinking: Accelerating LLM Agents via Pattern-Aware Speculative Tool Execution (2026).", url: "https://arxiv.org/abs/2603.18897", source_type: "paper", tier: "A", year: 2026, language: "en"}</p>
+<p>  - {citation: "AugServe: Adaptive Request Scheduling for Augmented Large Language Model Inference Serving (2025).", url: "https://arxiv.org/abs/2512.04013", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "AgentServeSim: A Hardware-aware Simulator for Multi-Turn LLM Agent Serving (2026).", url: "https://arxiv.org/abs/2606.09613", source_type: "paper", tier: "A", year: 2026, language: "en"}</p>
+<p>  - {citation: "Geometry-Aware Online Scheduling for LLM Serving: From Theoretical Bound to System Practice (2026).", url: "https://arxiv.org/abs/2606.22327", source_type: "paper", tier: "A", year: 2026, language: "en"}</p>
+<p>  - {citation: "LLM Serving Optimization with Variable Prefill and Decode Lengths (2025).", url: "https://arxiv.org/abs/2508.06133", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "Li, J., Wang, T., & Chen, Y. (2026). From Tensor Buffer to Distributed Memory Hierarchy: A Survey of KV Cache Management for LLM Serving.", url: "https://arxiv.org/abs/2607.02574", source_type: "paper", tier: "A", year: 2026, language: "en"}</p>
+<p>  - {citation: "Throughput-Optimal Scheduling Algorithms for LLM Inference and AI Agents (2025).", url: "https://arxiv.org/abs/2504.07347", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "LLM Inference Serving: Survey of Recent Advances and Opportunities (2024).", url: "https://arxiv.org/abs/2407.12391", source_type: "paper", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Efficient LLM Serving for Agentic Workflows: A Data Systems Perspective (Extended) (2026).", url: "https://arxiv.org/abs/2603.16104", source_type: "paper", tier: "A", year: 2026, language: "en"}</p>
+<p>  - {citation: "GoodServe: Towards High-Goodput Serving of Agentic LLM Inferences over Heterogeneous Resources (2026).", url: "https://arxiv.org/abs/2605.16867", source_type: "paper", tier: "A", year: 2026, language: "en"}</p>
+<p>  - {citation: "On Evaluating Performance of LLM Inference Serving Systems (2025).", url: "https://arxiv.org/abs/2507.09019", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "BatchLLM: Optimizing Large Batched LLM Inference with Global Prefix Sharing and Throughput-oriented Token Batching (2024).", url: "https://arxiv.org/abs/2412.03594", source_type: "paper", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Injecting Adrenaline into LLM Serving: Boosting Resource Utilization and Throughput via Attention Disaggregation (2025).", url: "https://arxiv.org/abs/2503.20552", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "Towards Load-Aware Prefill Deflection for Disaggregated LLM Serving (2026).", url: "https://arxiv.org/abs/2607.02043", source_type: "paper", tier: "A", year: 2026, language: "en"}</p>
+<p>  - {citation: "TokenSim: Enabling Hardware and Software Exploration for Large Language Model Inference Systems (2025).", url: "https://arxiv.org/abs/2503.08415", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "The Early Bird Catches the Leak: Unveiling Timing Side Channels in LLM Serving Systems (2024).", url: "https://arxiv.org/abs/2409.20002", source_type: "paper", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Teola: Towards End-to-End Optimization of LLM-based Applications (2024).", url: "https://arxiv.org/abs/2407.00326", source_type: "paper", tier: "A", year: 2024, language: "en"}</p>
+<p>  - {citation: "Krishnan, N. (2025). AI Agents: Evolution, Architecture, and Real-World Applications.", url: "http://arxiv.org/abs/2503.12687", source_type: "paper", tier: "B", year: 2025, language: "en"}</p>
+<p>  - {citation: "Song, X., Wang, Z., Wu, S., Shi, T., & Ai, L. (2025). Gradientsys: A Multi-Agent LLM Scheduler with ReAct Orchestration.", url: "http://arxiv.org/abs/2507.06520", source_type: "paper", tier: "A", year: 2025, language: "en"}</p>
+<p>  - {citation: "Anyscale (2024). Achieve 23x LLM Inference Throughput & Reduce p50 Latency.", url: "https://www.anyscale.com/blog/continuous-batching-llm-inference", source_type: "blog", tier: "C", year: 2024, language: "en"}</p>
+<p>  - {citation: "LMSYS Org (2024). Fast and Expressive LLM Inference with RadixAttention and SGLang.", url: "https://www.lmsys.org/blog/2024-01-17-sglang/", source_type: "blog", tier: "C", year: 2024, language: "en"}</p>
+<p>  - {citation: "aimultiple (2026). LLM Orchestration in 2026: Top 22 frameworks and gateways.", url: "https://aimultiple.com/llm-orchestration", source_type: "blog", tier: "C", year: 2026, language: "en"}</p>
+<p>---</p>
+<h1>推理服務層的隱形架構轉向：LLM Serving 系統從代理無關的靜態批次工程演化為代理感知排程與 KV Cache 治理層</h1>
+<h2>主筆說明</h2>
+<p>本文由統一 distill 池擇定兩位主筆：<strong>李飛飛</strong>（primary，人本 AI／數據即科學儀器視角）與 <strong>Yann LeCun</strong>（co_primary，架構創新週期／反炒作工程視角）。選角理由（<code>task_profile:ai_deep_research</code>）：本題核心矛盾——系統論文持續證實推理服務架構帶來數倍吞吐提升，但這些最佳化背後的安全代價與分配正義幾乎無人談論——恰好對映兩位主筆的招牌張力。李飛飛主筆引言、文獻回顧、結果與討論主體、原創論點，貫穿「這場效能革命的隱性代價由誰承擔」的人本提問；Yann LeCun 主筆研究方法、結果與討論之「實踐建議」與「風險與限制」子節，並在原創論點中插入對話段落，貫穿他一貫的「這是真正的架構轉向，還是又一層 scaling hype」的懷疑論工程視角。段落開頭以 <code>[李飛飛主筆]</code> / <code>[LeCun主筆]</code> 標註分工。</p>
+<blockquote>我以李飛飛視角撰文，基於公開言論推斷，非本人觀點。</blockquote>
+<blockquote>我以 Yann LeCun 視角撰文，基於公開言論推斷，非本人觀點。</blockquote>
+<h2>摘要</h2>
+<p>本文以推理服務系統（LLM serving system）過去三年的架構演化為研究對象，檢視一個常被編排層文獻忽略的問題：從 Orca 的迭代級排程、vLLM 的 PagedAttention 到 DistServe／Splitwise／Mooncake 的 prefill-decode 分離，再到 Autellix／Astraea／Continuum 等新一代狀態感知排程系統，推理服務層的核心設計目標正從「與應用無關的通用吞吐最佳化」系統性轉向「代理程式語意感知的排程治理」。透過候選池 82 筆、精讀納入 31 筆外部來源（27 篇同行評審或頂級系統會議論文、1 篇 B 級綜述、3 篇產業技術部落格）之三角佐證，本文論證這場轉向是一場發生在應用開發者視野之外、推理服務黑箱內部的「第二層編排革命」，其根本成因在於編排框架與服務引擎分屬不同研究社群，兩者的介面被固定在 HTTP/JSON 請求-回應層，抹除了程式級的依賴語意。本文主張，代理系統可靠性與成本工程要真正成熟，需要編排層與服務層之間出現一份新的「語意契約」，而非僅靠 MCP／A2A 協定標準化即可解決；同時誠實揭露：效能最佳化手段本身引入的時序側通道安全風險，目前僅有單一來源證實，仍待更多獨立復現研究。</p>
+<h2>關鍵詞</h2>
+<p>LLM 推理服務、連續批次、KV Cache 治理、Prefill-Decode 分離、代理感知排程、語意契約缺口、vLLM、Autellix</p>
+<h2>引言</h2>
+<p>[李飛飛主筆] 我從一個具體的效能落差問題出發：同一顆開源模型，換一套推理服務系統跑，吞吐可以差到 2 到 15 倍——這不是模型變聰明了，而是排程與記憶體管理的架構設計變了。過去兩年，Agent Orchestration 框架（LangGraph、AutoGen、CrewAI）成為產業討論的焦點，論文與部落格幾乎都在談規劃、工具使用、多代理協調；但真正決定一個代理系統能不能撐住生產流量、成本能不能壓下來的，往往是編排框架呼叫的那個「推理服務 API」內部到底發生了什麼——而這一層，長期被視為黑箱，鮮少進入編排層研究者的視野。本文的研究問題是：這個黑箱內部近三年究竟發生了什麼樣的架構轉向？這個轉向是否已經「代理感知化」，還是仍停留在與應用無關的通用最佳化？若已轉向，編排層文獻為何普遍沒有跟上？本文的貢獻在於，以三角佐證方式追蹤從 Orca 的迭代級排程，經 vLLM 的 PagedAttention、SGLang 的 RadixAttention，到 DistServe／Splitwise／Mooncake 的 prefill-decode 分離，再到 Autellix／Astraea／Continuum 等新一代「代理感知」排程系統的完整技術脈絡，論證這是一場被系統性低估的「第二層編排革命」，並指出這場革命之所以長期不被看見，根源在於編排層與服務層之間從未出現過一份真正的語意契約。</p>
+<h2>文獻回顧</h2>
+<p>[李飛飛主筆] 文獻可分四組：批次工程的演化、Prefill-Decode 分離架構、代理感知排程的興起，以及編排層文獻對服務層的視野缺口。</p>
+<p><strong>(一) 批次工程的演化。</strong> Yu 等人於 OSDI 2022 提出的 Orca 首度將排程粒度從「請求」下降到「迭代」，搭配 selective batching 讓不同長度序列可在同一批次內獨立前進而互不阻塞，是連續批次（continuous batching）架構的奠基之作（[來源：Yu et al., Orca, 2022]）。Kwon 等人於 SOSP 2023 發表的 vLLM／PagedAttention 借用作業系統虛擬記憶體分頁的概念管理 KV cache，直接點名既有系統「因記憶體碎片化與冗餘複製而被顯著浪費，限制了批次大小」，相較 FasterTransformer／Orca 提升 2 至 4 倍吞吐且延遲不變（[來源：Kwon et al., PagedAttention, 2023]）——這是 KV cache 首次被視為系統層一等公民問題，而非模型端的附屬最佳化。Zheng 等人的 SGLang／RadixAttention（NeurIPS 2024）進一步以 radix tree 維護跨請求的 KV cache LRU 快取，讓原本處理完就丟棄的 KV cache 得以在請求之間自動重用，吞吐提升達 6.4 倍，且測試場景明確涵蓋 agent control 與 JSON 解碼（[來源：Zheng et al., SGLang, 2024]）。BatchLLM 獨立提出全域前綴共享機制達成類似效果（[來源：BatchLLM, 2024]），顯示「跨請求前綴重用」已是多個研究團隊各自收斂到的設計共識，而非單一團隊的特例。這條演化路線的整體地圖，可見於 2024 年的推理服務系統綜述，將批次策略、記憶體管理、平行化與排程確立為獨立研究子領域（[來源：LLM Inference Serving Survey, 2024]）。</p>
+<p><strong>(二) Prefill-Decode 分離架構。</strong> Zhong 等人的 DistServe（OSDI 2024）首度系統性論證，prefill 與 decode 兩階段混跑會產生互相干擾並耦合資源配置，將兩者拆分到不同 GPU 執行後，可服務 7.4 倍請求量或滿足 12.6 倍更嚴格的 SLO（[來源：Zhong et al., DistServe, 2024]）。微軟研究的 Splitwise（ISCA 2024）獨立得出幾乎相同的結論——prompt 運算是計算密集、token 生成是記憶體密集，兩者特徵懸殊，應拆到異質硬體執行（[來源：Patel et al., Splitwise, 2024]），與 DistServe 構成兩個不同機構、同一時期各自收斂到「分離架構」的三角佐證。真正讓我確信這不只是論文構想的，是 Moonshot AI（Kimi）的 Mooncake（[來源：Qin et al., Mooncake, 2024]）：一套以 KVCache 為中心的分離架構生產系統論文，證實在真實流量下多服務 75% 的請求、模擬場景吞吐提升可達 525%，代表分離架構已走出實驗室、進入商業規模部署。2025 至 2026 年的後續工作顯示這條路線仍在持續深化——Adrenaline 進一步把分離的粒度細到注意力運算子層級（[來源：Injecting Adrenaline into LLM Serving, 2025]），2026 年最新的 Load-Aware Prefill Deflection 處理的已經是分離式服務在負載不均下的生產化打磨問題（[來源：Towards Load-Aware Prefill Deflection, 2026]），不再是「分離架構是否可行」這種概念驗證層級的提問。</p>
+<p><strong>(三) 代理感知排程的興起。</strong> 這是本文論證的核心證據群。Luo 等人的 Autellix（[來源：Luo et al., Autellix, 2025]）直接點名既有服務系統「忽略程式之間的依賴關係，錯失了顯著的最佳化機會」，提出把整個 agent 程式（而非單一請求）視為一等排程公民，吞吐提升達 4 到 15 倍——這是本文「代理感知排程興起」最有力的單篇證據，來自 UC Berkeley／Anyscale 系背景的研究團隊。Astraea（[來源：Ni et al., Astraea, 2025]）明確指出代理多階段工作流（本地運算與外部 Web API 呼叫交替）與現有推理系統（如 vLLM）的排程粒度存在結構性錯位，提出階層式排程來管理 I/O 期間的 KV cache，任務完成時間降低達 25.5%。Continuum（[來源：Continuum, 2025]）獨立針對多輪代理對話中工具呼叫造成的 KV cache 逾時決策提出方法，與 Astraea、Autellix 三方各自獨立提出相近的「狀態感知服務層」設計，構成三角佐證中最紮實的一組。AugServe（[來源：AugServe, 2025]）批評既有系統對外部呼叫的動態執行行為「無感知」，依賴固定 batch-level token 預算造成頭端阻塞（head-of-line blocking），與 Act While Thinking（[來源：Act While Thinking, 2026]）「既有系統將工具執行視為外部中斷，端到端工具延遲長期未被最佳化」的診斷幾乎重複出現——兩篇獨立團隊、不同年份、對同一個問題給出相同的病理描述，這種重複發現本身就是強證據。AgentServeSim（[來源：AgentServeSim, 2026]）與 GoodServe（[來源：GoodServe, 2026]）則從評測方法論切入，主張使用者感知延遲應該是程式級的任務完成時間（TTLT），而非單次呼叫延遲，呼應了排程粒度轉向背後對「何謂效能」這個問題本身的重新定義。</p>
+<p><strong>(四) 編排層文獻對服務層的視野缺口。</strong> 作為對照組，Krishnan 的 agent 演化與架構綜述（[來源：Krishnan, AI Agents, 2025]）廣泛涵蓋感知、規劃、工具使用模組與評測框架，通篇未討論底層推理服務系統的排程或記憶體架構——這不是這篇綜述的疏漏，而恰好證實了編排層文獻對服務層系統性視而不見的樣本。Gradientsys（[來源：Song et al., Gradientsys, 2025]）的案例更值得玩味：這是一套多代理排程框架，明確使用「scheduler」一詞，但它運作在編排層（把任務分派給不同 agent），完全不涉及推理服務層的 token 級排程——與 Autellix／Astraea 等服務層排程器對照，暴露出「排程」一詞在兩個研究社群裡的語意分裂。Teola（[來源：Teola, 2024]）與從資料系統視角出發的 Efficient LLM Serving for Agentic Workflows（[來源：Efficient LLM Serving for Agentic Workflows, 2026]）是少數試圖跨越這道鴻溝的工作：前者明確指出既有系統把應用編排邏輯與底層推理服務視為兩個獨立最佳化問題、提出端到端聯合最佳化框架；後者把代理工作流類比為「LLM 呼叫作為算子的批次分析管線」，指出跨查詢重疊子查詢造成的顯著冗餘。但 2026 年的產業趨勢報告也提醒我不能把話說死——aimultiple 的分析承認部分主流編排框架已開始納入成本／延遲防護機制（[來源：aimultiple, LLM Orchestration 2026]），顯示這道鴻溝正出現部分收斂跡象，這也是本文將此主張標記為「部分驗證」而非全稱肯定的原因。</p>
+<h2>研究方法</h2>
+<p>[LeCun主筆] 我對「論文說」這種修辭沒有耐性，工程判斷要看能不能重複驗證。本文的檢索策略分兩層：機械層先以 site:arxiv.org、OpenAlex API、Semantic Scholar API 針對「LLM inference serving」「continuous batching」「KV cache management」「prefill decode disaggregation」「agent-aware scheduling」等關鍵詞組合取得候選池，再針對 PagedAttention／vLLM、Orca、SGLang、DistServe／Splitwise／Mooncake、Autellix／Astraea／Continuum 等已知關鍵系統名稱做九輪針對性檢索補強，最終候選池達 82 篇，超過小論文級門檻（40 篇）逾一倍。納入排除準則：優先納入發表於 OSDI、SOSP、ISCA、NeurIPS 等頂級系統或機器學習會議的同行評審論文（列為 A 級），或雖為 arXiv 預印本但作者機構與方法論嚴謹度足以判定為系統論文者；排除純粹的模型能力評測論文與不涉及服務層架構的一般 agent 綜述（僅保留 1 篇作為對照組樣本）；語言以英文系統論文為主，輔以 3 篇官方／產業技術部落格佐證產業採用路徑。三角佐證法：每條核心主張需有 ≥3 個獨立機構或作者群的來源交叉支持，方判定「已驗證✅」；僅 1 到 2 個來源支持者，標「部分驗證⚠️」或「待驗證⚠️」並在正文誠實揭露，不假裝證據比實際上更充分——這條規則本身，就是我判斷一份工程性研究誠實與否的分水嶺。本文最終納入 31 篇來源，27 篇 A 級，6 條核心主張中 4 條達「已驗證✅」標準，詳見附錄三角佐證表。</p>
+<h2>結果與討論</h2>
+<p>[李飛飛主筆] 把六條核心主張攤開來看，我看到的是一個分三階段展開的架構轉向，而不是一次性的技術突破。</p>
+<p>第一階段：批次工程確立記憶體與排程為系統層一等公民（事實：Orca 的迭代級排程、vLLM 的 PagedAttention、SGLang 的 RadixAttention 分別在 2022 至 2024 年間相繼發表；佐證：三篇論文各自獨立地把記憶體管理或排程粒度從模型端的附屬問題提升為系統設計的核心目標，且後續 BatchLLM 獨立收斂到相近的前綴重用設計〔[來源：Yu et al., 2022；Kwon et al., 2023；Zheng et al., 2024]〕；推論：這代表 KV cache 已經從「暫時性張量」演變為需要獨立生命週期治理的「一級記憶體物件」——這正是 KV cache 管理綜述明確提出的定性論斷，並以 locality／lifetime／ownership／substrate 四軸分類超過 30 個系統〔[來源：Li et al., KV Cache Survey, 2026]〕，我認為這條主張已達到「已驗證✅」的標準）。</p>
+<p>第二階段：Prefill-Decode 分離從學術構想成為生產架構主流（事實：DistServe 與 Splitwise 分別由學術界與微軟研究於 2024 年獨立提出近乎相同的分離設計；佐證：Mooncake 證實 Kimi 生產系統採用 KVCache 中心化的分離架構、真實流量下多服務 75% 請求，Adrenaline 與 Load-Aware Prefill Deflection 兩篇 2025-2026 年後續工作顯示這條路線仍在往運算子層級與負載平衡細節持續深化〔[來源：Zhong et al., 2024；Patel et al., 2024；Qin et al., 2024；Injecting Adrenaline, 2025；Load-Aware Prefill Deflection, 2026]〕；推論：分離架構不只是「可行」，而是已經進入「生產化細節打磨」的第二階段——這個時間序列本身，支持我把這場架構轉向分期，而非視為單一事件）。</p>
+<p>第三階段：代理感知排程興起，暴露編排層與服務層之間的語意契約缺口（事實：Autellix、Astraea、Continuum、AugServe、Act While Thinking 五篇獨立工作在 2025 到 2026 年間，各自從不同角度指出既有推理服務系統對代理程式的依賴語意與工具呼叫造成的執行中斷視而不見；佐證：Autellix 實測吞吐提升 4 到 15 倍、Astraea 任務完成時間降低 25.5%，且 AugServe 與 Act While Thinking 對「既有系統把工具執行當作外部中斷」的病理描述幾乎完全重複〔[來源：Luo et al., 2025；Ni et al., 2025；Continuum, 2025；AugServe, 2025；Act While Thinking, 2026]〕；推論：這不是巧合，而是多個獨立團隊在同一個結構性缺口上各自撞見了同一個問題——編排框架與推理服務系統之間，從未出現過一份共同的語意契約，介面被壓平在 HTTP/JSON 請求-回應這一層，程式級的依賴關係、工具呼叫的預期時長、多輪對話的 KV 生命週期，全部在這層介面上被抹除）。</p>
+<p>與此同時，我必須誠實面對兩條沒有達到「已驗證✅」門檻的主張。編排框架對服務層是否系統性盲視，Teola 與資料系統視角的工作顯示已有跨界嘗試，aimultiple 的產業分析也承認部分框架開始納入成本／延遲防護，因此我只能把這條主張標記為「部分驗證⚠️」——編排層的視野缺口正在收斂，但尚未收斂完成。效能最佳化與安全隔離之間的張力（連續批次與 KV cache 共享會產生可測量的時序側通道，攻擊者可藉此推斷其他使用者的 prompt 內容〔[來源：The Early Bird Catches the Leak, 2024]〕）目前僅有單一來源直接證實，我標記為「待驗證⚠️」，需要更多獨立復現研究，但不能因為證據單薄就略去不談——這正是下一節「風險與限制」要處理的問題。</p>
+<h3>實踐建議</h3>
+<p>[LeCun主筆] 給編排框架的設計者：不要再假裝底下是一個無狀態的黑箱 API。如果你的框架要支援長時程代理任務，起碼要暴露三個語意訊號給服務層——這個呼叫屬於哪個程式（program id）、下一步是否即將發起工具呼叫（讓服務層決定要不要保留這段 KV 而不是直接驅逐）、以及這個任務鏈的優先權（是互動式使用者等待，還是背景批次任務）。Autellix 與 Astraea 已經證明，光是把「程式」當一等排程單位，就能拿到 4 到 15 倍的吞吐；這不是要編排框架自己重新發明排程演算法，是要它願意把資訊往下傳。</p>
+<p>給服務層工程團隊：SGLang 的 RadixAttention 與 BatchLLM 的全域前綴共享已經證明「跨請求 KV 重用」有巨大空間，但目前這些系統各自維護自己的快取語意，彼此不相容。我會建議往一個方向收斂：把 KV cache 的生命週期管理做成可插拔、跨引擎共通的介面（如 KV cache survey 提出的 locality／lifetime／ownership／substrate 四軸），這樣編排層才有機會在不綁死單一推理引擎的前提下，傳遞語意訊號。</p>
+<p>給評測與基準制定者：AgentServeSim 與 GoodServe 已經把使用者感知延遲重新定義為程式級任務完成時間（TTLT），而不是單次呼叫延遲——這個定義如果不成為業界共識，繼續拿單次呼叫延遲當 KPI，等於是在用錯的尺量對的東西，優化出來的系統會系統性地偏向短平快的單輪查詢，犧牲真正需要多輪工具呼叫的代理任務。</p>
+<h3>風險與限制</h3>
+<p>[LeCun主筆] 先講我不會迴避的壞消息：連續批次與 KV cache 共享這兩項讓吞吐翻倍的最佳化手段，本身會製造出可測量的時序側通道，讓攻擊者推斷出其他使用者的 prompt 內容〔[來源：The Early Bird Catches the Leak, 2024]〕。這不是一個可以靠打補丁解決的邊角案例，而是效能最佳化與安全隔離之間的架構級張力——資源共享做得越有效率，跨租戶的資訊洩漏面就越大。目前這條證據只有單一來源，我必須誠實標記為「待驗證⚠️」，需要更多獨立團隊復現，但這不代表風險不存在，只代表我們還沒有足夠的重複驗證去確認它的普遍性與嚴重程度。</p>
+<p>第二個限制是評測方法論本身的落差：既有推理服務系統效能評測方法論存在系統性的方法論缺陷與不一致性〔[來源：On Evaluating Performance of LLM Inference Serving Systems, 2025]〕——當整個領域還沒有一套公認的基準測試協定，各篇論文「提升 X 倍吞吐」的宣稱彼此之間其實很難直接比較，這是我對這整個文獻回顧最大的保留。</p>
+<p>第三個限制是我們證據集本身的偏差：31 篇來源裡有 27 篇是系統論文，代表本文的視角高度偏向「系統工程能不能解決問題」，較少觸及企業採用這些新架構的實際成本效益。這是刻意的範疇選擇，不是疏漏，但讀者應該知道這條邊界在哪裡。</p>
+<h2>原創論點</h2>
+<p>[李飛飛主筆] 本文主張一個具體的假說：語意契約假說（Semantic Contract Hypothesis）——代理系統的可靠性與成本工程要真正成熟，前提是編排層與推理服務層之間出現一份雙方都遵守的規則，而不是繼續各自往自己的方向最佳化、指望協定標準化（MCP／A2A）自動把兩層黏合起來。我這樣論證的理由有四點。</p>
+<p>第一，我在文獻回顧第四組看到一個語言學層級的證據：「排程」（scheduler）這個詞，在編排層（如 Gradientsys）與服務層（如 Autellix、Astraea）裡指的是完全不同的東西——前者是把任務分派給不同 agent，後者是 token 級的記憶體與運算資源分配。兩個研究社群用同一個詞描述不同的問題，卻幾乎沒有互相引用彼此的文獻。這不是巧合，而是本文論證語意契約缺口最直接的具體證據：連共同語彙都沒有建立，遑論共同介面。</p>
+<p>第二，我認為這場轉向可以清楚分期，而分期本身有論證力量。第一階段（2022-2023）是批次工程確立記憶體與排程為系統層一等公民；第二階段（2024）是 prefill-decode 分離從學術構想變成生產架構；第三階段（2025-2026）是代理感知排程興起，同時期 Adrenaline 與 Load-Aware Prefill Deflection 顯示分離架構本身也還在往運算子層級與負載平衡細節深化。三個階段疊在一起看，我闡明的是：這不是某一篇論文的孤立貢獻，而是一整個系統研究社群花了三年時間，一步一步把代理程式的語意搬進推理服務層的排程決策裡——而編排層文獻幾乎全程缺席這個過程。</p>
+<p>第三，[LeCun主筆] 我要在這裡插一句話，把李飛飛的分期論證接到我自己的架構創新週期心智模型上：每個十年，系統架構都會有一次典範轉移，而這次轉移的訊號不是某個單一大模型的參數量暴增，是底層服務系統重新定義了「什麼是一個可排程的工作單位」——從 request，到 iteration，到現在的 program。這符合我一貫的判斷準則：先看架構是否可擴展、是否只是 prompt 工程的表面包裝。這次不是——Autellix、Astraea 這些系統動的是排程器與記憶體管理的核心邏輯，不是加一層 prompt 模板，我認同這是真正的架構層轉向，不是又一輪 hype。</p>
+<p>第四，[李飛飛主筆] 我進一步證實這個語意契約缺口帶著實質的人本代價，而不只是工程效率問題。時序側通道風險〔[來源：The Early Bird Catches the Leak, 2024]〕告訴我，效能最佳化與安全隔離之間的架構級張力，最終承受代價的是使用共享服務的終端使用者——他們的 prompt 內容可能因為別人的最佳化決策而被推斷出來，而他們對這件事毫不知情、也無從選擇。我認為，任何呼籲「語意契約」的工程論述，如果不把「誰承擔了效能與安全之間的權衡代價」這個問題放進契約條款裡，就只是換一層技術詞彙包裝舊的效率至上邏輯。這正是本文相較於既有系統論文最想補上的一塊——系統論文談吞吐與延遲，很少談這些效率背後的分配正義問題。</p>
+<h2>結論</h2>
+<p>本文的研究問題是：LLM 推理服務系統近三年的架構演化，是否已經從「與應用無關的通用最佳化」轉向「代理語意感知的排程治理」？答案是肯定的，且證據紮實——27 篇 A 級來源、6 條核心主張中 4 條達三方以上獨立來源交叉支持的「已驗證✅」標準。但這個答案帶著兩個誠實的但書：編排框架對服務層的視野缺口正在收斂但尚未收斂完成，效能最佳化引入的安全側通道風險目前僅有單一來源直接證實，都需要後續研究補強。</p>
+<p>本文的限制主要有三：其一，31 篇來源以系統論文為主，較少觸及企業採用這些新架構的實際成本效益數據；其二，本文的三角佐證建立在公開發表的論文與部落格之上，未涵蓋各大雲端服務商未公開的內部系統實作，這些實作可能已經走得比公開文獻更遠；其三，本文提出的架構性主張目前是一個由文獻證據支持的論證性判斷，尚未有一份具體的介面規格草案可供驗證，這是本文刻意止步之處，也是留給後續研究最直接的任務。</p>
+<p>後續研究方向有三個具體切入點：第一，具體設計並驗證一份編排層與服務層之間的最小規則集（program id、工具呼叫預告、優先權標記），並測量它相較於現行黑箱 API 介面的實際吞吐與成本效益；第二，針對時序側通道風險做跨團隊的獨立復現研究，釐清其在生產環境下的實際可利用性與影響範圍；第三，建立一套業界共識的程式級任務完成時間（TTLT）評測基準，取代目前各篇論文各自定義吞吐與延遲指標、彼此難以比較的現狀。若這三個方向都能推進，編排層與推理服務層之間的落差，才有可能真正被填補，而不是繼續交由 MCP／A2A 這類協定標準化來承擔它本來管不到的工作。</p>
+<h2>參考文獻</h2>
+<ol>
+<li>Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu, C. H., Gonzalez, J. E., Zhang, H., & Stoica, I. (2023). Efficient Memory Management for Large Language Model Serving with PagedAttention. SOSP 2023. https://arxiv.org/abs/2309.06180</li>
+<li>Yu, G.-I., Jeong, J. S., Kim, G.-W., Kim, S., & Chun, B.-G. (2022). Orca: A Distributed Serving System for Transformer-Based Generative Models. OSDI 2022. https://www.usenix.org/conference/osdi22/presentation/yu</li>
+<li>Zheng, L. et al. (2024). SGLang: Efficient Execution of Structured Language Model Programs. NeurIPS 2024. https://arxiv.org/abs/2312.07104</li>
+<li>Zhong, Y., Liu, S., Chen, J., Hu, J., Zhu, Y., Liu, X., Jin, X., & Zhang, H. (2024). DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving. OSDI 2024. https://arxiv.org/abs/2401.09670</li>
+<li>Patel, P., Choukse, E., Zhang, C., Shah, A., Goiri, Í., Maleki, S., & Bianchini, R. (2024). Splitwise: Efficient Generative LLM Inference Using Phase Splitting. ISCA 2024. https://arxiv.org/abs/2311.18677</li>
+<li>Qin, R., Li, Z., He, W., Zhang, M., Wu, Y., Zheng, W., & Xu, X. (2024). Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving. https://arxiv.org/abs/2407.00079</li>
+<li>Luo, M., Shi, X., Cai, C., Zhang, T., Wong, J., Wang, Y., Wang, C., Huang, Y., Chen, Z., Gonzalez, J. E., & Stoica, I. (2025). Autellix: An Efficient Serving Engine for LLM Agents as General Programs. https://arxiv.org/abs/2502.13965</li>
+<li>Ni, H., Zhang, J., Li, G., Wang, Z., Wu, R., Zhang, C., & Tan, H. (2025). Astraea: A State-Aware Scheduling Engine for LLM-Powered Agents. https://arxiv.org/abs/2512.14142</li>
+<li>Continuum: Efficient and Robust Multi-Turn LLM Agent Scheduling with KV Cache Time-to-Live (2025). https://arxiv.org/pdf/2511.02230</li>
+<li>Act While Thinking: Accelerating LLM Agents via Pattern-Aware Speculative Tool Execution (2026). https://arxiv.org/abs/2603.18897</li>
+<li>AugServe: Adaptive Request Scheduling for Augmented Large Language Model Inference Serving (2025). https://arxiv.org/abs/2512.04013</li>
+<li>AgentServeSim: A Hardware-aware Simulator for Multi-Turn LLM Agent Serving (2026). https://arxiv.org/abs/2606.09613</li>
+<li>Geometry-Aware Online Scheduling for LLM Serving: From Theoretical Bound to System Practice (2026). https://arxiv.org/abs/2606.22327</li>
+<li>LLM Serving Optimization with Variable Prefill and Decode Lengths (2025). https://arxiv.org/abs/2508.06133</li>
+<li>Li, J., Wang, T., & Chen, Y. (2026). From Tensor Buffer to Distributed Memory Hierarchy: A Survey of KV Cache Management for LLM Serving. https://arxiv.org/abs/2607.02574</li>
+<li>Throughput-Optimal Scheduling Algorithms for LLM Inference and AI Agents (2025). https://arxiv.org/abs/2504.07347</li>
+<li>LLM Inference Serving: Survey of Recent Advances and Opportunities (2024). https://arxiv.org/abs/2407.12391</li>
+<li>Efficient LLM Serving for Agentic Workflows: A Data Systems Perspective (Extended) (2026). https://arxiv.org/abs/2603.16104</li>
+<li>GoodServe: Towards High-Goodput Serving of Agentic LLM Inferences over Heterogeneous Resources (2026). https://arxiv.org/abs/2605.16867</li>
+<li>On Evaluating Performance of LLM Inference Serving Systems (2025). https://arxiv.org/abs/2507.09019</li>
+<li>BatchLLM: Optimizing Large Batched LLM Inference with Global Prefix Sharing and Throughput-oriented Token Batching (2024). https://arxiv.org/abs/2412.03594</li>
+<li>Injecting Adrenaline into LLM Serving: Boosting Resource Utilization and Throughput via Attention Disaggregation (2025). https://arxiv.org/abs/2503.20552</li>
+<li>Towards Load-Aware Prefill Deflection for Disaggregated LLM Serving (2026). https://arxiv.org/abs/2607.02043</li>
+<li>TokenSim: Enabling Hardware and Software Exploration for Large Language Model Inference Systems (2025). https://arxiv.org/abs/2503.08415</li>
+<li>The Early Bird Catches the Leak: Unveiling Timing Side Channels in LLM Serving Systems (2024). https://arxiv.org/abs/2409.20002</li>
+<li>Teola: Towards End-to-End Optimization of LLM-based Applications (2024). https://arxiv.org/abs/2407.00326</li>
+<li>Krishnan, N. (2025). AI Agents: Evolution, Architecture, and Real-World Applications. http://arxiv.org/abs/2503.12687</li>
+<li>Song, X., Wang, Z., Wu, S., Shi, T., & Ai, L. (2025). Gradientsys: A Multi-Agent LLM Scheduler with ReAct Orchestration. http://arxiv.org/abs/2507.06520</li>
+<li>Anyscale (2024). Achieve 23x LLM Inference Throughput & Reduce p50 Latency. https://www.anyscale.com/blog/continuous-batching-llm-inference</li>
+<li>LMSYS Org (2024). Fast and Expressive LLM Inference with RadixAttention and SGLang. https://www.lmsys.org/blog/2024-01-17-sglang/</li>
+<li>aimultiple (2026). LLM Orchestration in 2026: Top 22 frameworks and gateways. https://aimultiple.com/llm-orchestration</li>
+</ol>
+<h2>附錄：三角佐證表</h2>
+<p>| # | 核心主張 | 佐證來源 | 判定 |</p>
+<p>|---|---------|---------|------|</p>
+<p>| 1 | LLM 推理服務系統的排程設計已從「與應用無關的通用吞吐最佳化」演化為「程式／代理語意感知」排程 | S7, S8, S9, S11, S12 | 已驗證✅ |</p>
+<p>| 2 | Prefill 與 Decode 分離已從學術構想成為生產級服務系統的主流架構模式 | S4, S5, S6, S22, S23 | 已驗證✅ |</p>
+<p>| 3 | 工具呼叫造成的執行中斷是代理工作負載對傳統批次排程器最大的架構衝擊，並催生新一代狀態感知排程演算法 | S7, S8, S9, S10 | 已驗證✅ |</p>
+<p>| 4 | 現行主流 Agent Orchestration 框架仍傾向將 LLM 服務視為無狀態黑箱 API，但 2026 年起出現部分收斂跡象 | S18, S26, S27, S31 | 部分驗證⚠️ |</p>
+<p>| 5 | KV Cache 已從「暫時性張量」演變為需要獨立生命週期治理的「一級記憶體物件」 | S1, S3, S6, S15, S21 | 已驗證✅ |</p>
+<p>| 6 | 效能最佳化手段（連續批次、KV cache 共享）本身會引入新的安全側通道風險 | S25 | 待驗證⚠️（單一來源，需更多獨立復現研究） |</p>
+<blockquote>附錄來源代號對應 frontmatter <code>sources</code> 陣列順序（S1=第1筆 … S31=第31筆）。</blockquote>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

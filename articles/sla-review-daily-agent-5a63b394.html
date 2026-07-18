@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：sla_review_daily agent_crash 防護與監控盲點（2026-07-18）">
+  <title>深度研究洞察簡報：sla_review_daily agent_crash 防護與監控盲點（2026-07-18） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：sla_review_daily agent_crash 防護與監控盲點（2026-07-18）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">sla_review_daily</span><span class="tag">agent_crash</span><span class="tag">monitoring-blind-spot</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：sla_review_daily agent_crash 防護與監控盲點</h1>
+<p><strong>日期</strong>：2026-07-18  </p>
+<p><strong>系列</strong>：sla_fix / monitoring-blind-spot  </p>
+<p><strong>觸發 backlog</strong>：<code>backlog_task_failure_optimizer_20260704_160500469529</code>（pending 12.79 天）</p>
+<h2>摘要</h2>
+<p>2026-07-03 <code>sla_review_daily</code> 以 <code>agent_crash</code> 失敗，當日 SLA 清零管線未執行，形成<strong>監控任務自身的監控盲點</strong>。本簡報交叉比對 DDP 既有 fail-safe 雙層佔坑（<code>templates/shared/preamble.md</code> + <code>run-todoist-agent-team.ps1</code> L1539-1551）、<code>results/</code> transient 語義（<code>prompts/CLAUDE.md</code>）、業界 silent failure 文獻（Boundev 2026、Frank Yao heartbeat/enforcer 模型）與 Argus/Sotis 步驟級不變量檢查，萃取 <strong>6 項核心洞見</strong>，套用 <strong>3 組思考透鏡</strong>（Sam Altman／黃仁勳／Taleb），提出以機械心跳 + LLM 路徑隔離為主的防護路線。</p>
+<h2>關鍵洞見</h2>
+<h3>1. 監控任務失敗 = 結構性盲點，非一般任務失敗</h3>
+<p><code>context/improvement-backlog.json</code> 記錄：2026-07-03 <code>sla_review_daily</code> 以 <code>failure_type: agent_crash</code> 失敗，<code>monitoring_blind_spot: true</code>。當日 <code>backlog_sla_check</code> 未跑完，violations 無法清零，workflow-closure-audit 持續標記 high_pending_unstarted（2026-07-17 仍 12.79 天滯留）。</p>
+<p><strong>證據</strong>：<code>docs/audit-reports/workflow-closure-audit-2026-07-17.md</code> P1-001 首條即為本議題。</p>
+<h3>2. DDP 已有 fail-safe 佔坑，但 agent_crash 發生在「佔坑之前」或「佔坑未被覆寫」</h3>
+<p>Phase 2 雙層保障：PS1 in_progress 佔坑 + Agent 首個 Write 寫 <code>status: failed</code> 的 Fail-Safe JSON（<code>preamble.md</code> L84-109）。<code>run-todoist-agent-team.ps1</code> L1539-1551 偵測「任務啟動於…未完成主要步驟」並升級診斷。</p>
+<p><strong>缺口</strong>：若 Cursor CLI 程序在讀 preamble <strong>之前</strong> OOM／被 kill，或 crash 發生於 ps1_native 子程序且未寫結果檔，Phase 3 僅見 <code>result_file_missing</code> 或 placeholder，<strong>無法區分「未啟動」與「啟動後中途死亡」</strong>。</p>
+<h3>3. 跨輪監控讀 `results/` 是已知反模式</h3>
+<p><code>prompts/CLAUDE.md</code> 明確：<code>results/todoist-auto-*.json</code> 為 transient，Phase 3 成功後 PS1 刪除；跨輪應讀 <code>context/continuity/auto-task-{key}.json</code>。2026-04-21~27 workflow-health-monitor 曾因讀 results 誤判「未執行」。</p>
+<p><strong>對 sla_review_daily</strong>：健康度應以 <code>state/sla-remediation-last-run.json</code>、<code>state/backlog-sla-report.json</code> 與 continuity 為準，而非 results 殘檔。</p>
+<h3>4. 業界共識：Agent 的「靜默失敗」比 HTTP 5xx 更危險</h3>
+<p>Boundev（2026）與 Tessary（2026）指出：Agent 可回傳語意正確、實務錯誤的輸出，基礎設施監控只看 200/exit 0 會漏報。Frank Yao 的 heartbeat 模型：排程任務應寫入「我完成了什麼」的週期信號，<strong>沉默即失敗</strong>。</p>
+<p><strong>DDP 映射</strong>：<code>sla_review_daily</code> 應在步驟 1（SLA report 刷新）後即寫 heartbeat，而非等 LLM remediation 結束才寫結果。</p>
+<h3>5. sla_review_daily 架構：ps1_native 外殼 + LLM gate 梯次為 crash 高風險區</h3>
+<p><code>prompts/team/todoist-auto-sla_review_daily.md</code>：主流程由 <code>scripts/auto-task-sla_review_daily.ps1</code> 機械編排；僅在 <code>violations_before>0</code> 時走 <code>Invoke-LlmGate</code> profile=<code>sla_remediation</code>（kill switch <code>DDP_SLA_REMEDIATION_LLM=off</code> → <code>apply-mechanical</code>）。</p>
+<p><strong>推論</strong>：07-03 crash 最可能發生在 LLM 梯次或資源爭用（backlog 描述提及 VRAM），而非機械 SLA 檢查本身。防護應<strong>隔離 LLM 路徑</strong>，確保機械層單獨可完成 violations 報告與 ntfy。</p>
+<h3>6. 最小可行防護：heartbeat + 機械兜底 + agent_crash 專屬 escalate</h3>
+<p>| 層級 | 動作 | 成本 |</p>
+<p>|------|------|------|</p>
+<p>| L0 | 每步寫 <code>state/sla-review-heartbeat.json</code>（step、timestamp、violations_count） | 數行 PS1 |</p>
+<p>| L1 | <code>agent_crash</code> 後自動 <code>DDP_SLA_REMEDIATION_LLM=off</code> 重跑機械層 | 已有 kill switch |</p>
+<p>| L2 | <code>phase_failure</code> sub_category=<code>agent_crash</code> 觸發 ntfy priority=4（<code>Update-FailureStats</code> L1339） | 接線 backlog |</p>
+<p>無需新建獨立 Skill；符合 ponytail「停在既有資產／標準庫」階梯。</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇</h3>
+<p>| 角色 | 透鏡 | 選用理由 |</p>
+<p>|------|------|----------|</p>
+<p>| primary | distill-sam-altman | 關鍵路徑任務的可靠性與迭代速度取捨 |</p>
+<p>| primary | distill-jensen-huang | 整合既有訊號，避免重複造管線 |</p>
+<p>| adversarial | distill-taleb | 尾部風險：監控器本身 fragile |</p>
+<h3>框架化建議</h3>
+<p><strong>Sam Altman 透鏡</strong>：SLA 清零是「必須跑通」的關鍵路徑，不能因 LLM 實驗性步驟阻塞。先讓機械層 100% 可觀測（heartbeat + violations 數字），再疊 LLM 優化——對齊「安全不能事後補」但<strong>不阻斷出貨</strong>的節奏。</p>
+<p><strong>黃仁勳透鏡</strong>：<code>failure-stats.json</code> 已有 <code>agent_crash</code> 子類（<code>run-todoist-agent-team.ps1</code> L1339）；<code>sla_tier_executor apply-mechanical</code> 已存在。不要新建 EIR/ECR 式管線，把三個既有鉤子接線：<strong>stats → heartbeat 缺失告警 → mechanical 重跑</strong>。</p>
+<p><strong>Taleb 透鏡（反模式檢查）</strong>：把「SLA 任務成功」定義成「LLM remediation 完成」是 <strong>fragile</strong>——單點 LLM crash 讓整個監控失明。應改為 <strong>antifragile</strong>：LLM 失敗時自動降級機械處置並<strong>放大</strong>可觀測性（更高 priority ntfy），讓失敗暴露問題而非隱藏。</p>
+<h3>透鏡盲區自陳</h3>
+<ul>
+<li>三透鏡均非 SRE/排程領域專家，具體 heartbeat 間隔需依 <code>config/timeouts.yaml</code>（sla_review_daily: 1800s）實測校準。</li>
+<li>07-03 原始 stderr 日誌本輪未逐行稽核（backlog 建議①），crash 根因仍為<strong>推論</strong>而非實證。</li>
+<li>外部文獻（Argus/Sotis）為通用 Agent 管線，與 DDP ps1_native 架構需人工映射。</li>
+</ul>
+<h2>建議行動</h2>
+<ol>
+<li><strong>本週</strong>：在 <code>auto-task-sla_review_daily.ps1</code> 步驟 1 後寫 heartbeat；<code>check-health.ps1</code> 加「heartbeat >26h 未更新」告警。</li>
+<li><strong>本週</strong>：<code>agent_crash</code> 路徑文件化為 <code>DDP_SLA_REMEDIATION_LLM=off</code> 自動重試（一次）。</li>
+<li><strong>下週</strong>：關閉 backlog <code>backlog_task_failure_optimizer_20260704_160500469529</code> 前，用 07-18 後連續 3 天 violations 報告驗證。</li>
+</ol>
+<h2>參考來源</h2>
+<p>| # | 來源 | 類型 |</p>
+<p>|---|------|------|</p>
+<p>| 1 | <code>context/improvement-backlog.json</code> backlog_task_failure_optimizer_20260704_160500469529 | 內部 backlog |</p>
+<p>| 2 | <code>prompts/team/todoist-auto-sla_review_daily.md</code> | 內部 prompt |</p>
+<p>| 3 | <code>run-todoist-agent-team.ps1</code> L1339、L1539-1551 | 內部管線 |</p>
+<p>| 4 | Boundev, "Silent Failures in Production AI Agents" (2026) | 外部 |</p>
+<p>| 5 | Frank Yao, "Heartbeats and Enforcers" (2026) | 外部 |</p>
+<p>| 6 | Tessary, "How to Detect Silent LLM Agent Failures" (2026) | 外部 |</p>
+<p>| 7 | failsafe.md — AI Agent Safe Fallback Standard | 外部 |</p>
+<p>| 8 | Argus Agents v0.8.4 (PyPI) — step-level replay | 外部 |</p>
+<h2>附錄：快取遙測（近 7 日 KB 語義快取）</h2>
+<p>| 指標 | 值 |</p>
+<p>|------|-----|</p>
+<p>| lookup | 0 |</p>
+<p>| store | 0 |</p>
+<p>| http_fallback | 0 |</p>
+<p>| degraded | 0 |</p>
+<p>| fastembed_available | false |</p>
+<p>| entry_count | 0 |</p>
+<blockquote>API 快取（<code>cache_hit_ratio</code>）與 KB 語義快取分帳；本輪 <code>fastembed_unavailable</code>，不視為任務失敗。</blockquote>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

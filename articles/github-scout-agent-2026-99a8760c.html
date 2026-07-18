@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 架構 - 2026-07-17">
+  <title>GitHub Scout: Agent 架構 - 2026-07-17 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 架構 - 2026-07-17</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent架構</span><span class="tag">agentscope</span><span class="tag">agno</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Agent 架構（2026-07-17）</h1>
+<h2>專案觀測摘要</h2>
+<h3>agentscope-ai/agentscope（27952★ REST 觀測，pushed 2026-07-17）</h3>
+<p>分散式生產級多代理 runtime，強調 agent 行為可見/可理解/可信任。2.0 版新增：</p>
+<ul>
+<li><strong>三態工具權限引擎</strong>（allow/approve/deny）：敏感工具強制 HITL 核准，統一 event bus 對外廣播 HITL 事件，屬 signal-based 與 handoff-based 混合模式。</li>
+<li><strong>AgentStateStore</strong>：支援 session 零停機復原（zero-downtime rolling deploy）。</li>
+<li>StateModule 組合式 state_dict()/load_state_dict() 統一狀態序列化介面（2026-07-11 前輪已記錄，backlog_github_scout_20260711_103308992392 pending，本輪不重複）。</li>
+<li>2026-07 起支援 Daytona 沙箱 workspace 整合，multi-tenancy/multi-session 生產服務化。</li>
+</ul>
+<h3>agno-agi/agno（41200★ REST 觀測，pushed 2026-07-16）</h3>
+<p>AgentOS 為 agent 平台的 runtime + 控制平面，可將 agent 部署為服務並以 Web UI 管理。</p>
+<ul>
+<li>session/memory/traces/human-approval 統一收攏於控制平面工作流層（屬 control-plane-approval／handoff-based 模式）。</li>
+<li>控制平面經瀏覽器直連使用者雲端環境，聲稱不經外部服務中轉資料。</li>
+<li>未見公開 session-recovery 或 zero-downtime 特化機制，與 AgentScope AgentStateStore 相比為明顯弱項。</li>
+</ul>
+<h2>改進提案</h2>
+<ol>
+<li><strong>[P1，已落實]</strong> review-policy 主題覆寫筆記補強：於 <code>config/github-scout-review-policy.yaml</code> → <code>topic_overrides.agent_architecture.notes</code> 補充本輪 REST 觀測發現（三態權限引擎、AgentStateStore、AgentOS 對照），供後續複核與提案溯源。version 3.0.7→3.0.8。</li>
+<li><strong>[P2，待人工審查]</strong> 評估 AgentScope 三態工具權限模型（allow/approve/deny）強化 <code>config/autonomous-harness.yaml</code> 之 <code>execution_contracts.human_review_gates.anti_stall_policy.auto_approve_when</code> 粒度：本系統現為布林條件清單，對照三態 per-tool 粒度屬較粗模型。因涉及 guarded_operations 語意變更，需人工審查後方可實作。</li>
+<li><strong>[P2，待人工評估]</strong> AgentStateStore 零停機復原模式對照本系統 <code>state/run-fsm.json</code> 之 Phase 2 中斷復原機制：本系統過往曾發生 run-fsm.json 狀態遺失導致 Phase 2 誤判死鎖之事故（已修復，非新缺口），建議評估「復原點快照 + 版本標記」機制降低同類事故重現機率。屬架構性變更，暫不立案為計畫。</li>
+</ol>
+<h2>審查結論</h2>
+<p>提案 1（review-policy 筆記補強）屬純文件性質、低風險、可逆（config YAML 新增陣列項），已直接落實並通過 YAML 解析驗證。提案 2、3 涉及 <code>autonomous-harness.yaml</code> 之 guarded_operations 語意或 <code>run-fsm.json</code> 狀態機邏輯，風險等級 medium-high，均判定需人工審查，本輪僅寫入 backlog 追蹤，不自動落實。</p>
+<h2>已落實項目</h2>
+<ul>
+<li><code>config/github-scout-review-policy.yaml</code>：<code>topic_overrides.agent_architecture.notes</code> 新增 2026-07-17 觀測筆記；version 3.0.7→3.0.8。</li>
+</ul>
+<h2>待人工審核項目</h2>
+<ul>
+<li>backlog P2：三態工具權限模型強化 auto_approve_when 粒度（target: config/autonomous-harness.yaml）</li>
+<li>backlog P2：AgentStateStore 零停機復原對照 run-fsm.json 中斷復原機制（target: state/run-fsm.json, docs/plans/）</li>
+</ul>
+<h2>證據快照</h2>
+<p>| repo | stars (REST) | pushed_at | source |</p>
+<p>|------|--------------|-----------|--------|</p>
+<p>| agentscope-ai/agentscope | 27952 | 2026-07-17T02:28:01Z | GET api.github.com/repos/agentscope-ai/agentscope |</p>
+<p>| agno-agi/agno | 41200 | 2026-07-16T23:54:26Z | GET api.github.com/repos/agno-agi/agno |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
