@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統審查報告 - 2026-07-22">
+  <title>系統審查報告 - 2026-07-22 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統審查報告 - 2026-07-22</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">自動化</span><span class="tag">品質評估</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統審查報告 - 2026-07-22 00:52</h1>
+<h2>執行摘要</h2>
+<ul>
+<li><strong>總分</strong>：<strong>84.01/100</strong>（等級 <strong>A</strong>）</li>
+<li><strong>與前次比對</strong>：+3.04（vs 2026-07-20 的 80.97；連續下降計數歸零。07-21 該日排程未產出審查記錄，故基線取 07-20）</li>
+<li><strong>審查方式</strong>：Phase 1 四路並行審查（41 子項全覆蓋）+ Phase 2 組裝</li>
+<li><strong>自動修正</strong>：5 項（上限）</li>
+<li><strong>加權公式</strong>：<code>(D1×20 + D2×18 + D3×18 + D4×15 + D5×10 + D6×10 + D7×9) / 100</code></li>
+</ul>
+<p><strong>分數變動主因</strong>：D7 系統完成度自 50 → 87（+37）。前 5 輪（07-15~07-20）D7 均因 <code>real_comment_total > 20</code> 觸發 <code>system_completeness</code> hard_cap 鎖 50；本輪 <code>tools/tech_stack_evidence.py</code> 實測 <code>real_comment_total = 10</code>，<strong>未</strong>觸發 hard_cap。扣除此單一機制影響，其餘六維度合計為淨退步（D2 -2、D3 -1、D6 -6，僅 D1 +1、D4 +1、D5 +5 抵銷部分）。</p>
+<p>---</p>
+<h2>各維度詳細評分</h2>
+<p>| # | 維度 | 權重 | 本次 | 前次(07-20) | Δ |</p>
+<p>|---|------|------|------|------|---|</p>
+<p>| 1 | 資訊安全 | 20% | <strong>91</strong> | 90 | +1 |</p>
+<p>| 2 | 系統架構 | 18% | <strong>81</strong> | 83 | -2 |</p>
+<p>| 3 | 系統品質 | 18% | <strong>85</strong> | 86 | -1 |</p>
+<p>| 4 | 系統工作流 | 15% | <strong>74</strong> | 73 | +1 |</p>
+<p>| 5 | 技術棧 | 10% | <strong>90</strong> | 85 | +5 |</p>
+<p>| 6 | 系統文件 | 10% | <strong>80</strong> | 86 | <strong>-6</strong> |</p>
+<p>| 7 | 系統完成度 | 9% | <strong>87</strong> | 50 | <strong>+37</strong> |</p>
+<h3>維度 1 資訊安全（91）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|----------|</p>
+<p>| 1.1 機密管理 | 94 | <code>.gitignore</code> 11 條敏感規則；硬編碼密鑰 regex 掃描唯一命中為 <code>hooks/pre_write_guard.py:127</code> sentinel 常數（非真密鑰）；<code>os.environ/getenv</code> 於 tools/ 335 處＝環境變數為主注入通道 |</p>
+<p>| 1.2 輸入驗證 | 85 | <code>config/hook-rules.yaml</code> v13 共 29 條攔截規則；7 個獨立驗證器；<code>tests/hooks</code> 48 個測試檔。扣分：LLM 輸出注入防護為個案處理（<code>ec169ac1</code>）非統一 sanitize 層 |</p>
+<p>| 1.3 存取控制 | 90 | hooks/ 23 個守衛模組；<code>.git/hooks/pre-commit</code> 36,248 bytes 含 9+ 具名閘門。扣分：部分 runtime 規則 warn-only |</p>
+<p>| 1.4 依賴安全 | 86 | <code>uv.lock</code> 196 套件鎖定；CI <code>pip-audit --strict</code> 硬閘；CVE 以顯式 transitive 約束落地。扣分：本地 pip-audit 兩次逾時（rc=124），本輪未取得即時掃描結果 |</p>
+<p>| 1.5 傳輸安全 | 95 | <code>http://</code> 12 命中逐條核對，<strong>0 筆</strong>為外部明文傳輸（皆本機 host:port 或 XML namespace 字串） |</p>
+<p>| 1.6 日誌安全 | 92 | logs/ 993 個 JSONL；<code>sk-ant-</code>/<code>ghp_</code>/<code>Bearer</code> 洩漏掃描命中 <strong>0</strong> 檔；15+ 支脫敏模組。扣分：993 個 JSONL 缺統一 schema 校驗與集中檢索索引 |</p>
+<p><code>hard_caps_applied</code>：無。</p>
+<h3>維度 2 系統架構（81）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|----------|</p>
+<p>| 2.1 關注點分離 | 74 | 三份分層文件齊備。扣分：ARCHITECTURE.md 索引與實況漂移（自述 Skills 90 個，實測 248）；根目錄語義重疊目錄（<code>output/</code> vs <code>outputs/</code>、<code>temp/</code> vs <code>tmp/</code>、簡繁重複目錄） |</p>
+<p>| 2.2 配置外部化 | 78 | <code>timeouts.yaml</code> 於 22 個 .ps1、78 處命中；三處動態載入 <code>phase2_timeout_by_task</code>。扣分：hardcoded fallback dict 雙寫兩座（L132-140 七群組值、L162-231 約 70 個 per-task 秒數）構成第二真相來源 |</p>
+<p>| 2.3 耦合度 | 70 | SKILL.md 248 個中僅 120 個（48.4%）宣告 <code>depends-on</code>；hooks 23 個中僅 8 個（34.8%）import <code>hook_utils</code>。<strong>循環依賴確認成立</strong>：<code>post_tool_logger.py:54</code> ↔ <code>hook_utils.py:360/362</code>（已用延遲載入 + try/except 雙路徑緩解，靜態耦合圖仍有環） |</p>
+<p>| 2.4 擴展性 | 90 | <code>skills/task-manager/SKILL.md</code> 四模式標準化流程；四索引齊備（SKILL_INDEX 284 列 / TOOL_INDEX 669 列 / WORKFLOW_INDEX 覆蓋 96% / AGENT_INDEX 55 列） |</p>
+<p>| 2.5 容錯設計 | 88 | <code>failure-recovery-matrix.yaml</code> v6（6 failure_types × 4 thresholds × 3 tiers）；<code>cache-policy.yaml</code> v22；<code>self-heal-degraded.yaml</code> circuit_breaker + 4 段 fallback_chain；<code>circuit_breaker_v2.py</code> full_jitter/ErrorBudget/CascadeDetector |</p>
+<p>| 2.6 DRY | 88 | <code>prompts/team/*.md</code> 149 檔中 148 引用 preamble（99.3%）；<code>nul</code> 禁令 .ps1 命中 0、.py 7 命中經核實全為守衛規則自身。<strong>本輪已修</strong>唯一缺口 <code>forge_outputs_integrate.md</code> → 100% |</p>
+<h3>維度 3 系統品質（85）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|----------|</p>
+<p>| 3.1 測試覆蓋 | 90 | <code>pytest --co -q</code> = <strong>16,999</strong> 項（vs 07-21 的 14,304，上升） |</p>
+<p>| 3.2 程式碼品質 | <strong>65</strong> | <code>ruff check .</code> 全庫 <strong>2,509</strong> 問題（F401 787 / I001 687 / E701 171 / E702 139 / E402 117 / F841 111）；pre-commit 僅過 ruff critical 子集，非全量門檻。<strong>本輪單項最低</strong> |</p>
+<p>| 3.3 錯誤處理 | 90 | tools/+hooks/ 內 <code>try:/except</code> 共 8,132 行 |</p>
+<p>| 3.4 品質驗證機制 | 88 | <code>DONE_CERT</code> 關鍵字 138 個 prompt 引用、<code>quality_gate</code> 83 個引用 |</p>
+<p>| 3.5 可觀測性 | 92 | 993 個 JSONL 結構化日誌；12+ health-check 工具；ntfy 告警含 dedup/advisor |</p>
+<p>| 3.6 效能基準 | 85 | <code>timeouts.yaml</code> 184 行、<code>benchmark.yaml</code> 446 行皆被 PS1 實際讀取；<code>cache/status.json</code> 支援 Phase 0 快取判斷 |</p>
+<h3>維度 4 系統工作流（74）— **唯一未達優秀（<80）維度**</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|----------|</p>
+<p>| 4.1 自動化程度 | 90 | HEARTBEAT.md 535 行、81 行含排程定義；四支 team 腳本全自動 |</p>
+<p>| 4.2 並行效率 | 90 | <code>Start-Job</code> 命中：todoist-team 48 處、agent-team 3、audit-team 2 |</p>
+<p>| 4.3 失敗恢復 | 87 | <code>phase2_max_retries=1</code> + backoff（60/300/jitter 15）；斷路器雙實作（PS1 + Python） |</p>
+<p>| 4.4 狀態追蹤 | 88 | <code>state/<em>.json</code> 1,930 檔、<code>context/continuity/</em>.json</code> 158 檔、structured 日誌每日滾動 |</p>
+<p>| 4.5 排程管理 | 88 | HEARTBEAT.md 集中定義；<code>setup-scheduler.ps1</code> 批次註冊 |</p>
+<p>| <strong>4.6 OODA 週期完整性（SH01）</strong> | <strong>35</strong> | 近 7 天（07-16~07-22）：orient completed 4 次、<strong>act completed 0 次</strong>（全 history 無任一 act 記錄）；decide 連續 <strong>5 次全 failed</strong>（07-16~07-20），07-21 連 orient 本身 failed。<strong>結構性斷裂，非單日故障</strong> |</p>
+<p>| <strong>4.7 immediate_fix 執行率（SH02）</strong> | <strong>20</strong> | <code>arch-decision.json</code> 48 筆：deferred=45、pending=3、<strong>success=0</strong>；另 5 筆 <code>degraded_from=immediate_fix</code>（因 <code>missing_execution_steps</code> 降級）最終皆 deferred。執行率 0/(0+0+3) = <strong>0%</strong> |</p>
+<p>| 4.8 自癒修復成功率（SH03） | 95 | <code>state/history/todoist-history.json</code> 近 6 筆 self_heal：24/24 = <strong>100%</strong> |</p>
+<h3>維度 5 技術棧（90）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|----------|</p>
+<p>| 5.1 技術成熟度 | 92 | pwsh 7.6.0 / Python 3.11.13；31 個核心依賴皆主流穩定；langgraph 已於 ADR-20260529-052 主動退役 |</p>
+<p>| 5.2 版本管理 | 93 | uv.lock 196 套件全鎖；5 個 <code>==</code> 精確 pin（ADR-010）、其餘明確上下界；CI 有 <code>verify_dependency_lock</code> 漂移檢查；154/165 config 含 <code>version:</code>（93.3%） |</p>
+<p>| 5.3 工具鏈完整性 | 90 | ruff + pytest + 8 階段 CI + pre-commit 即時閘門 + 部署腳本。缺口：960 個測試檔絕大多數未進 CI（CI 僅跑 tests/hooks + 3 個指定 skills） |</p>
+<p>| 5.4 跨平台 | 85 | <code>docs/PLATFORM.md</code> 聲明 Windows-only by design；本輪實測 <code>$PSScriptRoot</code> <strong>386/500 = 77.2%</strong>（+5.6pp）、硬編碼 <code>D:/Source</code> <strong>83 處</strong>（-63 處 / -43.2%） |</p>
+<p>| 5.5 技術債 | 90 | <code>real_comment_total = 10</code>（py=10、ps1=0），遠低於 20 門檻；langgraph 全庫零 import + 雙守衛（W-LG1/W-LG5） |</p>
+<h3>維度 6 系統文件（80）— **本輪最大退步（-6）**</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|----------|</p>
+<p>| 6.1 架構文件 | 72 | 三層文件合計 4,087 行。扣分：ARCHITECTURE.md 標「最後更新 2026-05-14」距今 69 天，<strong>檔內自相矛盾</strong>（L4 稱 Skills 123、L284/L489 稱 90、實測 248，偏差 +102%~+176%）；srd.md/ssd.md 無更新標記。<strong>本輪已修計數矛盾</strong> |</p>
+<p>| 6.2 操作手冊 | 80 | ops-manual.md 2,282 行 + 三份輔助手冊，合計 3,194 行。扣分：ops-manual 標「2026-02-15 / 系統版本 v3」距今 <strong>158 天</strong>，四檔無一在 30 天內更新，與 Discord transport／PE 引擎／log_audit 週審等演進脫節 |</p>
+<p>| 6.3 API 文件 | 93 | 全量掃描 248 個 SKILL.md：五項必填欄位（name/version/description/allowed-tools/triggers）<strong>248/248 = 100%</strong> 合規 |</p>
+<p>| 6.4 配置說明 | <strong>70</strong> | README 覆蓋 142/165 = 86.1%（過 80% 門檻）。<strong>扣分主因為註釋率</strong>：抽樣 24 檔平均僅 <strong>23.1%</strong>（滿分標準 >80%），最低 <code>github-scout-review-policy.yaml</code> 2.2%、<code>error-types.yaml</code> 6.9%。<strong>本輪已補 5 檔 → 89.1%</strong> |</p>
+<p>| 6.5 變更記錄 | 84 | CHANGELOG 2,449 行，Keep a Changelog 要素齊備；近 50 commit 中 48 筆（96.0%）符合 conventional。扣分：頂部 06-30 稽核區塊破壞檔頭順序、L38-39 連續重複 <code>### Added</code>、版本節僅 4 個未採 semver |</p>
+<h3>維度 7 系統完成度（87）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|----------|</p>
+<p>| 7.1 功能完成度 | 80 | <code>real_comment_total = 10</code>（SoT 滿分要求 <5，未達故扣分）；254 skills、119 個 todoist-auto 自動任務 |</p>
+<p>| 7.2 文件完成度 | 92 | CHANGELOG 2,449 行、config/README 809 行、SKILL_INDEX 289 條 |</p>
+<p>| 7.3 部署就緒 | 78 | <code>setup-scheduler.ps1</code>、<code>.env.example</code> 齊備；<code>$PSScriptRoot</code> 77.2% 未達完全可攜門檻 |</p>
+<p>| 7.4 測試覆蓋 | 90 | 同 3.1，16,999 項 |</p>
+<p>| 7.5 可維護性 | 82 | 四索引齊備。扣分：<code>context/adr-registry.json</code> 62,294 行體積偏大，屬潛在維護負擔 |</p>
+<p><code>hard_cap</code> 判定：<code>real_comment_total = 10 ≤ 20</code>，<strong>未</strong>觸發 <code>system_completeness max_score:50</code>（前 5 輪均觸發）。</p>
+<p>---</p>
+<h2>關鍵發現（前 5 弱項）</h2>
+<ol>
+<li><strong>4.7 immediate_fix 執行率 = 20</strong>（P0）— 48 筆決策 success=<strong>0</strong>，執行率 0%。45 筆 deferred + 3 筆 pending，且有 5 筆因 <code>missing_execution_steps</code> 自 immediate_fix 降級。此為 registry-only 無關閉路徑的 treadmill，自 2026-06-24 起連續 12 輪同一結構性斷點。</li>
+<li><strong>4.6 OODA 週期完整性 = 35</strong>（P0）— decide 連續 5 輪 failed、act <strong>從未執行</strong>（近 7 天 act completed = 0）；07-21 連 orient 本身 failed。自 07-10 起連續 10 輪偵測到同一斷裂，分數自 52 → 35。</li>
+<li><strong>3.2 程式碼品質 = 65</strong>（P2）— ruff 全庫 2,509 問題，其中 1,474 項（F401 787 + I001 687）為純機械可自動修（<code>ruff check --fix</code>）。pre-commit 僅擋 critical 子集，全量債務無收斂機制。</li>
+<li><strong>6.2 操作手冊陳舊 158 天</strong>（P2）— <code>specs/system-docs/ops-manual.md</code> 仍標「系統版本 v3 / 2026-02-15」，四份操作文件無一在 30 天內更新，與現行 Discord transport、PE 引擎、log_audit 週審脫節。</li>
+<li><strong>2.3 耦合度 = 70</strong>（P2）— SKILL.md <code>depends-on</code> 宣告率僅 48.4%、hooks import <code>hook_utils</code> 僅 34.8%；<code>post_tool_logger</code> ↔ <code>hook_utils</code> 循環依賴靜態成立（已有延遲載入緩解）。</li>
+</ol>
+<h3>⚠️ 自癒閉環（SH 子項 <70）</h3>
+<p><strong>4.6 = 35、4.7 = 20 雙雙低於 70 門檻，構成完整的自癒閉環斷裂鏈</strong>：</p>
+<pre><code>
+Observe (system-insight) ✅ → Orient (audit) ✅ → Decide (arch-evolution) ❌ 連續 5 輪 failed
+                                                        ↓
+                                          Act (self-heal) ❌ 從未執行（act=0）
+</code></pre>
+<ul>
+<li><strong>斷點位置</strong>：Decide 階段。arch-evolution 產出 48 筆決策但 93.75%（45/48）判為 deferred，僅 3 筆 pending 且皆未執行 → Act 階段無輸入可消費。</li>
+<li><strong>對比</strong>：4.8 self_heal 成功率 <strong>95</strong>（24/24 = 100%）——self-heal 執行機制本身健康，問題純粹在於<strong>沒有 immediate_fix 被送到它面前</strong>。</li>
+<li><strong>判定</strong>：非機制故障，而是 <strong>Decide → Act 之間缺少「immediate_fix 關閉／執行接線」</strong>。此結論自 2026-06-24 起經 12 輪審查反覆驗證，Step 7.6 機械重置已證實為無效 churn（見下）。</li>
+<li><strong>建議路徑</strong>：需 arch-evolution prompt 層 durable fix（產生可執行的 <code>execution_steps</code> 而非 <code>missing_execution_steps</code> 降級），非本 Phase 可自動修正範圍。</li>
+</ul>
+<p>---</p>
+<h2>修正記錄（本次自動修正 5 項 / 上限 5）</h2>
+<p>| # | 修正 | 對應子項 | 預估影響 |</p>
+<p>|---|------|---------|---------|</p>
+<p>| 1 | <code>prompts/team/todoist-auto-forge_outputs_integrate.md</code> 補 <code>templates/shared/preamble.md</code> 引用（註明 ps1_native 機械執行，僅機械條款適用） | 2.6 DRY | 148/149 → <strong>149/149（100%）</strong> |</p>
+<p>| 2 | <code>docs/PLATFORM.md</code> 新增 2026-07-22 5.4 機械對照（83 處硬編碼 / 77.2% PSScriptRoot，vs 07-20 大幅改善） | 5.4 跨平台 | 量測留痕，維持證據鏈 |</p>
+<p>| 3 | <code>docs/ARCHITECTURE.md</code> 校正 4 處陳舊/矛盾計數（L4 v8→v9、Skills 90/123→248、測試 2171→16999、Skills 總覽標題） | 6.1 架構文件 | 消除 +102%~+176% 偏差；72 → 預估 78 |</p>
+<p>| 4 | <code>config/README.md</code> 新增 5 檔說明（<code>sef</code>、<code>self-heal-degraded</code>、<code>research-v3-gates</code>、<code>skill-security-rules</code>、<code>todoist-manual-router</code>） | 6.4 配置說明 | 覆蓋 86.1% → <strong>89.1%</strong> |</p>
+<p>| 5 | <code>CHANGELOG.md</code> 新增 2026-07-22 審查列（含七維度、SH 子項、修正清單） | 6.5 變更記錄 | 維持稽核連續性 |</p>
+<p><strong>ADR 落實追蹤（Step 7.6）</strong>：本輪<strong>跳過</strong>機械重置。<code>arch-decision.json</code> 3 筆 pending 全部為 07-21 新映射（<code>govlog-otel-trace-correlate</code> mapped_at 07-21T06:02、<code>llm-observability-helicone</code> 07-21T12:07、<code>langfuse-tco-breakeven</code> 07-21T18:06），<code>retry_count</code> 皆為 0、距今 <24h 從未嘗試執行。比照 06-24 起經 12 輪建立之判準：重置未嘗試項目屬無效 churn，durable fix 在 arch-evolution 層。<strong>無 <code>failed</code>／<code>failed_retry</code> 條目</strong>。</p>
+<p>---</p>
+<h2>建議清單（需人工介入）</h2>
+<p>| 優先 | 項目 | 說明 |</p>
+<p>|------|------|------|</p>
+<p>| <strong>P0</strong> | arch-evolution 產出可執行 <code>execution_steps</code> | 5 筆決策因 <code>missing_execution_steps</code> 自 immediate_fix 降級為 deferred，是 4.7=0% 的直接機制原因。修 prompt 層產出契約即可解鎖 Act 階段 |</p>
+<p>| <strong>P0</strong> | OODA decide 階段 failed 根因診斷 | 連續 5 輪 failed 且無單日恢復；需查 <code>logs/</code> 中 arch-evolution 的實際失敗訊息，非本 Phase 可觸及 |</p>
+<p>| <strong>P1</strong> | <code>ruff check --fix</code> 清理 F401/I001 | 1,474/2,509（58.7%）為純機械可自動修；建議一次性清理後將 pre-commit 閘門自 critical 子集擴至 F401+I001 防復發 |</p>
+<p>| <strong>P1</strong> | run-todoist-agent-team.ps1 移除 hardcoded timeout fallback | L132-140 + L162-231 約 77 個值構成 <code>timeouts.yaml</code> 之外的第二真相來源（先例 <code>87dde6e3</code> 漏改事故） |</p>
+<p>| <strong>P2</strong> | <code>specs/system-docs/ops-manual.md</code> 全面更新 | 標示落後 158 天；需補 Discord transport（07-11）、PE 引擎接手（05-30）、log_audit 週審（07-18） |</p>
+<p>| <strong>P2</strong> | config YAML 註釋率提升 | 抽樣平均 23.1%（門檻 80%）；優先補最低者：<code>github-scout-review-policy.yaml</code> 2.2%、<code>error-types.yaml</code> 6.9%、<code>console-projects.yaml</code> 7.0% |</p>
+<p>| <strong>P2</strong> | 根目錄語義重疊目錄收斂 | <code>output/</code> vs <code>outputs/</code>、<code>temp/</code> vs <code>tmp/</code>、<code>未来计划/</code> vs <code>未來計畫/</code>（簡繁重複）、<code>網站清查/</code> vs <code>網站清查2/</code> |</p>
+<p>| <strong>P3</strong> | <code>context/adr-registry.json</code> 分片 | 62,294 行單檔，已列 7.5 可維護性扣分項 |</p>
+<p>---</p>
+<h2>趨勢分析</h2>
+<p>| 日期 | 總分 | 等級 | Δ | 4.6 OODA | 4.7 immediate_fix | D7 |</p>
+<p>|------|------|------|---|----------|-------------------|-----|</p>
+<p>| 2026-07-11 | 87.97 | A | +0.30 | 50 | — | — |</p>
+<p>| 2026-07-12 | 87.33 | A | -0.64 | 52 | — | — |</p>
+<p>| 2026-07-13 | 85.92 | A | -1.41 | 45 | — | — |</p>
+<p>| 2026-07-15 | 82.60 | A | -3.32 | 25 | 30 | 50 |</p>
+<p>| 2026-07-16 | 81.54 | A | -1.06 | 25 | 90 | 50 |</p>
+<p>| 2026-07-17 | 85.89 | A | +4.35 | 15 | 10 | 90（未套 cap） |</p>
+<p>| 2026-07-18 | 81.94 | A | -3.95 | 18 | 92 | 50 |</p>
+<p>| 2026-07-19 | 84.35 | A | +2.41 | 45 | 85 | 50 |</p>
+<p>| 2026-07-20 | 80.97 | A | -3.38 | 20 | 15 | 50 |</p>
+<p>| 2026-07-21 | — | — | — | — | — | 排程未產出記錄 |</p>
+<p>| <strong>2026-07-22</strong> | <strong>84.01</strong> | <strong>A</strong> | <strong>+3.04</strong> | <strong>35</strong> | <strong>20</strong> | <strong>87</strong> |</p>
+<p><strong>觀察</strong>：</p>
+<ol>
+<li><strong>總分波動由 D7 hard_cap 主導</strong>：近 8 輪 D7 在 50 ↔ 87/90 間跳動，單維度 9% 權重造成 ±3.3 分擺盪，掩蓋其餘六維度的實際趨勢。扣除 D7 後六維度加權自 07-11 起呈緩步下行。</li>
+<li><strong>4.6 OODA 十輪未恢復</strong>：52 → 35，期間最低 15。無任何一輪偵測到 act completed，屬確定性結構斷裂而非統計波動。</li>
+<li><strong>4.7 讀數在 10~92 間劇烈跳動</strong>：源於量測方法差異——採 <code>meta.immediate_fix_success</code>（歷史累計）得高分、採當前 <code>decisions[]</code> 快照得低分。本輪與 07-20 同採快照法（0/(0+0+3)=0%），數值可比。</li>
+<li><strong>D6 系統文件首次跌破 80</strong>：86 → 80，主因 ARCHITECTURE.md（69 天）與 ops-manual.md（158 天）雙陳舊，本輪已修前者計數矛盾，後者需人工。</li>
+<li><strong>5.4 跨平台顯著改善</strong>：硬編碼 <code>D:/Source</code> 自 146 → 83（-43.2%），<code>$PSScriptRoot</code> 71.6% → 77.2%，為近期唯一有實質收斂的技術債項目。</li>
+</ol>
+<p>---</p>
+<p><em>報告產生：2026-07-22 00:52 · Phase 2 assemble-audit · 41 子項全覆蓋</em></p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
