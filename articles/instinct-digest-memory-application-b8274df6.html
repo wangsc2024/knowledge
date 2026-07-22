@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：Instinct 學習引擎導入（digest-memory 行為模式演化）application 階段——乾跑統計證偽 error_category 觸發設計（2026-07-23）">
+  <title>深度研究洞察簡報：Instinct 學習引擎導入（digest-memory 行為模式演化）application 階段——乾跑統計證偽 error_category 觸發設計（2026-07-23） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：Instinct 學習引擎導入（digest-memory 行為模式演化）application 階段——乾跑統計證偽 error_category 觸發設計（2026-07-23）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">insight-briefing</span><span class="tag">instinct-learning</span><span class="tag">digest-memory</span><span class="tag">application-stage</span><span class="tag">behavior-instincts</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：Instinct 學習引擎導入（digest-memory 行為模式演化）application 階段——乾跑統計證偽 error_category 觸發設計</h1>
+<p><strong>日期</strong>：2026-07-23　<strong>任務</strong>：insight_briefing　<strong>系列</strong>：instinct-behavior-learning-ddp-digest-memory（application 階段，foundation→application）</p>
+<h2>摘要</h2>
+<p>延續 2026-07-22 foundation 階段（<a href="2026-07-22-instinct-learning-engine-digest-memory.md">2026-07-22-instinct-learning-engine-digest-memory.md</a>）提出的 <code>state/behavior-instincts.json</code> 落地路徑，本階段依 <code>next_research_hint</code> 執行實測乾跑：機械掃描 <code>logs/structured/2026-07-16.jsonl</code> 至 <code>2026-07-22.jsonl</code>（近 7 日、16,339 筆事件）。核心發現：foundation 階段提議的 trigger_pattern 設計「<code>task_key=X AND failure_type=Y</code>」在真實資料上<strong>幾乎無信號</strong>——<code>error_category</code> 欄位僅 39% 事件存在且全數為 <code>success</code>，<code>has_error</code> 從未為 <code>true</code>，<code>retry_intent</code> 恆為 <code>null</code>，<code>cause_chain.retry_attempts</code> 恆為 0，四個原欲作為觸發來源的欄位皆是「死標籤」（欄位存在但未被實際寫入有效值，同 <code>config/CLAUDE.md</code> 「死標籤防呆」教訓）。真正有信號的來源是既有 <code>tags</code> 欄位中的 <code>io-guard-warn</code>（1,900 次/7 日）與 <code>loop-suspected</code>（874 次/7 日）——這兩個標籤已被 hook 系統穩定產出，無需新建觀測管線。但以 <code>(agent, signal_tag)</code> 為 trigger_pattern、<code>>=3</code> 次觀察為門檻的原始設計在此資料量級下命中率高達 84%（45 組中 38 組達標），幾乎無篩選力；改用「<code>>=3</code> 次觀察 <strong>且</strong> 橫跨 <code>>=3</code> 個獨立日期」的二階門檻後，命中組數收斂至 24 組（53%），排除掉 21 組僅單日/雙日短暫突發的雜訊。外部驗證顯示 BigPanda 生產級告警去重管線中位命中率 >90%，反證 DDP 目前的門檻設計仍有優化空間，但作為 application 階段的最小可行修正已足夠往下一階段推進。本階段修正 schema 設計 2 處欄位定義，KB 匯入 1 篇，backlog 新增 2 條具體化提案，研究系列 <code>instinct-behavior-learning-ddp-digest-memory</code> completion_pct 20%→40%（application 完成）。</p>
+<p>---</p>
+<h2>核心洞見（乾跑統計實測結果）</h2>
+<h3>1. `error_category`/`has_error`/`retry_intent`/`retry_attempts` 四欄位在近 7 日資料中皆為死標籤</h3>
+<p>機械掃描 <code>logs/structured/2026-07-{16..22}.jsonl</code>（合計 16,339 筆事件）：</p>
+<ul>
+<li><code>error_category</code> 欄位僅 6,384 筆（39%）存在，且<strong>全數值為 <code>"success"</code></strong>——其餘 9,955 筆（61%）該欄位完全缺失，並非隱含失敗</li>
+<li><code>has_error</code> 欄位存在 15,810 筆恆為 <code>false</code>，529 筆缺失，<strong>零筆為 <code>true</code></strong></li>
+<li><code>retry_intent</code> 欄位 16,339 筆恆為 <code>null</code></li>
+<li><code>cause_chain.retry_attempts</code> 恆為 0</li>
+</ul>
+<p>foundation 階段提出的 trigger_pattern 範例「<code>task_key=X AND failure_type=Y</code>」預設 <code>error_category</code> 能反映真實失敗類型，但實測顯示此欄位在目前 hook 產出邏輯下<strong>只用來標記成功</strong>，從未寫入非 success 的錯誤分類值——與 <code>config/CLAUDE.md</code> 記載的「死標籤防呆」案例（<code>backends.codex_exec.websearch</code> 欄位無消費端）同構：欄位描述了行為卻沒有發生。此發現直接證偽 foundation 階段 schema 草案中隱含的資料來源假設，是本階段最重要的修正依據。</p>
+<h3>2. 真正有信號的來源是既有 `tags` 欄位，不必新建觀測管線</h3>
+<p>同一批 16,339 筆事件的 <code>tags</code> 欄位分布顯示：<code>team-mode</code>（7,478）、<code>python</code>（2,905）、<code>io-guard-warn</code>（1,900）、<code>grep</code>（1,427）、<code>websearch</code>（1,110）、<code>loop-suspected</code>（874）等既有標籤穩定產出。其中 <code>io-guard-warn</code>（對應 preamble.md 的 Per-call IO Budget Gate 違規）與 <code>loop-suspected</code>（對應「同檔 Edit 上限」規則的重複編輯偵測）屬於<strong>已具治理意義</strong>的行為訊號，非中性描述性標籤（如 <code>python</code>/<code>grep</code> 僅描述工具類型）。這印證 foundation 階段洞見 4（DDP 已有等價治理機制可直接複用）可延伸至觀測層——<code>hooks/post_tool_logger.py</code> 產出的 <code>tags</code> 欄位本身就是現成的 instinct 候選來源，優於嘗試修復或依賴 <code>error_category</code>。</p>
+<h3>3. 原始 `>=3` 次計數門檻在此資料量級下幾乎無篩選力（命中率 84%）</h3>
+<p>以 <code>(agent, signal_tag)</code> 組合為 trigger_pattern（限定 <code>io-guard-warn</code>/<code>loop-suspected</code> 兩個已驗證有信號的標籤），7 日內共觀察到 45 組不同組合，其中 <strong>38 組（84%）</strong> 已達到 foundation 階段提議的 <code>>=3</code> 次門檻——包含僅在單一天出現、隔天完全消失的組合。這代表 <code>>=3</code> 次單純計數在 DDP 目前的事件量級（日均 2,334 筆）下<strong>幾乎等同於「有發生過」</strong>，未能區分「持續性行為模式」與「單日偶發突增」。</p>
+<h3>4. 加入「橫跨 `>=3` 個獨立日期」二階門檻後，候選組數收斂至 24 組（53%）</h3>
+<p>45 組 trigger_pattern 依出現天數分布：僅 1 天 12 組、2 天 9 組、3 天 4 組、4 天 2 組、5 天 4 組、6 天 7 組、7 天（全週皆出現）7 組。將門檻改為「<code>>=3</code> 次觀察 <strong>且</strong> <code>>=3</code> 個獨立日期」後，符合組數從 38 降至 <strong>24</strong>，排除掉 21 組（12+9）僅 1-2 天內的短暫突發。其中 7 組橫跨全部 7 天（如 <code>langgraph-ai_github_research</code>／<code>assemble-digest</code>／<code>langgraph-ai_smart_city</code>／<code>langgraph-ai_deep_research</code>／<code>auto-kb_insight_evaluation</code> 之 <code>io-guard-warn</code>），屬於最值得優先觀察的「持續性行為模式」候選。此發現與姊妹系列 <code>json-backlog-archival-compaction</code> mechanism 階段引用的 Nagios/Icinga「連續 N 次確認才轉態，優於單次確認」二階閾值架構直接吻合，證明該藍圖同樣適用於 instinct 候選生成，非本次研究前才發現的全新原理。</p>
+<h3>5. Agent/task_key 屬性缺失達 25%，是 trigger_pattern 以 task_key 為主鍵的資料品質風險</h3>
+<p>16,339 筆事件中 <code>agent</code> 欄位為空字串（3,573 筆）或字面值 <code>"unknown"</code>（529 筆）合計 4,102 筆，佔 <strong>25.1%</strong>。這代表若 instinct 引擎嚴格以 <code>task_key</code>/<code>agent</code> 為 trigger_pattern 主鍵，四分之一事件將無法正確歸因到來源任務，可能導致「幽靈 instinct」（無法追溯到具體任務、無法驗證或撤銷的候選）。此為落地前必須先修的資料完整性缺口，非 instinct 引擎本身的設計問題。</p>
+<h3>6. 業界告警去重實務佐證：現行門檻仍有優化空間，但作為 MVP 已足夠</h3>
+<p>WebSearch 證實告警治理業界（BigPanda 2026 field data）「配置得宜的管線去重率中位數 >90%」；本次以「count>=3 且天數>=3」門檻僅將候選收斂 47%（45→24），與業界高效管線的去重效果仍有落差。但 agent observability 2026 文獻同時指出「需要觀察行為分布而非單一樣本」（distribution of behaviors, not one example）——這支持本階段門檻方向正確（優先要求跨天覆現），且未檢索到「行為指紋 canonicalization」的既有標準做法可直接套用，代表更精細的過濾（如加入事件內容指紋維度）需 DDP 自行在下一階段以實際候選資料驗證後再設計，而非本階段預先過度設計。</p>
+<p>---</p>
+<h2>修正後的具體 schema（相對 foundation 階段的 2 處修正）</h2>
+<p>沿用 foundation 階段 <code>state/behavior-instincts.json</code> 的整體落地路徑（10 記憶層、report-only、<code>>=3</code> 次獨立驗證、禁止自動生效、kill switch <code>DDP_BEHAVIOR_INSTINCTS</code>），僅修正以下 2 處欄位定義（其餘 5 點與 foundation 階段相同，不重複）：</p>
+<ol>
+<li><strong><code>trigger_pattern</code> 資料來源改為 <code>tags</code> 而非 <code>error_category</code></strong>：</li>
+</ol>
+<p>   - 原：<code>task_key=X AND failure_type=Y</code>（<code>failure_type</code> 取自 <code>error_category</code>）</p>
+<p>   - 修正：<code>agent=X AND signal_tag=Y</code>（<code>signal_tag</code> 取自既有 <code>tags</code> 欄位，初期白名單限定 <code>io-guard-warn</code>／<code>loop-suspected</code> 兩個已驗證有治理意義的標籤，白名單制避免中性描述標籤如 <code>python</code>/<code>grep</code> 污染候選集）</p>
+<ol>
+<li><strong>建立候選門檻改為二階（次數 + 天數），而非單一次數計數</strong>：</li>
+</ol>
+<p>   - 原：同一 <code>trigger_pattern</code> <code>>=3</code> 次獨立 auto-task 執行即建立候選</p>
+<p>   - 修正：同一 <code>trigger_pattern</code> 須 <code>>=3</code> 次觀察 <strong>且</strong> 橫跨 <code>>=3</code> 個不同日曆日（<code>state/behavior-instincts.json</code> 新增 <code>distinct_days_observed</code> 欄位追蹤），才建立正式候選；<code>evidence_count>=3</code> 但 <code>distinct_days_observed<3</code> 者僅記錄於暫存觀察層（呼應 foundation 階段「單次或雙次觀察僅記錄暫存」的既有降級路徑，此次延伸為「天數不足」亦視同降級）</p>
+<p>其餘 5 點（複用 <code>post_tool_logger.py</code> 觀察來源、信心演化沿用既有降權慣例、禁止自動生效、演化交 <code>arch_evolution</code>/<code>harness_review</code> 決策鏈、kill switch）維持 foundation 階段設計不變。</p>
+<p>---</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇與理由</h3>
+<p>延續 foundation 階段透鏡組合（Sam Altman／黃仁勳為 primary，Taleb 為 adversarial），因本階段議題性質未變——仍是「新自動化能力的部署節奏」與「用資料而非直覺定門檻」的問題，且本次乾跑統計本身即產出可直接檢驗透鏡框架的具體數字。</p>
+<h3>框架化建議</h3>
+<p><strong>Sam Altman：「先 ship 再迭代」</strong>——本階段刻意不追求一次性設計完美的 fingerprint 演算法（洞見 6 提到的更精細過濾），而是先以「次數+天數」二階門檻的最小修正上線，收集實際候選集後再迭代。24 組候選是否過多、過少，應由下一階段（optimization）實際跑出候選並觀察 report-only 佇列的人工複核負擔來決定，而非本階段用臆測的門檻值預先過度設計。</p>
+<p><strong>黃仁勳：「demand-driven 創新，先看 workload 再定義規格」</strong>——本次乾跑統計正是這個原則的直接實踐：不是先假設 <code>error_category</code> 能用就照 foundation 階段草案設計，而是先量測既有 workload（<code>tags</code> 欄位真實分布）「supports 什麼樣的觸發設計」，發現 <code>error_category</code> 是死標籤後才反過來修正規格。這也是本階段與 foundation 階段最大的方法論差異——foundation 階段是「設計優先、資料驗證留待後續」，本階段補上被跳過的驗證步驟。</p>
+<h3>反模式檢查</h3>
+<p>依 Taleb 反例黑名單逐條檢視本次分析：</p>
+<ul>
+<li><strong>不用兩面論</strong>：<code>error_category</code> 死標籤的結論不做「可能有用也可能沒用」的模糊表述，直接砸結論——四個欄位在近 7 日資料中皆無信號，foundation 階段的設計假設證偽，需修正</li>
+<li><strong>不迴避「這不是我的領域」的誠實邊界</strong>：本文明確標註「未檢索到行為指紋 canonicalization 既有標準做法」（洞見 6），不假裝已有現成答案，而非勉強推導出一個看似合理但缺乏佐證的方案</li>
+<li><strong>中間地帶風險檢查</strong>：24/45（53%）的候選收斂率仍稱不上「明確」，若下階段實測發現 24 組候選對人工複核佇列仍是負擔，須進一步收斂（如加天數門檻至 <code>>=5</code> 或限縮白名單），不能停留在「差不多、還可以」的中間地帶</li>
+</ul>
+<h3>透鏡盲區自陳</h3>
+<p>本節數字分析（欄位死標籤比例、二階門檻收斂率）屬機械掃描結果，非任何思想家框架的直接產物；三組透鏡僅用於詮釋「如何看待這些數字對後續設計節奏的意義」，其本身不對統計方法的正確性背書。Sam Altman／黃仁勳／Taleb 三透鏡調研截止日與 foundation 階段相同（2026-06-01／2026-04-04），本階段未重新驗證是否有更新公開表態。</p>
+<p>---</p>
+<h2>建議行動</h2>
+<ol>
+<li>落地時將 <code>state/behavior-instincts.json</code> 的 <code>trigger_pattern</code> 欄位改用 <code>signal_tag</code>（來源 <code>tags</code>，白名單 <code>io-guard-warn</code>／<code>loop-suspected</code>），並新增 <code>distinct_days_observed</code> 欄位，二階門檻「<code>evidence_count>=3</code> 且 <code>distinct_days_observed>=3</code>」寫入 <code>config/memory-policy.yaml</code> 的 <code>behavior_instincts</code> 記憶層定義</li>
+<li>落地前先修復 25.1% 事件缺失 <code>agent</code>/<code>task_key</code> 屬性的資料品質缺口（<code>hooks/post_tool_logger.py</code> 對應 span 的 <code>agent</code> 欄位填值邏輯），避免「幽靈 instinct」污染候選集</li>
+<li>後續研究方向（optimization 階段）：實際產出本次 24 組候選的完整清單並交人工複核，量測複核負擔（每組耗時、誤判率），據此決定是否需要加入「事件內容指紋」第三維度（如洞見 6 所述，本階段未檢索到可直接套用的既有標準，須自行設計並以真實候選驗證）</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://www.vectra.ai/topics/alert-fatigue">Alert fatigue: causes, real cost, and how to fix it</a> — B 級 | 2026</li>
+<li><a href="https://www.redlegg.com/blog/siem-alert">Reducing SIEM Alert Fatigue in 2026: How Tuning Improves Detection</a> — B 級 | 2026</li>
+<li><a href="https://arxiv.org/html/2605.08316v1">AI-Driven Security Alert Screening and Alert Fatigue Mitigation in SOCs: A Comprehensive Survey</a> — A 級（arXiv 綜述）| 2026</li>
+<li><a href="https://www.braintrust.dev/articles/agent-observability-complete-guide-2026">Agent observability: The complete guide for 2026</a> — B 級 | 2026</li>
+<li><a href="https://www.confident-ai.com/knowledge-base/compare/best-ai-agent-observability-tools-2026">Top 6 AI Agent Observability Platforms for 2026</a> — B 級 | 2026</li>
+<li>內部一手實測：<code>logs/structured/2026-07-16.jsonl</code> 至 <code>2026-07-22.jsonl</code>（16,339 筆事件，機械掃描）</li>
+<li>承接：<a href="2026-07-22-instinct-learning-engine-digest-memory.md">2026-07-22-instinct-learning-engine-digest-memory.md</a>（foundation 階段）</li>
+</ul>
+<p>---</p>
+<h2>附錄：快取遙測（近 7 日 KB 語義快取）</h2>
+<pre><code>
+{
+  "days": 7,
+  "entry_count": 0,
+  "total_hit_count": 0,
+  "log_events_7d": {"lookup": 0, "store": 0, "http_fallback": 0, "degraded": 0},
+  "fastembed_available": false
+}
+</code></pre>
+<p><code>fastembed_unavailable</code>（可選依賴未安裝），本次研究改走 <code>kb_hybrid_cached</code> 內容定址快取代理，不影響任務狀態。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
