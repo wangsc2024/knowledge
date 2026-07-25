@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-07-25">
+  <title>系統優化落實報告 2026-07-25 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-07-25</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-07-25</h1>
+<h2>來源洞察</h2>
+<ul>
+<li>noteId <code>ef1115f8</code>：機械過濾 Deferred/Superseded ADR 防 self_heal stale premise（缺聚合 skip 計數器）</li>
+<li>noteId <code>5c9d7f48</code>：Priority-Weighted RR 排程（高風險，移 backlog）</li>
+<li>KB hybrid 4 查詢去重 28 筆；system-insight alerts=[]、daily_success_rate=1.0、cache_hit_ratio=0.692</li>
+</ul>
+<h2>落實方案：ADR 終態過濾聚合統計</h2>
+<ul>
+<li>目標：補齊 stale-skip 聚合可觀測性，量化本輪省下 LLM 槽位</li>
+<li>三維評分：影響=2 + 難度=3 + 風險=3 → <strong>8</strong></li>
+<li>檔案：<code>tools/adr_utils.py</code>、<code>tests/tools/test_adr_utils.py</code>、<code>tools/arch_decision_step_h.py</code></li>
+</ul>
+<h3>步驟</h3>
+<ol>
+<li>新增 <code>adr_filter_stats()</code> / <code>emit_adr_filter_stats()</code>（govlog type=<code>self_heal.adr_filter_stats</code>）</li>
+<li>CLI：<code>uv run python -m tools.adr_utils stats [--emit-govlog]</code></li>
+<li><code>load_pending_decisions</code> pre-flight 呼叫 emit</li>
+</ol>
+<h3>驗收</h3>
+<ul>
+<li>CLI 實測：<code>total=2197 kept=441 skipped=1756</code>（by_status deferred=1273 superseded=219 wontfix=263 rejected=1）✓</li>
+<li><code>pytest tests/tools/test_adr_utils.py tests/tools/test_arch_decision_step_h.py</code> → 21 passed ✓</li>
+<li>YAML config/*.yaml → 0 ERR ✓</li>
+<li><code>validate_config.py --check-auto-tasks</code> → 116 任務一致 ✓</li>
+</ul>
+<h3>回滾</h3>
+<ul>
+<li><code>git checkout -- tools/adr_utils.py tests/tools/test_adr_utils.py tools/arch_decision_step_h.py</code></li>
+</ul>
+<h2>阻塞方案</h2>
+<ul>
+<li>Priority-Weighted RR → backlog <code>backlog_kb_system_optimize_20260725_133547892302</code>（需改 PS1）</li>
+</ul>
+<h2>備份</h2>
+<ul>
+<li>目標檔落實前乾淨無變更；基準 HEAD <code>e4d45fbc</code></li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
