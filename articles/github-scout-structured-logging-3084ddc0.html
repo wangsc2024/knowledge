@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: 日誌可觀測（structured logging/observability） - 2026-07-27">
+  <title>GitHub Scout: 日誌可觀測（structured logging/observability） - 2026-07-27 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: 日誌可觀測（structured logging/observability） - 2026-07-27</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">日誌可觀測</span><span class="tag">observability</span><span class="tag">github_inspiration</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：日誌可觀測 2026-07-27</h1>
+<h2>專案觀測摘要</h2>
+<ul>
+<li><strong>pydantic/logfire</strong>（4395★，pushed 2026-07-27）：AI observability platform，OTel-native，logfire.instrument() 自動注入 trace_id/span_id 貫穿 logs/traces/metrics；<strong>自動依鍵名 pattern（password/token/secret 等）scrub 敏感屬性值</strong>；本地 OSS SDK 可純匯出至任意 OTel collector，不綁定 SaaS。</li>
+<li><strong>openobserve/openobserve</strong>（20394★，pushed 2026-07-27，較 2026-07-17 前次觀測 20173★ 成長 +221/10天）：logs+metrics+traces 統一 SQL/PromQL 查詢，single-binary 非 Docker；2026-06 起支援 Claude Agent SDK/MCP 工具呼叫之 gen_ai semantic convention 追蹤。</li>
+<li><strong>traceloop/openllmetry</strong>（7331★，pushed 2026-07-13，較 07-17 前次觀測 7306★ 成長 +25/10天）：純 OTel SDK instrumentation，本系統已於 2026-06-13（commit b4a90bbb）落地為 <code>tools/openllmetry_bootstrap.py</code>，本輪列為交叉驗證非新提案。</li>
+</ul>
+<p>本輪沿用既有 <code>observability_structured_logging</code> topic_override（2026-07-04 首次建立，2026-07-17 補充）之研究基礎，新增 pydantic/logfire 一案並對 openobserve/openllmetry 做 10 天後 REST 複核。</p>
+<h2>改進提案</h2>
+<ol>
+<li><strong>【P1，已落實】span 屬性層自動 scrubbing</strong>（借鑑 pydantic/logfire）：本系統 OTel export 試辦（<code>config/otel-config.yaml</code> <code>enabled=false</code>，<code>docs/plans/github-scout-20260717-otel-export-observation-trial.md</code> 待人工審核）原僅以 <code>instrumentation.trace_content=false</code> 控制是否擷取完整 prompt/completion 內容（內容層防線），未對 span <strong>屬性鍵名</strong>做遮罩。若日後啟用且某 instrumentor 意外把 API key/token 等值寫入屬性，會直接落地 JSONL。</li>
+<li><strong>【P3，長期觀察，不落實】OTel 統一查詢後端</strong>（openobserve 模式）：對照本系統現行 <code>logs/otel/traces.jsonl</code> 純 append-only + <code>tools/gov_trace_correlate.py</code> 時間窗線性關聯（無 SQL 查詢能力）。因 OTel export 本身仍在觀察期、無查詢規模痛點佐證，依 YAGNI 暫不評估導入獨立服務。</li>
+</ol>
+<h2>審查結論</h2>
+<p>提案 1（span 屬性 scrubbing）：feasibility_score=9、stability_score=9（均 ≥7 門檻），review_rounds=1 通過。採納原因：<code>enabled</code> 現仍為 false，本次屬零風險預先硬化，不影響任何現行行為，待試辦轉正時自動生效；已補單元測試（<code>tests/tools/test_openllmetry_bootstrap.py::TestFileSpanExporterScrubbing</code> 兩案）。主要風險：極低，純函式新增 + 一個 config 鍵，向後相容。rollback：<code>git checkout -- tools/openllmetry_bootstrap.py config/otel-config.yaml</code>。與 <code>hooks/post_tool_logger.py</code>、<code>tools/lib/govlog.py</code>、<code>audit_trace_crosswalk</code> 之 gen_ai_* 語意慣例無重疊或衝突（僅遮罩鍵名比對）。</p>
+<p>提案 2（OTel 統一查詢後端）：未進入審查（P3 長期觀察，非本輪落實範疇）。</p>
+<h2>已落實項目</h2>
+<ol>
+<li><code>tools/openllmetry_bootstrap.py</code>：<code>_FileSpanExporter</code> 新增 <code>scrub_key_patterns</code> 建構參數與 <code>_scrub_attributes()</code> 方法；<code>_setup_tracer_provider()</code> 從 <code>config/otel-config.yaml</code> 的 <code>attribute_scrubbing.key_patterns</code> 讀取覆寫清單。</li>
+<li><code>config/otel-config.yaml</code>：新增 <code>attribute_scrubbing.key_patterns</code>（預設 <code>[key, token, secret, password, authorization]</code>）並附來源註記。</li>
+<li><code>tests/tools/test_openllmetry_bootstrap.py</code>：新增 <code>TestFileSpanExporterScrubbing</code> 兩案（命中遮罩／空 pattern 保留原值），<code>uv run pytest tests/tools/test_openllmetry_bootstrap.py -q</code> 3 passed, 1 skipped（既有 optional-dep skip，非本次變更所致）。</li>
+</ol>
+<h2>待人工審核項目</h2>
+<ul>
+<li>P3「OTel 統一查詢後端」列入長期觀察，暫不建 ADR；待 <code>logs/otel/traces.jsonl</code> 觀察期（<code>docs/plans/github-scout-20260717-otel-export-observation-trial.md</code>）轉正且出現實際查詢/告警需求後再評估。</li>
+</ul>
+<h2>Trace 元資料</h2>
+<p>trace_id=github-scout-20260727-observability-logging；task_key=github_scout；operation_name=daily_digest.github_scout.implement</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 週審報告 - 2026-W31">
+  <title>系統 Log 週審報告 - 2026-W31 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 週審報告 - 2026-W31</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 週審報告 - 2026-W31（2026-07-27 週一主審）</h1>
+<h2>機械管線摘要</h2>
+<ul>
+<li>fingerprint：短路=否；anomalies：critical=1、warning=3、info=0（event_count=13159，window=7天）</li>
+<li>task_journal：candidates=3、backlogged=3（dedup_key 不重複寫）、prune removed=0</li>
+<li>timeout_margin：max_ratio=1.0275（auto-self_heal，接近上限，未逾時）</li>
+<li>issue_triage_slo：overall_status=green，fail_count=1/9</li>
+</ul>
+<h2>觀察／趨勢分析（逐字引用管線 trend.summary_zh）</h2>
+<p>最近一日 2026-07-27 的 phase_failure 為 1，低於前一日 2026-07-26（4），短期趨勢為改善。相較窗內高峰 2026-07-26（4 次）已回落。窗內 phase_failure 中位數為 1；最近一日相對中位數為「等於」中位數。</p>
+<p>| 日期 | phase_failure |</p>
+<p>|------|------|</p>
+<p>| 2026-07-21 | 1 |</p>
+<p>| 2026-07-23 | 3 |</p>
+<p>| 2026-07-25 | 1 |</p>
+<p>| 2026-07-26 | 4 |</p>
+<p>| 2026-07-27 | 1 |</p>
+<h2>🔍 Log 週審發現</h2>
+<p>🔴 嚴重（已根因確認，非新問題）：</p>
+<ul>
+<li>anomalies critical=1：loop_tool_hash，session 82b88188-104，Edit 工具同 input_hash 連續 34 次（標準 30）。經 Grep logs/structured/2026-07-21.jsonl 確認：該 session 屬 2026-07-21 <code>auto-fahua_host_dialogue</code>（trace_id 34fe678286a1-r3），與 task_journal 中 fahua_host_dialogue 07-21T14:48 per-job timeout 記錄同源。此為 7 天滾動窗尾端最後一天顯示同一歷史事件（07-21 為窗口起點），2026-07-28 窗口前移後將自然滾出，非新發生問題，logs 層無需修復。</li>
+</ul>
+<p>🟠 中優先（已查明，判定良性）：</p>
+<ul>
+<li>warning：session 25a5722d-351（langgraph-ai_smart_city，非互動）工具呼叫 136 次（標準 100）。經 Grep 確認：136 次中 69 次 WebFetch + 47 次 WebSearch（占 85%），has_error=0，尾端事件確認 done_cert OK。判定為深度研究任務正常高量網路檢索，非迴圈卡住，無需處理。</li>
+</ul>
+<p>🟡 改善建議（記錄，未達 backlog 入隊門檻）：</p>
+<ul>
+<li>task_journal：shurangama 於 2026-07-27T05:30:43（trace 2bc17c425c3e）狀態 failed，error_type=IncompleteResearchResult，與同 trace 的 self_heal（狀態 success 但 per-job timeout 標記）同批次。self_heal:phase_failure 已由機械 review 入隊 backlog；shurangama 本次未通過入隊准入門檻（v4 admission gate：需 impact_score≥2 或 verified_paths），僅記錄供後續觀察，不重複寫入。</li>
+</ul>
+<p>🟢 正常：其餘 anomalies（excessive_turns 互動 session ×2）標準操作無需處理；buddhist_quality median=105.0（52 樣本）；ai_github_research_timeout 7日 timeout_fail=0；phase2_budget_fit 7日 truncation_fail=0。</p>
+<h2>修復</h2>
+<p>logs 層零修復（無需 Edit 任何 log 相關檔案；本次三個目標深查皆判定既有機制已覆蓋或屬歷史窗口尾端顯示）。</p>
+<h2>責任邊界</h2>
+<p>本次未觸及系統核心配置（frequency-limits/llm-router/llm-gate/budget/scoring/routing/autonomous-harness 等），符合 log_audit 職責邊界。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
