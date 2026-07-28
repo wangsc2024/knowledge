@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 週審報告 - 2026-W31">
+  <title>系統 Log 週審報告 - 2026-W31 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 週審報告 - 2026-W31</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 週審報告 - 2026-W31</h1>
+<h2>摘要</h2>
+<p>本週（07-23~07-28）機械管線判讀：anomalies 1 critical + 1 warning、7 日 phase_failure 趨勢改善。深查聚焦 1 個 critical 迴圈異常之根因與 self_heal timeout margin 觀察。</p>
+<h2>🔴 嚴重：同 session 同檔案 Edit 迴圈（loop_tool_hash）</h2>
+<ul>
+<li>偵測：session 82b88188-104，(Edit, input_hash=748138286ddc3246) 連續呼叫 34 次（標準值 30；critical≥30），dedup_key <code>log_audit:loop_tool_hash:date=2026-07-28,input_hash=748138286ddc3246,is_interactive=False,session_id=82b88188-104,tool_name=Edit</code></li>
+<li>根因深查（Grep logs/structured 精確 sid 欄）：該 session 實際落在 <code>logs/structured/2026-07-21.jsonl</code>（異常物件內 <code>date</code> 欄為偵測執行日而非事件發生日，屬呈現層落差非資料錯誤），agent=<code>auto-fahua_host_dialogue</code>，task_key=<code>fahua_host_dialogue</code>，88 筆事件中 36 筆為 Edit，全數目標同一檔 <code>archive/fahua-host-dialogue/2026-07-21/run-fashi-gongde-pin.md</code></li>
+<li>與 task_journal 交叉比對：同 trace_id <code>34fe678286a1-r3</code> 對應 journal 記錄「fahua_host_dialogue 遭 per-job timeout 個別強停」（2026-07-21T14:48:21，status=success 表示重試後仍成功）</li>
+<li>精確根因：36 次同檔連續 Edit 違反 <code>templates/shared/preamble.md</code>「同檔 Edit 上限」規範（≥3 次應改 Read→Write 整檔覆寫），推高該 run 執行時間逼近 per-job timeout；機械 recommendation「檢視 prompt 是否過大或後端排隊」只命中表面症狀，未點出迴圈編輯為主因</li>
+<li>影響：單一 run 事件（blast_radius=single_task），已於當次重試後成功，不影響後續 6 次 run（success_rate 1.0）</li>
+<li>防護現況：preamble 規則已存在但未在 fahua_host_dialogue 執行路徑強制中斷；task_journal review 本次管線已自動判定為 candidate 並 backlogged（precomputed candidates=2/backlogged=2 之一），依規則不重複寫入 backlog，僅此補驗證結論</li>
+<li>複現條件：任一自動任務對單一 Markdown 檔案（如逐句寫入的對話稿）採多次小段 Edit 而非整檔 Write 時皆可能觸發</li>
+</ul>
+<h2>🟠 中優先：self_heal timeout margin 逼近上限</h2>
+<ul>
+<li>機械 <code>timeout_margin</code> 步驟：today max_ratio=0.8017（auto-self_heal，962s/1200s timeout），log=todoist-team_20260728_050008.log</li>
+<li>duration_stats 7 日窗：self_heal duration_p50=567s、p90=1233s（已超過 1200s 硬 timeout）</li>
+<li>journal 交叉：self_heal 唯一 unsuccessful 記錄（2026-07-27T05:30:43，trace 2bc17c425c3e）status=success 但 failure_type=phase_failure，機械 recommendation 同上「檢視 prompt 是否過大或後端排隊」</li>
+<li>機械 <code>timeout_hierarchy</code> headroom 檢查：headroom_ok=true（self_heal 列 headroom_findings 4 任務之一，check_errors=0，僅 8 筆 check_warnings），既有 headroom 驗證邏輯判定仍在可接受範圍，本項降為觀察而非立即修復</li>
+<li>責任邊界：timeout 調整屬 <code>config/timeouts.yaml</code>，非 log_audit 允許直改範圍；沿用 <code>wf-20260611-timeout-remediation</code> 既定流程，若下週 p90 持續 >1200s 建議另立 timeout 診斷任務處理</li>
+</ul>
+<h2>🟡 改善建議</h2>
+<ul>
+<li><code>errors</code> 步驟 <code>parse_error: "stdout 非合法 JSON"</code>（step ok=true 不影響主流程，輸出格式偏移建議後續留意）</li>
+<li><code>issue_triage_slo</code>：overall_status=green，fail_count=1/9（未達 🟠 門檻，僅記錄）</li>
+</ul>
+<h2>🟢 正常</h2>
+<ul>
+<li>excessive_turns warning（session d5ebbcc3-933，121 次呼叫）機械判定「屬正常操作，無需處理」</li>
+<li>conversational_detections 為空</li>
+<li>phase2_budget_fit／ai_github_research_timeout／langchain_v2_slo 等 SLO 步驟皆 ok</li>
+</ul>
+<h2>觀察／趨勢（逐字引用管線 trend.summary_zh）</h2>
+<blockquote>最近一日 2026-07-28 的 phase_failure 為 1，低於前一日 2026-07-27（2），短期趨勢為改善。相較窗內高峰 2026-07-26（4 次）已回落。窗內 phase_failure 中位數為 2；最近一日相對中位數為「低於」中位數。</blockquote>
+<p>| 日期 | phase_failure |</p>
+<p>|------|---------------|</p>
+<p>| 2026-07-23 | 3 |</p>
+<p>| 2026-07-25 | 1 |</p>
+<p>| 2026-07-26 | 4 |</p>
+<p>| 2026-07-27 | 2 |</p>
+<p>| 2026-07-28 | 1 |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
