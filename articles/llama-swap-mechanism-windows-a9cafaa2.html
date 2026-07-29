@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：llama-swap 動態模型卸載機制 mechanism 階段 — 換入換出延遲、Windows taskkill 行為與 DDP 12B/26B 並發率 POC 判準">
+  <title>深度研究洞察簡報：llama-swap 動態模型卸載機制 mechanism 階段 — 換入換出延遲、Windows taskkill 行為與 DDP 12B/26B 並發率 POC 判準 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：llama-swap 動態模型卸載機制 mechanism 階段 — 換入換出延遲、Windows taskkill 行為與 DDP 12B/26B 並發率 POC 判準</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">insight-briefing</span><span class="tag">深度研究洞察簡報</span><span class="tag">llama-swap</span><span class="tag">llama.cpp</span><span class="tag">VRAM管理</span><span class="tag">本地LLM</span><span class="tag">mechanism-stage</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>摘要</h2>
+<p>llama-swap 是目前唯一填補「llama.cpp 單卡多模型原生共存」空白的第三方工具，foundation 階段已確認其架構可行性，但缺乏實測數據。本次 mechanism 階段研究確認三項機制細節：Windows 平台以 taskkill +5 秒優雅期停止程序（無 POSIX 訊號）、port 依模型 ID 字母序 + startPort 確定性分配、以及 llama.cpp 官方（ggml-org）明確拒絕在核心內建 VRAM-based 自動卸載、只接受外部監控觸發。搜尋未找到 llama-swap 本身的官方換入換出延遲基準（僅有通用模型冷啟動 5-30 秒的粗估與 NVIDIA 另一套不同機制的 2-3 秒，兩者不可互換套用），這是本階段最大缺口——DDP 若要決定是否投入 POC，必須先機械化量測自身 12B/26B 呼叫並發率作為 go/no-go 判準。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li><strong>Windows taskkill 5 秒優雅期是 mechanism 階段的第一道風險閘</strong>：llama-swap 在 Windows 因缺乏 POSIX 訊號改用 cmdStop: taskkill，程序有 5 秒時間優雅關閉，逾時才強制終止。DDP 現有 llama-server 實例若無法在 5 秒內釋放 VRAM，換入下一模型會直接撞上與既有 12B/26B 共存 OOM 教訓相同的風險。</li>
+</ol>
+<ol>
+<li><strong>llama.cpp 官方立場是刻意留白，非暫時缺口</strong>：ggml-org/llama.cpp Discussion #19425 顯示官方傾向讓「VRAM 監控」留在外部程式（透過 /models 端點暴露 last-used timestamp），而非把偵測邏輯內建進核心，與 DDP 既有 KB 洞見交叉驗證一致。</li>
+</ol>
+<ol>
+<li><strong>Port 分配是確定性演算法，與 DDP 現行固定埠慣例衝突</strong>：startPort 設定 ${PORT} 起始值（預設 5800），實際埠號依模型 ID 字母序遞增分配。DDP 目前「8082 埠固定跑 12B」的慣例若要接上 llama-swap，需改成「透過模型命名控制埠序」。</li>
+</ol>
+<ol>
+<li><strong>llama-swap 定位介於 Ollama 與 vLLM 之間，只在「請求時間不重疊」時划算</strong>：Ollama 自動熱插拔但併發請求排隊；vLLM 鎖定單模型換取 16-20 倍吞吐量；llama.cpp server 原生無動態卸載能力。換入換出延遲成本只有在 DDP 12B/26B 呼叫時間很少重疊時才划算。</li>
+</ol>
+<ol>
+<li><strong>本階段最大知識缺口</strong>：找不到 llama-swap 本身的官方延遲基準，且 DDP 自身並發率基線尚未量測；不應把通用模型載入或 NVIDIA 另一套機制的數字套用到 llama-swap 的延遲預算規劃。</li>
+</ol>
+<ol>
+<li><strong>資料中心級效能數字不可外推至 DDP 消費級環境</strong>：dasroot.net 案例基於 Linux + Docker + DGX Spark 128GB 統一記憶體，效能數字與 DDP 的 Windows + 單卡 24GB 環境不可比。</li>
+</ol>
+<h2>POC go/no-go 判準</h2>
+<p>| 判準 | Go | No-go |</p>
+<p>|------|-----|-------|</p>
+<p>| 12B/26B 呼叫時間窗重疊率 | 低（如 <20% 落在彼此 30 秒內） | 高（常態同時服務） |</p>
+<p>| 現有兩顆常駐 server VRAM 總和 vs 24GB 卡上限 | 逼近/超過上限 | 尚有餘裕 |</p>
+<p>| 現有 server 乾淨關閉耗時 | 可在 taskkill 5 秒優雅期內完成 | 需強制終止，OOM 風險高 |</p>
+<p><strong>下一步（application 階段前提）</strong>：先機械化量測 DDP 12B/26B 實際呼叫的時間重疊率（比對 post_tool_logger.jsonl 或各 llama-server port 請求時間戳），作為 go/no-go 第一手數據。</p>
+<h2>參考來源</h2>
+<ul>
+<li>github.com/mostlygeek/llama-swap（官方 repo）A｜2026</li>
+<li>github.com/mostlygeek/llama-swap/wiki/Configuration（官方文件）A｜2026</li>
+<li>github.com/ggml-org/llama.cpp Discussion #19425 A｜2026</li>
+<li>developer.nvidia.com GPU Memory Swap 技術部落格 A｜2026</li>
+<li>dasroot.net Multi-Model Stacks with Llama-Swap B｜2026-05</li>
+<li>llama.cpp vs Ollama vs vLLM 系列比較文章（交叉驗證）C｜2026</li>
+</ul>
+<p>完整簡報：context/insight-briefings/2026-07-29-llama-swap-mechanism-stage.md</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
