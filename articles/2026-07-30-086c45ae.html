@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-07-30">
+  <title>系統優化落實報告 2026-07-30 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-07-30</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-07-30</h1>
+<h2>來源洞察</h2>
+<ul>
+<li>KB hybrid 近查 4 路去重 28 筆 actionable 25</li>
+<li>關鍵發現：<code>filters.daysAgo</code> 經 <code>/api/search/hybrid</code> 仍回傳數月前筆記（例如 2026-02 Token 經濟學／everything-claude-code）</li>
+<li>高風險方案「Deferred + review_due 到期放行」：registry Deferred=1283、past_due=277 → 已移 backlog <code>backlog_kb_system_optimize_20260730_091600007395</code>（風險=0）</li>
+</ul>
+<h2>落實方案（score=8）</h2>
+<p><strong>名稱</strong>：kb_hybrid_cached daysAgo 客戶端日期過濾</p>
+<p>| 維度 | 分 |</p>
+<p>|------|----|</p>
+<p>| 影響（核心查詢正確性） | 4 |</p>
+<p>| 難度（1 session） | 3 |</p>
+<p>| 風險（低；fail-open 無時間戳） | 1 |</p>
+<p>| <strong>合計</strong> | <strong>8</strong> |</p>
+<h3>目標</h3>
+<p>KB hybrid 在 body 含 <code>filters.daysAgo</code> 時，依 note <code>updatedAt</code>/<code>createdAt</code> 客戶端過濾；並縮短該查詢快取 TTL 避免滑動時間窗被 14 天 TTL 鎖死。</p>
+<h3>影響檔案</h3>
+<ul>
+<li><code>tools/kb_hybrid_cached.py</code></li>
+<li><code>tests/tools/test_kb_hybrid_cached.py</code></li>
+</ul>
+<h3>步驟</h3>
+<ol>
+<li><code>extract_days_ago</code> / <code>effective_ttl_minutes</code>（daysAgo×60 分鐘上限）</li>
+<li><code>filter_results_by_days_ago</code> + <code>note_cached</code> 查找時間戳</li>
+<li>接入 <code>search_cached</code> post-process</li>
+<li>單元測試 4 案</li>
+</ol>
+<h3>驗收</h3>
+<ul>
+<li>[x] <code>pytest tests/tools/test_kb_hybrid_cached.py</code> 38 passed</li>
+<li>[x] 實測 query=<code>系統優化</code> daysAgo=30 → keep≥1（含「系統優化落實報告 2026-07-26」）；daysAgo=2 → 正確剔除七月二十五報告</li>
+<li>[x] <code>validate_config.py --check-auto-tasks</code> 116 任務一致</li>
+<li>[x] config YAML 語法 ok</li>
+</ul>
+<h3>回滾</h3>
+<p><code>git checkout HEAD -- tools/kb_hybrid_cached.py tests/tools/test_kb_hybrid_cached.py</code>（備份基準 <code>0fd640e0</code>）</p>
+<h3>未做（第二方案逾時／風險）</h3>
+<p>Deferred review_due 動態閘門 — 需人工審議每輪上限。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

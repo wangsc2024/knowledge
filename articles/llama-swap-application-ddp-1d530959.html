@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：llama-swap 動態模型卸載機制 application 階段 — DDP 12B/26B VRAM 並發 POC go/no-go 決策">
+  <title>深度研究洞察簡報：llama-swap 動態模型卸載機制 application 階段 — DDP 12B/26B VRAM 並發 POC go/no-go 決策 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：llama-swap 動態模型卸載機制 application 階段 — DDP 12B/26B VRAM 並發 POC go/no-go 決策</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">insight-briefing</span><span class="tag">深度研究洞察簡報</span><span class="tag">llama-swap</span><span class="tag">llama.cpp</span><span class="tag">VRAM管理</span><span class="tag">本地LLM</span><span class="tag">application-stage</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：llama-swap 動態模型卸載機制 — application 階段</h1>
+<blockquote>DDP 12B/26B VRAM 並發 POC go/no-go 決策</blockquote>
+<ul>
+<li><strong>日期</strong>：2026-07-30</li>
+<li><strong>研究系列</strong>：<code>llama-swap-model-swapping</code>（foundation 已完成 2026-07-05；mechanism 已完成 2026-07-29；本次推進 application，completion 40%→60%）</li>
+<li><strong>觸發原因</strong>：continuity <code>next_suggested_angle</code> 與 mechanism 階段結論皆指向「先量測 DDP 12B/26B 呼叫時間重疊率」；本次代入 DDP 實際生產配置後發現前提本身已不成立，改為直接以內部證據（<code>config/frequency-limits.yaml</code> 生產狀態＋歷史事故記錄）完成 go/no-go 決策，非執行期量測</li>
+</ul>
+<h2>摘要</h2>
+<p>llama-swap 研究系列在 mechanism 階段留下三項 go/no-go 判準（呼叫時間窗重疊率／VRAM 總和 vs 24GB／taskkill 優雅期內乾淨關閉）。本次 application 階段代入 DDP 實際生產配置後發現：<code>llama_cli_gemma4_26b</code>（~17GB）與 <code>llama_cli_gemma4_26b_qat</code>（~14.2GB）兩個後端皆已於 2026-06-20（v171）停用，目前唯一啟用的本地常駐後端是 <code>llama_server_gemma4_12b</code>（~8GB）。靜態算術 17GB+8GB=25GB 已超過 RTX 4090 的 24GB 上限，判準 2 單獨即已否決 POC，無需再量測判準 1。進一步追溯 <code>docs/plans/gemma-gemma-4-e4b-recursive-eich.md</code> 發現，DDP 團隊早在本研究系列啟動（2026-07-05）前一個多月，就已因三顆 llama-server 常駐（E4B+12B+26B-QAT，合計 ~29GB）頻繁觸發驅逐而改用政策簡化（收斂為單一常駐模型）解決同一類問題。結論：<strong>application 階段判定 NO-GO</strong>，建議 optimization 階段改問「DDP 自製 <code>vram_arbiter</code> 與 llama-swap 的功能重疊度與維運成本比較」。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li><strong>26B／26B-QAT 生產狀態核實：兩者皆已停用逾 5 週，並非假設</strong>：<code>config/frequency-limits.yaml</code> 的 <code>backend_status</code> 區塊明確記錄 <code>llama_cli_gemma4_26b: {enabled: false}</code> 與 <code>llama_cli_gemma4_26b_qat: {enabled: false}</code>，皆標註「2026-06-20 v171 停用：模型已暫停」。目前唯一啟用的本地常駐後端是 <code>llama_server_gemma4_12b</code>（主力地端後端，port 8082）。mechanism 階段的判準草案是在「假設兩者都在跑」的前提下設計，application 階段第一步就必須先核實這個前提是否仍成立——結果是不成立。</li>
+</ol>
+<p>   證據：<code>config/frequency-limits.yaml:349-359</code>（<code>llama_server_gemma4_12b</code> 定義）、<code>config/frequency-limits.yaml:527-530</code>（backend_status enabled 標記）。</p>
+<ol>
+<li><strong>靜態 VRAM 算術已是決定性否決條件，執行期量測沒有必要</strong>：17GB（26B Q4_K_M）+ 8GB（12B）= 25GB，超過 RTX 4090 的 24GB 上限。這代表即使 taskkill 5 秒優雅期完美運作、即使兩模型呼叫時間窗完全不重疊，llama-swap 的 TTL 動態卸載機制在「切換瞬間」仍不可避免要求舊模型未完全釋放、新模型已開始載入的短暫共存窗口——而這個窗口本身就已超出物理 VRAM 總量。mechanism 階段判準 1（呼叫時間窗重疊率）因此不需要投入機械化量測成本，判準 2（VRAM 總和）單獨已足以下決策。</li>
+</ol>
+<p>   證據：<code>config/frequency-limits.yaml:338-339</code>（26B「~17GB VRAM；MoE 26B total/4B active；全 GPU offload」）、<code>:357-358</code>（12B「~8GB VRAM」）。</p>
+<ol>
+<li><strong>QAT 量化版本算術上勉強可行，但安全餘裕過薄不值得冒險</strong>：<code>llama_cli_gemma4_26b_qat</code>（Unsloth QAT UD-Q4_K_XL）約 14.2GB，14.2GB+8GB=22.2GB，理論上在 24GB 卡內尚有 1.8GB 餘裕。但這個餘裕未扣除 KV-cache 隨對話長度成長、OS 與其他常駐程式（如 ComfyUI、voice-clone）的 VRAM 佔用，實務上風險仍高；且該 backend 本身也在同一輪（v171）停用，重新啟用需要額外的獨立評估與觀察期，不屬於本次 application 階段可直接判定的範圍。</li>
+</ol>
+<p>   證據：<code>config/frequency-limits.yaml:340-348</code>（26B-QAT「~14.2GB VRAM」）、<code>:528</code>（停用標記）。</p>
+<ol>
+<li><strong>DDP 已用政策簡化解決過同一類問題，且早於本研究系列啟動</strong>：<code>docs/plans/gemma-gemma-4-e4b-recursive-eich.md</code> 記錄專案曾同時常駐 E4B（port 8081）、12B（port 8082）、26B-QAT（port 8084）三顆 llama-server，合計最高 ~29GB VRAM 需求，頻繁觸發驅逐（VRAM thrashing）。團隊當時的解法不是導入動態換入換出機制，而是收斂為單一常駐模型——先簡化為 E4B-only，後續（2026-06-28）再遷移為 12B-only、E4B 退役。這個修復發生在 2026-06-20～06-28，早於 llama-swap 研究系列啟動（2026-07-05）一個多月。換句話說：llama-swap 想解決的問題，DDP 團隊已經用更早、更粗暴但已驗證穩定的方式解決掉了，重新引入雙模型並發等於重新引入一個團隊已主動放棄的架構。</li>
+</ol>
+<p>   證據：<code>docs/plans/gemma-gemma-4-e4b-recursive-eich.md:5</code>（「合計最高 ~29GB VRAM 需求，頻繁觸發驅逐」；「使用者決定...全部改用 Gemma 4 E4B server...僅 E4B 常駐」）。</p>
+<ol>
+<li><strong>llm-gate-audit.jsonl 實測交叉驗證：26B 在近期生產流量中完全不活躍</strong>：獨立於 config 標記，直接統計 <code>logs/llm-gate-audit.jsonl</code>（7282 筆事件）的 adapter 分布，近期僅 5 筆 <code>llama_server_gemma4_12b</code>、3 筆已退役的 <code>llama_cli_gemma4_e4b</code>，<strong>0 筆任何 26B 系列 adapter</strong>。這確認 26B 不只是 config 標記停用，在實際排程執行中也完全沒有被呼叫，排除了「config 停用但仍有殘留呼叫路徑」的可能性，交叉驗證洞見 1 與 2 的前提成立。</li>
+</ol>
+<p>   證據：<code>logs/llm-gate-audit.jsonl</code> 全量掃描（<code>adapter</code> 欄位分布統計，2026-07-30 執行）。</p>
+<ol>
+<li><strong>DDP 已有自製 VRAM 仲裁工具，功能與 llama-swap 概念重疊</strong>：<code>tools/vram_arbiter.py</code>（347 行，持續維護，最近變更見 <code>config/frequency-limits.yaml</code> v213 2026-07-18）實作 largest-first 驅逐與 VRAM 預算仲裁，目前用於 ComfyUI、Qwen3.6 系列 CLI 載入等場景的動態驅逐決策。這與 llama-swap 的 TTL-based unloading 概念在功能上高度重疊，是本系列若要繼續深化最有價值的下一個問題——而非重新論證一個已被生產配置否決的並發場景。</li>
+</ol>
+<p>   證據：<code>tools/vram_arbiter.py</code>（347 行）、<code>docs/plans/recursive-coalescing-wand.md:11</code>（「所有大型 GPU 消費者...載入前都經它，依實際 free VRAM + 估算驅逐撞預算的常駐消費者」）。</p>
+<h2>Application 階段結論：go/no-go 判準代入結果</h2>
+<p>| mechanism 階段判準 | 代入 DDP 實際配置後的結果 | 判定 |</p>
+<p>|---|---|---|</p>
+<p>| 12B/26B 呼叫時間窗重疊率 | 26B 已停用逾 5 週且近期 0 筆呼叫記錄（見洞見 5），重疊率無從發生 | No-go（前提不存在） |</p>
+<p>| 兩模型 VRAM 總和 vs 24GB 卡上限 | 17GB(26B)+8GB(12B)=25GB＞24GB；QAT 版 14.2GB+8GB=22.2GB 餘裕過薄 | No-go（靜態算術否決） |</p>
+<p>| 現有 server 乾淨關閉耗時（taskkill 5 秒優雅期內） | 未測，因判準 2 已否決，無需再驗證 | 不適用 |</p>
+<p><strong>最終決策：NO-GO。</strong> 不投入 12B/26B 並發 POC 實作。</p>
+<p><strong>下一步（optimization 階段建議）</strong>：若未來業務需求重啟 26B/26B-QAT，才有必要重探本系列；在此之前，更有價值的問題是評估 DDP 自製 <code>vram_arbiter</code>（largest-first 動態驅逐）與 llama-swap（TTL-based 卸載）兩者的維運成本與功能重疊度，決定是否值得用 llama-swap 取代自製工具，或現狀已經足夠好、無需變動。</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇與理由</h3>
+<p>這次要檢視的是一個典型的「單一實體資源上限 vs. 動態調度機制價值」的工程決策——GPU VRAM 是固定 24GB 的物理硬限制，而 llama-swap 是一套試圖用軟體巧思繞過硬體限制的動態卸載機制。Sam Altman 透鏡適合檢視「compute 是否為瓶頸」這類資源分配優先順序的判斷，以及「先 ship 再迭代」與「快速部署反饋」等平台化思維，能對照 DDP 是否該投入新一輪 POC 還是延續已驗證的路徑；Jensen Huang 透鏡則直接對應「workload 是什麼」「TCO 不是標價」等硬體約束下的全棧取捨心智模型，最貼近本次 VRAM 靜態算術（25GB＞24GB）這種先問物理限制再問軟體方案的決策順序。Taleb 透鏡作為對抗性檢查者，適合用來檢視這份研究本身有沒有落入「為了驗證一個精緻的三判準框架，而繞過了最簡單粗暴的靜態算術檢查」這種過度精緻化陷阱，並誠實標注三個透鏡合起來仍然覆蓋不到的視角。</p>
+<h3>框架化建議</h3>
+<p>從 Sam Altman 透鏡看，決策啟發式第一條「compute 是否為瓶頸」直接框住了本次結論：問題不在於編排邏輯多聰明（llama-swap 的 TTL 動態卸載、taskkill 優雅期設計再精巧），而在於底層 compute（VRAM）本身已經是硬瓶頸——17GB+8GB=25GB 已經超過 24GB 卡的物理上限，這使得判準 1（時間窗重疊率）在判準 2（VRAM 算術）面前完全失去意義，呼應「compute 瓶頸」心智模型裡「規模化訓練與推理成本是變數，不是可以被巧妙工程繞開的東西」的假設。同時，「先 ship 再迭代」這條啟發式在此其實反過來支持 NO-GO：DDP 早在本研究系列啟動（2026-07-05）前一個多月，就已經用「政策性簡化為單一常駐模型」的方式 ship 出一個已驗證穩定的解法（E4B-only → 12B-only），若重新引入雙模型並發 POC，等於是拿一個尚未在生產環境驗證過的複雜方案，去替換一個已經跑過反饋迴圈並證明有效的簡單方案，違反「用戶反饋閉環優先於重新設計」的節奏。</p>
+<p>從 Jensen Huang 透鏡看，決策啟發式「workload 是什麼」與「TCO 不是標價」是更直接的框架工具。黃仁勳式思維會先問：DDP 真實生產 workload 到底需不需要 26B 與 12B 同時在線？答案已經由歷史證據給出——<code>docs/plans/gemma-gemma-4-e4b-recursive-eich.md</code> 記錄的三模型並存實驗（E4B+12B+26B-QAT，合計最高 ~29GB）造成「頻繁觸發驅逐」，這正是「不做無用規格」（demand-driven 創新）的反面案例：先有硬體野心、後配 workload，而非先看 workload 需求再決定要不要重新引入這個複雜度。「TCO 不是標價」這條啟發式則適合套用在本次建議的下一步問題上——比較自製 <code>vram_arbiter</code>（347 行、已在生產環境持續維運至 v213）與引入 llama-swap 的真實總持有成本，不能只看 llama-swap 本身「功能更豐富」的表面標價，而要算入遷移風險、維運心智負擔、以及既有 <code>vram_arbiter</code> 已用 largest-first 驅逐邏輯解決了功能重疊核心問題這幾項隱藏成本。</p>
+<h3>反模式檢查</h3>
+<p>用 Taleb 透鏡的反模式清單逐條檢視，這次研究與決策過程整體站得住腳，但可以挑出一處值得警惕的傾向。首先，最終結論明確拒絕了「中間地帶」——QAT 版本雖然理論上壓進 22.2GB 預算，但研究誠實指出「安全餘裕非常薄」並因此判定不值得冒險，這正是反模式清單裡「中間地帶是真正危險的位置」的正確應對，沒有和稀泥地說「QAT 也許可行，可以再觀察看看」。其次，這次決策隱含了「重複風險」的判斷：若貿然把 26B（無論全精度或 QAT）與 12B 並發上線，一旦 taskkill 優雅期內舊模型未完全釋放，疊加 KV-cache 成長，後果是 OOM 導致整條推理鏈路中斷——這與歷史上「頻繁觸發驅逐」的破產式故障模式同構，屬於下行風險不對稱、不該用「期望值大概率沒事」去賭的情境，決策邏輯正確地避開了這個陷阱。但也要指出一處可疑之處：mechanism 階段留下的三個判準草案（時間窗重疊率、VRAM 算術、taskkill 優雅期）本身，某種程度上帶有 Fragilista 傾向——在檢查最基本的靜態算術（17+8＞24）之前，先設計了一套需要實際量測時間窗重疊、實際測試優雅期釋放行為的複雜評估框架。這是「用過度最佳化的評估工具，去驗證一個本可以用一行加法回答的問題」，好在 application 階段的執行順序做了自我修正——先算靜態算術、判準 2 直接否決，判準 1 根本不需要量測，避免了真正掉入這個反模式的執行浪費。另外，DDP 選擇沿用已用一個多月生產驗證的單一常駐模型政策，而非追新導入 llama-swap，也呼應了「林迪效應」——經過時間與生產壓力檢驗過的方案優先於新穎但未驗證的方案，這是本次決策裡最貼近塔勒布核心價值觀的一步。</p>
+<h3>透鏡盲區自陳</h3>
+<p>必須誠實承認，這三個透鏡合起來仍有明顯覆蓋不到的地方。首先，套用 Taleb 透鏡本身可能存在「問題型別誤判」的風險——他的反模式清單明確警告「把日常風險評估當成尾部風險問題」，而 DDP 這次面對的其實是一個邊界清楚、變數已知、可以用確定性算術直接求解的 Mediocristan 問題（VRAM 是固定值、模型顯存需求是已知常數），並不真的存在「黑天鵝」等級的未知未知；用反脆弱／肥尾風險的語言去包裝一個本質上是容量規劃的工程決策，本身就有一點「堆術語湊場」的嫌疑，這點研究者與讀者都該留意，不要因為用了塔勒布的詞彙就誤以為問題比實際更複雜或更值得用尾部風險框架反覆檢驗。其次，Taleb 的誠實邊界章節明確指出「他在不擅長的領域會出錯」以及「500 頁的 100 頁洞察」——三個透鏡都是產業領袖／公眾知識分子的心智模型蒸餾，而非系統維運（SRE）或成本會計的專業框架，因此都答不出這次研究建議的下一步真正需要的資訊：<code>vram_arbiter</code> 過去實際的故障率與人工介入頻率、llama-swap 在同等規模系統上的長期維運事故統計、遷移成本的具體工時估算——這些屬於維運可觀測性與工程成本會計的專業領域，需要另外調閱 DDP 自己的 <code>state/</code>、<code>context/</code> 事件記錄或做直接的量化比較，任何一個透鏡的公開言論蒸餾都無法替代。最後，Sam Altman 與 Jensen Huang 兩個透鏡的誠實邊界都寫明調研截止 2026-06-01 前後、且非本人親自發言，這次分析純粹是借用其公開心智模型做框架化推理，不代表這兩位對 DDP 這個具體個人專案的 GPU 資源決策有任何實際意見，讀者不應把這份多透鏡洞察誤讀為某種權威背書。</p>
+<h2>品質自評</h2>
+<pre><code>
+{
+  "research_topic": "llama-swap 動態模型卸載機制 application 階段：DDP 12B/26B VRAM 並發 POC go/no-go 決策",
+  "evidence_sources": [
+    "config/frequency-limits.yaml（backend 定義與 enabled 狀態，第 338-359、526-530 行）",
+    "logs/llm-gate-audit.jsonl（7282 筆事件全量 adapter 分布統計）",
+    "docs/plans/gemma-gemma-4-e4b-recursive-eich.md（三 server 常駐驅逐事故記錄）",
+    "tools/vram_arbiter.py（自製 VRAM 仲裁工具存在性確認）"
+  ],
+  "sources_count": 4,
+  "evidence_type": "internal_config_and_telemetry",
+  "grade_distribution": {"A": 4},
+  "cross_verified_facts": 2,
+  "unverified_claims": 0,
+  "research_depth": "thorough",
+  "confidence_level": "high",
+  "decision": "no-go",
+  "note": "application 階段以內部生產證據為主，非外部 WebSearch——判準代入需要 DDP 自身配置資料，外部來源無法回答"
+}
+</code></pre>
+<h2>參考來源（內部證據，本階段無外部網路來源）</h2>
+<ul>
+<li><code>config/frequency-limits.yaml</code>（第 338-359 行：26B/26B-QAT/12B backend 定義；第 526-530 行：backend_status enabled 狀態）</li>
+<li><code>logs/llm-gate-audit.jsonl</code>（7282 筆事件，adapter 分布統計）</li>
+<li><code>docs/plans/gemma-gemma-4-e4b-recursive-eich.md</code>（三 server 常駐驅逐事故記錄）</li>
+<li><code>docs/plans/recursive-coalescing-wand.md</code>（<code>vram_arbiter</code> 統一 VRAM 准入控制器設計）</li>
+<li><code>tools/vram_arbiter.py</code>（自製 VRAM 仲裁工具，347 行）</li>
+<li>承接：<a href="2026-07-29-llama-swap-mechanism-stage.md">深度研究洞察簡報：llama-swap 動態模型卸載機制 mechanism 階段</a></li>
+</ul>
+<h2>附錄：快取遙測（近 7 日）</h2>
+<pre><code>
+{
+  "kb_semantic_cache": {
+    "entry_count": 0,
+    "total_hit_count_7d": 0,
+    "log_events_7d": {"lookup": 0, "store": 0, "http_fallback": 0, "degraded": 0},
+    "fastembed_available": false,
+    "note": "fastembed 未安裝，語義快取處於 degraded（非任務失敗）；本次研究以內部檔案直接查核為主，KB 查詢僅用於去重確認"
+  }
+}
+</code></pre>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
