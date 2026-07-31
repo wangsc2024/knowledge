@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報：Google ADK Session/Memory 雙層模型對照 DDP memory-policy.yaml insight-briefing">
+  <title>深度研究洞察簡報：Google ADK Session/Memory 雙層模型對照 DDP memory-policy.yaml insight-briefing | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報：Google ADK Session/Memory 雙層模型對照 DDP memory-policy.yaml insight-briefing</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">insight-briefing</span><span class="tag">深度研究洞察簡報</span><span class="tag">agent-memory</span><span class="tag">google-adk</span><span class="tag">memory-policy</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：Google ADK Session/Memory 雙層模型對照 DDP memory-policy.yaml</h1>
+<p><strong>日期</strong>：2026-07-31</p>
+<p><strong>研究系列</strong>：<code>agent-memory-tiering-ddp-archival</code>（階段：application，延續 2026-07-19 mem0/Graphiti/Letta 對照，本次追加第 4 個對照框架）</p>
+<p><strong>來源 backlog</strong>：<code>backlog_github_scout_20260724_080958121233</code>（[google/adk-python] P1：評估 ADK Session/Memory 雙層對照 memory-policy.yaml，priority=high, effort=low）</p>
+<p><strong>多透鏡</strong>：distill-sam-altman（primary）、distill-jensen-huang（primary）、distill-taleb（adversarial）</p>
+<p>---</p>
+<h2>摘要</h2>
+<p>Google ADK（Agent Development Kit，20,857★，REST 觀測 2026-07-24）以 <strong>SessionService + MemoryService 雙服務架構</strong>管理 Agent 狀態：前者管單一對話的短期歷史與 <code>state</code>（含 <code>無前綴</code>/<code>user:</code>/<code>app:</code>/<code>temp:</code> 四種 scope 前綴），後者管跨對話的可搜尋長期知識（<code>add_session_to_memory</code>、<code>search_memory</code>）。與 DDP <code>config/memory-policy.yaml</code> 的 9 層記憶模型對照後，核心發現：ADK 的雙層抽象<strong>刻意簡單</strong>（框架層只提供分工邊界，不內建 TTL、衰減或遺忘機制——官方文件明確未提及），而 DDP 的 9 層是針對機械化管線的<strong>功能特化</strong>（研究去重、ADR 追蹤、backlog 生命週期），兩者解決的是不同層次的問題，非競爭關係。本次對照確認：backlog 建議「補 session_id 語意註解、不改執行邏輯」方向正確——ADK 的四種 scope 前綴提供了一套現成的語意詞彙，可用於為 memory-policy.yaml 各層加註「這一層大約對應 ADK 的哪個 scope」，但不構成需要引入 ADK 或調整既有機械化衰減邏輯的理由。</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<h3>洞見 1：ADK 是雙服務 + 四種 scope 前綴，比 DDP 的 9 層模型抽象層級低一階</h3>
+<p>官方文件（<a href="https://github.com/google/adk-docs/blob/main/docs/sessions/memory.md">google/adk-docs sessions/memory.md</a>）明確劃分：<strong>SessionService</strong> 管「當前這一輪對話」的歷史事件與暫存資料（<code>Session.id</code>／<code>app_name</code>／<code>user_id</code>／<code>events</code>／<code>state</code>／<code>last_update_time</code>）；<strong>MemoryService</strong> 管「跨對話的可搜尋檔案庫」，核心方法 <code>add_session_to_memory(session)</code>、<code>add_events_to_memory(events)</code>、<code>search_memory(app_name, user_id, query)</code>。State 本身再細分四種 scope 前綴（<a href="https://google.github.io/adk-docs/sessions/state/">adk.dev/sessions/state</a> via WebSearch 交叉驗證）：<strong>無前綴</strong>（session 範圍，僅在持久化 SessionService 下才跨重啟存活）、<strong><code>user:</code></strong>（同一 <code>user_id</code> 跨 session 共享，如使用者偏好）、<strong><code>app:</code></strong>（同一 <code>app_name</code> 跨所有使用者與 session 共享）、<strong><code>temp:</code></strong>（僅本次 invocation 內有效，同輪其他 agent 可讀）。這是一套<strong>兩軸座標系</strong>（session/user/app 範圍 × 短期/長期服務），而 DDP 是<strong>九個功能特化檔案</strong>（message_buffer/continuity/digest_memory/research_registry/adr_registry/research_series/improvement_backlog/state_files/archival_memory）。兩者抽象層級不同：ADK 是框架原語，DDP 是應用層資料模型，不構成直接可替換關係。</p>
+<h3>洞見 2：ADK MemoryService 官方文件未定義 TTL／衰減／遺忘機制——DDP 既有的機械化衰減仍是差異化優勢</h3>
+<p>WebFetch 官方原始文件（<code>raw.githubusercontent.com/google/adk-docs/main/docs/sessions/memory.md</code>）明確確認：<strong>資料保留政策「文件未明確提及」TTL、遺忘機制或主動衰減</strong>；<code>InMemoryMemoryService</code> 重啟即遺失，<code>VertexAiMemoryBankService</code>／<code>VertexAiRagMemoryService</code> 的保留完全交由後端（Vertex AI 管理）決定，框架層不介入。這與 2026-07-02 briefing 對 mem0（軟衰減重排序）、Graphiti（雙時態 valid_at/invalid_at）、Letta（self-edit 交由 agent 自主決策）的分析一致收斂到同一結論：<strong>目前業界主流 Agent 記憶框架，無論是專用記憶層（mem0/Graphiti/Letta）或通用 Agent 框架的 Memory 元件（ADK），都沒有提供 DDP 級別的規則式保留/淘汰治理</strong>（<code>retention_runs</code>、<code>max_entries</code>、<code>stale_after_days</code>、<code>archival_tier.valid_from/valid_until</code>）。這進一步印證：memory-policy.yaml 的機械化衰減設計不是「重造輪子」，而是業界框架普遍留白、DDP 自行補上的應用層治理，補語意註解不需連帶調整衰減邏輯。</p>
+<h3>洞見 3：ADK 四種 scope 前綴恰好提供 memory-policy.yaml 缺少的「跨層語意詞彙」，可低成本補上 backlog 要求的註解</h3>
+<p>DDP 現行 9 層彼此以<strong>檔案路徑</strong>區隔（<code>state/session-buffer.json</code>、<code>context/continuity/auto-task-*.json</code> 等），層與層之間沒有共用的「範圍」語意標籤。對照 ADK 的四前綴，映射如下：</p>
+<p>| DDP 記憶層 | 最接近的 ADK scope | 理由 |</p>
+<p>|-----------|-------------------|------|</p>
+<p>| 層1 message_buffer（1天，buffer_window） | <code>temp:</code>／無前綴 session state | 單次執行內的工作記憶，等同 invocation-local |</p>
+<p>| 層2 continuity（跨次任務記憶，retention_runs=3） | <code>user:</code>-like（以 <code>task_key</code> 為準的跨次共享） | 非單一 session，而是同一「task_key 身份」跨次共享，語意上介於 user: 與獨立 memory recall 之間 |</p>
+<p>| 層3 digest_memory（30天） | <code>user:</code>-like | 同上，長期但仍屬結構化欄位而非語意檢索 |</p>
+<p>| 層4 research_registry（7天 TTL，去重冷卻） | 無直接對應（ADK 未定義應用層去重原語） | DDP 特化功能，ADK 框架不涉入 |</p>
+<p>| 層5 adr_registry（上限 500） | 無直接對應 | 同上 |</p>
+<p>| 層6 research_series（永久，180天歸檔） | 無直接對應 | 同上 |</p>
+<p>| 層7 improvement_backlog（上限 200） | 無直接對應 | 同上 |</p>
+<p>| 層8 state_files（14天 TTL） | <code>temp:</code>／session-scope | 執行期暫存，短生命週期 |</p>
+<p>| 層9 archival_memory（KB，永久，語義檢索） | <strong>MemoryService</strong>（<code>VertexAiMemoryBankService</code>／<code>VertexAiRagMemoryService</code>） | 兩者角色幾乎完全對應：跨對話持久化、可語意搜尋的長期檔案庫 |</p>
+<p>層 9（KB）與 ADK MemoryService 的對應最乾淨；層 2/3（continuity/digest_memory）則介於 <code>user:</code> scope state 與 MemoryService 之間，沒有精確對應——這代表 ADK 的兩層模型無法完全表達 DDP 的九層需求，語意註解只能是「大致對應」而非「精確映射」，補註解時應明確標註此侷限（避免未來誤讀成兩者等價）。</p>
+<h3>洞見 4：continuity 層是「結構化欄位」而非「語意檢索」，這是 continuity 與 ADK MemoryService 最根本的差異</h3>
+<p>ADK <code>search_memory</code> 回傳的是<strong>語意搜尋片段</strong>（<code>SearchMemoryResponse</code> 內的 <code>MemoryEntry</code> 列表），設計目標是讓 agent 用自然語言查詢過去對話。DDP 的 <code>continuity</code> 層則是<strong>結構化欄位陣列</strong>（<code>executed_at</code>／<code>topic</code>／<code>status</code>／<code>key_findings</code>／<code>next_suggested_angle</code>），由 preamble.md 的固定邏輯（讀最近 5 筆、依 <code>quality_score</code>/<code>finding_expires_days</code> 降權標記）消費，不經過語意搜尋。這代表：即使把 continuity 語意標註為「約等於 ADK user: scope state」，實際存取模式（結構化欄位 vs. 語意檢索）仍完全不同——backlog 要求的「不改執行邏輯」原則在此處尤其重要，因為 continuity 換成語意檢索需要重寫 preamble.md 整段「自動任務連續記憶規則」，屬於架構級改動而非註解級改動，超出本次 low-effort 任務範圍。</p>
+<h3>洞見 5：ADK 把「要不要做衰減治理」的決策權交給開發者——這與 DDP 的 Ponytail 決策階梯高度吻合</h3>
+<p>ADK 官方文件的留白（不定義 TTL/衰減）並非疏漏，而是刻意的框架設計：<code>InMemoryMemoryService</code> 明確定位為「prototyping/local development」，<code>VertexAiMemoryBankService</code> 的保留策略「由 Agent Platform 管理」——即 ADK 選擇不在框架層預設任何治理策略，交由應用層（或雲端後端）決定。這與 <a href="../../CLAUDE.md"><code>CLAUDE.md</code></a> Ponytail 決策階梯「② 現有資產已覆蓋？③ 標準庫/原生平台能做？」的精神一致：<strong>框架不提供的東西，不代表要去抄一套進來</strong>，而是先確認應用層是否已有更貼合場景的解法（DDP 已有）。本次研究沒有發現任何 ADK 機制是 DDP 缺少且必須補的，符合「評估後維持現狀、只補語意」的 low-effort 定性。</p>
+<h3>洞見 6：可執行建議——補 4 個 scope 對照註解，不動 governance 區塊、不改 eviction 邏輯</h3>
+<p>依 backlog 原始要求「撰寫對照表、評估是否補 session_id 語意註解、不改執行邏輯」，具體可執行項：在 <code>config/memory-policy.yaml</code> 各層 <code>notes</code> 陣列比照既有 mem0/Graphiti/Letta 引用慣例（如層1、層6現有的「靈感來源：mem0ai/mem0…」句式），為層1/8（temp: scope）、層2/3（user:-like，但需註明「結構化欄位≠語意檢索」侷限）、層9（MemoryService 對應）各加一行來源註解；層4/5/6/7（DDP 特化功能）明確標註「ADK 框架未涉及，無需對照」，避免未來誤以為所有層都該找到 ADK 對應。此建議屬「文件補充」而非「機制變更」，符合 P1/effort=low 的原始分級。</p>
+<p>---</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇與理由</h3>
+<p>本次主題是「是否該把外部框架（Google ADK）的記憶模型概念，部分吸收進 DDP 既有治理設計」，適用 Sam Altman 的「快速部署反饋」與「平台生態」視角——判斷 DDP 該不該為了與生態工具對齊而調整內部詞彙；同時適用黃仁勳的「demand-driven 創新：先看 workload 再決定要不要疊加新架構層」——DDP 的 workload（機械化排程、非對話式 Agent）與 ADK 設計目標（互動式 conversational agent 的跨對話記憶）本就不同，需先確認 workload 是否真的匹配再談引入。塔勒布作為對抗性透鏡，用於檢視「因為熱門框架這樣做，所以我們也該對齊命名」這個衝動本身是否製造了不必要的耦合。</p>
+<h3>框架化建議</h3>
+<p>依 Sam Altman 的「快速部署反饋」心智模型：不需要為了與 ADK 對齊而重寫 memory-policy.yaml 的儲存結構或治理邏輯，而應採用「最小可行的語意補丁」——只加註解，讓未來讀者（人或 Agent）能快速建立心智橋樑，不觸碰任何已驗證有效的機械化規則。這與洞見 6 的具體建議一致：改動範圍精確限定在 <code>notes</code> 欄位，不動 <code>retention_runs</code>／<code>eviction</code>／<code>archival_tier</code> 等執行語意。</p>
+<p>依黃仁勳的「demand-driven 創新」心智模型：ADK 的雙服務模型是為「互動式對話 agent」這個 workload 設計的（<code>user_id</code>、<code>session</code> 圍繞著對話），而 DDP 的 9 層記憶服務的是「排程觸發的機械化管線」workload（無真人使用者對話、無多輪 session 的概念），兩種 workload 的形狀本就不同。若未來 DDP 真的新增互動式對話類自動任務（如 <code>fahua_master_dialogue</code>、<code>persona_dialogue</code> 這類已存在的對話型任務），才是重新評估「是否該為這些任務單獨導入 session/state scope 前綴語意」的時機點——而非現在為了理論對齊而預先重構。</p>
+<h3>反模式檢查</h3>
+<p>依塔勒布反模式清單逐條檢視本次研究過程與結論：未落入 <strong>Neomania</strong>（對新事物病態迷戀）——結論明確是「不引入、只補註解」，沒有因為 ADK 是 Google 出品的熱門框架（20,857★）就過度反應；未落入<strong>敘事謬誤</strong>——洞見 3 的映射表明確標註哪些層「無直接對應」，沒有為了讓對照表看起來完整而強行編造映射關係；未落入 <strong>IYI（有學歷無實戰）</strong>——建議停留在「補文件註解」這個低風險、可驗證的行動，而非提出宏大但未經 workload 驗證的架構重構提案，符合 Skin in the Game 精神（若建議錯了，代價僅是幾行 YAML 註解可回退，非破壞性變更）。</p>
+<h3>透鏡盲區自陳</h3>
+<p>依塔勒布誠實邊界（本 Skill 調研截止 2026-04-04）：塔勒布本人從未公開評論過 Agent 記憶框架設計，本次「反模式檢查」是借用其一般性認識論工具（Neomania／敘事謬誤／IYI）做類比推演，非其本人對此技術議題的立場，須明確區隔。此外，Sam Altman／黃仁勳兩透鏡調研截止 2026-06-01，若 OpenAI／NVIDIA 在此後對 Agent 記憶架構有新公開表態（例如與 Google ADK 的競品比較），本次分析未涵蓋，需留意後續是否有更新的產業表態影響此結論的時效性。</p>
+<p>---</p>
+<h2>建議行動或後續研究</h2>
+<ol>
+<li><strong>低成本執行</strong>（對應 backlog <code>backlog_github_scout_20260724_080958121233</code>）：在 <code>config/memory-policy.yaml</code> 各層 <code>notes</code> 補充本簡報「洞見 3」映射表對應的 ADK scope 引用註解，格式比照既有 mem0/Graphiti/Letta 引用句式；預估 <30 分鐘、純文件變更、無需驗證測試。</li>
+<li><strong>暫不執行</strong>：不建議引入 ADK Python SDK 或改寫 continuity 層為語意檢索模式——workload 不匹配（洞見 4、5），且會觸發架構級變更超出 low-effort 定性。</li>
+<li><strong>後續 optimization 階段研究方向</strong>（承接既有 series <code>next_research_hint</code>）：量測 <code>retention_runs=3</code> 與 <code>archival_tier</code> 上線後實際壓縮效果、評估 K-LRU frequency 因子是否值得補入 <code>recency_boost</code> 演算法——與本次 ADK 對照無直接關聯，維持原定研究方向不變。</li>
+</ol>
+<p>---</p>
+<h2>參考來源</h2>
+<ul>
+<li><a href="https://medium.com/@danushidk507/google-agent-development-kit-adk-sessions-memory-and-runtime-705c0730892a">Google Agent Development Kit (ADK): Sessions, Memory, and Runtime</a> — B 級 | 技術部落格</li>
+<li><a href="https://github.com/google/adk-docs/blob/main/docs/sessions/memory.md">adk-docs/docs/sessions/memory.md</a> — A 級 | 官方文件（GitHub 原始碼庫）</li>
+<li><a href="https://raw.githubusercontent.com/google/adk-docs/main/docs/sessions/memory.md">Memory: Long-Term Knowledge with MemoryService（raw 原始文件）</a> — A 級 | 官方文件，WebFetch 交叉驗證</li>
+<li><a href="https://google.github.io/adk-docs/sessions/session/">Session: Tracking Individual Conversations - Agent Development Kit (ADK)</a> — A 級 | 官方文件（重導向至 adk.dev）</li>
+<li><a href="https://github.com/google/adk-docs/blob/main/docs/sessions/state.md">adk-docs/docs/sessions/state.md</a> — A 級 | 官方文件，確認四種 scope 前綴</li>
+<li><a href="https://google.github.io/adk-docs/sessions/state/">State - Agent Development Kit (ADK)</a> — A 級 | 官方文件</li>
+<li>KB 既有筆記：《AI Agent 記憶系統：架構演進、最新研究與 2026 年趨勢》、《深度研究洞察簡報：Agent 記憶分層淘汰策略 — mem0/Graphiti/Letta 對照 DDP archival 設計》— 內部知識庫，作為基礎對照方法論</li>
+</ul>
+<p>---</p>
+<h2>附錄：快取遙測</h2>
+<p>近 7 日（2026-07-24 ~ 2026-07-31）KB 語義快取統計（<code>kb_semantic_cache stats --days 7</code>）：<code>entry_count=0</code>、<code>total_hit_count=0</code>、<code>log_events_7d</code>（lookup/store/http_fallback/degraded 皆為 0）、<code>fastembed_available=false</code>（degraded mode，非任務失敗，本次 KB 查詢改走 <code>kb_hybrid_cached</code> 直接 HTTP 路徑）。API 快取（<code>cache_hit_ratio</code>）為另一分帳指標，本次未額外查詢 <code>context/system-insight.json</code>。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
