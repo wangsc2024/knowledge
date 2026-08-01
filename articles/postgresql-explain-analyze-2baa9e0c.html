@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PostgreSQL EXPLAIN ANALYZE 解析">
+  <title>PostgreSQL EXPLAIN ANALYZE 解析 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>PostgreSQL EXPLAIN ANALYZE 解析</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術</span><span class="tag">深度研究</span><span class="tag">daily-agent</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>PostgreSQL EXPLAIN ANALYZE 解析報告</h1>
+<h2>結論</h2>
+<p>PostgreSQL 的 <code>EXPLAIN</code> 與 <code>EXPLAIN ANALYZE</code> 是資料庫效能調優中不可或缺的工具，但兩者在行為與副作用上有本質的差異。<code>EXPLAIN</code> 僅用於預覽查詢計畫（Query Plan），不會實際執行 SQL；而 <code>EXPLAIN ANALYZE</code> 會實際執行查詢並回報真實的執行統計數據。對於涉及資料變更的 DML 操作（如 <code>INSERT</code>、<code>UPDATE</code>、<code>DELETE</code>），使用 <code>EXPLAIN ANALYZE</code> 會導致資料庫產生實際變更，因此在生產環境中必須謹慎使用，通常建議配合事務（Transaction）進行測試。</p>
+<h2>核心主張</h2>
+<ol>
+<li><strong>執行行為差異</strong>：</li>
+</ol>
+<p>   - <code>EXPLAIN</code>：僅由規劃器（Planner）產出預估計畫，包含預估成本（Cost）與預估列數（Rows）。</p>
+<p>   - <code>EXPLAIN ANALYZE</code>：實際執行 SQL。除了顯示計畫外，還會提供真實的執行時間（Execution Time）、實際列數（Actual Rows）與循環次數（Loops）。</p>
+<ol>
+<li><strong>DML 操作的副作用與保護</strong>：</li>
+</ol>
+<p>   - 使用 <code>EXPLAIN ANALYZE</code> 執行 <code>INSERT</code>、<code>UPDATE</code>、<code>DELETE</code>、<code>MERGE</code> 或 <code>CREATE TABLE AS</code> 等語句時，資料庫<strong>會</strong>產生實際的副作用。</p>
+<p>   - <strong>安全實踐</strong>：為了在不影響資料的情況下觀察這些操作的執行計畫與統計，必須將語句包裹在事務中，並在結束前回滾：</p>
+<p>     ```sql</p>
+<p>     BEGIN;</p>
+<p>     EXPLAIN ANALYZE UPDATE ...;</p>
+<p>     ROLLBACK;</p>
+<p>     ```</p>
+<ol>
+<li><strong>進階分析功能</strong>：</li>
+</ol>
+<p>   - <strong>BUFFERS</strong>：當配合 <code>ANALYZE</code> 使用時，可顯示共享區塊（Shared Blocks）的命中（Hit）、讀取（Read）、髒資料（Dirtied）與寫入（Written）數量，對於分析 I/O 性能至關重要。</p>
+<p>   - <strong>FORMAT JSON</strong>：可將輸出轉換為 JSON 格式，方便透過程式（如 Python 或 Node.js）解析並進行自動化效能監測。</p>
+<h2>來源表</h2>
+<p>| 來源標題 | 來源 URL | 品質分級 |</p>
+<p>|----------|-----------|-----------|</p>
+<p>| PostgreSQL: Documentation: 18: EXPLAIN | https://www.postgresql.org/docs/current/sql-explain.html | A |</p>
+<p>| Reading PostgreSQL EXPLAIN and EXPLAIN ANALYZE Output | https://dev.to/philip_mcclarence_2ef9475/reading-postgresql-explain-and-explain-analyze-output-3o74 | B |</p>
+<p>| Mastering EXPLAIN ANALYZE: PostgreSQL Query Plan Optimization | https://devops.aibit.im/en/article/mastering-explain-analyze-postgresql-query-plan-optimization | B |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

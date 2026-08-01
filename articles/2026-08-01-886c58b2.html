@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統優化落實報告 2026-08-01">
+  <title>系統優化落實報告 2026-08-01 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統優化落實報告 2026-08-01</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統優化</span><span class="tag">kb-system-optimize</span><span class="tag">daily-digest-prompt</span><span class="tag">落實報告</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統優化落實報告 2026-08-01</h1>
+<h2>洞察來源</h2>
+<ul>
+<li>KB hybrid×4：KB 服務逾時／近 2 天幾乎空結果（q3 僅 1 筆 memory-policy 簡報）</li>
+<li>Fallback：<code>context/system-insight.json</code>（success_rate=0.991、cache_hit=0.807、alerts=[]）+ <code>improvement-backlog</code> pending</li>
+</ul>
+<h2>方案（三維 4+3+3=10）</h2>
+<p><strong>post_tool_logger CURRENT_TASK_KEY 歸因 fallback</strong></p>
+<ul>
+<li>目標：AGENT_NAME 空時串 TASK_KEY／CURRENT_TASK_KEY，降低幽靈 instinct</li>
+<li>影響檔：<code>hooks/post_tool_logger.py</code>、<code>hooks/hook_utils.py</code>、<code>tests/hooks/test_post_tool_logger.py</code></li>
+</ul>
+<h2>落實</h2>
+<ol>
+<li>新增 <code>_resolve_agent_name_from_env()</code>（AGENT_NAME→TASK_KEY→CURRENT_TASK_KEY）</li>
+<li>token audit／per-task 累計／JSONL agent／OTel <code>agent.name</code> 改走 resolve</li>
+<li><code>log_blocked_event</code> 同步寫入 agent</li>
+<li>新增 <code>TestResolveAgentNameFromEnv</code> 5 例</li>
+</ol>
+<h2>驗收</h2>
+<ul>
+<li>YAML config：OK</li>
+<li><code>pytest tests/hooks/</code> + continuity_archival：1455 passed</li>
+<li><code>TestResolveAgentNameFromEnv</code>：5 passed</li>
+<li><code>validate_config --check-auto-tasks</code>：116 任務一致</li>
+<li>關鍵字廣測 2 失敗（skill_loader powershell bypass、io_guard 21000≠12000）與本方案無關</li>
+</ul>
+<h2>未落實（範圍外）</h2>
+<ul>
+<li>HEARTBEAT <code>enabled:false</code> vs parser <code>disabled:true</code>（backlog_closed_loop_review_20260720_102033377419）仍 pending</li>
+</ul>
+<h2>回滾</h2>
+<p><code>git checkout -- hooks/post_tool_logger.py hooks/hook_utils.py tests/hooks/test_post_tool_logger.py</code></p>
+<h2>Backlog</h2>
+<ul>
+<li>resolved: backlog_insight_briefing_20260725_134152730026</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PostgreSQL EXPLAIN ANALYZE 解析">
+  <title>PostgreSQL EXPLAIN ANALYZE 解析 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>PostgreSQL EXPLAIN ANALYZE 解析</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術</span><span class="tag">深度研究</span><span class="tag">daily-agent</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>PostgreSQL EXPLAIN ANALYZE 解析報告</h1>
+<h2>結論</h2>
+<p>PostgreSQL 的 <code>EXPLAIN</code> 與 <code>EXPLAIN ANALYZE</code> 是效能調適中兩個關鍵的指令，兩者在執行邏輯與對資料庫的影響上有顯著差異：</p>
+<ol>
+<li> <strong>執行機制差異</strong>：</li>
+</ol>
+<p>    *   <code>EXPLAIN</code>：僅生成查詢計畫（Query Plan）。它根據統計資訊估算執行成本，<strong>不會實際執行</strong> SQL 指令，因此對資料庫狀態無任何影響。</p>
+<p>    *   <code>EXPLAIN ANALYZE</code>：會<strong>實際執行</strong> SQL 指令。它會回傳真實的執行時間、行數及成本，提供更準確的效能瓶頸分析。</p>
+<ol>
+<li> <strong>資料變動風險與防護</strong>：</li>
+</ol>
+<p>    *   由於 <code>EXPLAIN ANALYZE</code> 會執行指令，若用於 <code>INSERT</code>、<code>UPDATE</code> 或 <code>DELETE</code> 等 DML 語句，<strong>會造成資料庫內容變動</strong>。</p>
+<p>    *   <strong>最佳實踐</strong>：在非生產環境或需要確認寫入行為時，必須將 <code>EXPLAIN ANALYZE</code> 封裝在事務（Transaction）中，並在結束後執行 <code>ROLLBACK</code>，以確保資料不會被永久修改。</p>
+<ol>
+<li> <strong>進階功能</strong>：</li>
+</ol>
+<p>    *   使用 <code>BUFFERS</code> 參數可觀察資料讀取與緩存（Shared Buffers）的 IO 狀況。</p>
+<p>    *   使用 <code>FORMAT JSON</code> 則適合將結果導出給外部工具（如 <code>pg_stat_statements</code> 或自定義解析腳本）進行結構化處理。</p>
+<h2>來源表</h2>
+<p>| 來源名稱 | 內容摘要 | 品質分級 | URL |</p>
+<p>|----------|----------|----------|-----|</p>
+<p>| PostgreSQL Official Documentation | 定義 EXPLAIN ANALYZE 的執行副作用，並建議使用 BEGIN/ROLLBACK 保護資料。 | A | https://www.postgresql.org/docs/current/sql-explain.html |</p>
+<p>| Use The Index Luke | 詳細說明 EXPLAIN ANALYZE 在 DML 語句中的行為與安全操作建議。 | B | https://use-the-index-luke.com/sql/explain-plan/postgresql/getting-an-execution-plan |</p>
+<p>| Dev.to (Philip McClarence) | 深入解析 EXPLAIN 輸出的讀法與 ANALYZE 的實際差異。 | B | https://dev.to/philip_mcclarence_2ef9475/reading-postgresql-explain-and-explain-analyze-output-3o74 |</p>
+<p>| Stack Overflow | 社群討論 EXPLAIN 與 EXPLAIN ANALYZE 在成本估算上的差異。 | C | https://stackoverflow.com/questions/59720605/explain-vs-explain-analyze-in-postgresql |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
