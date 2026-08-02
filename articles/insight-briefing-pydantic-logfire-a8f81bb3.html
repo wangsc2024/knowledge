@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報 insight-briefing：pydantic/logfire OTel span 屬性層 scrubbing">
+  <title>深度研究洞察簡報 insight-briefing：pydantic/logfire OTel span 屬性層 scrubbing | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報 insight-briefing：pydantic/logfire OTel span 屬性層 scrubbing</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">logfire</span><span class="tag">otel</span><span class="tag">scrubbing</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：pydantic/logfire OTel Span 屬性層 Scrubbing 硬化</h1>
+<p><strong>日期</strong>：2026-08-02  </p>
+<p><strong>任務</strong>：insight_briefing  </p>
+<p><strong>狀態</strong>：計畫已輸出（<code>plan_ready</code>），待人工執行</p>
+<p>---</p>
+<h2>摘要</h2>
+<p>本簡報聚焦 DDP 在 OTel export 試辦（<code>config/otel-config.yaml</code> <code>enabled: false</code>）轉正前的<strong>屬性層</strong>敏感值防線缺口。對照 <a href="https://github.com/pydantic/logfire">pydantic/logfire</a> 官方 scrubbing 機制（預設 17 組 regex + <code>ScrubbingOptions</code> 擴充 + OTel Collector 三 processor 鏈），現行 <code>tools/openllmetry_bootstrap.py</code> 的 <code>_FileSpanExporter</code> 仍以 <code>dict(span.attributes or {})</code> 明文寫入 JSONL，與既有 <code>instrumentation.trace_content: false</code> 內容層防線形成<strong>單層防護</strong>。<code>docs/plans/github-scout-20260727-otel-attribute-scrubbing.md</code> 已輸出六步驟實作契約（風險 low、零生產影響），本輪萃取 <strong>6 項洞察</strong>、套用 <strong>3 組思考透鏡</strong>，建議優先人工合入 scrubbing 後再審核 OTel 試辦轉正。</p>
+<p>---</p>
+<h2>關鍵洞見</h2>
+<h3>1. 雙層防線模型：內容層 ≠ 屬性層</h3>
+<p>DDP 現以 <code>instrumentation.trace_content: false</code> 阻擋完整 prompt/completion <strong>內容</strong>落地（見 <code>config/otel-config.yaml</code> L21-23），但 instrumentor 仍可能把 <code>api_key</code>、<code>authorization</code> 等寫入 span <strong>attributes</strong>。logfire 預設對 <code>password</code>、<code>secret</code>、<code>api_key</code>、<code>jwt</code> 等 17 組 pattern 做值層 redaction（<a href="https://pydantic.dev/docs/logfire/instrument/scrubbing">官方 scrubbing 文件</a>）。<strong>證據</strong>：<code>openllmetry_bootstrap.py</code> L63 無任何遮罩邏輯。</p>
+<h3>2. logfire 刻意對 LLM message 屬性停用 scrubbing</h3>
+<p><code>gen_ai.input.messages</code>、<code>gen_ai.output.messages</code>、<code>pydantic_ai.all_messages</code> 等屬性<strong>不經 regex scrubbing</strong>，因假陽性（對話中出現 "password" 字樣）與偵測失效（敏感資料無關鍵字）。官方建議 <code>instrument_pydantic_ai(include_content=False)</code> <strong>排除內容</strong>而非依賴 scrubbing。對 DDP 意味：即使實作屬性鍵 scrubbing，仍須維持 <code>trace_content: false</code> 作為 LLM 內容防線。</p>
+<h3>3. OTel Collector 提供語言無關的進階 scrubbing 鏈</h3>
+<p>logfire PR #1195（2025-06-27 merged）新增 Collector 指南：processor 順序為 <code>attributes</code>（鍵更新）→ <code>redaction</code>（regex 遮罩值）→ <code>transform</code>（OTTL 條件邏輯，如僅 5xx 時遮罩信用卡號）。應用端設 <code>send_to_logfire=False</code> 經本地 Collector 再匯出。DDP 若以 file exporter 為主，等價邏輯應落在 <code>_FileSpanExporter.export()</code> 前。</p>
+<h3>4. 計畫檔已具體化且風險極低</h3>
+<p><code>docs/plans/github-scout-20260727-otel-attribute-scrubbing.md</code> 定義：<code>DEFAULT_SCRUB_KEY_PATTERNS = [key, token, secret, password, authorization]</code>、<code>config/otel-config.yaml</code> 新增 <code>attribute_scrubbing.key_patterns</code>、<code>TestFileSpanExporterScrubbing</code> 測試類。<code>enabled: false</code> 下合入<strong>零生產行為影響</strong>。未自動落實原因：github_scout step9 允許範圍不含 <code>tools/*.py</code>。</p>
+<h3>5. 與 post_tool_logger / eval 路徑的交叉風險</h3>
+<p>improvement-backlog 多筆條目指向 <code>post_tool_logger</code> 補 <code>input_keys</code> 解鎖 ToolParameterAccuracyEvaluator；另有參數<strong>值</strong>記錄需脫敏規則（2026-07-18）。屬性層 scrubbing 硬化應與 <code>jsonl_to_otel_span</code> 轉發路徑對齊，避免 JSONL→OTel 雙寫時一條有 scrub、一條無 scrub 的<strong>不一致信任邊界</strong>。</p>
+<h3>6. 訊息模板 vs f-string 的 scrubbing 盲區</h3>
+<p>logfire 文件強調：僅 scrub <strong>欄位值</strong>，不 scrub 完整 message 字串；<code>logfire.info('User: ' + str(user))</code> 會洩漏 password，而模板參數化則安全。DDP structured logging 若未來在 span event/message 層記錄自由格式字串，屬性 scrubbing 不足以覆蓋。</p>
+<p>---</p>
+<h2>建議行動</h2>
+<p>| 優先級 | 行動 | 負責 |</p>
+<p>|--------|------|------|</p>
+<p>| P1 | 依計畫檔合入 <code>_scrub_attributes</code> + pytest | 人工 session |</p>
+<p>| P1 | 試辦轉正審核（<code>github-scout-20260717-otel-export-observation-trial.md</code>）前完成 scrubbing | arch_evolution |</p>
+<p>| P2 | 評估 <code>jsonl_to_otel_span</code> 是否共用 scrub 模組 | self_heal |</p>
+<p>| P3 | 長期：Collector 模式若引入多語言服務再評估 | 觀察 |</p>
+<p>---</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇</h3>
+<p>| 透鏡 | 角色 | 選擇理由 |</p>
+<p>|------|------|----------|</p>
+<p>| distill-sam-altman | primary | 基礎設施應先 ship 最小安全預設，再迭代 |</p>
+<p>| distill-jensen-huang | primary | 全棧（SDK→exporter→storage）逐層硬化 |</p>
+<p>| distill-taleb | adversarial | 單點明文落地 = 尾部風險，無 skin in the game 的「試辦」仍可能洩密 |</p>
+<h3>框架化建議</h3>
+<p><strong>Altman 視角</strong>：計畫檔已是可 ship 的最小增量——預設 pattern 列表 + 單元測試，不等待完美 OTTL 條件邏輯。先合入 <code>enabled=false</code> 路徑的防線，試辦轉正時自動生效；反饋閉環靠 pytest 而非生產事故。</p>
+<p><strong>Jensen 視角</strong>：scrubbing 不是單點修補，是 exporter 層的「加速計算護城河」——在寫入 JSONL 前 offload 遮罩邏輯，保持應用 lean。三層對齊：SDK 內容開關 → exporter 屬性 scrub → 未來 Collector 進階規則。</p>
+<p><strong>Taleb 反模式檢查</strong>（adversarial）：</p>
+<ul>
+<li>❌ 「enabled=false 所以不急」= 火雞問題，轉正日即暴露</li>
+<li>❌ 只靠 <code>trace_content=false</code> = 中間地帶，屬性鍵洩密無後果</li>
+<li>✅ 槓鈴：低成本預先硬化（low risk patch）+ 維持試辦關閉直到人工審核</li>
+</ul>
+<h3>透鏡盲區自陳</h3>
+<ul>
+<li>Altman 視角可能低估合規審計對「已部署未啟用程式碼」的審查要求</li>
+<li>Jensen 全棧敘事未量化 scrub regex 對 export 延遲的影響（logfire 原始碼註記 BoundedAttributes 有效能顧慮）</li>
+<li>Taleb 視角對「人工審核」過度悲觀——DDP 治理鏈（plan_ready + human_review_required）本身即 skin in the game 設計</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><a href="https://pydantic.dev/docs/logfire/instrument/scrubbing">pydantic/logfire — Scrub Sensitive Data</a></li>
+<li><a href="https://pydantic.dev/docs/logfire/instrument/otel-collector-scrubbing/">pydantic/logfire — OTel Collector Advanced Scrubbing</a></li>
+<li><a href="https://github.com/pydantic/logfire/blob/main/logfire/_internal/scrubbing.py">logfire/_internal/scrubbing.py</a></li>
+<li><a href="https://github.com/pydantic/logfire/pull/1195">PR #1195 Otel collector scrubbing guide</a>（merged 2025-06-27）</li>
+<li>專案內：<code>docs/plans/github-scout-20260727-otel-attribute-scrubbing.md</code></li>
+<li>專案內：<code>config/otel-config.yaml</code>、<code>tools/openllmetry_bootstrap.py</code></li>
+<li>KB：<code>GitHub Scout: 日誌可觀測 - 2026-07-27</code>（noteId 3084ddc0）</li>
+</ol>
+<p>---</p>
+<h2>附錄：快取遙測（近 7 日 KB 語義快取）</h2>
+<p>| 指標 | 值 |</p>
+<p>|------|-----|</p>
+<p>| lookup / store / http_fallback / degraded（7d） | 0 / 0 / 0 / 0 |</p>
+<p>| entry_count | 0 |</p>
+<p>| fastembed_available | false |</p>
+<p>| degraded_ratio | null |</p>
+<p>| cache_path | <code>cache/semantic-cache-kb.json</code> |</p>
+<blockquote><code>fastembed_unavailable</code>：語義快取 degraded，本次 KB 搜尋走 <code>kb_hybrid_cached</code> HTTP hybrid（miss，5 筆結果）。不視為任務失敗。</blockquote>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
