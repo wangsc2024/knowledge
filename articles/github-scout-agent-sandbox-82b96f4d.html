@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 安全/Sandbox 週期複核 - 2026-08-04">
+  <title>GitHub Scout: Agent 安全/Sandbox 週期複核 - 2026-08-04 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 安全/Sandbox 週期複核 - 2026-08-04</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent安全/Sandbox</span><span class="tag">github_scout</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Agent 安全 / Sandbox 第三輪週期複核（2026-08-04）</h1>
+<h2>專案觀測摘要</h2>
+<p>主題：<code>agent_security_tool_use_guardrails</code>（review-policy.yaml 中最久未更新之結構化表，距 07-19 已 16 天，LRU 選定）。</p>
+<p>五個既有追蹤專案 REST 即時觀測（api.github.com/repos/{owner}/{repo}，source_type=repo_page）：</p>
+<ol>
+<li><strong>browser-use/browser-use</strong> 107806★（+5528/33天≈167.5★/日，五案本輪最快）— tool_boundary 單層：sensitive_data 未設 allowed_domains 即拋 InsecureSensitiveDataError，機制與前次觀測一致未變。</li>
+<li><strong>OpenHands/OpenHands</strong> 83048★（+3840/32天≈120★/日）— org 已由 All-Hands-AI/OpenHands 改名（純改名非分叉，REST 302 轉址確認）；雙層 tool_boundary：headless 整體停用容器沙箱+NeverConfirm、local 停用容器且無 fallback guard，機制未變。</li>
+<li><strong>e2b-dev/E2B</strong> 13249★（+431/33天≈13.1★/日）— 雙層 tool_boundary：隔離 microVM/容器沙箱＋顯式 set_timeout()/kill() 雙軌，機制未變。</li>
+<li><strong>microsoft/agent-governance-toolkit</strong> 5596★（+733/18天≈40.7★/日，五案本輪最快）— description 由「四層 privilege ring」擴展為「policy enforcement + zero-trust identity + execution sandboxing + reliability engineering」四支柱，<strong>首次出現「Covers 10/10 OWASP Agentic Top 10」宣稱</strong>（本系統過去 12 輪 github_scout 筆記從未提及此威脅框架）。</li>
+<li><strong>NVIDIA/garak</strong> 8681★（+183/20天≈9.2★/日，五案本輪最慢）— 離線 probe/detector 架構，定位輸出層事後評估，機制未變。</li>
+</ol>
+<h2>改進提案</h2>
+<ul>
+<li><strong>P1（已落實）</strong>：文件化本輪 5 案 REST 複核與 agent-governance-toolkit 範疇擴大／OWASP ASI Top10 宣稱、OpenHands org 改名觀測。</li>
+<li><strong>P2（backlog，待研究）</strong>：下輪先 WebFetch 官方 OWASP Agentic Security Initiative Top 10 威脅清單，逐項比對 <code>config/autonomous-harness.yaml</code> guardrail_surface_annotations 與三個核心攔截 hook（pre_bash_guard/pre_write_guard/pre_read_guard）覆蓋範圍，找出未映射之明確缺口。因觸及核心攔截層，須人工審核後才可能落實，本輪不倉促下結論。</li>
+<li><strong>P3（backlog，優化候選）</strong>：continuity 產生 next_suggested_angle 時應交叉核對 <code>docs/github-scout-agent-comparables.md</code> 標題日期而非僅依賴 research-registry.json（詳見下方去重修正說明）。</li>
+</ul>
+<h2>審查結論</h2>
+<p>P1 提案審查（步驟 8）：feasibility_score=9、stability_score=9，1 輪通過（純文件更新，無程式邏輯變更，rollback=git revert 兩檔案）。P2 因涉及核心攔截層 hooks/pre_bash_guard.py 等，policy 判定 human_review_required=true，不自動落實，直接列入 backlog 待人工評估。</p>
+<h2>已落實項目</h2>
+<ol>
+<li><code>docs/github-scout-agent-comparables.md</code> 新增 <code>agent_security_tool_use_guardrails_comparables（2026-08-04 REST 複核，第三輪）</code> 章節。</li>
+<li><code>config/github-scout-review-policy.yaml</code> version 3.0.25→3.0.26，<code>topic_overrides.agent_security_tool_use_guardrails.notes</code> 追加本輪觀測。</li>
+<li><code>context/github-scout-entries.json</code> 追加本輪完整結構化 entry（保留最近 50 筆）。</li>
+<li><code>context/research-registry.json</code> 追加本輪搜尋記錄（去重用）。</li>
+<li>backlog 寫入 3 筆（P1/P2/P3，見上）。</li>
+</ol>
+<h2>待人工審核項目</h2>
+<ul>
+<li>P2：OWASP Agentic Top10 缺口比對本系統攔截層（backlog_github_scout_20260804_161714765968）。</li>
+<li>P3：continuity next_suggested_angle 交叉核對機制優化（backlog_github_scout_20260804_161715180869）。</li>
+</ul>
+<h2>去重修正說明（本輪起執行流程異動記錄）</h2>
+<p>本輪原依 continuity <code>next_suggested_angle</code> 建議選定主題「Pydantic AI／Graph Tool」，執行前 Grep <code>docs/github-scout-agent-comparables.md</code> 發現該主題已於 2026-08-02 由 <code>pydantic_graph_durable_execution_comparables</code> 覆蓋（僅 2 天前）。<code>research-registry.json</code> 7 天窗口查詢未攔到該筆記錄，研判為 08-02 當日雙輪次（skill_portability_marketplace + pydantic_graph_durable_execution）中一輪 registry 回寫步驟漏執行所致資料缺口。已即時改題為「Agent 安全 / Sandbox」（review-policy.yaml 中最久未更新之結構化主題，16 天），並就此登記 P3 backlog 建議修正 continuity 產生邏輯。</p>
+<h2>Execution Contract（P1，已落實）</h2>
+<pre><code>
+{"operation_type": "knowledge_import", "idempotency_required": true, "human_review_required": false, "run_metadata": {"trace_id": "github-scout-20260804-agent-security-sandbox-recheck", "task_key": "github_scout", "phase": "implementation", "attempt": 1, "operation_name": "daily_digest.github_scout.document_periodic_recheck"}}
+</code></pre>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
