@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報 insight-briefing：web_fetch 工具 SSRF 邊界缺口與三個月四度延後的治理模式">
+  <title>深度研究洞察簡報 insight-briefing：web_fetch 工具 SSRF 邊界缺口與三個月四度延後的治理模式 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報 insight-briefing：web_fetch 工具 SSRF 邊界缺口與三個月四度延後的治理模式</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">SSRF</span><span class="tag">web-fetch</span><span class="tag">security</span><span class="tag">governance</span><span class="tag">browser-use</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>web_fetch 工具 SSRF 邊界缺口與三個月四度延後的治理模式</h1>
+<h2>摘要</h2>
+<p>DDP 本地 LLM 工具鏈 tools/web_tool_loop.py:_tool_web_fetch 呼叫 tools/web_fetch.py:web_fetch() 時，對出站網址完全無網域白名單、無內部網段封鎖、且 allow_redirects=True 未對最終解析網址二次驗證，構成 SSRF 與資料外洩風險面。同一主題已在 2026-05-03 至 2026-07-29 三個月內產生至少 4 筆 ADR/backlog 記錄，全部 Deferred 或名實不符的 Accepted，從未真正落地。外部研究證實此非 DDP 獨有疏漏：Anthropic 官方 mcp-server-fetch（截至 2026-05）同樣無任何白名單防護，2025 年 7000+ MCP servers 稽核中 36.7% 存在 SSRF 弱點。</p>
+<h2>關鍵洞見</h2>
+<ol>
+<li>現有部分防禦（_is_http_url 拒絕 userinfo、限制 scheme）恰好防禦了 browser-use <0.1.45 的 CVE-class 缺陷，但真正缺口在內部網段封鎖與 redirect 二次驗證——OWASP 2026 SSRF 防護指引點名的兩個核心攻擊面。</li>
+<li>治理模式失效：ADR-20260503-014／ADR-20260601-016／ADR-20260610-007 三度 Deferred；ADR-20260609-005 標記 Accepted 但實際只修了 confirm_patterns 一個窄範圍文字欄位，製造已解決假象。範圍在重複延後中持續窄化（一般瀏覽器 Agent → curl → 一個文字欄位），WebFetch 始終未被觸及。</li>
+<li>docs/plans/github-scout-sandbox-curl-allowlist.md 07-12 補充觀測已引用 stagehand proxy 層攔截設計正面回答「是否需要對 WebFetch 做相同限制」，但答案已知卻從未被執行（bash_network_policy.enabled 仍是草稿，config 中零落地）。</li>
+<li>產業對照：WebFetch 類工具無邊界是普遍盲區（Anthropic mcp-server-fetch 同病），但這正是 DDP 不能依賴上游先修好、必須自行承擔防線的理由，尤其此工具已開放給監督較低的本地 LLM。</li>
+<li>三次 Deferred 的理由「範圍未定案」只適用於需業務判斷的網域白名單，完全不適用於零業務判斷成本的內部網段封鎖＋redirect 二次驗證——這個獨立防線可立即實作，卻被錯誤地和白名單清單綁在一起延後。</li>
+</ol>
+<h2>多透鏡洞察</h2>
+<p>Sam Altman 視角：先 ship 再迭代的邏輯必須對稱套用在自身安全債務，三次 deferred 是從未 ship，非迭代。</p>
+<p>黃仁勳視角：curl 與 WebFetch 是同一 workload 的兩個 I/O 端口，應統一全棧設計（proxy 層攔截）取代逐工具零散白名單。</p>
+<p>塔勒布視角（對抗性）：「範圍未定案」是 Fragilista 話術；內部 IP 段封鎖不需完整白名單即可實作（via negativa）；三個月零事故是火雞問題，不是安全證據；沒有決策者為此下行風險背書，effort=low 卻無人按下 audit-only 開關。</p>
+<h2>建議行動</h2>
+<ol>
+<li>拆分修復範圍：內部網段封鎖＋redirect 二次驗證獨立立案（不需白名單清單，effort 可準確估算），與網域白名單清單定案分開排期。</li>
+<li>評估 proxy 層統一出站攔截取代逐工具零散白名單。</li>
+<li>建議 arch_evolution／harness_review 檢視「重複延後偵測」機制，避免同類低成本安全修復持續空轉。</li>
+</ol>
+<h2>參考來源</h2>
+<p>OWASP A10 SSRF Guide 2026、Anthropic mcp-server-fetch SSRF 公開揭露（seclists.org 2026-05）、MCP Server Security 攻擊面研究（Zylos 2026-05）、browser-use userinfo bypass advisory（GHSA-f54f-hr32-586f）、內部 context/adr-registry.json 與 context/improvement-backlog.json。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
