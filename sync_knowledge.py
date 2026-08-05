@@ -115,11 +115,39 @@ def estimate_reading_time(text: str) -> int:
     return max(1, round(cjk / 400 + words / 200))
 
 
+# ─── KB 認證 ─────────────────────────────────────────
+# RAG_Skill 自 2026-08-02 起 AUTH_MODE=enforced：/api/live|ready|health 仍免認證，
+# 但 /api/notes 等資料端點需帶 X-API-Key，否則回 401「未登入或憑證無效」。
+# 金鑰單一真源：RAG_Skill/.env 的 RAG_KB_API_KEY（排程另經 run-with-env.ps1 注入環境變數）。
+RAG_ENV_PATH = "D:/Source/RAG_Skill/.env"
+
+
+def load_kb_api_key() -> str:
+    key = (os.environ.get('RAG_KB_API_KEY') or '').strip()
+    if key:
+        return key
+    try:
+        with open(RAG_ENV_PATH, 'r', encoding='utf-8') as f:
+            for line in f:
+                m = re.match(r'\s*RAG_KB_API_KEY\s*=\s*(.+?)\s*$', line)
+                if m:
+                    return m.group(1).strip().strip('"\'')
+    except OSError:
+        pass
+    return ''
+
+
+KB_API_KEY = load_kb_api_key()
+
+
 def api_get(path: str, retries: int = 3) -> dict:
     url = f"{KB_API}{path}"
+    headers = {'Accept': 'application/json'}
+    if KB_API_KEY:
+        headers['X-API-Key'] = KB_API_KEY
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+            req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return json.loads(resp.read().decode())
         except Exception as e:
@@ -237,8 +265,12 @@ def main():
         try:
             resp = api_get(f"/api/notes?limit={PAGE_SIZE}&offset={offset}&include_content=true")
         except RuntimeError as e:
-            print(f"  ⚠ API 錯誤：{e}")
-            break
+            # 不得吞掉：原本 break 後仍會用「已取到的部分（可能是 0 筆）」覆寫 index.json，
+            # 把空白或殘缺的索引推上線（2026-08-05 事故：KB 改 enforced → 401 → 首頁 0 篇文章）。
+            print(f"  ✗ API 錯誤：{e}", file=sys.stderr)
+            print("    中止同步，保留既有 public/data。若為 401 請確認 RAG_KB_API_KEY 已設定。",
+                  file=sys.stderr)
+            sys.exit(1)
         batch = resp.get('notes', [])
         if not batch:
             break
@@ -441,6 +473,12 @@ def main():
         if cat not in cat_order:
             cat_counts[cat] = len(arts)
             all_articles.extend(arts)
+
+    # 空索引＝資料遺失，不覆寫既有 public/data（讓 caller 以非 0 exit 判 failed、不 commit）
+    if not all_articles:
+        print(f"\n✗ 篩選後 0 篇文章（擷取 {len(all_notes)} 筆筆記）——中止，不覆寫既有索引。",
+              file=sys.stderr)
+        sys.exit(1)
 
     stats_block = {
         'total': len(all_articles),
