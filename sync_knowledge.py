@@ -259,8 +259,11 @@ def main():
     # ─── 擷取所有筆記 ────────────────────────────────
     print("⬇ 從知識庫擷取筆記...")
     all_notes: list[dict] = []
+    seen_ids = set()
+    api_total = None
     offset = 0
     page = 0
+    complete = False
     while page < max_pages:
         try:
             resp = api_get(f"/api/notes?limit={PAGE_SIZE}&offset={offset}&include_content=true")
@@ -271,15 +274,43 @@ def main():
             print("    中止同步，保留既有 public/data。若為 401 請確認 RAG_KB_API_KEY 已設定。",
                   file=sys.stderr)
             sys.exit(1)
+        if api_total is None and isinstance(resp.get('total'), int):
+            # 取首頁的 total（不受 limit 影響的全集數）：分頁期間新增的筆記插在
+            # updated_at DESC 最前面，只造成重讀（下方以 id 去重）而非漏讀；拿變大的
+            # 最新 total 來比反而會把正常的一趟誤判成殘缺。
+            api_total = resp['total']
         batch = resp.get('notes', [])
         if not batch:
+            complete = True
             break
-        all_notes.extend(batch)
+        for n in batch:
+            nid = n.get('id')
+            if nid is None or nid not in seen_ids:
+                seen_ids.add(nid)
+                all_notes.append(n)
         print(f"  取得第 {page+1} 頁，共 {len(batch)} 筆（累計 {len(all_notes)} 筆）")
         if len(batch) < PAGE_SIZE:
+            complete = True
             break
         offset += PAGE_SIZE
         page += 1
+
+    # 完整性守衛，與 daily-digest-prompt/tools/kb_publish_incremental.py 的 fetch_all_notes
+    # 同一條規則：全量取回必須「證明自己完整」，證不了就 fail-closed 保留既有 public/data。
+    # 靜默 break 會拿殘缺清單覆寫 index.json，把最舊的文章從站上抹掉——與上面 401 事故
+    # 同一種災害，只是來源從認證換成筆數上限（2026-08-05 KB 破 5000 筆事故的同源風險）。
+    if not complete:
+        print(f"  ✗ 撞到頁數上限 {max_pages}（{max_pages * PAGE_SIZE} 筆）仍未取完，"
+              f"目前累計 {len(all_notes)} 筆", file=sys.stderr)
+        print("    中止同步，保留既有 public/data。請調高 MAX_PAGES 或以 --pages N 覆蓋。",
+              file=sys.stderr)
+        sys.exit(1)
+    if api_total is not None and len(all_notes) < api_total:
+        print(f"  ✗ 取回不完整：拿到 {len(all_notes)} 筆，伺服器回報全集 {api_total} 筆",
+              file=sys.stderr)
+        print("    中止同步，保留既有 public/data（殘缺索引 = 站上少文章）。稍後重跑即可。",
+              file=sys.stderr)
+        sys.exit(1)
 
     print(f"  總計 {len(all_notes)} 筆筆記")
 
