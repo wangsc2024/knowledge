@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 週審報告 - 2026-W32">
+  <title>系統 Log 週審報告 - 2026-W32 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 週審報告 - 2026-W32</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 週審報告 2026-W32（2026-08-05 週三，非例行日觸發）</h1>
+<h2>觸發原因</h2>
+<p>本次非例行 Monday/Tuesday 週審排程，由管線 fingerprint 步驟 forced_reasons=<code>phase_failure_today_ge_10(10)</code> 強制短路豁免觸發（機械閘門偵測當日 phase_failure 達門檻 10 立即重跑，繞過短路快取）。</p>
+<h2>趨勢（逐字引用管線 trend.summary_zh，禁改寫）</h2>
+<p>最近一日 2026-08-05 的 phase_failure 為 10，高於前一日 2026-08-04（7），短期趨勢為惡化，不得描述為「改善中」。窗內 phase_failure 中位數為 4；最近一日相對中位數為「高於」中位數。</p>
+<p>（註：管線快照時間 14:09；至本報告產生時 18:xx，precomputed 快照 08-05 當日 phase_failure 已進一步增至 13，屬同日持續累積非資料矛盾。）</p>
+<p>7 日序列（舊→新）：</p>
+<p>| 日期 | phase_failure |</p>
+<p>|------|------|</p>
+<p>| 2026-07-30 | 3 |</p>
+<p>| 2026-07-31 | 2 |</p>
+<p>| 2026-08-01 | 1 |</p>
+<p>| 2026-08-03 | 5 |</p>
+<p>| 2026-08-04 | 7 |</p>
+<p>| 2026-08-05 | 10（管線快照 14:09）/ 13（precomputed 快照 18:01） |</p>
+<h2>🔍 週審發現</h2>
+<h3>🟠 中優先：08-05 per_job_timeout 子類飆升至 7 起（本 7 日窗最高單日）</h3>
+<p>今日 phase_failure_sub：per_job_timeout=7、agent_crash=2，per_job_timeout 佔比首次超過 agent_crash，為近期少見型態（前幾日多以 agent_crash 為主）。</p>
+<p>7 起 per_job_timeout 任務：kb_system_optimize（ratio 1.0063）、sef_evolution（1.035）、youtube_research_daily（1.001）、future_plan_optimize（1.0088）、research_video_digest（1.0917，本日最高超時比）、backlog_research、phantom_butterfly_optimize；另 ithome_ai_presentation（1.0054）雖非 per_job_timeout 標記但同批次時間窗超時。</p>
+<p><strong>深查結論（Grep logs/todoist-team_20260805_120008.log 還原現場）</strong>：future_plan_optimize（elapsed 1150s/limit 1140s）與 research_video_digest（elapsed 655s/limit 600s）為 12:00 批次中<strong>依序</strong>（非並行）執行的兩個獨立 Job，皆使用 backend=cursor_cli_auto。進度輪詢間隔約 300s 導致偵測延遲，超時比集中在 1.0-1.09 倍區間，符合既有輪詢粒度特性，非新型併發爭用 bug。</p>
+<p><strong>Backlog 交叉核對</strong>（<code>context/improvement-backlog.json</code> dedup_key <code>task_journal:<task_key>:phase_failure</code>）：</p>
+<ul>
+<li>已有既存條目、本輪僅 alert_count 遞增（機械正常運作，非漏網）：future_plan_optimize（alert_count=10）、kb_system_optimize、phantom_butterfly_optimize、backlog_research</li>
+<li>research_video_digest／sef_evolution／youtube_research_daily：7 日窗內 phase_failure 型別各僅 1 次，未達機械入隊門檻（連續 ≥2 次），此為設計行為非缺陷</li>
+</ul>
+<p><strong>結論</strong>：本次不追加新 backlog（機械層已完整覆蓋重複告警任務；單次事件任務未達門檻為既定設計）。維持觀察，若下週同任務再現 phase_failure，機械層將自動達門檻入隊。</p>
+<h3>🟡 改善建議：anomalies warning=3（excessive_turns），critical=0</h3>
+<ul>
+<li>session 5f9b3dbf-166（auto-ai_workflow_github，非互動）：113 次工具呼叫（標準 100）</li>
+<li>session 3377b737-f78（auto-insight_briefing，非互動）：126 次工具呼叫（標準 100）</li>
+<li>session 406455b7-f81（互動）：167 次工具呼叫，機械已判定「屬正常操作，無需處理」</li>
+</ul>
+<p>研判：ai_workflow_github 與 insight_briefing 皆為研究/簡報型任務，7 日成功率分別 0.571／0.714，非零成功、無錯誤堆疊關聯；與 07-27 週審已驗證之 langgraph 深度研究良性模式（WebFetch/WebSearch 高頻呼叫）同型，非迴圈異常。列入觀察，未觸發修復。</p>
+<h3>🟢 正常</h3>
+<ul>
+<li>anomalies critical=0</li>
+<li>task_journal review：candidates=7、backlogged=7（機械層完整處理，無需人工介入）；prune 移除 12 筆過期 journal 記錄</li>
+<li>issue_triage_slo：overall_status=green（fail_count=1／slo_count=9）</li>
+<li>buddhist_quality：quality_median=95.0（48 樣本，7 日）</li>
+</ul>
+<h2>Logs 層修復</h2>
+<p>本次無需直改 logs/ 或 hook 相關檔案；無新增 backlog（詳見上方交叉核對結論）。</p>
+<h2>責任邊界聲明</h2>
+<p>本輪判讀均落在 log_audit 職責範圍（logs 分析 + 機械產物判讀），未觸碰任何系統核心配置（config/timeouts.yaml 等）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
