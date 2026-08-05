@@ -27,8 +27,8 @@ DATA_DIR   = f"{OUTPUT_DIR}/public/data"
 ART_DIR    = f"{DATA_DIR}/articles"
 LOG_PATH   = f"{OUTPUT_DIR}/sync-log.json"
 PODCAST_URLS_PATH = f"{OUTPUT_DIR}/podcast-urls.json"
-PAGE_SIZE  = 100   # 每頁筆數
-MAX_PAGES  = 30    # 最多取頁數（可用 --pages 覆蓋）
+PAGE_SIZE  = 150   # 每頁筆數
+MAX_PAGES  = 150   # 最多取頁數（可用 --pages 覆蓋）；上限 22,500 筆，KB 現有 5,162 筆
 
 # ─── 主題篩選關鍵字 ──────────────────────────────────
 KEYWORDS = [
