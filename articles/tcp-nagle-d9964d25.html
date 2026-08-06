@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="TCP Nagle 演算法為何造成延遲">
+  <title>TCP Nagle 演算法為何造成延遲 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>TCP Nagle 演算法為何造成延遲</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術</span><span class="tag">深度研究</span><span class="tag">daily-agent</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>TCP Nagle 演算法與延遲分析報告</h1>
+<h2>結論</h2>
+<p>TCP Nagle 演算法旨在透過減少小封包數量來提高網路傳輸效率，但在處理互動式服務（如遊戲、即時通訊、RPC）時，常與 TCP Delayed ACK 機制產生負面疊加效應。當應用程式發送一個小封包後，若尚未收到確認（ACK），Nagle 演算法會要求應用程式等待更多資料填滿緩衝區才發送；與此同時，接收端為了節省頻寬，會故意延遲發送 ACK（通常為 40ms）。這種「雙方互相等待」的機制會導致每筆小封包請求出現明顯的 40ms 延遲，嚴重影響使用者體驗。</p>
+<h2>主要主張</h2>
+<ol>
+<li><strong>運作機制</strong>：Nagle 演算法在有「未確認資料（unacknowledged data）」在線路上時，會將後續的小寫入操作暫存在緩衝區中，直到有足夠資料或收到之前的 ACK。</li>
+<li><strong>40ms 延遲成因</strong>：延遲並非僅來自 Nagle，而是與 <code>TCP_DELAYED_ACK</code> 交互作用的結果。當兩端都在等待對方先行動時，系統會進入預設的超時等待期（約 40ms）。</li>
+<li><strong>解決方案</strong>：對於需要低延遲、高頻率小封包交換的互動式應用，必須透過 <code>setsockopt</code> 設定 <code>TCP_NODELAY=1</code> 來禁用 Nagle 演算法，確保資料能立即發送。</li>
+<li><strong>實務應用</strong>：如 etcd 等分散式系統，若不禁用 Nagle 演算法，可能會導致領導者選舉或共識協議出現異常延遲。</li>
+</ol>
+<h2>來源表</h2>
+<p>| 來源名稱 | 品質分級 | URL |</p>
+<p>| :--- | :--- | :--- |</p>
+<p>| PCAP Surgery: TCP Nagle and Delayed ACK | B | https://hannes-software.com/pcap-surgery/blogs/tcp-nagle-delayed-ack-small-packet-latency/ |</p>
+<p>| Wikipedia: Nagle's algorithm | A | https://en.wikipedia.org/wiki/Nagle's_algorithm |</p>
+<p>| Alibaba Cloud: TCP/IP Nagle algorithm and 40ms latency | B | https://topic.alibabacloud.com/a/tcpip-nagle-algorithm-and-40-ms-latency-and-tcpnagle-algorithm-40-ms_1_16_32513609.html |</p>
+<p>| Level Up Coding: Debug Journal #2 | B | https://levelup.gitconnected.com/debug-journal-2-the-day-i-learned-tcp-is-gaslighting-me-4177b2bd0e0c |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
