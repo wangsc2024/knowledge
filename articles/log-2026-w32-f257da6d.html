@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 週審報告 - 2026-W32">
+  <title>系統 Log 週審報告 - 2026-W32 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 週審報告 - 2026-W32</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 週審報告 - 2026-W32（2026-08-10）</h1>
+<h2>🔍 Log 週審發現</h2>
+<p>🔴 嚴重（本次必修）：無</p>
+<p>🟠 中優先：</p>
+<ul>
+<li><strong>jiaoguangzong 連續 0/10 未成功</strong>（7 日窗）。根因定位：<code>tools/workflows/result_truth.py</code> 的研究完整性守衛（truth guard）持續判定「研究成果未達真實完成條件」，回傳 <code>error.type=IncompleteResearchResult</code>。交叉驗證：同窗 <code>buddhist_quality</code> 機械評分中 jiaoguangzong 任務中位數僅 40 分，顯著低於 shurangama/fahua/jingtu 的 63 分，佐證非單次偶發而是內容品質持續未達標。此屬 <code>tools/workflows/</code> 核心工具判定邏輯，非 log_audit logs 層權限範圍；機械層已以 dedup_key <code>task_journal:jiaoguangzong:phase_failure</code>／<code>task_journal:jiaoguangzong:unknown</code> 入隊 backlog，本次僅補驗證結論，未重複寫入。</li>
+</ul>
+<p>🟡 改善建議：</p>
+<ul>
+<li><strong>kb_publish push_error StrictMode 崩潰已修復</strong>。Grep 2026-08-09 08:11 失敗現場（run_trace_id=92260417598c-r3）確認錯誤為 PowerShell StrictMode 例外：「The property 'push_error' cannot be found on this object」，來源 <code>scripts/auto-task-kb_publish.ps1</code> 讀取 routing 模式的 targets 結果。查 git log 確認同日 14:18:54（commit 21a0960a「fix(kb_publish): PS1 wrapper 讀 push_error 在 StrictMode 下崩潰，掩蓋真實 partial 結果」）已修復。本週窗內 kb_publish 10 筆未成功記錄（成功率 23%）時間戳全數早於此修復提交，判定為已解決之舊問題；既有 backlog 條目（<code>task_journal:kb_publish:phase_failure</code>，2026-08-03 建立，status=pending）已過時，建議後續複查關閉（非 log_audit 權限，留待 backlog-processor 或人工複查）。</li>
+<li><strong>podcast_create 本週 0/10 成功</strong>，錯誤類型分散（auth_error／dependency_unavailable／per_job_timeout），非單一 code defect，屬 2026-08-05～08-09 全站 per_job_timeout 尖峰事件的一部分（同窗多達 20+ 任務受影響）。2026-08-10 起 phase_failure 已從前一日 25 驟降至 1，隨全站恢復觀察是否自然改善。</li>
+<li><strong>ai_github_research p95 耗時逼近 per-job timeout 上限</strong>：7 日窗 p95_elapsed=1806 秒，已超過 SLO ceiling 1530 秒，且 1 筆確認 timeout 失敗（6 筆完成樣本）。建議下次若再超標，評估調升 per-job timeout 或精簡 prompt。</li>
+</ul>
+<p>🟢 正常：</p>
+<ul>
+<li>Anomalies 機械偵測：critical=0／warning=0／info=0（7 日窗 9009 筆事件）。</li>
+<li>issue_triage_slo：overall_status=green，9 項 SLO 全數通過，0 筆 fail。</li>
+<li>forge_outputs_integrate／zen_koan／constraint_evolve／usage_stats_review／cache_optimizer／optimization_proposal／backlog_hygiene／buddhist_quality_audit／tool_span_anomaly_scan／hitl_checkpoint_sweep／document_sensitive_scan／thought_distillation_curator／tools_forge／sla_review_daily／pingtung_event_digest／cache_health_recovery 等任務本週成功率 100%。</li>
+</ul>
+<h2>觀察／趨勢分析（逐字引用管線 trend.summary_zh）</h2>
+<blockquote>最近一日 2026-08-10 的 phase_failure 為 1，低於前一日 2026-08-09（25），短期趨勢為改善。相較窗內高峰 2026-08-08（38 次）已回落。窗內 phase_failure 中位數為 19；最近一日相對中位數為「低於」中位數。</blockquote>
+<h3>phase_failure 每日趨勢（日期由舊到新）</h3>
+<p>| 日期 | phase_failure |</p>
+<p>|------|---------------|</p>
+<p>| 2026-08-04 | 7 |</p>
+<p>| 2026-08-05 | 19 |</p>
+<p>| 2026-08-06 | 17 |</p>
+<p>| 2026-08-07 | 31 |</p>
+<p>| 2026-08-08 | 38（窗內高峰） |</p>
+<p>| 2026-08-09 | 25 |</p>
+<p>| 2026-08-10 | 1（最近一日，已回落） |</p>
+<p>主子類分布（log 層 ERROR 計數與 phase_failure 分屬不同來源，不混用）：7 日累計 phase_failure=242，其中 per_job_timeout 子類 90 起（最大宗）、agent_crash 76 起、timeout 14 起、plan_parse_error 1 起。</p>
+<h2>Task Journal 週審（機械 review 結果）</h2>
+<p>本輪機械管線 <code>task_journal.review</code> 步驟已審查 21 個候選（近 7 日 unsuccessful_count≥1 之任務），全數 21 筆依 dedup_key <code>task_journal:<task_key>:<failure_type></code> 入隊 backlog（無新增 log_audit 重複寫入）；另機械 <code>prune</code> 步驟清除 3 筆過期候選。本次深查驗證 3 個最高影響目標（kb_publish／jiaoguangzong／podcast_create，詳見上方發現段）。</p>
+<h2>logs 層修復</h2>
+<p>本次無需 logs 層檔案修改（<code>hooks/post_tool_logger.py</code>／<code>config/hook-rules.yaml</code>／<code>query-logs.ps1</code> 等皆無異常）。三項深查發現分屬「已修復」「核心工具判定邏輯（超出責任邊界）」「全站性瞬時尖峰已回落」，均不需 log_audit 直接修改。</p>
+<h2>timeout_hierarchy 觀察</h2>
+<p>check_warnings=7（check_errors=0），headroom_findings=2（ai_sysdev／self_heal）：兩任務 timeout headroom 較窄，非本次必修但建議下次週審持續觀察。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

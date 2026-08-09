@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill 審查：forge_v2 生成 Skill 的兩種缺陷模式（2026-08-09）">
+  <title>Skill 審查：forge_v2 生成 Skill 的兩種缺陷模式（2026-08-09） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Skill 審查：forge_v2 生成 Skill 的兩種缺陷模式（2026-08-09）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">Skill</span><span class="tag">審查</span><span class="tag">品質優化</span><span class="tag">Forge-建議-ci-auto-triggers-disabled-days-</span><span class="tag">forge_v2</span><span class="tag">skill_audit</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h2>審查對象</h2>
+<ul>
+<li><code>Forge-建議-ci-auto-triggers-disabled-days-</code>（P1：工具已存在但未接線）</li>
+<li><code>Forge-建議-daily-success-rate-觸發-critical-</code>（P1：功能已被既有 Skill 完整覆蓋）</li>
+</ul>
+<p>選定依據：<code>state/auto-task-skill_audit-precomputed.json</code> 選出的 2 個「從未審查」候選，皆屬 <code>has_use_when=false / tools_count=0 / cache_ttl_null</code> 的 forge_v2 自動生成空殼（無 YAML frontmatter，僅有敘述性 Markdown）。</p>
+<h2>發現：forge_v2 生成物有兩種截然不同的缺陷模式</h2>
+<h3>模式 A（工具已存在但無人呼叫）— ci-auto-triggers-disabled-days</h3>
+<p><code>tools/ci_trigger_guard.py</code> 是完整、有測試（TOOL_INDEX ✓）的實作：解析 <code>.github/workflows/ci.yml</code> 的 <code>on:</code> 區塊，計算 push/PR 自動觸發被禁用的天數，含 kill switch <code>DDP_CI_TRIGGER_GUARD=off</code>。但從未被任何 Skill / PS1 / 排程呼叫。2026-08-09 實測：<code>alert=true, days_disabled=29</code>（自 2026-07-11 停用），是一筆真實、未消費的告警。</p>
+<p>同批生成的 <code>tools/forge_ci_auto_triggers_disabled_days.py</code> 只回傳 <code>{"status": "ok"}</code>（空 TODO stub），與 <code>ci_trigger_guard.py</code> 重複，是干擾項而非實作。</p>
+<p><strong>修復</strong>：不重新實作邏輯，改寫 SKILL.md 為薄封裝——呼叫 <code>uv run python -m tools.ci_trigger_guard --write</code> → 判讀 <code>alert</code> → <code>alert=true</code> 時走 <code>ntfy-notify</code> + backlog。補齊 frontmatter（name/description含Use when/allowed-tools/cache-ttl/triggers）後 <code>validate_config.py --check-skills</code> 從 0/100 → 100/100，並已同步 <code>skills/SKILL_INDEX.md</code>（# 113d）。</p>
+<h3>模式 B（功能已被既有 Skill 完整覆蓋，屬純重複）— daily-success-rate-觸發-critical</h3>
+<p><code>skills/system-success-rate-improvement/SKILL.md</code> 早已存在，triggers 含 <code>daily_success_rate</code>、<code>success_rate_improvement</code>，處理邏輯已涵蓋 critical/warning 兩種嚴重度（讀 <code>context/system-insight.json</code> 的 alert_id/description，非按嚴重度分裂成不同 Skill）。forge_v2 又生成了 <code>Forge-建議-daily-success-rate-觸發-critical-</code> 與 <code>-warning-強</code> 兩個空殼，是 100% 功能重複，不是覆蓋度缺口。</p>
+<p><strong>修復</strong>：判定為 YAGNI，未補全 frontmatter（避免製造與既有 Skill 觸發詞衝突的重複路由入口），改寫 backlog P1 建議人工依 <code>skills/CLAUDE.md</code>「Skill 退役檢查清單」流程退役（本身未被 SKILL_INDEX 收錄，無需移除索引項）。</p>
+<h2>通用結論</h2>
+<p>Skill 審查遇到 forge_v2 生成的空殼 SKILL.md 時，不能只套用「補 frontmatter 讓它變合法」的機械修法——必須先查四索引（<code>tools/TOOL_INDEX.md</code>、<code>skills/SKILL_INDEX.md</code>）確認是否已有等價實作：</p>
+<ul>
+<li>若底層工具存在但未接線 → 補 Skill 作為薄封裝（不重複實作邏輯）</li>
+<li>若功能已被其他 Skill 完整覆蓋 → 判定重複，寫 backlog 建議退役，不強行完成，避免製造觸發詞衝突</li>
+</ul>
+<p>此為既有「外部市集技能命名衝突觀測」教訓的內部版本：同名/近義觸發詞的重複 Skill 會造成路由歧義。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
