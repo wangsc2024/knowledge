@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Redis pipeline vs transaction">
+  <title>Redis pipeline vs transaction | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>Redis pipeline vs transaction</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術</span><span class="tag">深度研究</span><span class="tag">daily-agent</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Redis Pipeline vs. Transaction 研究報告</h1>
+<h2>結論</h2>
+<p>Redis 的 <strong>Pipelining（管道）</strong> 與 <strong>Transactions（事務，MULTI/EXEC）</strong> 是兩種常被混淆但功能完全不同的機制。</p>
+<ul>
+<li><strong>Pipelining</strong> 的核心目的是<strong>效能優化</strong>：透過將多個命令打包發送，減少網路往返時間（Round-Trip Time, RTT），適合處理大量獨立命令的批次處理。</li>
+<li><strong>Transactions</strong> 的核心目的是<strong>資料完整性（原子性）</strong>：確保一系列命令作為單一單位執行，中間不會被其他客戶端指令插入，適合處理需要一致性的邏輯。</li>
+<li><strong>最佳實踐</strong>：若需同時滿足「高效能」與「原子性」，應將 <code>MULTI</code> 與多個命令包裝在 <code>EXEC</code> 中，並將整個區塊放入 <strong>Pipeline</strong> 傳輸。</li>
+</ul>
+<h2>核心主張</h2>
+<ol>
+<li> <strong>原子性差異</strong>：</li>
+</ol>
+<p>    *   Pipelining 並不保證命令的原子性。如果在 Pipeline 傳輸過程中發生錯誤，部分命令可能已執行，部分則未執行。</p>
+<p>    *   Transactions 透過 <code>MULTI</code> 開啟，保證在 <code>EXEC</code> 執行時，所有命令會被連續執行且不被中斷。</p>
+<ol>
+<li> <strong>效能差異</strong>：</li>
+</ol>
+<p>    *   Pipelining 大幅降低網路開銷，是提升吞吐量的首選。</p>
+<p>    *   Transactions 雖然保證原子性，但若命令過多，可能會增加 Redis 伺服器的內部處理壓力，且不具備 Pipelining 的網路優化特性。</p>
+<ol>
+<li> <strong>組合應用</strong>：</li>
+</ol>
+<p>    *   在生產環境中，為了達到最佳效果，開發者通常會使用「Pipeline 包裝 Transaction」的模式。這能同時利用 Pipeline 減少 RTT，並利用 Transaction 保證數據的一致性。</p>
+<h2>來源表與品質分級</h2>
+<p>| 來源名稱 | 品質分級 | 內容摘要 | 連結 |</p>
+<p>| :--- | :---: | :--- | :--- |</p>
+<p>| OneUptime Blog | B | 詳細對比 Pipeline 與 Transaction 在原子性、錯誤處理及效能上的差異，提供決策規則。 | <a href="https://oneuptime.com/blog/post/2026-03-31-redis-pipelining-vs-transactions/view">https://oneuptime.com/blog/post/2026-03-31-redis-pipelining-vs-transactions/view</a> |</p>
+<p>| Stanza.dev | B | 解釋 Pipelining 為客戶端批次優化（減少 RTT），而 Transaction 為確保原子性。 | <a href="https://www.stanza.dev/courses/redis-scripting/pipelining/redis-scripting-pipeline-vs-transaction">https://www.stanza.dev/courses/redis-scripting/pipelining/redis-scripting-pipeline-vs-transaction</a> |</p>
+<p>| OpenIllumi | B | 深入探討兩者在延遲優化與數據一致性上的關鍵差異。 | <a href="https://openillumi.com/en/en-redis-pipeline-vs-transaction-difference/">https://openillumi.com/en/en-redis-pipeline-vs-transaction-difference/</a> |</p>
+<p>| DeepWiki | C | 介紹如何結合 Transaction 與 Pipeline 以實現高效能的原子操作。 | <a href="https://deepwiki.com/yjpshr/lua-resty-redis/3.5-transaction-operations">https://deepwiki.com/yjpshr/lua-resty-redis/3.5-transaction-operations</a> |</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
