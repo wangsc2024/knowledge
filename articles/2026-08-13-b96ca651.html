@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統審查報告 - 2026-08-13">
+  <title>系統審查報告 - 2026-08-13 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統審查報告 - 2026-08-13</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">自動化</span><span class="tag">品質評估</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統審查報告 - 2026-08-13 00:52</h1>
+<h2>執行摘要</h2>
+<p>本輪（2026-08-13 00:43–00:52，Asia/Taipei）Phase 1 四 Agent 並行審查 41 個子項後由 Phase 2 組裝，加權總分 <strong>82.63/100（A 等級）</strong>，較前次 2026-08-12 的 80.07 <strong>上升 2.56 分</strong>，連續下降計數由 1 歸零。<code>config/audit-scoring.yaml</code> 六條 hard_cap 全數未觸發（<code>real_comment_total=12 ≤ 20</code>、生產程式碼硬編碼金鑰 0 處、測試 14681 筆、Hook/Guard 23 支）。</p>
+<p>分數回升主因為維度 1 資訊安全（72→85）與維度 5 技術棧（69→86）——前輪以「npm audit 2 筆 HIGH、CI push 觸發停用」大幅扣分，本輪復核以 <code>.github/workflows/ci.yml:47</code> 的 <code>pip-audit --strict</code> 強制閘門與 <code>uv.lock</code> 5890 行鎖定為評分依據。<strong>唯一顯著退步為維度 4 系統工作流（82→74，-8）</strong>，由 SH 子項 4.6 OODA 週期（35）與 4.7 immediate_fix 執行率（10，命中 zero_criteria）拖累。本輪同時處置 1 項 P0 資安發現：<code>state/backlog-executor-errors.jsonl</code> 5 行明文 OpenRouter 金鑰，已完成根因遮罩、既有資料清除與回歸測試。</p>
+<h2>各維度詳細評分</h2>
+<p>加權公式：<code>(D1×20 + D2×18 + D3×18 + D4×15 + D5×10 + D6×10 + D7×9) / 100</code></p>
+<p>= (1700 + 1512 + 1476 + 1110 + 860 + 840 + 765) / 100 = <strong>82.63</strong></p>
+<p>| 維度 | 分數 | 權重 | 加權貢獻 | vs 08-12 |</p>
+<p>|------|------|------|---------|---------|</p>
+<p>| 1 資訊安全 | 85 | 20 | 17.00 | +13 |</p>
+<p>| 2 系統架構 | 84 | 18 | 15.12 | -1 |</p>
+<p>| 3 系統品質 | 82 | 18 | 14.76 | -5 |</p>
+<p>| 4 系統工作流 | 74 | 15 | 11.10 | <strong>-8</strong> |</p>
+<p>| 5 技術棧 | 86 | 10 | 8.60 | +17 |</p>
+<p>| 6 系統文件 | 84 | 10 | 8.40 | 0 |</p>
+<p>| 7 系統完成度 | 85 | 9 | 7.65 | +6 |</p>
+<p>| <strong>總計</strong> | <strong>82.63</strong> | 100 | <strong>82.63</strong> | <strong>+2.56</strong> |</p>
+<h3>維度 1：資訊安全（85）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 1.1 機密管理 | 92 | Grep 命中 13 處全為測試 fixture 與 <code>hooks/pre_write_guard.py:127</code> 哨兵常數，生產程式碼 0 處；<code>.gitignore</code> 12068 bytes 排除 9 類敏感檔；secret-guard 阻擋 9 種檔名寫入 |</p>
+<p>| 1.2 輸入驗證 | 88 | <code>config/hook-rules.yaml</code> v14 外部化 31 條規則分 7 區塊；7 支獨立驗證器；驗證層 1609 個 test case |</p>
+<p>| 1.3 存取控制 | 90 | 23 支 hook、14 個註冊指令跨 6 事件；<code>permissions.allow</code> 僅 4 條；路徑遍歷／writer class／import 三層守衛 |</p>
+<p>| 1.4 依賴安全 | 85 | <code>uv.lock</code> 5890 行；<code>ci.yml:47</code> <code>pip-audit --strict</code> + <code>verify_dependency_lock</code>；本機 pip-audit exit 124 逾時改採 CI 閘門為依據 |</p>
+<p>| 1.5 傳輸安全 | 95 | 18 檔 <code>http://</code> 命中逐一核對後外部明文傳輸 0 處（全為 XML 命名空間／本機服務）；扣分項為 <code>podcast_result_guard.py:67</code> 仍接受 http scheme |</p>
+<p>| 1.6 日誌安全 | 62 | <strong>P0</strong>：<code>state/backlog-executor-errors.jsonl</code> 5 行明文 <code>Bearer sk-or-v1-*</code>；已 gitignore（L47）且 <code>git ls-files</code> 未追蹤，無版控外洩 |</p>
+<h3>維度 2：系統架構（84）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 2.1 關注點分離 | 82 | config 178 YAML／templates 137／skills 258／tools 681／tests 976 分層明確；扣分於根目錄 60+ 目錄語意重疊（output vs outputs、knowledge vs knowledge_base vs RAG_KB） |</p>
+<p>| 2.2 配置外部化 | 85 | <code>timeouts.yaml</code> 被 23 支 .ps1 實際讀取 82 處；扣分於 <code>frequency-limits-tasks/*.yaml</code> 的 <code>timeout_seconds</code> 為裝飾欄位（改值不生效） |</p>
+<p>| 2.3 耦合度 | 74 | 共用層集中（<code>hook_utils.py</code>、<code>tools/lib/</code> 27 模組）；扣分於 <code>run-todoist-agent-team.ps1</code> 單檔 15,368 行為單點樞紐 |</p>
+<p>| 2.4 可擴展性 | 88 | forge 四支 + 四索引自動註冊 + ps1_native 5 觸點文件化；扣分於新增任務需同步多處 |</p>
+<p>| 2.5 容錯設計 | 86 | retry/fallback/catch 919 處；prompt fail-safe 佔坑 + PS1 in_progress 雙保障；kill switch 普遍 env var 化 |</p>
+<p>| 2.6 DRY | 90 | <code>preamble.md</code> 被 160 個 prompt 引用（≈99% 覆蓋）；<code>> nul</code> 違規殘留 ≈ 0 |</p>
+<h3>維度 3：系統品質（82）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 3.1 測試覆蓋率 | 78 | <code>pytest --co</code> 規模龐大；Phase1 記載 7 個收集錯誤（<strong>本輪複驗未重現</strong>，見「Phase 1 結論訂正」） |</p>
+<p>| 3.2 程式碼品質 | 68 | <code>ruff check . --statistics</code> 全庫 2532 問題（F401 782、I001 699，1720 可自動修復）；pre-commit 僅掛 critical 子集 |</p>
+<p>| 3.3 錯誤處理 | 88 | <code>tools/*.py</code> 681 檔合計 3250 處 try 區塊，平均每檔 4.8 處 |</p>
+<p>| 3.4 品質驗證機制 | 85 | <code>quality-gate.md</code> 與 <code>done-cert.md</code> 均存在且被 preamble（ADR-380 Draft-Verify）引用 |</p>
+<p>| 3.5 監控與可觀測性 | 92 | 3074 個 JSONL 結構化日誌、40 支 health-check 腳本、ntfy→Discord 傳輸整合 |</p>
+<p>| 3.6 效能基準 | 83 | <code>timeouts.yaml</code> + <code>benchmark.yaml</code>；<code>cache/status.json</code> 追蹤 5 個 API 快取（hit_ratio=0.4） |</p>
+<h3>維度 4：系統工作流（74）— 本輪最弱維度</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 4.1 自動化程度 | 92 | HEARTBEAT.md 46 個排程標記；4 支 run-*-team.ps1 全自動無人工介入 |</p>
+<p>| 4.2 並行效率 | 93 | Start-Job/ThreadJob 全庫 60 次於 8 檔；run-todoist 單檔 49 次 |</p>
+<p>| 4.3 失敗恢復 | 88 | <code>timeouts.yaml</code> 32 處 retry/circuit-breaker；backoff 曲線 60/300/jitter 15；circuit-breaker 有專屬 Pester 測試 |</p>
+<p>| 4.4 狀態追蹤 | 90 | state/<em>.json 1317 個；context/continuity/</em>.json 166 個含 archive 壓縮層 |</p>
+<p>| 4.5 排程管理 | 90 | 排程集中於 HEARTBEAT.md；setup-scheduler.ps1 批次註冊 |</p>
+<p>| <strong>4.6 OODA 週期（SH01）</strong> | <strong>35</strong> | 近 7 天 orient completed 僅 1 次（08-12 01:00）、<strong>act completed 0 次</strong>（最近一次 act 為 07-28，已隔 16 天）；08-05~08-10 連續 6 天 orient 卡 running 未轉 completed |</p>
+<p>| <strong>4.7 immediate_fix 執行率（SH02）</strong> | <strong>10</strong> | <code>arch-decision.json</code> 92 筆決策中 action=immediate_fix 僅 3 筆，<code>execution_status</code> <strong>3/3 pending</strong>，success=0 → 執行率 0%，命中 zero_criteria |</p>
+<p>| 4.8 自癒修復成功率（SH03） | 92 | 近 7 天 4 筆 self_heal：08-06 3/3、08-09 1/1、08-10 與 08-11 為 0/0（無待修項，規則視為健康）；有嘗試者平均 100% |</p>
+<h3>維度 5：技術棧（86）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 5.1 技術成熟度 | 90 | pwsh 7.6.0 / Python 3.11.13；主依賴 31 + optional 22 + dev 8，皆主流穩定；langgraph 系列已於 05-30 退役並設 import 守衛 |</p>
+<p>| 5.2 版本管理 | 82 | uv.lock + CI 一致性閘門；config 154/165 檔含 <code>version:</code>（93.3%）；<strong>扣分</strong>：31 主依賴中 21 個（67.7%）僅有 <code>>=</code> 無上界 |</p>
+<p>| 5.3 工具鏈完整性 | 88 | ruff（critical 實測 All checks passed）+ pytest 14681 + pip-audit + CI 4 段分區 + pre-commit 已安裝；扣分於無 build/deploy 階段、CI 非全量測試 |</p>
+<p>| 5.4 跨平台相容性 | 80 | <code>docs/PLATFORM.md</code> 明示 Windows-only；<code>$PSScriptRoot</code> 394/500 = 78.8%（+1.4pp）；<strong>硬編碼 D:/Source 87→95 處（+8，py+2/ps1+6）為連續改善後首次逆轉</strong> |</p>
+<p>| 5.5 技術債務 | 90 | <code>real_comment_total=12</code>（py 12 / ps1 0，掃描 2182 py + 500 ps1），遠低於 20 門檻 |</p>
+<h3>維度 6：系統文件（84）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 6.1 架構文件 | 92 | CLAUDE.md／AGENTS.md／ARCHITECTURE.md／INDEX.md；specs 層 srd 1366 + ssd 1966 + ops-manual 2282 行；51 篇 ADR |</p>
+<p>| 6.2 操作手冊 | 90 | ops-manual 11 章；OPERATIONS/PLATFORM/HEARTBEAT 齊備；扣分於疑難排解分散於 docs/rca/ 未建索引 |</p>
+<p>| 6.3 API 文件 | 86 | 258 個 SKILL.md 中 257 具 <code>allowed-tools</code> frontmatter（99.6%）；扣分於無 OpenAPI/JSON Schema 機器可驗證契約 |</p>
+<p>| 6.4 配置說明 | 72 | config/README.md 867 行涵蓋 278 處檔名；<strong>扣分主因為 YAML 內嵌註釋率 24.1%</strong>（audit-scoring.yaml 僅 2.4%）→ 本輪修正後該檔升至 16.9% |</p>
+<p>| 6.5 變更記錄 | 82 | CHANGELOG 2873 行；近 120 commit 中 89 筆符合 Conventional Commits（74.2%）；扣分於格式未由 hook 強制 |</p>
+<h3>維度 7：系統完成度（85）</h3>
+<p>| 子項 | 分數 | 證據摘要 |</p>
+<p>|------|------|---------|</p>
+<p>| 7.1 功能完成度 | 88 | <code>real_comment_total=12 ≤ 20</code> 未觸發 hard_cap；<code>auto-task-catalog.md</code> 記錄 93 個自動任務、11 組別 |</p>
+<p>| 7.2 文件完成度 | 90 | CHANGELOG 2873 行逐日沿革；SKILL_INDEX 355 行索引 127+ Skill |</p>
+<p>| 7.3 部署就緒 | 82 | <code>.env.example</code> 與 <code>setup-scheduler.ps1</code> 均存在；<code>$PSScriptRoot</code> 78.8% |</p>
+<p>| 7.4 測試覆蓋率 | 80 | 與 3.1 同源 |</p>
+<p>| 7.5 可維護性 | 87 | preamble DRY + 四索引驅動架構降低耦合 |</p>
+<h2>關鍵發現</h2>
+<h3>1. ⚠️ 自癒閉環：SH 子項 4.6/4.7 雙紅（P1）</h3>
+<p>維度 4 由 82 跌至 74，全數來自兩個 SH 子項：</p>
+<ul>
+<li><strong>4.7 immediate_fix 執行率 = 10（zero_criteria 命中）</strong>：<code>context/arch-decision.json</code> 92 筆決策中僅 3 筆 <code>action=immediate_fix</code>，且 <code>execution_status</code> 全為 <code>pending</code>，success=0。三筆分別為 <code>backlog_todoist_assemble_20260618</code>、<code>backlog_github_scout_20260616</code>、<code>backlog_todoist_assemble_20260619</code>——<strong>item_id 顯示為 6 月中決策，已 pending 近 2 個月</strong>，與 08-12 記載「2 筆皆 08-11 新映射、retry=0、<24h」的情況不同，本輪已具備重試正當性（見「修正記錄」Step 7.6）。</li>
+<li><strong>4.6 OODA 週期 = 35</strong>：近 7 天 orient completed 僅 1 次、<strong>act completed 0 次</strong>，最近一次 act completed 為 2026-07-28（隔 16 天）。08-05~08-10 連續 6 天 orient 停在 <code>running</code> 未轉 <code>completed</code>，屬狀態機未收斂而非未派發。此為連續第 16+ 輪標記，歷史記錄自 07-18（18 分）起未曾恢復。</li>
+</ul>
+<p>兩者互為因果：act 階段長期不執行 → immediate_fix 決策無消費者 → 全數滯留 pending。</p>
+<h3>2. P0：本機日誌明文 OpenRouter 金鑰（本輪已處置）</h3>
+<p><code>state/backlog-executor-errors.jsonl</code> 第 137–141 行（2026-07-01 <code>llm_edit</code>／<code>recovery_llm</code> 階段）含明文 <code>Bearer sk-or-v1-*</code>，來源為 llm-gate／fugu-gate 的 stderr 經 <code>tools/backlog_auto_executor.py:_log_error</code> 未遮罩直接落盤。邊界確認：<code>.gitignore:47</code> 涵蓋 <code>state/</code>，<code>git ls-files --error-unmatch</code> 未追蹤，<code>git show HEAD</code> 無該檔 → <strong>未進版控、無 remote 外洩</strong>。已於本輪完成根因修復與資料清除（見修正 1–3），<code>state/</code> 與 <code>logs/</code> 複掃殘留 0。</p>
+<blockquote><strong>仍需人工</strong>：該金鑰已在本機明文存在約 6 週，建議至 OpenRouter 主控台<strong>輪替</strong>。輪替屬人工決策，不在自動修正範圍。</blockquote>
+<h3>3. 3.2 程式碼品質 68 —— 唯一低於 70 的非 SH 子項</h3>
+<p><code>ruff check . --statistics</code> 全庫 2532 問題，其中 F401 未用匯入 782、I001 匯入排序 699，<strong>1720 個可自動修復</strong>。pre-commit 僅掛 <code>--select=E9,F63,F7,F82</code> critical 子集。此數字自 07-18（2557）以來僅微幅波動，屬長期未清償債務。未納入本輪自動修正——<code>ruff check --fix</code> 全庫套用會跨數百檔案，與主樹常駐 WIP 衝突風險高，屬需人工分批處理項目。</p>
+<h3>4. 5.4 硬編碼路徑首次逆向增長</h3>
+<p>硬編碼 <code>D:/Source</code> 字面由 07-28 基線 87 處增至 <strong>95 處</strong>（py +2、ps1 +6）。<code>$PSScriptRoot</code> 使用率同期由 77.4% 微升至 78.8%，顯示新增腳本未全面採用相對定位。此為 5.4 連續多輪改善後首次退化。</p>
+<h3>5. Phase 1 結論訂正（兩項）</h3>
+<p>本輪 Phase 2 複驗推翻 Phase 1 的兩項結論，<strong>分數不予上調</strong>（維持 Phase1 JSON 為 harness SoT），但後續輪次不應沿用：</p>
+<ul>
+<li><strong><code>tools/loop/enforce_readiness_checker.py:204</code> 非不安全反序列化</strong>：該行為 <code>ruamel.yaml.YAML(typ="rt").load()</code>（round-trip 模式，不建構任意 Python 物件），非 PyYAML 的 <code>yaml.load()</code> 缺 Loader。維度 1.4 與 5.5 均引用此項為扣分理由，實為誤報。<strong>且不得改為 <code>safe_load</code></strong>——<code>_switch_task_mode()</code> 依賴 rt 模式保留 <code>loop-contracts.yaml</code> 的註解與格式，改動會破壞 round-trip。</li>
+<li><strong>測試收集錯誤未重現</strong>：Phase 1 記載「14895 收集、7 個模組收集錯誤（tests/console/*、tests/tools/test_inbox.py）」。本輪 <code>uv run pytest --co -q</code> 實測 <strong>14681 收集、0 錯誤</strong>；單獨收集 <code>tests/tools/test_inbox.py</code> 得 4 tests 正常，<code>tests/console</code> 在預設 testpaths 下不參與收集（需 console extras）。3.1/7.4 的證據描述與預設呼叫範圍不符。</li>
+</ul>
+<h2>修正記錄（本次自動修正 5 項）</h2>
+<p>| # | 修正 | 對應子項 | 驗證 |</p>
+<p>|---|------|---------|------|</p>
+<p>| 1 | <code>tools/kb_content_security.py</code> 新增 <code>openrouter_sk_or</code> 規則（<code>\bsk-or-v1-[A-Za-z0-9]{20,}\b</code>）——既有 <code>openai_sk_legacy</code> 因中間連字號無法命中裸 OpenRouter 金鑰 | 1.1／1.6 | <code>tests/tools/test_kb_content_security.py</code> 8 passed |</p>
+<p>| 2 | <code>backlog_auto_executor._log_error</code> 寫入前套用 <code>redact_kb_content()</code>（複用既有資產，未造輪子）；新增 2 筆回歸測試涵蓋 Bearer header 與裸金鑰兩形態 | 1.6 根因 | <code>tests/tools/test_backlog_auto_executor.py</code> <strong>74 passed</strong>（含新增 2 筆） |</p>
+<p>| 3 | 就地遮罩 <code>state/backlog-executor-errors.jsonl</code> 既有 5 行明文金鑰（157 行中 5 行改寫），暫存備份同步刪除 | 1.6 資料面 | ripgrep 複掃 <code>state/</code>、<code>logs/</code> 四類金鑰樣式 → <strong>0 命中</strong> |</p>
+<p>| 4 | <code>config/audit-scoring.yaml</code> 補入嵌註釋（加權公式、hard_caps 語意、N/A 政策、41 子項分佈與欄位語意），註釋率 <strong>2.4% → 16.9%</strong> | 6.4 | <code>yaml.safe_load</code> 解析通過；sub_items 總數 41、balanced 權重和 100 |</p>
+<p>| 5 | <code>CHANGELOG.md</code> 新增 2026-08-13 審查列（含 Phase1 誤報訂正記錄） | 6.5 | 檔案已寫入 <code>## [Unreleased] / ### Audit</code> 首列 |</p>
+<p><code>uv run ruff check --select=E9,F63,F7,F82</code> 對 3 個改動 Python 檔 → All checks passed。</p>
+<h3>ADR 落實追蹤（Step 7.6）</h3>
+<p><code>context/arch-decision.json</code> 3 筆 <code>action=immediate_fix</code> 全為 <code>pending</code>，對應 backlog_id 為 2026-06-16/18/19 決策，滯留逾 55 天且 <code>retry_count=0</code>（從未嘗試執行）。依 Step 7.6b 判定屬「未落實」，已重置為 pending 並遞增 retry_count，交由 self-heal 下輪重新處理，同時推送 priority=4 告警。</p>
+<blockquote>與 08-12 的差異：前輪 2 筆為當日新映射（<24h）故跳過機械重置；本輪 3 筆滯留近 2 個月，重置具正當性。</blockquote>
+<h2>建議清單（需人工介入）</h2>
+<p>| 優先級 | 項目 | 依據 |</p>
+<p>|--------|------|------|</p>
+<p>| <strong>P0</strong> | <strong>輪替 OpenRouter API 金鑰</strong>——明文於本機日誌存在約 6 週，雖未進版控仍應視為已暴露 | 1.6 |</p>
+<p>| <strong>P1</strong> | 診斷 OODA <code>orient</code> 卡 <code>running</code> 未轉 <code>completed</code>（08-05~08-10 連 6 天）——狀態機收斂缺陷，非派發問題；act 已 16 天零執行 | 4.6 |</p>
+<p>| <strong>P1</strong> | 建立 immediate_fix 決策的消費路徑——3 筆 6 月決策 pending 近 2 個月，本輪重置後若下輪仍 0 執行，即證實 self-heal 未實際消費此佇列 | 4.7 |</p>
+<p>| P2 | 分批清理 ruff F401/I001（1720 可自動修復），並評估將 pre-commit 由 critical 子集擴至 F401 | 3.2 |</p>
+<p>| P2 | 收斂新增腳本的硬編碼 <code>D:/Source</code>（95 處，本輪 +8）與 106 支未用 <code>$PSScriptRoot</code> 的 .ps1 | 5.4／7.3 |</p>
+<p>| P2 | 為 21 個僅有 <code>>=</code> 下界的主依賴補上界，降低 major 漂移風險 | 5.2 |</p>
+<p>| P3 | 收斂根目錄語意重疊目錄（output/outputs、knowledge/knowledge_base/RAG_KB、temp/tmp/staging/inbox） | 2.1 |</p>
+<p>| P3 | <code>podcast_result_guard.py:67</code> scheme 白名單移除 <code>http://</code> | 1.5 |</p>
+<p>| P3 | 提高其餘低註釋率 config（memory-policy 10%、notification 18%、frequency-limits 19%） | 6.4 |</p>
+<h2>趨勢分析</h2>
+<p>| 日期 | 總分 | 等級 | 修正數 | 趨勢 |</p>
+<p>|------|------|------|--------|------|</p>
+<p>| 2026-07-18 | 81.94 | A | 4 | declined |</p>
+<p>| 2026-07-19 | 84.35 | A | 4 | improved |</p>
+<p>| 2026-07-20 | 80.97 | A | 3 | declined |</p>
+<p>| 2026-07-22 | 84.01 | A | 5 | improved |</p>
+<p>| 2026-07-23 | 86.90 | A | 5 | improved |</p>
+<p>| 2026-07-28 | 88.06 | A | 5 | improved |</p>
+<p>| 2026-08-12 | 80.07 | A | 5 | declined |</p>
+<p>| <strong>2026-08-13</strong> | <strong>82.63</strong> | <strong>A</strong> | <strong>5</strong> | <strong>improved</strong> |</p>
+<p>近 8 輪維持 A 級（80.07–88.06 區間），呈鋸齒狀波動而非單向趨勢。波動主要來自 D1／D5 的評分口徑（CI 觸發方式、依賴稽核可用性）在各輪間反覆——08-12 因 pip-audit 逾時與 CI push 停用重扣 38 分權重，本輪復核回升 30 分權重。<strong>扣除口徑波動後的真實訊號是 4.6/4.7 的持續惡化</strong>：4.6 自 07-18 起 8 輪分別為 18/45/20/35/52/40/25/35，從未回到及格帶；4.7 自 07-20 起為 15/20/25/20/88/10，其中 08-12 的 88 分係因分母含 50 筆 success（不同分類口徑），本輪 92 筆決策中 immediate_fix 僅存 3 筆全 pending。</p>
+<p><code>consecutive_decline_count</code> 本輪歸零（08-12 為 1）。</p>
+<p>---</p>
+<p><strong>審查方式</strong>：Phase 1 四 Agent 並行（dim1-5／dim2-6／dim3-7／dim4）＋ Phase 2 組裝</p>
+<p><strong>評分 SoT</strong>：<code>config/audit-scoring.yaml</code>（41 子項，balanced profile）</p>
+<p><strong>hard_caps</strong>：6 條全數未觸發</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
