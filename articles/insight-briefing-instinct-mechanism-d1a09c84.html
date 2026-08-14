@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="深度研究洞察簡報 insight-briefing：Instinct 學習引擎 mechanism 階段深化——confidence 公式真實資料飽和失真、候選簇不減反增與 langgraph 品牌殘留">
+  <title>深度研究洞察簡報 insight-briefing：Instinct 學習引擎 mechanism 階段深化——confidence 公式真實資料飽和失真、候選簇不減反增與 langgraph 品牌殘留 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>深度研究洞察簡報 insight-briefing：Instinct 學習引擎 mechanism 階段深化——confidence 公式真實資料飽和失真、候選簇不減反增與 langgraph 品牌殘留</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">深度研究洞察簡報</span><span class="tag">insight-briefing</span><span class="tag">instinct-learning</span><span class="tag">agent-memory</span><span class="tag">confidence-calibration</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>深度研究洞察簡報：Instinct 學習引擎 mechanism 階段深化——confidence 公式真實資料飽和失真、候選簇不減反增與 langgraph 品牌殘留</h1>
+<p><strong>日期</strong>：2026-08-14　<strong>任務</strong>：insight_briefing　<strong>系列</strong>：instinct-behavior-learning-ddp-digest-memory（synthesis→<strong>mechanism</strong>，completion_pct 85%）</p>
+<h2>摘要</h2>
+<p>延續 <code>research_series_advisor.py</code> 標記的 mechanism 階段優先建議（<code>days_since_active=19</code>），本輪針對 2026-07-26 mechanism 草案的兩項未驗證假設做真實資料實測：P0 歸因修復（<code>post_tool_logger.py:639</code> AGENT_NAME fallback）是否真的降低 MISSING agent 率、以及 confidence 衰減公式在生產資料量級下是否維持鑑別力。結果均為<strong>否</strong>：30 日窗實際僅 17 天有可讀日誌（<code>logs/structured/</code> 2026-07-23~08-04 共 13 天僅剩 0-byte <code>.lock</code>），30290 筆事件中 MISSING agent 率 <strong>26.4%</strong>（7983 筆），與修復前基準 25.1%~27.3% 無顯著差異；L0 候選簇由 07-24 optimization 階段的 23 組膨脹至本次 <strong>54 組原始／36 組二階門檻</strong>，與 synthesis 「30 日後收斂至 ≤3 根因簇」的方向相反；套用 07-26 草案公式後，33~283 次事件的候選幾乎全數壓縮至 0.80–0.85 窄帶，喪失鑑別力。交叉驗證 2026 年 arXiv:2606.22030v2（Reliability-Conditional Updating）指出純頻率式信心更新在 LoCoMo 基準與 naive last-write-wins「打平」，並提出 <code>r = min(provenance, content)</code> 合成規則將 volumetric flooding 攻擊成功率由 100%→0%——為本次實測飽和現象提供獨立學術佐證。另發現 36 組候選中至少 10 組以 <code>langgraph-*</code> 為聚類鍵，但 ADR-20260529-052（2026-05-30）後實際 <code>workflow_engine</code> 已是 <code>planner_executor</code>，語意與執行層脫鉤 2.5 個月未修正。套用 3 組思考透鏡（Sam Altman／黃仁勳／塔勒布）完成多透鏡洞察小節。KB 語義快取 7 日 lookup/store=0、fastembed 不可用（degraded）。不建議依現行公式產出 <code>context/behavior-instinct-candidates.json</code> v1。</p>
+<p>---</p>
+<h2>核心洞見</h2>
+<h3>1. P0 歸因修復已落地但未閉合缺口——fallback 機制效果待查</h3>
+<p><code>hooks/post_tool_logger.py:639</code> 確認存在「若 <code>agent_name</code> 為空，則用 <code>phase</code> 作為 fallback」的邏輯，對應 07-24 optimization 階段標記的 P0 修復。實測 2026-07-15~08-14 窗內可讀的 17 天資料（30290 筆事件）：<code>agent</code> 欄位為空字串的比例為 <strong>26.4%</strong>（7983/30290），與修復前 07-23/07-24 briefing 引用的基準 <strong>25.1%~27.3%</strong> 幾乎無差異。可能原因：<code>phase</code> 欄位本身在同一批事件中也常為空（fallback 鏈條上游即缺值），或 fallback 分支未覆蓋所有呼叫路徑（如非 hook 觸發的直接寫入）。此為下一輪 arch_evolution 應優先查證的具體缺口，而非本次臆測。</p>
+<h3>2. 候選簇規模不減反增，與 synthesis 收斂目標背道而馳</h3>
+<p>依 07-26 草案 L0 規則（<code>agent</code>+<code>signal_tag</code> 硬鍵合併）對真實資料重跑：<code>io-guard-warn</code>／<code>loop-suspected</code> 兩個訊號標籤下，17 天窗產生 <strong>54 組原始 (agent, signal_tag) 配對</strong>，套用 07-23 application 階段訂出的二階門檻（≥3 次且橫跨 ≥3 個獨立日期）後仍有 <strong>36 組</strong>通過——遠高於 07-24 optimization 階段快照的 23 組。synthesis 階段的成功標準是「P1 fingerprint 試行 30 日後收斂至 ≤3 根因簇」；目前趨勢顯示僅靠 L0 硬鍵合併不會自然收斂，必須依賴尚未落地的 P1 fingerprint 子分裂與根因合併層才可能達標，且合併層本身需要更多設計驗證才能宣稱可行。</p>
+<h3>3. confidence 公式在生產資料量級下飽和失真，喪失鑑別力</h3>
+<p>07-26 草案公式：<code>base=0.35 + 0.05<em>min(evidence_count,6) + 0.05</em>min(distinct_days,4) - 0.10(若 >14d 未觀察)</code>，count 項在 <strong>6 次即封頂</strong>。將此公式套用本次實測的 36 組 gated 候選：前 6 名事件數介於 <strong>70～283 次</strong>，全部因 count 與 days 項同時觸頂而落在 <strong>0.80～0.85</strong> 窄帶——公式無法區分「發生 3 次」與「發生 283 次」的候選優先序，等同於在生產資料量級下退化為近似常數。此為 07-26 草案未經真實資料驗證即被記錄為「草案」的直接後果，本次是首次以生產日誌量級對其做壓力測試。</p>
+<h3>4. 學術交叉驗證：純頻率式信心更新是已知的結構性弱點（arXiv:2606.22030v2，2026）</h3>
+<p>WebFetch 覆核論文《When Does Belief-Based Agent Memory Help? Reliability-Conditional Updating and Provenance-Capped Poisoning Defense》（Section 7-9）：純頻率式更新（無來源可靠度加權）在 LoCoMo 基準上與 naive last-write-wins「打平」（inert，Table 4）；改用來源可靠度加權的 Bayesian 更新後，在合成矛盾基準上得分 100 對 67（Table 5，Section 8）。該文提出的 provenance-capped 合成規則 <code>r = min(provenance, content)</code>——信心受限於「來源可靠度」與「內容合理性」兩者較低者——使 volumetric poisoning flooding 的攻擊成功率從 100% 降至 0%（Table 6，低通道層級 ≤0.5 時）。DDP 草案公式屬於論文定義的「純頻率」類別（僅計 count／distinct_days，無來源可靠度維度），本次實測的飽和現象是該學術發現在真實生產系統上的獨立實證，而非孤立的參數調校問題。<strong>注意</strong>：論文作者本身承認 provenance-capped 防禦「需要 taint-tracking，本文僅描述機制未實作」（Section 9），DDP 若採用此方向亦須從輕量版本（如以 tag 觸發路徑多樣性近似 provenance）開始，不宜直接照搬完整方案。</p>
+<h3>5. 聚類鍵語意殘留：`langgraph-*` 品牌在退役 2.5 個月後仍是主要聚類鍵</h3>
+<p><code>run-todoist-agent-team.ps1:1009</code>：<code>$env:AGENT_NAME = "langgraph-$key"</code> 於 <code>Start-PlannerExecutorJob</code> 函式內原樣沿用（該函式本身已於 ADR-20260529-052 完成正確改名）。<code>tools/workflows/langgraph_task_runner.py</code> 內部確認實際路由：<code>from tools.planner_executor.runner import ... run_task</code>，回傳 <code>"workflow_engine": "planner_executor"</code>——即執行層已 100% 轉移，僅環境變數標籤未同步更新。本次 36 組 gated 候選中，<code>langgraph-ai_deep_research</code>（292 次/8 日）、<code>langgraph-ai_workflow_github</code>（255 次/8 日）等 <strong>至少 10 組</strong>以此退役品牌為聚類鍵之一。此為 07-26 草案未預見的資料品質細節：若未來導入 CLAG 式語意路由（依 agent 名稱推斷任務語意），退役品牌名稱會被誤判為獨立引擎類別。</p>
+<h3>6. 30 日回溯窗實際僅 17 天可用——資料完整性缺口影響本次量測基準</h3>
+<p><code>logs/structured/</code> 目錄 2026-07-23~2026-08-04（13 天，另 08-06 亦缺）僅存在 0-byte <code>.jsonl.lock</code>（寫入互斥鎖殘留），無對應 <code>.jsonl</code> 或 <code>.bak</code> 資料檔；同期其他日誌管線（<code>logs/buddhist-audit-shadow-<em>.jsonl</code>、<code>logs/structured/report-quality-lint-</em>.jsonl</code>）持續正常寫入，排除全域故障，指向 <code>post_tool_logger</code> 專屬的持久化或輪替環節異常。本次「30 日窗」實測因此僅覆蓋約 17 天真實資料，第 1、2、3 項數字均為此樣本下的保守估計，實際缺口期間的事件密度未知。</p>
+<p>---</p>
+<h2>建議行動</h2>
+<ol>
+<li><strong>暫緩</strong> <code>context/behavior-instinct-candidates.json</code> v1 產出（07-26 建議動作 #1）：需先修正 confidence 公式，避免 evidence_count 項在生產量級下飽和——建議改對數尺度（如 <code>0.05 * min(log2(count+1), 8)</code>）或參考 arXiv:2606.22030v2 引入輕量版 provenance 維度（如以 tag 觸發路徑多樣性 / 是否跨多個獨立工具鏈近似可靠度），而非僅計原始次數。</li>
+<li><strong>追查</strong> P0 fallback 未閉合缺口的根因：檢查 <code>phase</code> 欄位本身在同批事件中的填充率、以及是否存在繞過 hook 直接寫入 log 的路徑。</li>
+<li><strong>機械修復</strong>（低風險、已驗證路徑）：<code>run-todoist-agent-team.ps1:1009</code> 的 <code>AGENT_NAME = "langgraph-$key"</code> 建議改為與 <code>workflow_engine</code> 對齊的標籤（如 <code>pe-$key</code>），同步清理聚類語意雜訊；此為單行變更，<code>Start-PlannerExecutorJob</code> 函式本體已正確命名，僅環境變數字面值未同步。</li>
+<li><strong>排查</strong> <code>logs/structured/</code> 2026-07-23~08-04（13 天）持久化缺口成因，否則後續任何「N 日窗」型分析都將系統性低估樣本；若屬已知的輪替/歸檔邏輯限制，應在相關 workflow 或 ADR 中明確記錄，避免重複誤判為資料異常。</li>
+</ol>
+<p>---</p>
+<h2>多透鏡洞察</h2>
+<h3>透鏡選擇</h3>
+<p>| 透鏡 | 角色 | 選用理由 |</p>
+<p>|------|------|----------|</p>
+<p>| distill-sam-altman | primary | 快速部署反饋閉環：先 ship 觀察層、用真實資料校正假設，而非閉門推導公式 |</p>
+<p>| distill-jensen-huang | primary | demand-driven 設計：先看 workload（真實事件量級）再定義規格（confidence 公式係數） |</p>
+<p>| distill-taleb | adversarial | 不對稱風險與 skin in the game：錯誤 instinct 一旦寫入 state 即不可逆 |</p>
+<h3>框架化建議</h3>
+<ul>
+<li><strong>Altman 視角</strong>：07-26 草案公式從未在真實資料上跑過就被記錄為「設計完成」，這正是閉門造車而非用戶反饋閉環的反例。正確順序應是：先用觀察模式收集真實 <code>(agent, tag)</code> 分佈（已具備 17 天樣本），再迭代係數——本次實測即是遲到但正確的那一步；下一步應把「公式壓力測試」機制化為候選寫入前的<strong>強制</strong>檢核，而非等到下次研究輪次才偶然發現。</li>
+<li><strong>Jensen 視角</strong>：workload 先於規格——公式的 <code>min(count,6)</code> 上限顯然是憑空估計，未依真實 workload（33~283 次的事件量級）反推。全棧設計原則要求先量測「工廠」實際產線節拍（真實資料分佈），再回頭定規格；本次 17 天樣本已提供足夠 workload 特徵，係數不該再憑空假設，應直接用實測分佈的分位數（如 p50/p90/p99）反推飽和點。</li>
+<li><strong>Taleb 視角</strong>：一個把「發生 3 次」和「發生 283 次」評為幾乎相同信心分數的公式，是 fragile 的——它對真實訊號強度不敏感，卻會製造虛假的確定性外觀（0.80-0.85 看起來「差不多都很可信」）。Skin in the game 檢驗：若這個公式的分數被拿去自動寫 <code>state/behavior-instincts.json</code>，錯誤簇會在每次 auto-task 執行時被放大且不可逆——<strong>這正是本系列先前 briefing 已標記的 antifragile 預設拒絕（report-only + 人工 approved）之所以必要的具體反例</strong>，而非重複警告；此次是拿到了具體失敗數字（0.80-0.85 窄帶）的第一手證據，而非泛泛的風險提示。</li>
+</ul>
+<h3>反模式檢查</h3>
+<ul>
+<li>未用「權衡利弊」掩飾飽和問題：公式失真是可驗證的量化事實（0.80-0.85 窄帶涵蓋 33~283 次的全部候選），非主觀判斷。</li>
+<li>未憑訓練記憶編造 arXiv:2606.22030v2 的具體機制——已用 WebFetch 覆核 Section 7-9 原文，確認 Noisy-OR 為對照組（BeliefMem，非本文方法）而非本文採用的機制，避免張冠李戴。</li>
+<li>P0 修復「未閉合缺口」是實測結果陳述，非對前次工作的否定；已明確標示待查根因而非直接歸咎於 fallback 邏輯本身錯誤。</li>
+</ul>
+<h3>透鏡盲區自陳</h3>
+<ul>
+<li>Altman／Jensen 透鏡皆偏向「先 ship 再迭代」的產品節奏，可能低估<strong>寫入 state 前的人工 approved 閘門</strong>在單人 Windows 排程系統中的必要摩擦成本——此系列的既有設計（report-only 預設）已是務實折衷，非過度保守。</li>
+<li>Taleb 透鏡對「已存在的 fabrication_guards P1-P4」重複強調 antifragile 預設，惟本輪已提供具體失效模式（公式飽和）作為佐證，非泛化警告，此次盲區風險較低。</li>
+<li>三透鏡均未覆蓋佛學／內容類 task（<code>langgraph-jiaoguangzong</code>、<code>langgraph-jingtu</code>、<code>langgraph-fahua</code>）在候選簇中的分布特性是否與技術類 task 有系統性差異——留待下輪按 task_family 切片分析。</li>
+</ul>
+<p>---</p>
+<h2>參考來源</h2>
+<ol>
+<li><code>context/insight-briefings/2026-07-26-instinct-learning-engine-mechanism-stage.md</code>（前次 mechanism 草案）</li>
+<li><code>context/insight-briefings/2026-07-24-instinct-learning-engine-optimization-stage.md</code>（23 組候選基準、25.1%/27.3% MISSING 基準）</li>
+<li><code>hooks/post_tool_logger.py:639</code>（P0 AGENT_NAME fallback 實作）</li>
+<li><code>run-todoist-agent-team.ps1:995-1024</code>（<code>Start-PlannerExecutorJob</code>、<code>AGENT_NAME="langgraph-$key"</code> 殘留）</li>
+<li><code>tools/workflows/langgraph_task_runner.py</code>（<code>workflow_engine: "planner_executor"</code> 內部路由確認）</li>
+<li><code>docs/adr/</code>（ADR-20260529-052，LangGraph StateGraph 退役決議，見 CLAUDE.md 2026-05-30 條目）</li>
+<li>Liao et al., <em>When Does Belief-Based Agent Memory Help? Reliability-Conditional Updating and Provenance-Capped Poisoning Defense</em>, arXiv:2606.22030v2（2026）</li>
+<li>本輪實測：<code>logs/structured/2026-07-15~08-14.jsonl(.bak)</code>（17 天可讀樣本，30290 筆事件）</li>
+<li><code>context/research-series.json</code>（instinct-behavior-learning-ddp-digest-memory 系列，completion_pct 85%）</li>
+</ol>
+<p>---</p>
+<h2>附錄：快取遙測（KB 語義快取 7 日）</h2>
+<p>來源：<code>uv run python -m tools.kb_semantic_cache stats --days 7</code>（2026-08-14 執行）</p>
+<p>| 指標 | 值 |</p>
+<p>|------|-----|</p>
+<p>| lookup / store / http_fallback / degraded（7d） | 0 / 0 / 0 / 0 |</p>
+<p>| fastembed_available | false |</p>
+<p>| cache entry_count | 0 |</p>
+<p>| degraded_ratio | null |</p>
+<p>KB 匯入前查詢走 <code>kb_hybrid_cached</code>（見步驟 7）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
