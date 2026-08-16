@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GitHub Scout: Agent 架構（RequestInfoEvent／awakeable 冪等信號） - 2026-08-16">
+  <title>GitHub Scout: Agent 架構（RequestInfoEvent／awakeable 冪等信號） - 2026-08-16 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>GitHub Scout: Agent 架構（RequestInfoEvent／awakeable 冪等信號） - 2026-08-16</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">靈感蒐集</span><span class="tag">系統改進</span><span class="tag">Agent 架構</span><span class="tag">HITL</span><span class="tag">idempotency</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>GitHub Scout：Agent 架構主題（LRU 最久未觸及 18 天，距 07-29）</h1>
+<h2>專案觀測摘要</h2>
+<ul>
+<li><strong>microsoft/agent-framework</strong>（12830★，pushed 2026-08-15，+233/11天）：graph-based workflow orchestration（sequential/concurrent/handoff/group patterns），Python+.NET。state_strategy：checkpointing + streaming + thread/session 持久化。human_review_model：interrupt-point 細粒度化——executor 送訊息至 RequestPort → 觸發 <code>RequestInfoEvent</code>（自訂 payload 或工具核准專用 <code>ToolApprovalRequestContent</code>）→ workflow 暫停直到 <code>SendResponseAsync</code> 回應。既有觀測之 <code>approval_mode</code> 為整體旗標，<code>RequestInfoEvent</code> 為單一工具呼叫級細顆粒度機制，兩者並存互補。</li>
+<li><strong>restatedev/restate</strong>（4303★，pushed 2026-08-14，+21/4天）：durable execution 基礎設施（非 agent 框架本體）。state_strategy：invocation journal 重放，崩潰後從已完成步驟繼續。human_review_model：signal-based <code>awakeable</code>——workflow 暫停等待某 ID 被 resolve，該唯一 ID 即冪等去重鍵，防止同一核准重複送達造成 double-resume。</li>
+</ul>
+<h2>改進提案</h2>
+<ol>
+<li><strong>P2（medium effort）</strong>：評估是否需支援單一工具呼叫級（而非整個變更提案級）人工核准暫停（RequestInfoEvent 啟發），若需要須設計對應 idempotency key 與 anti_stall_policy 整合方式。backlog_github_scout_20260816_190847039670。</li>
+</ol>
+<h2>審查結論</h2>
+<p><strong>核心發現（驗證性研究，非新缺口）</strong>：業界 durable execution 平台（Temporal signal ID／Inngest match／Restate awakeable ID）對 HITL 核准訊號普遍要求顯式冪等去重鍵。對照本系統 <code>config/autonomous-harness.yaml</code>：<code>execution_contracts.idempotency.key_fields</code>（trace_id/task_key/operation_name/attempt，L162-164）已涵蓋 4 類受管操作冪等去重；<code>human_review_gates.anti_stall_policy.authorization_matrix</code>（L191-195）依 risk_tier 設 max_wait_minutes + default_decision，屬 bounded_wait 形態的 signal-based HITL，與業界模式同構。驗證既有設計方向正確。</p>
+<p>次要發現：RequestInfoEvent/ToolApprovalRequestContent 之工具呼叫級核准粒度細於本系統現行 proposal 級，因涉及 harness 核心決策路徑，列 P2 backlog 待人工評估，非本輪立即行動。</p>
+<h2>已落實項目</h2>
+<ol>
+<li><code>docs/github-scout-agent-comparables.md</code> 新增 <code>agent_architecture_comparables（2026-08-16 REST 觀測）</code> 章節</li>
+<li><code>config/github-scout-review-policy.yaml</code>：<code>topic_overrides.agent_architecture.notes</code> 補充本輪觀測（v3.0.34→3.0.35）</li>
+</ol>
+<h2>待人工審核項目</h2>
+<ul>
+<li>backlog_github_scout_20260816_190847039670（P2，工具呼叫級細粒度核准評估，是否有實際需求待確認，目前無已知痛點案例佐證）</li>
+</ul>
+<h2>Evidence</h2>
+<p>REST 觀測（api.github.com/repos/{owner}/{repo}）2 案皆命中；WebSearch 3 次（declarative/time-travel checkpoint、RequestInfoEvent HITL、durable execution HITL idempotency）。GitHub 觀測與 Phase2 task_execution.used_fallback／fallback_kind 無自動因果關聯（見 config/schemas/results-auto-task-schema.json 之 task_execution 定義）。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
