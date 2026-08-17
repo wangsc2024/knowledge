@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 週審報告 - 2026-W33">
+  <title>系統 Log 週審報告 - 2026-W33 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 週審報告 - 2026-W33</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span><span class="tag">週審</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 週審報告 - 2026-W33</h1>
+<p>生成時間：2026-08-18T05:13+08:00｜審查窗：近 7 天（2026-08-12 至 2026-08-18）｜事件數 11414</p>
+<h2>趨勢（逐字引用機械 trend.summary_zh）</h2>
+<p>最近一日 2026-08-17 的 phase_failure 為 10，低於前一日 2026-08-16（37），短期趨勢為改善。相較窗內高峰 2026-08-16（37 次）已回落。窗內 phase_failure 中位數為 11.5；最近一日相對中位數為「低於」中位數。</p>
+<p>| 日期 | phase_failure |</p>
+<p>|------|------|</p>
+<p>| 2026-08-12 | 13 |</p>
+<p>| 2026-08-13 | 12 |</p>
+<p>| 2026-08-14 | 6 |</p>
+<p>| 2026-08-15 | 11 |</p>
+<p>| 2026-08-16 | 37 |</p>
+<p>| 2026-08-17 | 10 |</p>
+<h2>發現</h2>
+<h3>🟠 中優先：loop_tool_hash critical anomaly 根因確認（已入隊 backlog_log_audit_20260818_051340119536, P2）</h3>
+<p>機械 anomalies 報告本週窗內 1 筆 critical：session <code>b234b7e9-50e</code>（<code>Read</code>，input_hash <code>ab7379252222074b</code>）連續呼叫 39 次，標記日期為偵測執行日 2026-08-18（非事件實際發生日，屬機械欄位語意）。深查以 Grep+Read logs/structured 還原：實際發生於 <strong>2026-08-13T06:41:34~06:41:59</strong>，task_key <code>ai_deep_research</code>（agent <code>langgraph-ai_deep_research</code>，trace_id <code>12026af5c327</code>），對 <code>state/research-v3/ai_deep_research-20260813T063053/phase0_candidates.json</code>（158021 bytes，逾 io_guard 8000 字元門檻）以相同 offset/limit 於 25 秒內連續 Read 39 次未推進，疑證據評分迴圈未推進讀取位置。任務最終 status=success（duration_p50 1705s），非阻斷性；7 日窗內僅此一例、未再復發。已寫入 backlog（P2, arch_evolution）供人工檢視該研究流程的證據去重/分頁邏輯。</p>
+<h3>🟡 已知追蹤中：log_audit 自身近 7 日成功率 33%（1/3）</h3>
+<p>task_journal 顯示 log_audit 本身 3 次執行中 1 次真正 success、2 次遭 per-job timeout 個別強停（2026-08-11、2026-08-17 皆為 FailSafePlaceholder），另 1 次（2026-08-12）因 KB import 缺 X-API-Key 造成 401 partial（該修法已於 preamble 補上 <code>X-API-Key</code> header，本次週審驗證此路徑已可正常寫入）。此 timeout 模式已由既有 backlog <code>backlog_task_journal_20260812_200727666054</code>（pending）追蹤，本次不重複寫入，僅補驗證結論。</p>
+<h3>🟢 正常</h3>
+<ul>
+<li>fingerprint / metadata / duration_stats / timeout_hierarchy / buddhist_quality / issue_triage 等 9 個機械 step 全數 ok</li>
+<li>timeout_margin 本期 tasks_observed=0（無超時佔比異常）</li>
+<li>langchain_v2_slo 狀態 PENDING_DATA（樣本數 0，非異常，僅資料不足）</li>
+</ul>
+<h2>責任邊界</h2>
+<p>本次無需直改 logs 層檔案（無 log 格式/hook 規則問題）；根因屬應用層（研究流程證據讀取迴圈），已依規範走 backlog 而非直接修改。</p>
+<h2>資料來源護欄</h2>
+<p>本報告「觀察／趨勢分析」段完整逐字引用機械 <code>trend.summary_zh</code>，未另行改寫或推論相反趨勢。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
