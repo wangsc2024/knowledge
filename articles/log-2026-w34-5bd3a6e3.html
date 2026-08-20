@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="系統 Log 週審報告 - 2026-W34">
+  <title>系統 Log 週審報告 - 2026-W34 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>系統 Log 週審報告 - 2026-W34</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">系統審查</span><span class="tag">log分析</span><span class="tag">優化</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>系統 Log 週審報告 2026-08-20（第 34 週）</h1>
+<h2>摘要</h2>
+<p>本次週審依機械管線產物判讀，anomalies 2 筆（critical 1、warning 1），journal 新增 unsuccessful 1 筆（log_audit 自身），trend 短期惡化但相對窗內中位數偏低。深查 2 個目標後判定：1 筆為 7 天前單次歷史事件（即將滾出窗口），1 筆為合法高工具量任務非迴圈缺陷；均不需 logs 層直接修復。</p>
+<h2>🔴 嚴重（critical）</h2>
+<ul>
+<li><strong>loop_tool_hash</strong>：session <code>b234b7e9-50e</code>（2026-08-13，task_key=langgraph-ai_deep_research，phase2-auto）同一 (Read, input_hash=ab7379252222074b) 連續呼叫 39 次（標準值 30）。Grep <code>logs/structured/2026-08-13.jsonl</code> 還原現場：對象為 <code>templates/shared/preamble.md</code>（output_len 24555/次），已帶 <code>io-guard-warn</code> tag。session 當時 total_calls=123、status=healthy、errors=0（session-summary.jsonl 第 22 行），為單次已結束的歷史事件，非目前仍在進行的迴圈；7 天觀察窗將於明日（08-21）滾出，不再計入下次快照。<strong>結論：已核實為真實但過期事件，不需 logs 層修復，不新增 backlog。</strong></li>
+</ul>
+<h2>🟠 中優先（warning）</h2>
+<ul>
+<li><strong>excessive_turns</strong>：session <code>3a12d064-ee8</code>（2026-08-20，auto-insight_briefing，phase2-auto）166 次工具呼叫（標準 100），耗時 24.3 分鐘。Grep 呼叫序列顯示 Read/Write/Glob/Grep 多元工具交錯（非同一工具重複打同一輸入的迴圈特徵），session status=healthy、errors=0。對照 <code>task-journal-summary.json</code>：insight_briefing 近 7 天 3/3 成功（success_rate=1.0），duration_p50=920s／p90=1497s，本次 24.3 分鐘落於此區間內。<strong>結論：已核實為合法高工具量研究任務，非迴圈缺陷，不需修復。</strong></li>
+</ul>
+<h2>Journal unsuccessful 複核</h2>
+<ul>
+<li><strong>log_audit 自身</strong>：1 筆 unsuccessful（2026-08-17T05:18:19，run_trace_id=860783666048，per-job timeout 個別強停）。機械管線 task_journal review 本輪 candidates=3、backlogged=3，已依 dedup_key <code>task_journal:log_audit:phase_failure</code> 入隊，本次僅補驗證結論，未重複寫入 backlog。</li>
+</ul>
+<h2>觀察／趨勢分析（逐字引用管線 trend.summary_zh，不得改寫）</h2>
+<blockquote>最近一日 2026-08-20 的 phase_failure 為 4，高於前一日 2026-08-19（1），短期趨勢為惡化，不得描述為「改善中」。相較窗內高峰 2026-08-16（37 次）已回落。窗內 phase_failure 中位數為 6；最近一日相對中位數為「低於」中位數。</blockquote>
+<p>| 日期 | phase_failure |</p>
+<p>|------|---------------|</p>
+<p>| 2026-08-14 | 6 |</p>
+<p>| 2026-08-15 | 11 |</p>
+<p>| 2026-08-16 | 37 |</p>
+<p>| 2026-08-17 | 10 |</p>
+<p>| 2026-08-18 | 3 |</p>
+<p>| 2026-08-19 | 1 |</p>
+<p>| 2026-08-20 | 4 |</p>
+<p>log ERROR 次數與 phase_failure 分屬不同資料源（本報告未另行 grep 全量 ERROR，已由機械管線獨佔）。</p>
+<h2>責任邊界複核</h2>
+<p>本次 2 個深查目標均未觸及需 backlog 的系統核心配置變更；無 logs 層直接修復動作。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
