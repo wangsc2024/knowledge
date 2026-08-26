@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Ox Alpha 開源多模態模型部署與效能測試">
+  <title>Ox Alpha 開源多模態模型部署與效能測試 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Ox Alpha 開源多模態模型部署與效能測試</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">youtube</span><span class="tag">AI</span><span class="tag">深度洞察</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Ox Alpha 開源多模態模型部署與效能測試</h1>
+<h2>摘要</h2>
+<p>Ox Alpha 是 2026 年 8 月 20 日左右匿名上架 OpenRouter 的隱身（stealth）模型，主打免費、百萬 token 上下文與文字／圖片／影片多模態輸入，短時間內引爆開發者社群與中文自媒體討論熱潮。技術指紋顯示它極可能是智譜 GLM 家族的多模態版本，但身份未經官方證實；宣稱勝過 Claude Fable 5 的跑分樣本數過小，僅能當訊號。實務部署上宜把握免費期做能力探索，避免將正式生產資料交付一個身分與條款仍不透明的服務。</p>
+<h2>背景與現況</h2>
+<p>Ox Alpha 於 2026 年 8 月 20 日前後悄悄上架 OpenRouter，模型識別碼為 <code>stealth/ox-alpha</code>，未有任何公司出面認領（[G3][G5]）。OpenRouter 官方明確表示自己僅是路由平台，不是 Ox Alpha 的開發者、擁有者或服務提供者（[G5]）。隔日 OpenCode 在 X 上宣布將免費開放一週，強調 1M 上下文、多模態輸入與近乎無上限用量，並稱平台備有每日 100 兆（100T）Token 的容量（[G3][G5]）。截至 2026 年 8 月 23 日，OpenCode 自家使用量頁面顯示 Ox Alpha 已躍居過去一週使用量第三名，累積約 11T Tokens、15.7 萬名使用者與 327 萬個完成 Session（[G5]）——作者同時提醒，這只是熱度指標，不能直接證明模型能力排名（[G5]）。</p>
+<p>討論延燒的另一條線是官方獨立參考頁 oxalpha.io 與 ox-alpha.net 的出現，兩者互相印證同一份 OpenRouter 規格metadata（1,048,576 token 上下文、131,072 token 最大輸出、文字／圖片／影片輸入、僅文字輸出）（[G2][G4]）。與此同時，中文內容創作者也迅速跟進：零度解說的 YouTube 教學影片以「免費無限用、百萬上下文、支援多模態」為賣點導流至其部落格與會員服務，內容多屬導購與聯盟連結，技術細節有限，但反映出話題已擴散至中文自媒體圈（[G1]）。動區動趨（BlockTempo）與 aiposthub 則提供了較完整的技術脈絡分析，包括身份推測與跑分爭議（[G3][G5]）。</p>
+<h2>機制與技術分析</h2>
+<p><strong>規格與介面</strong>：Ox Alpha 對外規格為約 1M（精確為 1,048,576）token 上下文、最大輸出 128K（131,072）token，輸入支援文字、圖片、影片，輸出僅文字；API 採 OpenAI 相容的 Chat Completions 格式，以 Provider API Key 作為 Bearer Token 驗證，並支援 <code>reasoning.enabled</code>、工具定義與 tool choice 等推理與工具呼叫參數（[G2][G4]）。結構化輸出方面可產生 JSON，但不強制符合 JSON Schema，應用端仍須自行驗證欄位（[G5]）。目前定價為 0（預覽期免費），但官方頁面明確提醒此為「現況」而非長期承諾，部署前應向服務端核實可用性、路由與計費（[G2][G4][G5]）。</p>
+<p><strong>身份指紋</strong>：社群普遍猜測 Ox Alpha 出自智譜（Zhipu）GLM 家族，證據強度分層明確。最弱的一層是直接詢問模型「你是誰」，因為回答受 System Prompt 與訓練資料影響，不具說服力（[G5]）。較有力的證據來自服務層錯誤訊息：有使用者攔截到 Java 類別名稱 <code>com.wd.paas.api.domain.v4.chat.ChatCompletionRequest</code>，錯誤回應為 <code>{"code":"1214","message":"Incorrect role information"}</code>，與智譜自家託管 GLM 模型的錯誤格式一致；但同一份權重換到 DeepInfra 託管後格式卻不同，顯示這條線索指向的是「誰在背後跑伺服器」而非單純的模型血緣，研究者 Chetaslua 據此將營運方為智譜的信心值標到 0.98（[G3]）。另一項獨立佐證來自開源工具 modelprint 的 tokenizer 指紋比對：在與 12 個候選模型的比較中，Ox Alpha 與 GLM-5.3 有 9 項指紋中的 6 項相符、4 項正規化 tokenizer 測試全數相符，GLM-4.7 Flash 僅 5/9，其餘模型差距更大（[G5]）。兩條獨立證據鏈（服務端錯誤格式、tokenizer 指紋）方向一致，是目前最接近「可驗證」層級的身份線索，但作者群普遍強調：相同指紋只能證明「可能共享 tokenizer 或服務基礎設施」，不能直接證明是同一版本模型（[G3][G5]）。</p>
+<p><strong>效能宣稱與其局限</strong>：討論熱度的另一個引爆點，是開發者 Ben Davis 用 DeepSWE 測試子集（僅 10 題）跑出 Ox Alpha 80%、Claude Fable 5 65%、GPT-5.6 Sol 52% 的成績（[G3]），獨立網站 oxalpha.com 的測試也顯示 8/10（80%）的解題率（[G5]）。但社群自訂的判準是「樣本數低於 50 題只能當訊號，不能當結論」，10 題測試每答對或答錯一題就能拉動約 10 個百分點的分數波動（[G3]）。若 GLM-5.3 多模態版本的猜測成立，其官方榜合理實力區間約為 69%，與 Claude Fable 5 的 70% 幾乎持平，遠不如上述子集測試所呈現的懸殊差距（[G3]）。這說明目前流傳的「贏過 Claude Fable 5」敘事，主要是小樣本測試放大後的結果，而非可重現的正式評測結論。</p>
+<h2>應用與實務啟示</h2>
+<p>在部署路徑上，OpenRouter 是最直接的接入方式：於 OpenRouter 帳號建立 API Key，模型 ID 填入 <code>stealth/ox-alpha</code>（輸入輸出定價皆為 0），Base URL 設為 <code>https://openrouter.ai/api/v1</code>、端點 <code>/chat/completions</code>，即可用 <code>curl</code> 或將 OpenAI SDK 的 <code>base_url</code> 換掉直接串接（[G3]）。對已使用 OpenCode 終端工作流的開發者，則有對應的免寫程式設定路線（[G3]）。</p>
+<p>就應用場景而言，官方定位鎖定三類工作：程式開發（生成、重構、除錯、測試、解說，並保留周邊上下文）、Agentic 工作（拆解長任務、協調工具、彙整狀態）、生產場景（文件分析、上線規劃、風險評估）（[G2]）。長上下文的實務價值在於讓一次請求能同時容納 bug 報告、服務邊界、遷移紀錄、測試套件、設定檔與多版本 API 契約，使模型理解「變更為何存在」而非只看片段程式碼（[G2]）。但這也帶來一個常見誤解：把整個 Repo 丟進去不代表模型會自動理解完整架構，龐大輸入反而可能夾帶更多無關檔案、過期文件與互相矛盾的規格，長上下文提高的是處理大型專案的上限，不能取代清楚的任務範圍界定與自動化測試（[G5]）。</p>
+<p>風險面上，由於開發商與服務條款仍不透明，不建議在此階段把公司私有 Repo、客戶資料或軟體存取金鑰交給 Ox Alpha 處理；較務實的做法是利用免費期以公開程式碼或可驗證的測試題觀察其能力邊界，並在每次影響正式決策的測試上記錄日期，因為定價與可用性隨時可能變動（[G5][G2][G4]）。</p>
+<h2>觀點與趨勢判讀</h2>
+<p>Ox Alpha 延續的是 OpenRouter 上「匿名動物代號」試水溫的成熟套路——此前 Pony、Hunter、Elephant、Owl Alpha 最終分別被指認為智譜、小米、螞蟻集團與美團，全數來自中國陣營（[G3]）。這個脈絡本身就構成一種先驗判斷基礎：社群一看到新的動物代號模型，第一反應便是套用同一套「身份指紋比對」方法論去猜測廠商，而非等待官方公告。我認為這種「先用後驗身份」的節奏，正在成為中國大型模型廠商測試市場反應、累積使用數據的標準打法，免費開放期本質上是一種低成本的用戶獲取與壓力測試，而非長期承諾——三份技術參考頁不約而同強調「目前免費」而非「永久免費」，正是這個判斷的旁證（[G2][G4][G5]）。</p>
+<p>在身份問題上，證據鏈的分層閱讀很關�RR：模型自述最不可信，服務端錯誤格式與 tokenizer 指紋這類「基礎設施層」證據才具參考價值，而即便兩者方向一致，也只能支持「高度疑似 GLM 家族、營運方疑似智譜」，不足以坐實為特定版本（如 GLM-5.3 或 GLM-5.5 的多模態版）（[G3][G5]）。至於效能爭議，我認為社群對「贏過 Claude Fable 5」的傳播熱度，與測試本身的統計效力存在明顯落差——連提出測試的社群自己都承認 10 題樣本只能當訊號，若對照 GLM 官方榜推算的合理實力區間，Ox Alpha 更可能只是與 Claude Fable 5 打平，而非全面超越（[G3]）。因此對開發者的實務建議是：可以積極把握免費期做長上下文與多模態工作流的可行性驗證，但在身份未證實、條款不透明、跑分樣本過小三個前提下，應將其定位為「值得觀察的實驗性選項」，而非可直接替代現有正式生產模型的方案。</p>
+<h2>來源</h2>
+<ul>
+<li>[G1] YouTube｜免费无限用，百万上下文、支持多模态，安装实测教程来了！|零度解说 — https://www.youtube.com/watch?v=yhhyFO6hSTs</li>
+<li>[G2] Ox Alpha - Free AI Model for Coding & Agentic Work — https://oxalpha.io/</li>
+<li>[G3] 免費爽用 Ox Alpha 教學：神秘模型寫程式媲美 Claude Fable 5，身份疑是智譜 GLM｜BlockTempo — https://www.blocktempo.com/ox-alpha-free-million-context-model-openrouter-opencode-setup-guide/</li>
+<li>[G4] OX Alpha Model: Specs, Access and Live Status | OX Alpha — https://ox-alpha.net/</li>
+<li>[G5] Ox Alpha 是什麼？1M Context、GLM 線索與風險 - aiposthub.com — https://www.aiposthub.com/ox-alpha-mystery-ai-model-1m-context-glm/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
