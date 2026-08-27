@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜tobi/walgit">
+  <title>偵察｜tobi/walgit | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜tobi/walgit</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>偵察提案：tobi/walgit</h1>
+<h2>專案是什麼</h2>
+<p>walgit 是 Shopify CEO Tobias Lütke 於 2026-08-24 公開的開源 git server，Rust 撰寫、MIT 授權，剛登上 HN 首頁。核心設計：單一 binary 架在 S3/GCS 相容物件儲存之前，無資料庫、無 leader node、無本地狀態，提交採 WAL（write-ahead log）+ CAS（compare-and-swap）語意。提供 smart HTTP v0/v2 git 協定、LFS、瀏覽 Web UI、JSON API/SDK、per-repository push policy 與 webhooks。專案僅公開約 2 天，生產成熟度待查證。</p>
+<h2>對本系統的借鑑點</h2>
+<ul>
+<li><strong>時機直接對應</strong>：commit dc5edde 剛為 kb-site-publish 補上「git push 連線類失敗退避重試」（know-f push 事故）。walgit 的 WAL+CAS 提交模型示範的是「先寫 WAL、CAS 成功才算數」的冪等保證，而非單純失敗後重打。值得對照 kb-site-publish 目前的退避重試邏輯，檢查是否存在半推送/重複推送的邊界情況（待查證：現有 retry 是否已有等效冪等鍵）。</li>
+<li><strong>push policy 對應插件路由模式</strong>：walgit 的 per-repository push policy + webhooks（誰能推、推哪個分支）可對應「每插件一個進出口」的插件路由模式，作為收斂 kb-site-publish 推送權限的設計參考。</li>
+<li><strong>零依賴部署模型作為長期備援選項</strong>：單一 binary、無 DB、無 leader 的架構，若未來想降低外部 git host 的連線類故障（CI 帳單停擺期間曾外溢影響本機驗證）對 know-f push 的衝擊，walgit 可作為自架內部 git remote 的候選，但目前成熟度未知，不宜近期依賴。</li>
+</ul>
+<h2>建議行動</h2>
+<p><strong>低風險（可先做）</strong>：純閱讀 walgit 的 GOAL.md 設計文件，對照 kb-site-publish 現有退避重試程式碼，確認是否已具備冪等保護；不涉及任何程式異動。</p>
+<p><strong>需人工決策</strong>：是否要實際自架 walgit 作為 kb-site-publish 的 git remote 備援。此舉牽涉基礎設施變更與新增自架服務的維運負擔，且專案僅公開 2 天、尚無生產案例佐證穩定性，建議暫列觀察項目，待其穩定度與社群回饋累積後再評估。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
