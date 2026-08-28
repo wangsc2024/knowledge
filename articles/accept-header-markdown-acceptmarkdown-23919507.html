@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜Accept-Header Markdown 內容協商（acceptmarkdown.com / Cloudflare・Vercel Markdown-for…">
+  <title>偵察｜Accept-Header Markdown 內容協商（acceptmarkdown.com / Cloudflare・Vercel Markdown-for… | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜Accept-Header Markdown 內容協商（acceptmarkdown.com / Cloudflare・Vercel Markdown-for…</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>偵察提案：Accept-Header Markdown 內容協商（acceptmarkdown.com / Cloudflare・Vercel Markdown-for-Agents 模式）</h1>
+<h2>專案是什麼</h2>
+<p>這是一種 HTTP 內容協商模式：當請求帶 <code>Accept: text/markdown</code>（而非 <code>text/html</code>）時，伺服器回傳去除導覽列、CSS、JS 的純 Markdown 內容，瀏覽者仍拿到完整網頁。機制本身是舊技術（Accept 標頭協商自早期 HTTP 標準即存在），但被重新用於 AI Agent 場景。成熟度已達生產級：Cloudflare、Vercel 已上線此功能，Bun 官方文件改用此法供 Claude Code 讀取，實測 token 用量降低約 10 倍、payload 最高減 99%；acceptmarkdown.com 並提供 Nginx／WordPress／Laravel／Next.js 等平台的設定範例（查證來源：HN 討論串、acceptmarkdown.com、Ben Word 部落格）。</p>
+<h2>對本系統的借鑑點</h2>
+<ul>
+<li>個人知識庫 API（localhost:3000）：<code>knowledge-query</code> skill 目前以 PowerShell <code>Invoke-RestMethod</code> 取回筆記，格式含 Tiptap JSON 結構。可在筆記查詢端點加一個 Accept 分支——收到 <code>Accept: text/markdown</code> 時，將 Tiptap JSON 轉純 Markdown 字串輸出，取代整包 JSON schema，降低 LLM 端解析與 token 成本。</li>
+<li><code>code-assistant</code> skill 共用同一 API base，同一改動可一併受益，無需重複開發。</li>
+<li><code>kb-site-publish</code>（已入倉的知識庫發布插件）產出的靜態頁面，未來也可考慮雙格式輸出：人看 HTML、agent 抓 Markdown，路徑與現有筆記查詢邏輯一致。</li>
+</ul>
+<h2>建議行動</h2>
+<ul>
+<li>低風險：在 KB 單筆筆記端點新增 Accept 判斷分支，只新增不改動既有 HTML/JSON 回應路徑。</li>
+<li>低風險：更新 <code>knowledge-query</code>／<code>code-assistant</code> 的 SKILL.md，呼叫時帶 <code>-Headers @{Accept='text/markdown'}</code>，實測 token 節省幅度後再決定是否全面切換。</li>
+<li>需人工決策：<code>kb-site-publish</code> 靜態發布站是否也做雙格式協商——取決於部署環境（如靜態代管平台）能否依 Accept 標頭分流，需先確認可行性。</li>
+<li>待查證：KB 系統目前是否已有 Tiptap→Markdown 轉換邏輯可重用，或需另行實作轉換器。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

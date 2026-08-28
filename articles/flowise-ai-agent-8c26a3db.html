@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Flowise 可視化 AI Agent 的多模態輸入整合優化">
+  <title>Flowise 可視化 AI Agent 的多模態輸入整合優化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Flowise 可視化 AI Agent 的多模態輸入整合優化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">工作流</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Flowise 可視化 AI Agent 的多模態輸入整合優化</h1>
+<h2>摘要</h2>
+<p>Flowise 是開源視覺化 AI Agent 開發平台，透過 Assistant、Chatflow、Agentflow 三種建構器與模組化「integrations」節點體系，支援知識檢索、多代理協作與流程編排[G4][G1]。其資料擷取層可串接逾百種來源，並原生支援多種文件格式輸入[G4][G5]。然而現有公開文件對圖像、音訊等嚴格定義下的多模態輸入著墨有限。更關鍵的是，官方網站已公告「sunsetting Flowise」，其文件庫 GitHub repo 也於近期被封存為唯讀[G5][G3]，任何優化討論都應置於專案收斂而非擴張的脈絡下理解。</p>
+<h2>背景與現況</h2>
+<p>Flowise 官方定位為「開源生成式 AI 開發平台」，主打視覺化建構 AI Agent 與 LLM 工作流，核心能力涵蓋視覺化編輯器、追蹤與分析、評估、Human in the Loop、API/CLI/SDK 與嵌入式聊天機器人、團隊與工作區管理[G4]。平台提供三種建構層級：Assistant 是最適合新手的入門方式，可遵循指令、視需要呼叫工具，並從上傳檔案中檢索知識庫（RAG）；Chatflow 用於建構單一代理系統與聊天機器人，支援 Graph RAG、Reranker、Retriever 等進階技巧；Agentflow 則是 Chatflow 與 Assistant 的超集合，可用於建構聊天助理、單代理系統、多代理系統與複雜工作流編排[G4]。</p>
+<p>在多代理架構方面，Flowise 採用「Supervisor（監督者）＋ Worker AI Team（工作代理團隊）」的階層式循序工作流：使用者提出請求後，Supervisor 負責分析請求、拆解為子任務、指派給專責的 Worker 代理執行，再彙整結果回傳給使用者[G2]。此架構刻意設下兩項營運限制：一次僅處理一項任務（Supervisor 等待當前 Worker 完成才推進下一步），以及一個流程僅能有一位 Supervisor，藉此維持流程的可預測性與簡潔性[G2]。這套機制在 Agentflow V2 中進一步演進，官方文件描述其涵蓋核心概念、應用場景、Flow State 與完整節點參考[G3]，顯示平台仍持續在架構層面深化，但該文件庫本身的存續狀態值得留意（詳見下節）。</p>
+<p>值得特別提出的是，Flowise 官網首頁目前顯示「We're sunsetting Flowise. Learn more」的公告[G5]，而其獨立文件倉庫 FlowiseDocs 在 GitHub 上也已被擁有者於近期封存（archived）並轉為唯讀狀態[G3]。這兩則訊息相互印證，指向 Flowise 專案正走向收斂或終止維運的階段，是解讀後續一切「優化」討論時不可忽略的背景事實。</p>
+<h2>機制與技術分析</h2>
+<p>Flowise 的核心設計哲學是將所有功能單元抽象為「integrations」節點，官方文件以樂高積木比喻：使用者透過拖放與連接不同節點，組裝出客製化的 LLM 編排流程、聊天機器人或代理[G1]。節點體系分為三大群組：其一是 LangChain 生態系節點，涵蓋 Agents、Cache、Chains、Chat Models、Document Loaders、Embeddings、LLMs、Memory、Moderation、Output Parsers、Prompts、Record Managers、Retrievers、Text Splitters、Tools、Vector Stores；其二是 LlamaIndex 生態系節點，包含 Agents、Chat Models、Embeddings、Engine、Response Synthesizer、Tools、Vector Stores；其三是通用 Utilities，如 Custom JS Function、Set/Get Variable、If Else、Sticky Note，以及外部整合如 Zapier Zaps[G1]。</p>
+<p>從輸入處理的角度檢視，這套節點體系實質上構成了 Flowise 處理「輸入多樣性」的技術骨幹：Document Loaders 負責將外部資料（檔案、網頁等）載入系統，Text Splitters 進行切塊，Embeddings 節點轉換為向量表示，再交由 Vector Stores 儲存以供 Retrievers 檢索——這是一條典型的 RAG（Retrieval-Augmented Generation）管線[G1]。在應用層，Assistant 建構器明確支援「從上傳檔案中檢索知識庫」的能力[G4]，而 Flowise 官網首頁進一步列出 Chat Assistants 所支援的檔案格式：TXT、PDF、RTF、DOC、HTML、CSS、JS、JSON、XML、CSV、MD、SQL[G5]。這代表 Flowise 目前公開揭露的「輸入整合優化」重心，落在<strong>多種文字／文件格式的統一擷取與索引</strong>，而非影像或音訊等感知層級的多模態輸入——在提供的材料範圍內，並未見到針對圖像辨識、語音轉文字等節點或功能的具體描述[G1][G4][G5]。</p>
+<p>在資料擷取的廣度上，官方能力表列出「Data Ingestion & Integration：連接 100+ 來源、工具、向量資料庫、記憶體」，以及「Data Processing：資料轉換、篩選、彙總、自訂程式碼、RAG 索引管線」[G4]，顯示平台在整合外部系統的廣度上具一定野心，但表列本身並未逐一列舉具體的影像／音訊處理節點名稱，僅能視為潛在擴充空間。可視化互動流程的另一項重要支撐是 Observability（可觀測性）：執行追蹤（execution traces）支援 Prometheus、OpenTelemetry 等標準工具[G5]，官方文件亦提及「Monitoring：執行日誌、視覺化除錯、外部日誌串流」[G4]。這對於除錯多輸入來源交織的複雜流程（例如同一流程需同時處理文件檢索與外部工具呼叫）具有實務價值，因為開發者能透過視覺化追蹤定位是哪一個節點、哪一種輸入類型導致流程異常。</p>
+<p>API 存取方面，官方範例展示以 REST 端點 <code>/api/v1/prediction/:id</code> 搭配 JSON payload 呼叫預測服務的典型模式[G5]，顯示對外互動介面目前仍以文字型請求／回應為主要範式，並輔以 JS/Python SDK 與嵌入式聊天元件供開發者整合進既有應用[G4][G5]。整體而言，Flowise 的技術路線更貼近「以節點化 RAG 與多代理編排取勝的文字中心平台」，「可視化」優勢主要體現在流程可組裝性與可觀測性，而非感知輸入模態的原生豐富度。</p>
+<h2>應用與實務啟示</h2>
+<p>對於正在建構個人知識系統或代理式開發流程的實務工作者而言，Flowise 的節點化架構提供幾點可直接借鑒的設計啟示。第一，將 Document Loaders、Text Splitters、Embeddings、Vector Stores 拆分為獨立可替換節點的做法，本質上是一種「輸入管線化」思維——把不同來源（檔案、API、資料庫）的異質輸入，收斂到統一的向量化中介層再交由下游代理消費[G1][G4]，這種分層設計即便不使用 Flowise 本身，也值得在自建的 Agent 系統中複用。第二，Supervisor／Worker 多代理模式將「單一任務只交給一個專責 Worker」的原則制度化[G2]，對於需要處理多種輸入類型（例如同時涉及文件解析與外部工具呼叫）的系統設計具有參考價值：與其讓單一代理承擔全部職責，不如依專長拆分並由監督者統一調度與彙整結果。</p>
+<p>第三，Flowise 支援的 Human in the Loop（HITL）機制，允許人工在代理執行任務的過程中介入審核[G4][G5]，這對任何涉及多來源輸入、結果不確定性較高的自動化流程而言，是降低誤判風險的實務手段，尤其適合套用在輸入來源複雜、品質參差的場景。第四，平台同時提供自架（self-hosted）與地端氣隙部署（air-gapped deploy）選項，並強調 RBAC、SSO、加密憑證等安全控制[G4]，顯示其設計目標包含資料敏感場景——這對於評估是否採用類似架構處理內部文件或機密資料的團隊，是重要的部署面考量。</p>
+<p>然而必須誠實指出：由於現有材料並未提供 Flowise 在影像、音訊輸入處理上的具體節點或案例證據，若團隊的實際需求是「文字＋圖像＋語音」的嚴格多模態互動（例如語音助理搭配畫面辨識），現階段不宜假設 Flowise 原生就緒，而應另行查證其節點庫是否已擴充相關能力，或評估是否需要外接第三方模型（如語音轉文字、視覺模型）再透過 Custom JS Function 節點橋接[G1]。</p>
+<h2>觀點與趨勢判讀</h2>
+<p>本次研究材料呈現一項值得特別點出的落差：研究主題設定聚焦「文本、圖像、音頻」的多模態整合，但可徵引的一手材料中，Flowise 官方文件與官網對「多模態」的具體著墨，實際上集中在<strong>多種文件格式的統一擷取</strong>（TXT、PDF、DOC、CSV 等）與 RAG 管線[G1][G4][G5]，而非影像辨識或語音處理層級的原生模態支援。這並非材料蒐集不全，而更可能反映 Flowise 當前公開文件本身尚未把影像／音訊輸入作為主打敘事——判讀時應將「多格式文件整合」與「感知層級多模態」視為兩個不同層次的能力，不宜混為一談。</p>
+<p>更值得重視的判讀點，是 Flowise 官網明確標示「We're sunsetting Flowise」，且其獨立文件倉庫已於近期被封存為唯讀狀態[G5][G3]。這兩項事實相互印證，指向專案已進入維運收斂階段。對照 Flowise 過去所展示的「Iterate, fast」定位與豐富的商業案例引用（如 UneeQ、QmicQatar iFleet 等客戶見證）[G5]，可以判斷 Flowise 在其生命週期中確實建立了具代表性的視覺化多代理編排範式——尤其是 Supervisor／Worker 階層架構與節點化 RAG 管線的設計思路[G1][G2]——但作為一個持續投入資源擴充多模態能力的「現役平台」，其前景已不明朗。</p>
+<p>因此，對於考慮採用或參考 Flowise 的團隊，較務實的立場是：把 Flowise 的架構視為<strong>已驗證的設計範式庫</strong>（節點化管線、多代理監督機制、視覺化可觀測性）來學習與移植，而非視為值得長期投資、持續等待官方擴充影像／音訊能力的「進行式產品」。若團隊的核心需求正是多模態輸入整合，在缺乏 Flowise 官方明確路線圖的情況下，應將評估重心轉向其他仍在積極開發、且已明確支援視覺／語音節點的替代平台，同時保留 Flowise 在多代理編排與 RAG 管線設計上的思路作為架構參考。</p>
+<h2>來源</h2>
+<ul>
+<li>[G1] Integrations - FlowiseAI — https://docs.flowiseai.com/integrations</li>
+<li>[G2] Multi-Agents - FlowiseAI — https://docs.flowiseai.com/using-flowise/agentflowv1/multi-agents</li>
+<li>[G3] FlowiseDocs/en/using-flowise/agentflowv2.md at main - GitHub — https://github.com/FlowiseAI/FlowiseDocs/blob/main/en/using-flowise/agentflowv2.md</li>
+<li>[G4] Introduction | FlowiseAI — https://docs.flowiseai.com/</li>
+<li>[G5] Flowise - Build AI Agents, Visually — https://flowiseai.com/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
