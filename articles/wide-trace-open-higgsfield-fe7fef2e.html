@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜wide-trace/open-higgsfield">
+  <title>偵察｜wide-trace/open-higgsfield | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜wide-trace/open-higgsfield</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>偵察提案：wide-trace/open-higgsfield</h1>
+<h2>專案是什麼</h2>
+<p>開源版 Higgsfield AI 影像／影片生成工作室，單一 prompt bar 驅動 40 個模型（12 影像 + 28 影片，如 Nano Banana、Kling 3、Veo 3.1、Flux 等）。核心機制是「每個模型自行宣告設定 allow-list」（長寬比、解析度、時長、輸出格式、音訊、批次量、prompt enhancement），studio 只依該模型宣告的欄位動態渲染設定面板，不用單一固定表單套所有模型。專案本身是瀏覽器內執行、免 Node.js 部署，成熟度屬新專案（README 描述為 MVP 級 catalog 整合，具體驗證機制待查證）。</p>
+<h2>對本系統的借鑑點</h2>
+<p>已核實 <code>examples/plugins/llm-router/index.mjs</code> 與其共用的 <code>examples/plugins/llm-common.mjs</code>：目前 <code>PROVIDERS</code>（llm-common.mjs:9-33）是<strong>單一同構 schema</strong>——所有供應商都是 OpenAI 相容 chat/completions，欄位固定為 <code>envPrefix/base/suggestedModel/supportsJsonMode/appendV1/requiresKey/defaultModel</code>，<code>llm-router</code> 的 <code>CAPABILITY_BY_PROVIDER</code> 也只是名稱→capability id 的扁平映射（index.mjs:6-14）。這套設計吃得下「文字對話」這種高度同構的介面，但完全沒有處理「每個供應商參數形狀互異」的情境。</p>
+<p>open-higgsfield 的「per-model allow-list、由呼叫端據此動態渲染/驗證」機制，正好補上這個缺口：</p>
+<ul>
+<li>若未來要新增影像／影片生成類 provider 插件（目前 <code>specs/</code> 下無此類插件，<code>art-design-plugin</code> 只做設計代幣、不做媒體生成），可比照此模式讓每個 provider 在 <code>plugin.json</code> 的 <code>capabilities.<cap>.input</code> 內宣告自己的參數 allow-list（現有 <code>plugin.json</code> 的 <code>input.required</code> 目前只列必填欄位陣列，未涵蓋「允許哪些選填旋鈕」），路由層據此過濾/校驗輸入，而非假設所有 provider 共用同一組欄位。</li>
+<li>這與 llm-router 現有「explicit provider 不備援、chain 依序嘗試」的設計哲學相容——allow-list 只是加一層「參數形狀校驗」，不需更動 fallback 邏輯本身。</li>
+</ul>
+<h2>建議行動</h2>
+<p><strong>低風險，可先做</strong>：在 <code>specs/llm-provider-plugins/</code> 補一段研究筆記，記錄「若未來新增非文字生成 provider（影像/影片/語音），plugin.json 的 capability schema 需要從『必填欄位陣列』擴充為『per-capability 參數 allow-list』」，作為架構備忘，不動現有程式碼。</p>
+<p><strong>需人工決策</strong>：是否要真的新增影像/影片生成插件（目前系統無此需求信號，屬全新能力範疇，非現有插件的重構）；若要做，才需要決定 allow-list 校驗要放在路由層（仿 llm-router）還是各 provider 插件自行校驗。在無明確需求前不建議動工，僅留存架構參考。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
