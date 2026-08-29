@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Flowise 可視化工作流的多智能體協作機制">
+  <title>Flowise 可視化工作流的多智能體協作機制 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Flowise 可視化工作流的多智能體協作機制</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">工作流</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Flowise 可視化工作流的多智能體協作機制</h1>
+<h2>摘要</h2>
+<p>Flowise 是開源視覺化 AI Agent 建構平台，以拖拉節點方式支援多智能體協作，經歷 Agentflow V1（Multi-Agents，Supervisor-Worker 階層架構，現已標示為 Deprecating）到 Agentflow V2（原生節點式編排，支援迴圈、條件分支、人機協作）的世代躍遷。技術持續演進的同時，官方已在首頁宣布產品逐步淘汰，形成技術迭代與產品退場並存的矛盾局面。</p>
+<h2>背景與現況</h2>
+<p>Flowise 定位為「開源代理系統開發平台」，訴求從簡單組合式工作流到自主代理系統皆可透過視覺化畫布建構，並提供 <code>npm install -g flowise</code> 等輕量化上手方式 [G5]。其多智能體能力目前分兩代並存：文件將舊版多智能體機制歸於「Agentflow V1（Deprecating）」分類下的 Multi-Agents 頁面 [G1]（GitHub 鏡像版本內容一致 [G4]），而新一代 Agentflow V2 則被官方定位為「架構上的重大演進」，是目前主推且持續更新的方案 [G2]。實務層面，DeepWiki 對 <code>ai-on-gke/tutorials-and-examples</code> 專案的分析顯示，Flowise Agent Flows 已被實際部署於 GKE 環境，用 JSON 格式定義節點與連線，支撐條件式路由、狀態管理與多 LLM 供應商整合的程式碼審查工作流，並搭配 PostgreSQL 做資料持久化、Ollama 做本地推理 [G3]，說明其應用已超出示範階段、進入基礎設施整合層次。</p>
+<h2>機制與技術分析</h2>
+<p><strong>V1：Supervisor-Worker 階層式循序架構。</strong> Flowise 將多智能體系統類比為「一群領域專家協作完成複雜專案」，架構中包含三個角色：User 作為請求起點；Supervisor AI 作為總協調者，負責分析使用者請求、拆解為子任務、指派給對應的 Worker、彙總結果並回傳；Worker AI Team 則是各自依 prompt 指令專責單一任務的獨立代理，可視需要呼叫工具並將結果回傳 Supervisor [G1][G4]。此架構設有兩項明確約束以維持簡潔與可控性：其一是「一次一任務」——Supervisor 必須等待當前 Worker 完成並回傳結果才會分派下一步，避免流程複雜化失控；其二是「一個 flow 僅能有一個 Supervisor」[G1]。這種設計以犧牲並行度換取流程可預測性，適合任務邊界清楚、彼此依賴度高的場景。</p>
+<p><strong>V2：從依賴外部框架轉向原生節點編排。</strong> 官方文件明確指出，V1 的核心代理圖邏輯「主要依賴外部框架」，而 V2 則將重心轉移到以一組細粒度、原生開發的獨立節點來設計整個工作流 [G2]。在 V2 架構下，每個節點是獨立運作單元，畫布上的視覺連線明確定義了工作流的路徑與控制順序，資料可透過引用先前任一已執行節點的輸出在節點間傳遞，並由「Flow State」機制統一管理與共享跨流程資料。V2 更實作了完整的節點依賴與執行佇列系統，在維持元件間清晰分離的同時精確遵循已定義的路徑，使迴圈、條件分支、人機協作（human-in-the-loop）等複雜模式得以實現，讓工作流兼具精細度與可維護性、可擴展性 [G2]。</p>
+<p><strong>代理間通訊（agent-to-agent communication）是 V2 的核心差異化訴求。</strong> 文件特別以此回應「Flowise 與 n8n、Make、Zapier 等自動化平台有何不同」的常見提問：V2 支援多模態的代理間通訊，Supervisor agent 可制定並委派任務給多個 Worker agent，Worker 的輸出再回傳給 Supervisor；且在每一步驟，所有代理都能存取完整的對話歷史，讓 Supervisor 據此決定下一任務、Worker 據此理解任務內容、挑選合適工具並執行動作 [G2]。這代表 V2 並非單純的流程自動化引擎，而是在流程編排之上疊加了具備上下文記憶與語意理解能力的協作層。</p>
+<p><strong>生產化配套能力。</strong> 官方產品頁列出圍繞多智能體編排的完整配套：Chatflow 用於單一代理／聊天助理與 RAG 檢索；HITL 允許人類在回饋迴圈中審查代理任務；Observability 提供完整執行追蹤，並支援 Prometheus、OpenTelemetry 等可觀測性工具；開發者可透過 API、SDK（TypeScript、Python）與嵌入式元件整合進既有應用；企業級部署支援 100+ LLM／向量資料庫、雲端與地端混合部署，並可透過訊息佇列與 worker 水平擴展 [G5]。GKE 案例也印證了這套配套並非空談——實際部署確實結合了外部資料庫與本地推理服務 [G3]。</p>
+<h2>應用與實務啟示</h2>
+<p>對個人或小型團隊而言，V1 的 Supervisor-Worker 模式提供了一個心智負擔較低的入門路徑：不需手寫代理圖程式碼，即可用視覺化方式定義「總協調者＋專業執行者」的分工，適合任務可清楚拆解、依序執行的場景（如資料蒐集→摘要→格式化的線性流水線）。但其「一次一任務、單一 Supervisor」的約束也意味著無法用它處理真正需要並行協作或多主管協調的複雜案例。</p>
+<p>對於需要條件分支、迴圈重試、或人工審核關卡的場景（例如 GKE 案例中的程式碼審查工作流 [G3]），V2 的節點依賴圖與執行佇列架構更為合適——開發者可以將"何時需要人工介入"、"何種條件觸發哪個子代理"等邏輯直接畫在流程圖上，並藉由 Flow State 在節點間傳遞上下文，而不必額外編寫狀態管理程式碼。</p>
+<p>在維運面，Observability 與 HITL 的組合對正式環境尤其關�025鍵：執行追蹤搭配 Prometheus/OpenTelemetry 可讓團隊掌握每次代理決策的完整鏈路，便於除錯與稽核；HITL 則是高風險應用（如涉及程式碼合併、財務決策）的必要安全閥。對已採用 LangChain 生態或正在評估 n8n 等自動化平台的團隊，V2 訴求的「代理間帶完整對話歷史的語意協作」是其相對於純流程自動化工具的差異化價值主張，值得作為選型時的比較基準 [G2]。</p>
+<h2>觀點與趨勢判讀</h2>
+<p>最值得警示的訊號並非技術本身，而是產品的存續狀態：Flowise 官方首頁明確寫著「We're sunsetting Flowise」[G5]，同時文件將 V1 標示為 Deprecating、V2 列為現行主推架構 [G1][G2]。這呈現出一個矛盾態勢——架構仍在持續演進（從依賴外部框架的 V1，到原生節點引擎、代理間語意通訊的 V2），但產品本身卻已進入淘汰倒數。對正在評估導入的團隊而言，這是比架構優劣更優先的風險判斷點：即便 V2 的節點依賴圖與執行佇列設計在技術上具吸引力，中長期的維護與社群支持仍存在不確定性。</p>
+<p>其次，材料並未具體點名 V1 底層所依賴的外部框架名稱（例如題目切入角度提及的 CrewAI 或 LangGraph），僅籠統稱為「external frameworks」[G2]。因此無法從現有材料確認 Flowise 與 CrewAI／LangGraph 之間的具體整合方式或技術淵源，只能推論：V2 捨棄外部框架、轉向原生節點與執行佇列的設計方向，本質上是為了擺脫對此類外部代理框架的依賴，換取更細緻的可視化控制權與更低的框架耦合度。這是一個值得後續材料補強的空白點。</p>
+<p>第三，官方主動將自身與 n8n、Make、Zapier 等自動化平台做區隔，強調「代理間通訊＋完整對話歷史」是差異化核心 [G2]。這說明 Flowise 團隊清楚意識到視覺化工作流賽道正被通用自動化平台入侵，而其護城河的論述聚焦在「語意層的代理協作」而非單純的節點連線能力。然而 GKE 實務案例顯示，真正落地的生產系統仍需自行外接 PostgreSQL、Ollama 等基礎設施 [G3]，代表 Flowise 節點本身並非全包式方案，其"護城河"能否延伸到基礎設施整合層仍待更多案例驗證。綜合三點，Flowise 的多智能體機制在設計理念上具備一定先進性，但在採用決策上，產品生命週期的不確定性應被列為與技術評估同等重要的考量。</p>
+<h2>來源</h2>
+<ul>
+<li>[G1] Multi-Agents - FlowiseAI — https://docs.flowiseai.com/using-flowise/agentflowv1/multi-agents</li>
+<li>[G2] Agentflow V2 | FlowiseAI — https://docs.flowiseai.com/using-flowise/agentflowv2</li>
+<li>[G3] Flowise Agent Flows | ai-on-gke/tutorials-and-examples | DeepWiki — https://deepwiki.com/ai-on-gke/tutorials-and-examples/5.2-flowise-agent-flows</li>
+<li>[G4] Flowise/using-flowise/agentflows/multi-agents.md at main - GitHub — https://github.com/chrisloux99/Flowise/blob/main/using-flowise/agentflows/multi-agents.md</li>
+<li>[G5] Flowise - Build AI Agents, Visually — https://flowiseai.com/?via=aiplustools（另有獨立印證來源：https://flowiseai.com/）</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
