@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜sapientinc/PRAXIST">
+  <title>偵察｜sapientinc/PRAXIST | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜sapientinc/PRAXIST</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>偵察提案：sapientinc/PRAXIST</h1>
+<h2>專案是什麼</h2>
+<p>PRAXIST 是一套自主研究協調系統，定位為「跑在已可運行專案之上的持續研究迴圈」，非通用 agent 框架。核心機制：平行研究代理同時探索多個競爭假說；候選改進以三段式持久證據通道保存狀態（孵化器／前沿／寶石）；所有候選方案套用同一評估器做多度量、帕累托最優排序；且要求運行前先登記度量與評估協定（預先登記），避免事後調整標準。文件明確劃分責任邊界——PRAXIST 只管研究協調、生命週期、證據協定、重放與排程，任務目標與評估器由使用者專案提供。成熟度：README 層級說明完整，但缺乏正式工作流程圖與協定規格，細節待查證原始碼。</p>
+<h2>對本系統的借鑑點</h2>
+<p><strong>1. 分階段證據鏈 → <code>scripts/plugin-quality-report.mjs</code> 的 plugin-metabolism 分級</strong></p>
+<p>已讀取原始碼確認：<code>gradePlugin()</code>（第76–104行）與 <code>buildReport()</code>（第154–202行）每次執行都是<strong>單次快照</strong>——依 <code>state/resources.json</code> 現況與當下掃描結果算出 A/B/C/R 分級，<code>history</code> 只彙整 <code>todoist-team</code> 任務層級的 run 次數與耗時（<code>summarizeHistory</code>，第107–122行），並未保存跨週期的分級演進或候選改進的「血統」。PRAXIST 的孵化器／前沿／寶石三段式持久證據通道可借鑑：讓插件進退場判定改為累積連續多輪證據而非單一快照分數，降低單次瑕疵誤判退場的風險。</p>
+<p><strong>2. 平行競爭假說探索 → todoist-team 候選集選擇的序列式陷阱</strong></p>
+<p>既往記憶（<code>cordis-podcast-fixed-universe-history-trap</code>）顯示，固定候選集配合歷史 dedup 容易永久鎖死來源。目前作法是單線嘗試＋事後黑名單排除。PRAXIST 的「平行代理探索競爭假說＋同一評估器一致評分」模式可借鑑：改用多個並行 Agent 產生不同候選查詢策略，再套用既有一致標準（如 <code>gradePlugin</code> 式的確定性評分邏輯）篩選最優解，取代現行序列嘗試+黑名單模式。</p>
+<h2>建議行動</h2>
+<p><strong>低風險，可先做：</strong></p>
+<ul>
+<li>在 <code>plugin-quality-report.mjs</code> 的 <code>buildReport()</code> 輸出中新增「歷史分級序列」欄位（沿用現有 <code>history</code> 機制的模式，另存 <code>state/plugin-grade-history.jsonl</code>），不改動現行分級邏輯本身，純觀察用，驗證分階段證據是否真能減少誤判退場案例。</li>
+</ul>
+<p><strong>需人工決策：</strong></p>
+<ul>
+<li>是否將 plugin-metabolism 的進退場判定規則從「單次快照達標即動作」改為「連續 N 輪達標才動作」——這牽動 <code>specs/plugin-metabolism/spec.md</code> 既有 R8 規格，需走變更流程（<code>變更:提案</code>）而非直接改碼。</li>
+<li>是否要在 todoist-team 導入「並行候選＋統一評估器」取代現行序列嘗試，需評估平行 Agent 呼叫的成本與既有 daily_limit 配額規則（<code>cordis-task-status-quota-rule</code>）是否相容，避免並行探索本身撞上配額上限。</li>
+</ul>
+<p><strong>待查證：</strong> PRAXIST 的證據協定與重放機制具體實作（如孵化器/前沿/寶石狀態轉換條件）未在 README 說明，仍需讀取原始碼或完整文件才能定案技術細節。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
