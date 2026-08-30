@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜XiaoDuoYa/codex-with-chatgpt">
+  <title>偵察｜XiaoDuoYa/codex-with-chatgpt | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜XiaoDuoYa/codex-with-chatgpt</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>偵察提案：XiaoDuoYa/codex-with-chatgpt</h1>
+<h2>專案是什麼</h2>
+<p>專案讓 ChatGPT 網頁版（既有訂閱額度）負責規劃，Codex CLI 只負責執行，藉此把「規劃/審閱」耗用的 token 從付費 API 移到閒置的網頁配額。核心是一個唯讀 MCP bridge：loopback-only HTTP、OAuth 2.1+PKCE、5 分鐘 TTL 的一次性配對碼，只暴露 8 個唯讀工具（inspect/list/read/search/git status·diff/test status/exec summary）；控制面則用 <code>[C2C]</code> 結構化狀態訊息走 INIT→PLAN→EXECUTED→REVIEW→DONE，不夾帶檔案內容本體，細節靠 MCP 拉取。Skill 安裝到 <code>~/.codex/skills/</code>，屬個人剛發布專案，實際採用規模待查證。</p>
+<h2>對本系統的借鑑點</h2>
+<ol>
+<li><strong>讀寫分權子集缺口</strong>：實讀 <code>examples/plugins/workflow-composer/allowlist.mjs</code> 確認，目前 <code>buildWorkflowAllowlist()</code> 只做 authority 黑名單（denies <code>commander.<em></code>／<code>resource.lifecycle.</em></code>），其餘能力全數放行給 <code>llm-codex/agent-server.mjs</code> 的 <code>codex.agent_loop</code>。對照該專案把外部規劃者限定在唯讀工具集的做法，可為「規劃階段」新增一個只放行 <code><em>.list</code>／<code></em>.read</code>／<code>*.status</code> 後綴的子集，執行階段才解鎖寫入，降低低信任規劃者誤觸寫入的風險面。</li>
+<li><strong>摘要式狀態協定</strong>：實讀 <code>examples/plugins/llm-router/index.mjs</code> 確認其 <code>attempts[]</code> 已是「只記 provider/status/duration 摘要、不夾帶 payload」的思路。C2C 的 PLAN/REVIEW 狀態語彙可搬到 <code>allowlist.mjs</code> 註解提及的「<code>commander.</code> 人工核准閘」上，讓 todoist-team 自動任務等待核准時有標準狀態可查，而非現有單純 pending/skipped/failed。</li>
+</ol>
+<h2>建議行動</h2>
+<p><strong>低風險</strong>：在 <code>allowlist.mjs</code> 旁新增 <code>buildReadOnlyAllowlist()</code>（僅過濾 capability id 符合唯讀後綴），不動既有函式，先寫測試驗證過濾邏輯，不涉及 CLI/OAuth。</p>
+<p><strong>需人工決策</strong>：是否真的引入外部 ChatGPT 網頁規劃者——這牽涉 OAuth 2.1＋Cloudflare Tunnel 的對外曝露面，會改變 Cordis 目前「全走 CLI/API provider」的信任模型，需權衡省 token 與新增攻擊面的取捨。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
