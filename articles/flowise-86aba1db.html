@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Flowise 多智能體工作流的動態資源分配優化">
+  <title>Flowise 多智能體工作流的動態資源分配優化 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Flowise 多智能體工作流的動態資源分配優化</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">工作流</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <h1>Flowise 多智能體工作流的動態資源分配優化</h1>
+<h2>摘要</h2>
+<p>Flowise 的多智能體架構歷經 V1（Supervisor-Worker 序列式）與 V2（節點依賴執行佇列）兩代演進[G1][G3]，但官方文件並未提供原生的「動態資源分配」引擎；資源調度實際發生在基礎設施層的水平擴展[G4]，或需由開發者在應用層自行以事件驅動路由與約束式比對實作，如 GitHub 上的人力調度案例所示[G2]。值得注意的是，Flowise 官方已宣布產品進入 sunset 階段[G4]，這對任何長期優化投入都是必須正視的前提。</p>
+<h2>背景與現況</h2>
+<p>Flowise 定位為「visually build AI agents」的開源平台，早期以 LangChain.js 為核心，聚焦 LLM 應用原型與對話式代理的快速組裝[G4][G5]。其多智能體能力最初以 Agentflow V1 呈現：一個 Supervisor 節點作為協調者，將使用者請求拆解為子任務，依序指派給專責的 Worker Agent 執行，再彙整結果回覆使用者[G1]。隨著需求複雜化，Flowise 推出 Agentflow V2，將工作流從「依賴外部框架的代理圖邏輯」轉向「由原生獨立節點組成、明確定義執行路徑」的架構，並引入節點依賴與執行佇列系統，支援迴圈、條件分支與人機協作（HITL）[G3]。與 n8n 的定位比較顯示，Flowise 的核心假設仍是「AI chain 為工作的基本單位」，而 n8n 則以「AI 作為業務流程中的功能性節點」為核心，強調與資料庫、CRM 等外部系統的深度整合與生產級穩定性[G5]。這個定位差異，直接決定了 Flowise 在資源調度上能做到什麼、做不到什麼。</p>
+<h2>機制與技術分析</h2>
+<p>本節是理解「動態資源分配」在 Flowise 中實際落地方式的關鍵。</p>
+<p><strong>V1 的序列化約束是效能瓶頸的根源。</strong> 官方文件明確列出兩項操作限制：其一，Supervisor 一次只能專注一項任務，必須等待當前 Worker 完成並回傳結果後才會分析下一步、指派後續任務；其二，一個工作流僅能有一個 Supervisor[G1]。這代表 V1 架構在設計上就是「刻意犧牲並行效率以換取簡潔與可控性」，任何試圖在 V1 上做動態資源分配（例如讓多個 Worker 同時搶佔算力、依負載動態調整並行度）都與其架構假設相衝突。</p>
+<p><strong>V2 的節點依賴執行佇列，是邁向資源優化的實質進展。</strong> V2 以「節點依賴（node-dependency）與執行佇列（execution queue）系統」取代 V1 的線性主從關係，精確遵循畫布上定義的連線路徑，同時維持節點間的清晰分離，使複雜模式（迴圈、條件分支、人機協作）得以實現[G3]。更關鍵的是 Flow State 機制：資料可透過引用當前流程中任何已執行節點的輸出而在節點間傳遞，Flow State 提供了跨工作流管理與共享資料的顯式手段[G3]。這意味著 V2 的「資源」概念已從 V1 的「任務序列」延伸為「可被查詢、共享的執行狀態」，為條件式路由、按需喚醒特定 Agent 提供了技術基礎——但這仍是「開發者手動設計的路由邏輯」，而非系統自動感知負載後的動態調度。</p>
+<p><strong>Agent 對 Agent 的通訊模型影響資源消耗效率。</strong> V2 支援多模態的代理間通訊：一個 Supervisor Agent 可制定任務並委派給多個 Worker Agent，Worker 輸出再回傳給 Supervisor；每一步驟中，所有 Agent 都能存取完整的對話歷史，讓 Supervisor 判斷下一步、Worker 解讀任務並選擇合適工具執行[G3]。這種「全歷史可見」的設計雖有利於協作準確性，但也隱含 token 與運算資源隨對話輪次線性增長的代價——這是動態資源分配需要正視的隱性成本，官方文件對此未提供任何裁剪或摘要機制的說明。</p>
+<p><strong>基礎設施層的水平擴展，才是官方認可的「資源分配」手段。</strong> Flowise 官網明確指出企業級部署可「透過訊息佇列與 Worker 進行水平擴展（scale horizontally with message queue and workers）」，並支援 Prometheus、OpenTelemetry 等可觀測性工具取得完整執行追蹤[G4]。換言之，Flowise 官方對「資源分配優化」的答案並非工作流引擎內部的智能調度，而是傳統的訊息佇列＋多 Worker 水平擴展模式，搭配外部監控系統回饋執行瓶頸。</p>
+<p><strong>應用層的約束式資源匹配，是目前最貼近「動態資源分配」語意的實作案例。</strong> GitHub 上的 Workforce Allocation Multi-Agent Workflow 展示了 7 個專責 Agent 組成的事件驅動路由系統，具備記憶能力與「約束式資源匹配（constraint-based resource matching）」，持續監控員工可用性與專案需求，自動產生人力配置建議[G2]。雖然這是業務資源（人力）分配而非運算資源分配，但其「事件驅動路由＋約束比對」的設計模式，正是在 Flowise 缺乏原生調度器的情況下，開發者用以實現「動態」分配邏輯的典型手法，值得借鏡到運算資源場景。</p>
+<h2>應用與實務啟示</h2>
+<p>對於實際建置多智能體工作流的團隊，可從上述機制分析導出幾項具體作法：</p>
+<ol>
+<li><strong>優先採用 V2 而非 V1。</strong> V1 的序列化限制在多任務並行場景下必然造成延遲累積，V2 的節點依賴執行佇列才具備條件分支與部分並行能力的基礎[G1][G3]。</li>
+<li><strong>善用 Flow State 減少重複運算。</strong> 透過引用既有節點輸出而非重新請求 Agent 生成，可降低不必要的 LLM 呼叫次數，是最直接可控的「資源」節省手段[G3]。</li>
+<li><strong>將水平擴展與可觀測性綁定設計。</strong> 部署階段即規劃訊息佇列與多 Worker 架構，並串接 Prometheus/OpenTelemetry 追蹤執行瓶頸，才能在流量尖峰時做到近似「動態」的資源回應[G4]。</li>
+<li><strong>借鏡約束式路由模式處理任務分派。</strong> 參考人力調度案例的事件驅動＋約束比對設計，將「哪個 Worker Agent 該處理哪類任務」的邏輯顯式化、規則化，而非依賴 Supervisor 的隱式判斷，可提升穩定性與可預測性[G2]。</li>
+<li><strong>審慎評估是否需要更重的工作流引擎。</strong> 若團隊需求已超出「LLM chain 為核心」的範疇，轉而需要與資料庫、CRM 等外部系統做生產級、高可靠度的整合，n8n 的架構定位可能更適配[G5]。</li>
+</ol>
+<h2>觀點與趨勢判讀</h2>
+<p>綜合材料，我判斷「Flowise 多智能體的動態資源分配」目前更接近一個尚未被官方填補的空白，而非成熟功能。V1 的架構哲學明確是「簡單優先於效率」[G1]，V2 雖然引入執行佇列與 Flow State，讓資源感知的路由設計成為可能，但這仍是「開發者手工設計的靜態規則」，並非系統運行時自動偵測負載、動態重新分配算力的智能調度[G3]。真正被官方稱為「資源分配」手段的，其實是傳統雲原生模式的訊息佇列水平擴展[G4]，這與工作流引擎本身的智慧程度無關，屬於基礎設施層的常規做法。而 GitHub 上的約束式人力調度案例[G2]雖然名為「資源分配」，實質是業務邏輯層的應用案例，其「事件驅動＋約束比對」模式雖可遷移到運算資源場景，但需要開發者自行改造，並非開箱即用。</p>
+<p>最需要提出的判讀是：Flowise 官網已明確標示「We're sunsetting Flowise」[G4]，這是評估任何深度優化投入前必須納入的關鍵變數。若一個平台即將停止維護，團隊在其上投入心力打造精細的動態資源分配層，其長期回報將大打折扣；相對地，n8n 被材料定位為「生產級、複雜操作」導向的替代方案，且強調「不受供應商鎖定（vendor lock-in）」的長期部署考量[G5]，這使其成為需要穩定資源調度能力團隊的更合理選項。因此，對於仍在評估技術路線的團隊，建議的策略判斷是：短期原型與對話式 Agent 驗證可持續使用 Flowise V2 搭配訊息佇列擴展與約束式路由設計；但若目標是長期、生產級的多智能體資源調度系統，應將遷移至 n8n 或其他仍在積極維護的框架納入路線圖，而非在一個已宣告 sunset 的平台上持續加碼優化。</p>
+<h2>來源</h2>
+<ul>
+<li>[G1] Multi-Agents - FlowiseAI — https://docs.flowiseai.com/using-flowise/agentflowv1/multi-agents</li>
+<li>[G2] Workforce Allocation Multi-Agent Workflow - GitHub — https://github.com/snedea/flowise-workforce-allocation-clean（另有印證：https://github.com/chrisloux99/Flowise/blob/main/using-flowise/agentflows/multi-agents.md）</li>
+<li>[G3] Agentflow V2 | FlowiseAI — https://docs.flowiseai.com/using-flowise/agentflowv2</li>
+<li>[G4] Flowise - Build AI Agents, Visually — https://flowiseai.com/</li>
+<li>[G5] n8n versus Flowise: Features, AI Agents, and Integrations — https://n8n.io/vs/flowise/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
