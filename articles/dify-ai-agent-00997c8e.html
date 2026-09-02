@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dify 低代碼 AI Agent 的多模態輸入整合機制">
+  <title>Dify 低代碼 AI Agent 的多模態輸入整合機制 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>Dify 低代碼 AI Agent 的多模態輸入整合機制</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">工作流</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#dify-低代碼-ai-agent-的多模態輸入整合機制">Dify 低代碼 AI Agent 的多模態輸入整合機制</a></li>
+<li class="toc-level-2"><a href="#摘要">摘要</a></li>
+<li class="toc-level-2"><a href="#背景與現況">背景與現況</a></li>
+<li class="toc-level-2"><a href="#機制與技術分析">機制與技術分析</a></li>
+<li class="toc-level-2"><a href="#應用與實務啟示">應用與實務啟示</a></li>
+<li class="toc-level-2"><a href="#觀點與趨勢判讀">觀點與趨勢判讀</a></li>
+<li class="toc-level-2"><a href="#來源">來源</a></li>
+</ul></nav>
+<h1 id="dify-低代碼-ai-agent-的多模態輸入整合機制">Dify 低代碼 AI Agent 的多模態輸入整合機制</h1>
+<div class="callout callout-summary">
+<h2 id="摘要">摘要</h2>
+<p>Dify 將多模態輸入整合拆分為三層架構：檔案上傳正規化層、結構化知識契約層、模型執行期轉接層。透過外掛工具的檔案 Session 上傳介面、LLM 節點的統一模型執行期，以及新增的「Multimodal Knowledge Bases」雙結構 Schema，文本、圖像、音訊等資料得以在工作流各節點間以一致格式流通，同時延續既有分塊與檢索邏輯的相容性。</p>
+</div>
+<h2 id="背景與現況">背景與現況</h2>
+<p>Dify 以工作流（Workflow/Chatflow）節點系統為核心，其中 LLM 節點、知識庫檢索節點與外掛工具節點是多模態輸入的主要入口 [G3][G4]。官方文件已將「Multimodal Knowledge Bases」列為知識庫與 RAG 系統下的獨立子系統，與資料來源匯入、分塊清洗、索引設定、檢索節點整合並列，顯示多模態支援已由單點功能演進為知識庫架構的正式一環 [G1]。</p>
+<p>這個演進有跡可循：2024 年 9 月，社群曾在 GitHub Discussion 提出「如何建構多模態 RAG 應用」的問題，當時未獲官方解答，顯示多模態 RAG 最佳實踐在彼時仍是開放課題 [G5]。對照後續「Multimodal Knowledge Bases」文件與「Multimodal Tool」外掛開發指南（本次索引皆為近期版本）已成為正式文件的現況 [G1][G2]，可推斷 Dify 在此期間將此需求收斂為可規格化的平台能力。</p>
+<h2 id="機制與技術分析">機制與技術分析</h2>
+<p><strong>1. 上傳與正規化層</strong>：外掛工具須先呼叫工具 Session 的檔案上傳介面 <code>self._tool.session.file.upload(file_name, file_blob, mime_type)</code>，取得 <code>UploadFileResponse</code>，內含 id、name、size、extension、mime_type，以及依 MIME 前綴自動判斷的 type（IMAGE／VIDEO／AUDIO，其餘歸類 DOCUMENT）與 preview_url [G2]。此設計把儲存細節（CDN、內部路徑）從外掛開發者手中抽離——外掛僅需引用回傳的 preview_url 建構如 <code>!<a href="preview_url">image</a></code> 的 Markdown 參照，後續節點即可以統一方式消費該檔案 [G2]。</p>
+<p><strong>2. 結構化契約層</strong>：知識庫節點支援兩種多模態資料格式——<code>multimodal-Parent-Child</code> 與 <code>multimodal-General</code>，皆有版本化 JSON Schema（如 <code>dify.ai/schemas/v1/multimodal_parent_child_structure.json</code>）明確定義 [G2]。Parent-Child 延續 Dify 既有的父子分塊階層，讓多模態內容可依附特定文字塊的上下文；General 則是扁平、無階層依賴的通用結構，適合外掛單純回傳一張圖片或一段音檔、無需綁定特定段落的情境。這一分法本質上是精準度與整合成本的取捨：階層結構能讓檢索繼承周邊文字語境以提升精準度，但需要外掛與知識庫節點協同維護階層關係；扁平結構犧牲部分上下文精度換取實作簡便。</p>
+<p><strong>3. 模型執行期轉接層</strong>：LLM 節點側由 <code>LLMNode</code> 類別統籌模型呼叫、檔案處理、提示詞管理與回應處理，其檔案處理邏輯由專屬子系統支撐——<code>core/file/file_manager.py</code>、<code>file/models.py</code>、<code>tool_file_parser.py</code>、<code>factories/file_factory.py</code>，以及 MIME 型別常數模組 <code>constants/mimetypes.py</code> [G3]。這些模組與「統一模型執行期架構」（<code>model_runtime/model_providers/__base/large_language_model.py</code>）整合，代表多模態負載的正規化只需集中處理一次，再依各供應商 API 格式分派，毋須在每個工作流節點重複撰寫供應商轉接邏輯 [G3]。使用者面文件進一步說明：LLM 節點可處理文字、圖像與文件輸入，支援結構化輸出與情境管理，且提示詞介面會依模型類型（對話式／補全式）自動切換角色化訊息或純文字接續格式 [G4]。</p>
+<p><strong>4. 參數與情境管理</strong>：模型參數（Temperature、Top P、Frequency/Presence Penalty）與三種預設（精確／平衡／創意）控制生成行為，多模態內容最終仍匯入同一組提示詞管線，因此同樣受這些參數影響 [G4]。針對多節點共用同一模型設定的情境（例如一節點做圖像描述、另一節點基於描述推理的多階段流程），Dify 提供環境變數型模型設定，將供應商、模型與參數集中綁定，任一節點切換為變數模式即可共享並同步更新 [G4]。</p>
+<h2 id="應用與實務啟示">應用與實務啟示</h2>
+<p>外掛開發者若要讓自建 Tool 外掛的多模態輸出被知識庫節點正確嵌入，須同時完成兩件事：程式碼中呼叫工具 Session 上傳介面建構 files 物件，以及在 Provider YAML 宣告 output_schema 為 multimodal-Parent-Child 或 multimodal-General，兩者缺一即無法被辨識 [G2]。這對自建知識管理／RAG 工具鏈有直接參考價值，可依樣套用「上傳→型別偵測→結構宣告」三步驟。</p>
+<p>工作流設計者應注意，多模態能力上限取決於所選模型本身是否具備視覺／音訊理解能力（文件明示 GPT-4、Claude 3.5 處理複雜推理較佳但成本較高，GPT-3.5 Turbo 則偏向性價比）[G4]，設計多模態 Chatflow 時不能假設所有已配置供應商都等效支援多模態。多階段多模態流程建議採環境變數共享模型設定，降低跨節點手動同步模型版本的維運成本 [G4]。若團隊要建構多模態 RAG（如圖文混合知識庫），可直接採用官方 Multimodal Knowledge Bases 結構，而非像 2024 年社群提問當時那樣自行摸索資料結構設計 [G1][G5]。</p>
+<h2 id="觀點與趨勢判讀">觀點與趨勢判讀</h2>
+<p>從材料看，Dify 的多模態整合走「關注點分離」路線：上傳／型別正規化、結構化知識契約、模型執行期轉接三層彼此獨立演進。這種分層讓 Dify 能在不改動 LLM 節點邏輯的前提下擴充新的多模態知識結構，或在不改動知識庫結構的前提下新增模型供應商，是低代碼平台維持「可組合性」的關鍵設計取捨。</p>
+<p>但材料同時暴露評估上的空白：所有來源均未提供多模態處理的效能數據（如嵌入延遲、儲存成本、檢索準確率提升幅度），因此「優化策略」目前只能從架構設計面推論，尚缺乏量化證據佐證其實際效益，這是本報告基於現有材料能給出的判讀上限。</p>
+<p>從 2024 年 9 月社群未解的多模態 RAG 提問 [G5]，到後續正式的雙結構 Schema 與外掛開發指南 [G1][G2] 成形的時間軸看，多模態 RAG 已由「使用者自行摸索」轉為「平台原生能力」，反映低代碼 Agent 平台正把多模態支援視為與文字 RAG 同等重要的基礎設施，而非附加功能。跨模態相關性評分、多模態檢索排序等更深層機制目前公開材料尚未觸及，值得持續追蹤。</p>
+<h2 id="來源">來源</h2>
+<ul>
+<li>[G1] Multimodal Knowledge Bases | langgenius/dify-docs | DeepWiki — https://deepwiki.com/langgenius/dify-docs/8.5-multimodal-knowledge-bases</li>
+<li>[G2] Multimodal Tool - Dify Docs — https://docs.dify.ai/en/develop-plugin/dev-guides-and-walkthroughs/develop-multimodal-data-processing-tool</li>
+<li>[G3] LLM Nodes and Model Integration | hysteam/dify | DeepWiki — https://deepwiki.com/hysteam/dify/5.2-llm-nodes-and-model-integration</li>
+<li>[G4] LLM - Dify Docs — https://docs.dify.ai/en/cloud/use-dify/nodes/llm</li>
+<li>[G5] Best Approach to Build a Multimodal RAG Application? — https://github.com/langgenius/dify/discussions/8004</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
