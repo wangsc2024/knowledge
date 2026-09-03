@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜crmne/fastpotify">
+  <title>偵察｜crmne/fastpotify | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜crmne/fastpotify</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-crmne-fastpotify">偵察提案：crmne/fastpotify</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-crmne-fastpotify">偵察提案：crmne/fastpotify</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>fastpotify 是用 Rust + egui 打造的原生 Spotify 客戶端，以 librespot 做本地播放。其 API 層（src/api/）用 tokio 管理兩種 Web API 會話：預設「共享 App」（公用配額、免設定）與選用「個人 Development App」（獨立配額），各自處理並發與速率限制；音頻、圖片分開快取。屬活躍開發中的桌面工具，非平台服務。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li>Cordis 的 <code>examples/plugins/web/plugin.json</code> 其實已宣告與 fastpotify 同構的兩層配額設計：<code>web.search</code> 預設走 <code>duckduckgo.search</code>（免 key、公用節流），DuckDuckGo 被擋時後備 <code>tavily.search</code>（需 <code>TAVILY_API_KEY</code>、獨立配額）。但這只是宣告——<code>examples/plugins/</code> 下實際查無 tavily 插件，<code>web/index.mjs:149</code> 呼叫 <code>ctx.withCapability('tavily.search', ...)</code> 目前必然失敗，後備路徑從未真正生效。fastpotify 把「共享 session／個人 session」拆成兩組獨立配額狀態，正是這個缺口該長成的形狀。</li>
+<li><code>examples/plugins/web-search-ddg/index.mjs</code> 已有序列化佇列＋8 秒最小間隔＋10 分鐘熔斷（因應 2026-08-25 節流事故），但這組節流狀態是 DDG 專屬的。仿 fastpotify 讓 tavily 的配額/併發自成一組資源池，而非共用 DDG 的 breaker，可避免兩種配額性質不同的後端互相拖累熔斷判斷。</li>
+<li>fastpotify 靠「有無個人憑證」切換配額池，對應 Cordis <code>plugin.json</code> 既有的 <code>readiness.env</code> 欄位慣例（<code>web-search-ddg</code> 已示範「無 key 則不啟用」）。新插件可直接沿用 <code>readiness.env: ["TAVILY_API_KEY"]</code>，不需新機制。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<p>低風險可先做：新增 <code>examples/plugins/tavily-search/</code>（比照 <code>web-search-ddg</code> 的檔案結構），提供 <code>tavily.search</code> capability，掛 <code>readiness.env: ["TAVILY_API_KEY"]</code>，內建獨立的輕量並發/速率限制（不與 DDG 共用 <code>searchChain</code>/breaker 狀態）。這只是把 <code>web/plugin.json</code> 已寫好的介面契約補上實作，範圍明確、不動既有 DDG 路徑。</p>
+<p>需人工決策：是否申請並管理一組 <code>TAVILY_API_KEY</code>（涉及金鑰保管與費用），以及金鑰歸屬層級（team 共用或使用者個人）——這牽涉現行 secrets 管理慣例，需使用者確認後再動工。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
