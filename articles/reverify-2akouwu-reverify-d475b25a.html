@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜reverify（2akouwu/reverify）">
+  <title>偵察｜reverify（2akouwu/reverify） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜reverify（2akouwu/reverify）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-reverify-2akouwu-reverify">偵察提案：reverify（2akouwu/reverify）</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-reverify-2akouwu-reverify">偵察提案：reverify（2akouwu/reverify）</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>AI 讀二進位檔案的反幻覺工具。模型對二進位提出聲明（位元組、指令、字串等），確定性工具逐一比對實際位元組，判定 VERIFIED／REFUTED／INCONCLUSIVE。v0.8.0 起以 <code>.reverify/ledger/<sha256>.json</code> 持久化已驗證與<strong>已駁斥</strong>的事實，防止模型在新的上下文重複同一個已被推翻的假設。786 stars、196 單元測試、19 個系統檔案基準測試 100% 抓出模型幻覺、零誤報，透過 MCP 暴露 <code>re_verify_claim</code>／<code>re_ledger</code> 工具。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ul>
+<li>Cordis 的「查了再叫」（AGENTS.md）只保證「查詢當下正確」：<code>resources get</code> 猜錯 id 會拋錯（<code>src/cli.mjs</code> 第 86 行 <code>Unknown resources subcommand</code>／catalog 查無即拋），但這個錯誤不留痕跡——同一個 agent 換一次 context（子 Agent 重跑、跨 session）很可能重猜同一個錯 id。已核對 <code>src/effect-ledger.mjs</code>：現有 EffectLedger 只記錄外掛生命週期（fiber 狀態、lease），不記錄「此 id 不存在」這類否證事實，兩者不重疊，確非既有能力誤報。</li>
+<li>可借鑑「REFUTED 負面記憶」：<code>resources get</code>/<code>ready</code> 因 id 不存在拋錯時，同步寫入一筆結構化否證紀錄（如 <code>state/resources-refuted.json</code>），下次呼叫前可先查一次再決定要不要重猜。對 todoist-team 這種多子 Agent 並行、各自獨立 context 的場景最有價值。</li>
+</ul>
+<h2 id="建議行動">建議行動</h2>
+<p>低風險：僅在 <code>resources get</code>／<code>ready</code> 的既有錯誤路徑加一筆本地否證紀錄，純檔案寫入、無外部副作用，不動既有查詢/執行流程。</p>
+<p>需人工決策：是否讓 <code>resources match</code> 讀取否證紀錄以降低該 id 候選權重——這會動到 catalog 核心排序邏輯，需審慎評估是否值得為此增加複雜度。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

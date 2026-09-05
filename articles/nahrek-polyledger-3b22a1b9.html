@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜nahrek/polyledger">
+  <title>偵察｜nahrek/polyledger | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜nahrek/polyledger</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-nahrek-polyledger">偵察提案：nahrek/polyledger</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-nahrek-polyledger">偵察提案：nahrek/polyledger</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>一個可續傳（resumable）的 Polymarket 索引器：整合 CLOB API（市場元資料）、Envio HyperSync（Polygon 鏈上事件）與 Gamma API（缺漏代幣回填），落地成單檔案 DuckDB。核心機制是「資料列與 checkpoint 游標同一交易提交」＋以 <code>(transaction_hash, log_index)</code> 為唯一鍵搭配 <code>ON CONFLICT DO NOTHING</code>，使重複執行同區間天然冪等；並用共享 token-bucket 限流（8 RPS、逾時 30s、含 jitter 的指數退避）統一管理多來源 REST 請求。成熟度：具備 V1/V2 雙版本事件解碼與鏈重組防護，屬生產級設計而非原型。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li><strong>去重機制</strong>：本檔（team-scout/index.mjs:72）目前用 <code>prior.find(repoToken 比對 || includes 子字串)</code> 對 <code>proposal.list</code> 拉回的整份陣列線性掃描比對，屬應用層手刻的字串比對，這正是先前 podcast 120 天固定候選集永久鎖死（memory: cordis-podcast-fixed-universe-history-trap）同一類根因——去重規則寫死、無資料層保證。polyledger 的「唯一鍵 + ON CONFLICT DO NOTHING」把去重下沉到儲存層，值得作為 state/team/proposals.json 類歷史檔未來的參考模式。</li>
+<li><strong>整檔讀寫</strong>：proposal-staging/index.mjs:27 用 <code>readJsonOrNull(stateFile())</code> 整檔讀入、記憶體改、經 state-file.mjs 的 <code>withStateFile</code> 原子改寫回。隨歷史累積會趨向 O(n)；polyledger 每 50,000 筆做批次 checkpoint flush 的策略可作為檔案增長後的寫入節流參考。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<ul>
+<li>低風險：先把 team-scout/index.mjs 現有的線性掃描去重抽成獨立、可單元測試的函式，補上迴歸測試，不動儲存引擎，為後續替換鋪路。</li>
+<li>需人工決策：是否引入嵌入式 DB（如 duckdb/better-sqlite3 的 Node 綁定）取代 <code>state/team/*.json</code>。polyledger 本身是 Python 專案，借鑑的是架構模式而非可直接搬移的程式碼；且 Node 原生模組在本機 Windows 環境的預編譯相容性待查證（此機器已知有原生工具鏈不穩定的前例），加上須重新檢視 state-file.mjs 既有的跨行程鎖語意是否要一併調整，影響範圍較大，不建議直接執行，僅列為選項。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜anthropics/commerce-agents">
+  <title>偵察｜anthropics/commerce-agents | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜anthropics/commerce-agents</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-anthropics-commerce-agents">偵察提案：anthropics/commerce-agents</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-anthropics-commerce-agents">偵察提案：anthropics/commerce-agents</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>Anthropic 官方參考實現，示範如何用 Claude 建構「購物代理」與「商家代理」雙代理系統，涵蓋零售、旅遊、電信、娛樂四垂直領域。核心是三條可互換的執行路徑（Messages API／Agent SDK／Managed Agents）共用同一組技能與工具契約，並在工具呼叫層內建護欄（fencing、來源門控、批准門控）。倉庫已凍結維護（單一提交、不接受貢獻），定位是範本而非持續演進框架，1.6k stars、CI/測試齊全，屬生產級參考品質。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li><strong>外部效應缺乏執行期閘門，值得補強</strong>：已核實 <code>src/manifest.mjs:76-79</code> 僅在 manifest 載入時驗證 <code>sideEffects</code> 是否屬於六個列舉值之一（純 schema 檢查），<code>src/cli.mjs</code> 全文搜尋不到任何 <code>sideEffects</code>／<code>confirm</code>／<code>approv</code> 字樣——代表 <code>invoke</code> 執行路徑上沒有任何程式碼層閘門會攔截 <code>external</code> 分類的呼叫。目前「external 一律先確認再執行」完全仰賴 AGENTS.md 的文字約定與呼叫端（模型）自律。commerce-agents 的「merchant approval gate」示範了另一種做法：護欄邏輯內嵌在工具呼叫執行器（executor frame）裡，三條執行路徑都會經過同一段檢查，變更會先產出 <code>StagedChange</code> 再等待批准，而不是把約束放在提示詞或文件裡。可借鑑之處是在 <code>src/cli.mjs</code> 的 <code>invoke</code> 分派點（或 <code>manifest.mjs</code> 之後的執行前置）加一道確定性檢查：讀到 <code>sideEffects === 'external'</code> 就強制回傳待批准狀態，而非直接執行——把現有的人工約定往下沉一層變成程式碼保證。</li>
+</ol>
+<ol>
+<li><strong>技能目錄與 skill 檔的對應關係可作為 backfill 品質的參考基準</strong>：commerce-agents 每個技能目錄下都同時放工具契約與 <code>SKILL.md</code>（如 <code>shopping-agent/skills/search/</code>），兩者版本綁定、缺一即視為技能不完整。這與 <code>examples/plugins/skill-prompt/skills/<id>.md</code> 的 frontmatter 品質要求（<code>description</code>／<code>when</code>／<code>triggers</code> 不可留樣板值，由 <code>test/skill-frontmatter-quality.test.mjs</code> 把關）方向一致，可以考慮的低風險延伸是：新增檢查「skill 檔缺乏對應可執行 capability」或反向「capability 存在但無 skill 說明」的一致性測試，而非現行測試僅檢查 frontmatter 欄位本身內容品質。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<ul>
+<li><strong>低風險可先做</strong>：針對第 1 點，先寫一個會失敗的測試（呼叫一個 <code>sideEffects: external</code> 的 capability，斷言 <code>invoke</code> 回傳待批准狀態而非直接執行結果），驗證目前確實無此閘門（紅燈），作為後續是否要動手補的證據基礎。</li>
+<li><strong>需人工決策</strong>：是否要把「外部效應閘門」做成阻斷式（強制等待人工核可才放行）還是僅記錄告警（沿用現有 <code>effect-journal.mjs</code> 的記錄機制升級用途）——這牽涉到 Cordis 現有「模型自主挑能力」路徑的使用體驗與安全邊界取捨，建議由使用者定調後再進 <code>specs/</code>。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
