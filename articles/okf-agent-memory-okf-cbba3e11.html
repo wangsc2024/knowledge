@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜okf-agent-memory（okf-memory/okf-agent-memory）">
+  <title>偵察｜okf-agent-memory（okf-memory/okf-agent-memory） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜okf-agent-memory（okf-memory/okf-agent-memory）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-okf-agent-memory-okf-memory-okf-agent-memor">偵察提案：okf-agent-memory（okf-memory/okf-agent-memory）</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<p>Good, this confirms the exact schema and gap. Now writing the proposal.</p>
+<h1 id="偵察提案-okf-agent-memory-okf-memory-okf-agent-memor">偵察提案：okf-agent-memory（okf-memory/okf-agent-memory）</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>純 Go 實作的「Git-native」代理記憶系統，實作 Google OKF v0.2 標準：知識以帶 YAML frontmatter 的 Markdown 儲存於 <code>knowledge/{project,architecture,convention,roadmap}/</code>，靠純本機 BM25（<300µs）索引與 <code>index.md</code> 階層＋link graph 做漸進式揭露，零外部資料庫。CLI 提供 <code>init/create/update/validate/search/show/bootstrap/mcp</code>，並以 <code>mcp knowledge</code> 內嵌 MCP server 供 Claude Code／Cursor／Codex 直接掛載。frontmatter 明確含 <code>sources</code>（來源）、<code>generated</code> vs <code>verified</code>（信任層級）、<code>status</code>／<code>stale_after</code>（生命週期／過期時間）。成熟度中等：README 完整但 SPEC/CLI 細節分散在獨立文件，多數欄位語法未在首頁公開（已查證確認，非猜測）。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li><strong>Skill frontmatter 缺生命週期欄位——已查證屬實</strong>：<code>test/skill-frontmatter-quality.test.mjs</code> 只對 <code>description</code>／<code>triggers</code>／<code>when</code> 三個欄位評分（docs/SKILL-INDEX.md §7），完全沒有「這份 skill 內容是否過期」「是人工核實還是自動 backfill 佔位」的標記。OKF 的 <code>status</code>／<code>stale_after</code>／<code>generated</code> vs <code>verified</code> 三元組可直接補上：backfill 產生的樣板值標 <code>generated</code>+短 <code>stale_after</code>，人工定稿後改 <code>verified</code>，讓每日輪替評估（<code>quality_daily</code>）優先挑到「快過期」而非隨機輪替。</li>
+<li><strong>知識庫筆記缺信任分級</strong>：個人知識庫（localhost:3000）目前筆記無來源可信度區分，OKF 的 <code>sources</code>＋trust tier 可作為 knowledge-query 回答時的權重依據（例如自動生成摘要 vs 人工驗證筆記，回答時優先引用 <code>verified</code>）。</li>
+<li><strong><code>resources match</code> 已有語意匹配，OKF 的 BM25＋index.md 非取代而是互補</strong>：Cordis 的 catalog 走「決定論比對＋LLM 意圖」，OKF 走純本機 BM25 全文檢索。若知識庫筆記量成長導致查詢延遲，BM25 索引可作為 knowledge-query 的輕量本機備援層，但這點<strong>效益待實測驗證</strong>，非立即需求。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<ul>
+<li><strong>低風險、可先做</strong>：在 <code>examples/plugins/skill-prompt/skills/*.md</code> frontmatter schema 追加 <code>status</code>（generated/verified）與 <code>stale_after</code> 兩欄位，並擴充 <code>parseSkillFrontmatter</code>／<code>skill-frontmatter-quality.test.mjs</code> 納入檢查——這是對既有機制的欄位擴充，不引入新依賴。</li>
+<li><strong>需人工決策</strong>：是否要引入完整 OKF CLI／Go binary 作為外部工具鏈（增加一種非 Node.js 執行環境），或只借用其 schema 概念、自行在既有 JS 生態內實作，避免多語言維運負擔。</li>
+<li><strong>待查證後再議</strong>：knowledge-query 是否需要本機 BM25 備援，需先實測目前語意搜尋在筆記量成長後的延遲，再決定要不要引入。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
