@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜Portal by Spotify（spotify/portal-ai-plugins・shunt 插件）">
+  <title>偵察｜Portal by Spotify（spotify/portal-ai-plugins・shunt 插件） | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜Portal by Spotify（spotify/portal-ai-plugins・shunt 插件）</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-portal-by-spotify-spotify-portal-ai-plugins">偵察提案：Portal by Spotify（spotify/portal-ai-plugins・shunt 插件）</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-portal-by-spotify-spotify-portal-ai-plugins">偵察提案：Portal by Spotify（spotify/portal-ai-plugins・shunt 插件）</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>Spotify 開源的 Claude Code 插件庫（Apache-2.0，v0.2.0）。核心是 <code>shunt</code> 插件：用 PreToolUse hooks（<code>plugins/shunt/hooks/hooks.json</code>）攔截 Read／Bash 呼叫，<code>check-file-size</code> 對超過 350 行的讀取轉發給 <code>bulk-reader</code> skill，改由更便宜的模型（Gemini 2.5 Flash）讀完整檔、只回答案，原文從不進主 agent 的 context。Spotify 工程部落格報告平均節省 90% token；repo 內附 <code>evals/benchmarks.json</code> 佐證，非純行銷宣稱。（已查證：<code>.claude-plugin/plugin.json</code>、<code>hooks/hooks.json</code>、<code>skills/bulk-reader/SKILL.md</code> 實際內容與此一致。）</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li><code>examples/plugins/llm-claude/plugin.json</code> 的 <code>claude.agent_loop</code> 能力文件明講「不使用 <code>--bare</code>」，代價是「本迴圈會載入專案自身設定」——即目標專案的 <code>.mcp.json</code>／hooks／skills／CLAUDE.md 都會被 CLI 讀取套用。查證：Cordis repo 本身沒有任何 <code>hooks.json</code> 或 <code>.claude-plugin</code>（<code>.claude/</code> 下僅 <code>worktrees</code>，非插件設定）。代表凡是用 <code>claude.agent_loop</code> 對某個 repo 跑多步讀檔分析（如 <code>specs/headroom-insight/</code> 那次要讀 6716 行 <code>content_router.py</code>、43280 行 <code>headroom-core</code>），大檔全文都全額吃進 context，沒有任何攔截層——正是 shunt 要解決的問題。</li>
+<li>落地面在「目標 repo」而非 Cordis 自身：只要在被分析的外部（或自身）repo 放一份仿 <code>hooks.json</code> 的 PreToolUse 設定＋等價 <code>bulk-reader</code> skill，<code>claude.agent_loop</code> 呼叫時 <code>cwd</code> 指到該 repo，CLI 會自動套用，Cordis 端零程式改動。</li>
+<li>「便宜模型代讀摘要、原文不進主線」與 Cordis 剛定稿的 <code>specs/llm-reducer/spec.md</code>（機械歸約先於重模型呼叫）是同一治理精神的不同作用層——一個管「材料聚合」、一個管「單檔讀取」，互補不重疊，不與既有機制衝突。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<p><strong>低風險</strong>：下次用 <code>claude.agent_loop</code> 對大型 repo 做深度分析前，先在該外部 repo 手動放一份 shunt 設定做一次前後 token 用量 A/B 量測，驗證實際節省幅度（不預設可轉嫁 90%，待查證）。</p>
+<p><strong>需人工決策</strong>：是否把這份 hooks 設定收進 Cordis 的範例目錄作為「輔助工具」而非核心插件——因為它只在「目標是某 repo 且用 <code>claude.agent_loop</code> 分析大檔」情境下有價值；以及摘要模型（Gemini Flash 或等價物）的 API 金鑰與外部成本由誰承擔，屬於需核准的外部依賴。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
