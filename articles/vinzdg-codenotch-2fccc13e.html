@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜vinzdg/codenotch">
+  <title>偵察｜vinzdg/codenotch | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜vinzdg/codenotch</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-vinzdg-codenotch">偵察提案：vinzdg/codenotch</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-vinzdg-codenotch">偵察提案：vinzdg/codenotch</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>一款 macOS 應用程式，把 Claude Code、Cursor、Codex、Antigravity 這幾支 AI CLI 工具的用量上限即時釘在螢幕邊緣顯示。核心機制是持續輪詢各 CLI 本機的用量／額度狀態，做成常駐視覺化 overlay，讓使用者在真的撞到限額前就先看到。成熟度屬個人工具規模的 macOS 小應用，非伺服器端服務。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<p>已讀取 <code>examples/plugins/llm-claude/index.mjs</code> 核實現狀：</p>
+<ul>
+<li><code>claude.status</code>（index.mjs:157-174）目前只回報 CLI 是否可用、版本號、耗時，<strong>不含任何用量／額度剩餘資訊</strong>。</li>
+<li><code>LIMIT_PATTERN</code>（index.mjs:20）是<strong>事後</strong>比對錯誤文字（<code>usage limit</code>／<code>rate limit</code>／<code>quota exceed</code> 等），只有在呼叫已經失敗後才判斷「這是額度問題」，屬於反應式偵測，不是主動可查詢的狀態。</li>
+<li>Cordis 本就用 <code>llm-claude</code>／<code>llm-cursor</code>／<code>llm-kiro</code>／codex 四個插件各自包這四支 CLI（<code>docs/SKILL-INDEX.md</code> §4 已有逐 CLI 行為差異表，但沒有用量額度這一欄），與 codenotch 監控的對象完全重疊。</li>
+<li>可借鑑之處：把 codenotch「主動輪詢＋常駐顯示」的精神，換成「在 <code>*.status</code> capability 裡新增 <code>quotaRemaining</code>／<code>resetAt</code> 欄位」，供 <code>scripts/todoist-team.mjs</code> 的 provider fallback（index.mjs:18 註解已提到「usage limits lift on their own (next provider now)」的既有邏輯）在<strong>呼叫前</strong>就避開快到頂的 CLI，而不是現在這種「先打下去、失敗了才靠文字比對換下一個」。</li>
+</ul>
+<h2 id="建議行動">建議行動</h2>
+<ul>
+<li><strong>低風險，可先做</strong>：查證 Claude Code CLI／cursor-agent／codex CLI 本機是否真的有可讀的用量或額度資訊來源（例如設定目錄下的 usage 檔、或 CLI 自帶的 <code>usage</code>／<code>status</code> 子指令）——這是 codenotch 實際抓取數據的手法基礎，須先確認來源存在，才知道能否比照複製；目前尚未查證，標記待查證。</li>
+<li><strong>需人工決策</strong>：若查證後確有可讀來源，是否要把「主動額度可見性」接進 <code>*.status</code> 契約與 scheduler 的 fallback 判斷邏輯——這會動到現有 <code>LIMIT_PATTERN</code> 重試機制的相容性（新舊兩套判斷同時存在時誰優先），屬於架構層改動，不建議未經討論就落地。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
