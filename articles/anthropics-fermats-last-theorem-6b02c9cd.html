@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜anthropics/fermats-last-theorem">
+  <title>偵察｜anthropics/fermats-last-theorem | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜anthropics/fermats-last-theorem</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-anthropics-fermats-last-theorem">偵察提案：anthropics/fermats-last-theorem</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-anthropics-fermats-last-theorem">偵察提案：anthropics/fermats-last-theorem</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>Anthropic 發布的費馬最後定理 Lean 4 形式化證明倉庫：60,475 個模組、29,511 個定理，由 AI agent 產生 Lean 原始碼，Lean 4 核心作仲裁者逐一檢查宣告。關鍵不只是「AI 寫出證明」，而是驗證分三層且互不隸屬：Lean 核心編譯檢查、獨立的 comparator 工具核對全程只用三條標準公理、再由另一套獨立實作（Rust 寫的 nanoda 內核）對百萬級宣告做第二次獨立驗證。最終判定來自這三個互不隸屬的角色，而非生成者自陳成功。成熟度高：已完整開源並附 PROOF-PATH.md 依賴鏈文件。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li>已讀取 <code>examples/plugins/quality-common.mjs</code> 與 <code>scripts/quality-assess.mjs</code> 核實：quality-gate 的 security／reliability／maintainability 三個主觀面向，目前是由「審查代理」依 rubric 自行評分、經 <code>--scores</code> CLI 參數回填，唯一防線是掃描器證據施加的硬上限（如 secret→≤3、重複區塊>20→≤7）。這與 nanoda 模式的差異在於：Cordis 現況只有「生成者自評+硬上限」，沒有 nanoda 那種「獨立第二實作交叉核對同一結論」的角色。可借鏡此機制：讓另一個獨立 agent session 依同一份掃描器證據重新評一次分，兩者落差超過門檻才轉人工仲裁。</li>
+<li>AGENTS.md 要求「實作」指令建立證據鏈（<code>specs/<feature>/evidence/<task_id>.md</code>），但證據檔目前由實作者自己產出，「驗收」指令才做覆核，兩者若為同一 agent/session 執行，就少了 Lean 案例中「仲裁者與生成者天然分離」的結構性保證。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<ul>
+<li>低風險、可先做：在 <code>docs/QUALITY-GATE.md</code> 補一段「已知限制」，記錄三個主觀面向目前無第二審查者；並取一份既有 <code>quality-report.md</code>，用獨立 agent session 依同一證據重評一次，量化現有落差，作為是否值得投入的實測依據。</li>
+<li>需人工決策：是否修改 <code>quality-assess.mjs</code> 評分契約，新增「雙評分＋落差門檻仲裁」流程（屬 specs/quality-gate 規格層變更，需走既有變更流程）；以及是否強制「驗收」指令改由與「實作」不同的 agent session 執行，以保證證據鏈覆核的獨立性。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

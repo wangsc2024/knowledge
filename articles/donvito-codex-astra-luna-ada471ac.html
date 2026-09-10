@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜donvito/codex-astra-luna-orchestrator">
+  <title>偵察｜donvito/codex-astra-luna-orchestrator | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜donvito/codex-astra-luna-orchestrator</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-donvito-codex-astra-luna-orchestrator">偵察提案：donvito/codex-astra-luna-orchestrator</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-donvito-codex-astra-luna-orchestrator">偵察提案：donvito/codex-astra-luna-orchestrator</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>在 Codex CLI 之上設定角色分工：「Astra」擔任主控（orchestrator），「Luna」擔任子代理（subagent），於同一 Codex session 內分層執行多階段任務。從一行描述判斷屬輕量設定／腳本層級專案，非獨立框架；實際程式碼結構與是否僅為 model-profile 設定，待查證。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<p>已實際讀碼核實：本系統 <code>examples/plugins/agent-recursion.mjs</code> 已有巢狀 agent loop 的深度上限（<code>DEFAULT_MAX_AGENT_DEPTH=3</code>，經 <code>withAgentDepth</code> 追蹤），<code>codex.agent_loop</code>（<code>examples/plugins/llm-codex/agent-server.mjs:161</code>）在 <code>thread/start</code> 只吃單一 <code>model: input.model</code>，且 <code>workflow-composer/allowlist.mjs</code> 建構的工具 schema 不會自動注入 <code>model</code> 欄位——也就是說巢狀呼叫時，子代理該用哪個模型完全沒有系統層規則，落到「有深度管控、無角色分級模型」的狀態。Astra/Luna 這種「主控用強模型、子代理用輕量模型」的分工，可對應到讓 <code>codex.agent_loop</code> 依 <code>currentAgentDepth()</code> 在深度 >1 時預設帶入較便宜的模型，作為既有深度天花板之外的第二道成本控制。</p>
+<h2 id="建議行動">建議行動</h2>
+<p>低風險：先在既有排程（如 team-scheduler 手動觸發一次）不改程式碼、只是把同一任務分別以「全程單一模型」與「人工手動指定深層呼叫用較便宜模型」各跑一次，比較 token usage 與輸出品質落差，作為是否值得做成系統規則的依據。</p>
+<p>需人工決策：若驗證有效，是否要把「依深度分級模型」正式寫入 <code>codex.agent_loop</code> 的 capability 介面（涉及 <code>sideEffects: llm</code> 的核可流程與 schema 變更），以及是否需要同步套用到 <code>responses.agent</code>／<code>nvidia.responses.agent</code>，避免只有 codex 分支不一致。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
