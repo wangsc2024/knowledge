@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="多模態LLM指令穩定性">
+  <title>多模態LLM指令穩定性 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>多模態LLM指令穩定性</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">開源專案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#多模態llm指令穩定性">多模態LLM指令穩定性</a></li>
+<li class="toc-level-2"><a href="#摘要">摘要</a></li>
+<li class="toc-level-2"><a href="#背景與現況">背景與現況</a></li>
+<li class="toc-level-2"><a href="#機制與技術分析">機制與技術分析</a></li>
+<li class="toc-level-2"><a href="#應用與實務啟示">應用與實務啟示</a></li>
+<li class="toc-level-2"><a href="#觀點與趨勢判讀">觀點與趨勢判讀</a></li>
+<li class="toc-level-2"><a href="#來源">來源</a></li>
+</ul></nav>
+<h1 id="多模態llm指令穩定性">多模態LLM指令穩定性</h1>
+<div class="callout callout-summary">
+<h2 id="摘要">摘要</h2>
+<p>多模態LLM（MLLM）在跨模態指令遵循上的不穩定性，正從單一分數評測轉向「失效模式分類」。MIA-Bench[G1]與SciMIF[G2]顯示不同模型間表現落差顯著，且遵循度隨約束複雜度與學科領域轉移而系統性衰退；ACL 2025的LIFB[G3]更將「穩定性」獨立列為評測維度。小模型場景則傾向以確定性後處理繞開指令遵循風險[G5]，暴露業界對模型可靠性的務實保留。</p>
+</div>
+<h2 id="背景與現況">背景與現況</h2>
+<p>指令遵循曾被視為MLLM的附帶能力，如今已成獨立評測對象。MIA-Bench[G1]以400組image-prompt pairs測試模型對「分層指令」（layered instructions）的嚴格遵循度，涵蓋一系列最先進MLLMs，結果顯示「performance之間存在顯著變異」，並促使作者額外建置訓練資料、以監督微調（SFT）強化遵循能力，同時強調不能犧牲模型在其他任務上的表現[G1]——這點本身已暗示指令遵循能力與泛化能力之間存在張力，並非單純疊加式的能力提升。</p>
+<p>SciMIF[G2]將這個問題從通用場景推進到科學領域：基於22個跨5大學科（化學、地理、生物、材料、物理）任務的分析，建立涵蓋10類約束群組的分類法（taxonomy），並以高保真度的指令注入流程系統性增強既有科學資料集，於多個閉源與開源SOTA MLLMs上實驗。其核心發現是「顯著的學科表現落差」，其中化學領域帶來最大挑戰[G2]。這與G1的「模型間變異大」形成呼應與延伸——不僅模型之間不穩定，同一模型在不同知識領域間也不穩定。</p>
+<p>值得留意的是，ACL 2025收錄的LIFB論文標題直接點名「Evaluating the Instruction Following Performance and Stability」[G3]，代表學界已明確把「穩定性」（而非僅準確率）當作可獨立測量、值得專章評估的維度。惟該論文內文在本次歸約材料中僅能取得PDF二進位資料流、無法擷取可讀文字，故本報告僅能援引其標題與研究方向，不對其實驗設計或量化結果做延伸推論，這是本報告的一處明確資訊缺口。</p>
+<h2 id="機制與技術分析">機制與技術分析</h2>
+<p>綜合材料可歸納出至少三種導致MLLM指令遵循不穩定的機制：</p>
+<p><strong>一、約束複雜度疊加導致的衰退。</strong> SciMIF的10類約束分類法區分「通用功能性需求」與「學科特定特徵」兩層[G2]，其實驗設計本身即證明：約束並非單一維度，遵循失敗率會隨約束疊加、尤其是疊加學科特定的符號化/結構化要求（如化學式、精確數值格式）而顯著上升。這解釋了為何化學領域最具挑戰性——化學指令通常同時要求語意理解與嚴格符號正確性，兩者疊加放大了模型犯錯的機會。</p>
+<p><strong>二、模型規模與指令遵循精密度的直接關聯。</strong> 台大（NTU）一篇2025年碩士論文在設計文本導向跨模態RAG系統時，明確指出「小型語言模型缺乏執行複雜跨模態增強任務所需的精密指令遵循能力」[G5]。該研究因此刻意「採用確定性關鍵詞萃取（TF-IDF）而非讓小型語言模型遵循複雜指令」，以此規避小模型指令遵循能力的限制[G5]。這是一項具體的工程證據：當開發者不信任模型能穩定完成複雜指令時，會選擇用規則式（rule-based）流程取代生成式指令執行，而非嘗試以更複雜的提示工程去「說服」模型。</p>
+<p><strong>三、格式與模板敏感度造成的斷崖式失效。</strong> 雖然此點材料[G6]主要針對純文字LLM評測方法論，但其揭示的機制具有跨模態延伸的合理性：多數2025年後的模型經過指令微調，若評測或使用時未嚴格遵守該模型特定的對話模板（chat template），例如遺漏系統提示或特定標籤，「模型的表現可能會雪崩式下跌」[G6]。在多模態情境下，這個風險理論上會被放大——因為輸入除了文字模板外，還疊加了圖像token的對齊方式，任何一層格式錯位都可能觸發連鎖失效。IFEval一類「只檢查格式是否遵守、不看內容好壞」的評測設計[G6]，也反映出評測社群已將「格式穩定性」與「內容正確性」視為兩個須分別度量的獨立失效面向。</p>
+<p>相對地，UniIR[G4]代表了另一種因應指令不穩定性的設計取徑：與其要求模型嚴格解析並執行複雜自然語言指令，UniIR將「檢索指令作為查詢文本的前綴（instruction-guided prefix）」，把指令弱化為一種軟性引導訊號，交由CLIP、BLIP等預訓練模型透過分數級或特徵級融合處理[G4]。這種「指令前綴化」本質上是用檢索式的弱指令範式，迴避生成式強指令對嚴格結構化輸出的高失敗風險——與G5的確定性後處理策略,是同一問題（不信任模型穩定執行複雜指令）在不同任務型態下的兩種工程解法。</p>
+<h2 id="應用與實務啟示">應用與實務啟示</h2>
+<p>對於實際部署跨模態指令遵循系統的團隊，材料提示以下具體啟示：</p>
+<ol>
+<li><strong>評測不能只用單一通用benchmark。</strong> MIA-Bench的通用分層指令測試[G1]與SciMIF的學科分類約束測試[G2]揭示的失效模式並不相同，若系統將用於特定專業領域（如科學文檔分析），單靠通用指令遵循分數無法預測其在該領域的實際穩定性，須額外做領域內壓力測試。</li>
+</ol>
+<ol>
+<li><strong>資源受限或小模型場景，優先用確定性流程包裹模型輸出，而非要求模型直接生成結構化結果。</strong> G5的TF-IDF關鍵詞萃取取代小模型指令遵循是一個可複用的模式：把「模型只需要做語意判斷這種相對穩定的子任務」與「結構化/格式化這種容易失效的子任務」拆開，後者交給規則式後處理。</li>
+</ol>
+<ol>
+<li><strong>SFT可提升指令遵循，但須同時監控其他任務表現是否被犧牲。</strong> G1明確將「不犧牲其他任務表現」列為其SFT實驗的並行目標，這提示指令遵循微調不是免費的——它可能是一種能力再分配而非純增益，實務上應建立回歸測試組。</li>
+</ol>
+<ol>
+<li><strong>模板/系統提示的省略風險需要有fallback設計。</strong> 若G6所述的「格式敏感度雪崩」機制在多模態場景同樣成立，系統應對輸入模板缺失或格式偏移建立容錯層（例如模板校驗、重試或降級為前綴式弱指令），而非假設模型會自行穩健處理格式異常。</li>
+</ol>
+<h2 id="觀點與趨勢判讀">觀點與趨勢判讀</h2>
+<p>從G1到G2再到G3的標題演進，可以清楚看出一條發展軸線：評測社群對「指令遵循」的理解，正從「模型是否能做到」（單一分數、通用benchmark）轉向「模型在什麼條件下會失效、失效有多穩定/多可預測」（約束分類法、跨學科壓力測試、獨立的穩定性維度）。這不是評測工具的細節優化，而是對「指令遵循」這個能力本質認識的轉變——它不是一個可以用單一數字概括的技能，而是一組隨約束類型、領域知識、格式規範疊加而各自衰退速率不同的脆弱子能力集合。</p>
+<p>其中最值得注意的判讀點是：SciMIF發現化學領域最具挑戰性[G2]，而這恰好是需要最高符號精確度與結構化輸出的學科。材料本身沒有直接下此因果結論，但將此發現與G6揭示的「格式敏感度可致雪崩式失效」機制並讀，可以合理推斷——指令遵循的穩定性與該指令所要求輸出的結構化/符號精確度程度呈反比：越要求精確符號正確性的任務，模型越容易在格式或細節層面崩潰。這對日後基準設計有指導意義：與其籠統測「指令遵循分數」，不如按輸出所需的結構化精確度分層評測。</p>
+<p>另一個值得留意的趨勢是「工程繞道」而非「模型突破」正在成為業界處理指令不穩定性的主流務實策略。無論是G5的確定性關鍵詞萃取，還是G4的指令前綴化弱引導，兩者的共同邏輯都是：與其信任模型穩定執行複雜結構化指令，不如把最容易失效的部分交給非LLM的確定性元件處理。這反映一種現實判斷——至少截至目前所整理的材料所及，業界對MLLM指令遵循穩定性的信心仍不足以支撐把關鍵結構化輸出完全交給模型生成。</p>
+<p>最後必須誠實指出材料本身的限制：LIFB[G3]這篇標題最直接對應本報告主題（同時涵蓋「performance」與「stability」兩詞）的論文，因原始材料只擷取到不可讀的PDF二進位資料流，本報告無法引用其具體實驗發現、量化指標或失效模式定義。這是本次分析的主要資訊缺口，後續若能取得該論文的可讀內容，應優先補強穩定性度量方法與量化失效率的細節。</p>
+<h2 id="來源">來源</h2>
+<ul>
+<li>[G1] MIA-Bench: Towards Better Instruction Following Evaluation of Multimodal LLMs — https://arxiv.org/abs/2407.01509</li>
+<li>[G2] SciMIF: Understanding Multimodal Instruction Following in Scientific Domains — https://arxiv.org/html/2608.25973v1</li>
+<li>[G3] LIFB: Evaluating the Instruction Following Performance and Stability — https://aclanthology.org/2025.acl-long.803.pdf</li>
+<li>[G5] NTU Theses and Dissertations Repository：多模態檢索增強生成：文本引導的跨模態增強技術用於高效本地部署 — https://tdr.lib.ntu.edu.tw/handle/123456789/98824</li>
+<li>[G4] UniIR: Training and Benchmarking Universal Multimodal Information Retrievers - HackMD — https://hackmd.io/@YungHuiHsu/rJVsI68B6</li>
+<li>[G6] LLM 模型評估指南：從基礎原理到 2025 年最新基準測試的完整解析 | Communeify — https://www.communeify.com/tw/blog/llm-evaluation-guide-from-basics-to-2025-latest-benchmarks/</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
