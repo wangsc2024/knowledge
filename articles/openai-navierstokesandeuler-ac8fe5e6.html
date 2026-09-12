@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜openai/NavierStokesAndEuler">
+  <title>偵察｜openai/NavierStokesAndEuler | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜openai/NavierStokesAndEuler</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-openai-navierstokesandeuler">偵察提案：openai/NavierStokesAndEuler</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-openai-navierstokesandeuler">偵察提案：openai/NavierStokesAndEuler</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>OpenAI 釋出 Navier-Stokes／Euler 相關數學結果時，附上 Lean 4 形式化證明證書：宣稱不需讀者信任敘事推導，而是讓獨立的 Lean 核心逐步機器驗證。這正對應 HN 熱議「能否信任 OpenAI 未發表的數學」——其回應方式是把「生成」與「驗證」拆開，證書可被第三方獨立覆核。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li><code>examples/plugins/quality-common.mjs</code> 的 <code>renderBrief()</code>／<code>applyCaps()</code> 要求審查代理為 security／reliability／maintainability 三面向各附 file:line 證據，但 <code>scripts/quality-assess.mjs</code> 目前只把 <code>--scores</code> 字串原樣寫入 <code>state/quality/<feature>/*.json</code> 與 <code>history.jsonl</code>（第267、291行），並未核對該 file:line 是否真實存在、內容是否對得上聲稱——等於只驗證「有沒有附證據欄位」，不是「證據是否為真」。</li>
+<li>借 Lean 的分離原則：generation（代理評分）與 verification（獨立確定性檢查）分兩層，checker 不重新評分，只判定引用是否失真——與現有 <code>applyCaps</code> 的啟發式硬上限（secrets／dangerousFlags 等計數）互補而非取代。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<p>低風險：在 <code>--scores</code> 解析後加一段「引用完整性檢查」——解析每筆 file:line，確認檔案存在、行號在檔案範圍內；先對現有歷史 <code>quality-report.md</code>（<code>state/quality/history.jsonl</code> 可回溯樣本）跑一次，量測目前有多少比例的引用能解析為真實座標，作為基準值。</p>
+<p>需人工決策：是否進一步做語意比對（引用內容是否真的支持該分數），這需要另一個獨立 agent 覆核評分本身，屬於審查流程重大變更，待基準值出來後再議。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
