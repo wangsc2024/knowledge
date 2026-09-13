@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜achimala/dream-loop">
+  <title>偵察｜achimala/dream-loop | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜achimala/dream-loop</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-achimala-dream-loop">偵察提案：achimala/dream-loop</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-achimala-dream-loop">偵察提案：achimala/dream-loop</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>achimala/dream-loop（868 星、99 fork、MIT 授權、5 次提交，經 <code>npx skills add achimala/dream-loop</code> 安裝的 agent skill）以四階段迴圈產生 3D 視覺成果：生成目標截圖 → 依目標建構場景 → 獨立 critic 子代理比對即時畫面與目標截圖並給修正 → 主代理依回饋迭代；可選第五階段由 critic 主動拉高目標野心。critic 評分細節與終止條件文件未載明，採「critic 滿意為止」的開放式迭代。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ul>
+<li>本系統 <code>examples/plugins/mistral-quality</code>（<code>mistral.loop.refine</code>，核心邏輯在 <code>mistral-common.mjs:280-338</code>）已有同構的「生成→critic 評分→重寫」迴圈，含防震盪機制（score≥8 即停、增益≤0.05 即停、預算耗盡即停，並保留歷史最佳稿）。dream-loop 的獨特之處不在迴圈本身，而在評分訊號的型態：用視覺截圖比對取代文字分數。</li>
+<li><code>team-deck</code>（<code>examples/plugins/team-deck/index.mjs:97-98</code>）呼叫 <code>deck.accessibility.review</code> 取得 score/findings，但程式碼註明 <code>/<em> observational </em>/</code>——分數從未接回門檻或觸發重做，是既有「有評分、缺迴圈」的具體缺口。可借 dream-loop「critic 決定是否重做」的設計，把 <code>deck-accessibility</code> 的 score 接進 <code>mistral-common.mjs</code> 既有的 refine 引擎（重用其防震盪邏輯），讓 team-deck 產出未達標時自動重排版重試。</li>
+<li>dream-loop 選配的「critic 主動拉高目標」階段，是 mistral-common 目前沒有的模式（後者只會停在門檻或平原，不會升高目標），可視為獨立、更大膽的借鑑點。</li>
+</ul>
+<h2 id="建議行動">建議行動</h2>
+<ul>
+<li>低風險：抽 team-deck 近期產出的 10 份 PPTX，人工試算「若 accessibility score 接入 refine 引擎、以 score≥8 為門檻自動重排」重跑後的分數變化，記錄改善份數與平均分差，驗證可行後再實際接線。</li>
+<li>需人工決策：是否引入「critic 主動升高目標」機制——這會讓迭代次數與成本變得不可預期，需先定義升級觸發條件與預算上限，不建議直接照抄。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
