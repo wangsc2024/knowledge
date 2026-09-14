@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜AprilNEA/reverse-engineering-claude-code-antspace">
+  <title>偵察｜AprilNEA/reverse-engineering-claude-code-antspace | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜AprilNEA/reverse-engineering-claude-code-antspace</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-aprilnea-reverse-engineering-claude-code-an">偵察提案：AprilNEA/reverse-engineering-claude-code-antspace</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-aprilnea-reverse-engineering-claude-code-an">偵察提案：AprilNEA/reverse-engineering-claude-code-antspace</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>研究者對 Claude Code web 版的 Firecracker microVM 執行環境做 <code>strace -p 1</code> 層級的行為觀察，意外挖出 Anthropic 內部未公開的 PaaS 管線代號 Baku／Antspace：intent → Claude → Baku → Supabase → Antspace → 上線 App，且 Supabase 資料庫是由 MCP「靜默」佈建，使用者介面完全看不到這一步。這是一份研究/分析型 repo（README＋baku-analysis.md），非套件化工具，方法可轉移但無現成函式庫可依賴。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li>揭露的核心風險是「宣稱介面 vs 實際行為」存在落差——使用者只看到結果，看不到背後真的碰了哪些外部資源。這與 Cordis 的 sideEffects 六級聲明機制正對應：<code>src/manifest.mjs</code> 的 <code>SIDE_EFFECTS</code> 集合（<code>none/network/filesystem/process/llm/external</code>）、<code>src/contract-lint.mjs</code> 的 <code>permissionGaps()</code>（第 37–48 行）目前只檢查「宣告為 network/filesystem/process/external 時，<code>manifest.permissions.<key></code> 是否非空」——這是純靜態、自我宣告式檢查，<strong>沒有任何機制驗證 plugin 的 <code>activate()</code> 實際執行時是否真的只做了宣稱的事</strong>。一個宣告 <code>sideEffects:'none'</code> 或 <code>'llm'</code> 的 capability，實際偷偷呼叫 <code>node:fs</code>／<code>node:net</code>／<code>node:child_process</code>，<code>npm run check</code> 抓不到。</li>
+<li>AprilNEA 用的方法是對執行環境做系統呼叫層級觀察，而非只讀文件宣稱——這正是 Cordis 目前缺的「行為稽核層」。<code>src/process-plugin.mjs</code> 已有 <code>createContainerPlugin</code>（network:none、read-only、cap-drop=ALL）與 <code>createWasmPlugin</code>（無 import 的純沙箱），但這兩者是<strong>執行期隔離</strong>，不是<strong>宣告一致性驗證</strong>——兩者互補而非重疊，值得補上後者。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<ul>
+<li><strong>低風險可先做</strong>：寫一支唯讀稽核腳本（如 <code>scripts/audit-side-effects.mjs</code>），對 <code>examples/plugins</code> 下宣告 <code>sideEffects:'none'</code> 或 <code>'llm'</code> 的 capability 抽樣 3–5 個，在測試模式呼叫其 <code>activate()</code>，用 <code>async_hooks</code> 或對 <code>node:fs</code>/<code>node:net</code>/<code>node:child_process</code> 做 monkey-patch 攔截並記錄實際呼叫，量測「宣告 vs 觀察到」的不一致率（mismatch 數／抽樣數），作為可行性驗證的起點，先不納入 CI 門檻。</li>
+<li><strong>需人工決策</strong>：稽核結果是否升級為 <code>npm run check</code> 的強制門檻——間接依賴（如日誌函式庫內部觸碰 fs）可能造成誤判，需要人工判斷是否設白名單；以及是否將稽核擴及 <code>process</code>/<code>external</code> 等級，這牽涉是否要引入更重的觀察工具（如 strace/Process Monitor），超出目前 CI 環境的既有假設，需先評估可行性。</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>

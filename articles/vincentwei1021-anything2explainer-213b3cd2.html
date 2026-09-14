@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜Vincentwei1021/anything2explainer">
+  <title>偵察｜Vincentwei1021/anything2explainer | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜Vincentwei1021/anything2explainer</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-vincentwei1021-anything2explainer">偵察提案：Vincentwei1021/anything2explainer</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-vincentwei1021-anything2explainer">偵察提案：Vincentwei1021/anything2explainer</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>把任意主題轉成有配音、字幕、進度條的講解影片的自動化 skill，設計成 Claude Code／Codex 可直接呼叫（README：「Make me an explainer video about X」）。核心是 9 階段流水線：研究→腳本+TTS→分鏡→構圖層→<strong>試映（先只渲染前 30 秒供審核）</strong>→平行構建（多代理各寫一個鏡頭的程式碼）→完整渲染→量化幀分析品檢→修正交付。技術棧 Remotion＋Edge TTS/Kokoro＋FFmpeg。1.1k star／187 fork，含完整安裝說明與參考影片，成熟度足夠參考架構決策（非抄程式碼）。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li><strong>試映（cheap-preview-before-commit）→ <code>scripts/quality-assess.mjs</code></strong>：目前 <code>--collect</code> 只是手動選子集做迭代（第 249–282 行，<code>options.scores && !options.collect</code> 沿用舊指標；<code>--collect</code> 需要人手動指名要跑哪些收集器），沒有「先自動跑最便宜的訊號、失敗就擋、通過才跑貴的全套測試」這種內建的分階段門檻。anything2explainer 是先渲染 30 秒抓錯，確認方向對才進到多代理平行構建的重活。可讓 <code>quality-assess.mjs</code> 預設先跑 <code>check</code>/<code>docs</code>（便宜、秒級）擋一輪，通過才跑 <code>tests</code>/<code>coverage</code>（貴，需整套 test suite），而不是現在的「全跑完才知道誰不及格」。</li>
+</ol>
+<ol>
+<li><strong>量化品檢的分級思路</strong>：源專案的「量化幀分析」是渲染後對每格畫面做客觀量測再放行，這點本系統的 <code>docs/QUALITY-GATE.md</code> 已有對應機制（安全/可靠性/可維護性的硬上限：secret ≤3、危險旗標 ≤5 等），屬於已存在能力，非缺口，僅供對照佐證第 1 點的「先便宜後貴」是唯一真正的差集。</li>
+</ol>
+<h2 id="建議行動">建議行動</h2>
+<p><strong>低風險（可先做）</strong>：在 <code>scripts/quality-assess.mjs</code> 加一個「快篩」順序——<code>ALL_COLLECTORS</code> 中把 <code>check</code>、<code>docs</code>（皆為靜態掃描，無需起測試 runner）排到 <code>tests</code>、<code>coverage</code> 之前，且快篩任一項在門檻公式下已確定總分不可能達 8.5 時提早 log 警示（不強制中斷，維持現有 exit code 語意，避免動門檻公式）。驗證任務：取 <code>state/quality/history.jsonl</code> 現有 10 筆歷史記錄（跨 <code>paper-workflow</code>、<code>llm-responses-unsloth</code> 等 feature），對每筆重放一次收集流程，量測「快篩排前」相對「現行全序」的平均耗時差（秒）與「誤判率」——即快篩通過但全套仍不及格、或反之的筆數，目標誤判率為 0 筆才可採用。</p>
+<p><strong>需人工決策</strong>：是否要讓快篩失敗時真正「中斷」而非僅警示（會改變 <code>npm run quality</code> 的 exit code 語意與既有 CI/PR 流程依賴），以及「平行構建」（多代理各自負責一個獨立子任務再彙整）是否值得對應到 skill-prompt 的多步驟模板生成——此點需先盤點 <code>examples/plugins/skill-prompt/skills/</code> 現有模板是否存在可拆分成獨立子任務的多步驟案例，屬於另一個提案的範圍，此處不展開。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
