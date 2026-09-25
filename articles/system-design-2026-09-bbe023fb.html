@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="system_design研究 2026-09-25">
+  <title>system_design研究 2026-09-25 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>system_design研究 2026-09-25</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">技術研究</span><span class="tag">daily-digest</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#system-design-架構-擴展性與資料層核心方法論">System Design：架構、擴展性與資料層核心方法論</a></li>
+<li class="toc-level-2"><a href="#摘要">摘要</a></li>
+<li class="toc-level-2"><a href="#背景與現況">背景與現況</a></li>
+<li class="toc-level-2"><a href="#機制與技術分析">機制與技術分析</a></li>
+<li class="toc-level-3"><a href="#架構風格-從單體到事件驅動">架構風格：從單體到事件驅動</a></li>
+<li class="toc-level-3"><a href="#擴展性與資料層-分片-複寫-cap-權衡">擴展性與資料層：分片、複寫、CAP 權衡</a></li>
+<li class="toc-level-3"><a href="#通訊與快取-同步-非同步的分野">通訊與快取：同步/非同步的分野</a></li>
+<li class="toc-level-2"><a href="#應用與實務啟示">應用與實務啟示</a></li>
+<li class="toc-level-2"><a href="#觀點與趨勢判讀">觀點與趨勢判讀</a></li>
+<li class="toc-level-2"><a href="#來源">來源</a></li>
+</ul></nav>
+<h1 id="system-design-架構-擴展性與資料層核心方法論">System Design：架構、擴展性與資料層核心方法論</h1>
+<div class="callout callout-summary">
+<h2 id="摘要">摘要</h2>
+<p>System Design 是為滿足功能與非功能需求，設計系統架構、元件與介面的工程流程，涵蓋可擴展性、可用性、一致性等品質屬性 [G1][G2]。現代方法論已收斂為一套可辨識的知識體系：架構風格（單體／微服務／事件驅動／無伺服器）、擴展技術（水平/垂直擴展、分片、複寫）、資料庫選型（SQL/NoSQL）與快取策略，並以 CAP 定理等理論工具權衡取捨 [G1][G3]。三份材料共同印證：System Design 已從單純的面試科目演變為工程師的核心職能地圖。</p>
+</div>
+<h2 id="背景與現況">背景與現況</h2>
+<p>System Design 的定義在三個獨立來源中高度一致：GeeksforGeeks 將其定義為「設計架構、元件與介面以滿足使用者與商業需求」的流程 [G1]；roadmap.sh 進一步描述為「建立涵蓋架構、模組、介面與資料的系統藍圖，並確保滿足功能、技術與商業需求」的規劃過程 [G2]；algomaster.io 則以更細顆粒度將其拆解為近 30 個主題模組，從核心概念到分散式系統基礎 [G3]。三者的收斂定義本身就是一個訊號——System Design 已不是單一學派的產物，而是業界對「如何蓋大型系統」形成的共識知識體系。</p>
+<p>現況上，這個領域被同時兩股力量驅動：其一是<strong>技術面</strong>的需求，隨著使用者規模與資料量成長，系統必須具備可擴展性、可靠性、效率與可維護性 [G1]；其二是<strong>職涯面</strong>的需求，System Design 面試已成為科技公司招募的標準環節，三個來源都以「教程／路線圖／認證課程」形式呈現，反映出市場對系統化學習資源的強烈需求 [G1][G2][G3]。algomaster.io 甚至以「188 個小節、附練習題與證書」的規模化課程呈現，顯示這門學科的教學產業化程度已相當成熟 [G3]。</p>
+<h2 id="機制與技術分析">機制與技術分析</h2>
+<h3 id="架構風格-從單體到事件驅動">架構風格：從單體到事件驅動</h3>
+<p>三份材料一致將<strong>架構風格選擇</strong>列為 System Design 的第一層決策。核心選項包括單體架構（Monolithic）、微服務（Microservices）、事件驅動架構（Event-Driven）、無伺服器架構（Serverless）、以及較新收錄的六邊形架構（Hexagonal）與對等網路（P2P）[G1][G3]。GeeksforGeeks 特別將「有狀態 vs. 無狀態系統」（Stateful vs. Stateless）與「Pub/Sub 架構」單獨列出，顯示狀態管理與非同步通訊模式是架構選型中獨立於「單體/微服務」二分法之外的另一個關鍵維度 [G1]。algomaster.io 則進一步把微服務拆成獨立的「微服務模式」大類，涵蓋服務發現、API Gateway、Backend for Frontend（BFF）、Sidecar、斷路器（Circuit Breaker）、艙壁隔離（Bulkhead）、絞殺者無花果模式（Strangler Fig）與服務網格（Service Mesh）[G3]——這說明「選擇微服務」只是起點，真正的工程複雜度在於服務間協作的九種以上落地模式。</p>
+<h3 id="擴展性與資料層-分片-複寫-cap-權衡">擴展性與資料層：分片、複寫、CAP 權衡</h3>
+<p>擴展性技術可分為水平/垂直擴展的基本選擇，以及更深層的資料庫擴展手法：讀取路徑靠索引、讀取複本（Read Replicas）、反正規化（Denormalization）、物化視圖（Materialized Views）與連線池（Connection Pooling）；寫入路徑則靠分片（Sharding）與資料壓縮 [G3]。GeeksforGeeks 額外強調「主要擴展性瓶頸」的診斷思維，以及資料庫複寫類型與分片、資料分割（Data Partitioning）的區別 [G1]。這裡值得指出一個常被混淆的技術細節：algomaster.io 明確將「Sharding」與「Sharding vs Partitioning」並列為獨立主題 [G3]，呼應 GeeksforGeeks 把「Database Sharding」與「Data Partitioning」分開條列的作法 [G1]——兩份材料的結構性印證顯示，業界教學已有共識：分片（依鍵值切分到不同節點）與分割（同一節點內邏輯切分）是常被誤用但語意不同的兩個概念。</p>
+<p>一致性與可用性的權衡則以 <strong>CAP 定理</strong>為核心理論工具，三份材料中有兩份獨立收錄 CAP 定理、一致性模式（Consistency Pattern/Models）與可用性設計 [G1][G3]，algomaster.io 更把「Single Point of Failure（SPOF）」與「Latency vs Throughput vs Bandwidth」列為核心概念的必修項目 [G3]，顯示對品質屬性的理解已被拆解為可獨立測驗的知識單元，而非籠統的「系統要穩」口號。</p>
+<h3 id="通訊與快取-同步-非同步的分野">通訊與快取：同步/非同步的分野</h3>
+<p>algomaster.io 對通訊模式的分類最為細緻，區分「即時通訊」（長輪詢、WebSocket、SSE、Webhook、WebRTC）與「非同步通訊」（訊息佇列、Pub/Sub、Change Data Capture、投遞語意、死信佇列）[G3]，這比 GeeksforGeeks 僅列出「Pub/Sub Architecture」一個條目更完整 [G1]，反映出即時互動需求（如聊天、通知）已從傳統請求-回應模型中independent 出來，成為獨立的設計子領域。快取部分，algomaster.io 從快取基礎模式（Cache-Aside、Read-Through、Write-Through、Write-Behind）延伸到分散式快取架構、CDN、快取失效、快取雪崩（Stampede）與快取預熱（Warming）[G3]，顯示快取設計已從「加個 Redis」演變為需要處理一致性與雪崩效應的獨立工程課題。</p>
+<h2 id="應用與實務啟示">應用與實務啟示</h2>
+<p>對個人開發實務而言，三份材料的結構本身就是一份可直接套用的<strong>決策檢查清單</strong>：</p>
+<ol>
+<li><strong>架構選型先於實作</strong>：在動手寫程式前，先確認系統屬於有狀態或無狀態、是否需要事件驅動的鬆耦合、以及微服務化是否真的必要——roadmap.sh 明確列出程式語言、資料庫、CDN、負載平衡器、快取、代理、佇列等元件作為架構決策的具體清單 [G2]，這比抽象的「要不要用微服務」討論更具操作性。</li>
+</ol>
+<ol>
+<li><strong>分片與分割不要混用術語</strong>：這是實務中極常見的技術債來源。在設計資料層擴展方案時，應先明確區分是要做「跨節點的水平分片」還是「單節點內的邏輯分割」，兩者的維運複雜度差異巨大 [G1][G3]。</li>
+</ol>
+<ol>
+<li><strong>快取失效與雪崩是必答題</strong>：任何導入快取層的系統，algomaster.io 的清單提醒工程師必須同時設計失效策略（Cache Invalidation）與雪崩防護（Cache Stampede），而非只考慮「加速讀取」的正面效益 [G3]。</li>
+</ol>
+<ol>
+<li><strong>通訊模式要對應真實延遲需求</strong>：長輪詢、WebSocket、SSE 三者常被籠統稱為「即時通訊」，但延遲特性與伺服器資源消耗差異顯著，選型應對應實際互動頻率而非預設用最新技術 [G3]。</li>
+</ol>
+<p>對於準備 System Design 面試的工程師，algomaster.io 188 節、含練習題的結構化路徑 [G3] 適合系統性補完知識圖譜；而 roadmap.sh 的視覺化路線圖 [G2] 更適合快速定位知識缺口。</p>
+<h2 id="觀點與趨勢判讀">觀點與趨勢判讀</h2>
+<p>三份材料雖然主題高度重疊，但深度與定位有明顯分層，這個分層本身即是值得判讀的趨勢訊號。GeeksforGeeks 與 roadmap.sh 提供的是「地圖級」的知識框架，適合建立整體認知 [G1][G2]；algomaster.io 則已發展出近 190 個子主題、附練習與證書的完整課程體系，包括「New」標記的最新收錄主題如 Hexagonal Architecture、CQRS、Event Sourcing、Change Data Capture、Vector Databases 等 [G3]。這些新增主題透露出兩個明確的技術風向：其一，<strong>向量資料庫（Vector Databases）被正式納入資料庫類型的必修清單</strong>，顯示 System Design 教學已開始正視 AI/RAG 應用對傳統資料層知識的擴充需求；其二，<strong>CQRS 與 Event Sourcing 從「進階模式」變成新收錄的基礎教材</strong>，反映事件驅動與讀寫分離的設計思維正在從大型系統的專屬技巧，下滲為一般開發者也該掌握的基本功。</p>
+<p>三份材料之間沒有出現實質矛盾，但呈現方式的差異本身構成一個判讀重點：roadmap.sh 的 FAQ 明確指出「元件清單僅是全面考量因素的一個子集」[G2]，這是一種誠實的謙遜姿態，提醒學習者不要把清單當成全部；相對地，algomaster.io 以「188 個項目、0% 完成度」的遊戲化進度條呈現學習路徑 [G3]，更強調系統性、可量化的學習完成度。這兩種呈現哲學沒有優劣之分，但適合的學習者畫像不同——前者適合已有實務背景、需要查漏補缺的工程師，後者更適合從零系統性建構知識體系的學習者。可以判斷的趨勢是：System Design 教育資源正朝「模組化、可測驗、含最新架構模式（AI 相關資料層、CQRS/Event Sourcing）」的方向持續演化，而非停留在十年前「只談 CAP 定理與負載平衡」的舊版本知識框架。</p>
+<h2 id="來源">來源</h2>
+<ul>
+<li>[G1] System Design Tutorial - GeeksforGeeks — https://www.geeksforgeeks.org/system-design/system-design-tutorial/</li>
+<li>[G2] System Design Roadmap — https://roadmap.sh/system-design</li>
+<li>[G3] What is System Design? | System Design - algomaster.io — https://algomaster.io/learn/system-design/what-is-system-design</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
