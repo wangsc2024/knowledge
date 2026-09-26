@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AutoGen 跨模型協同">
+  <title>AutoGen 跨模型協同 | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-ai">AI技術</span>
+        <h1>AutoGen 跨模型協同</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">AI</span><span class="tag">工作流</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#autogen-跨模型協同-多代理對話式編排機制解析">AutoGen 跨模型協同：多代理對話式編排機制解析</a></li>
+<li class="toc-level-2"><a href="#摘要">摘要</a></li>
+<li class="toc-level-2"><a href="#背景與現況">背景與現況</a></li>
+<li class="toc-level-2"><a href="#機制與技術分析">機制與技術分析</a></li>
+<li class="toc-level-2"><a href="#應用與實務啟示">應用與實務啟示</a></li>
+<li class="toc-level-2"><a href="#觀點與趨勢判讀">觀點與趨勢判讀</a></li>
+<li class="toc-level-2"><a href="#來源">來源</a></li>
+</ul></nav>
+<h1 id="autogen-跨模型協同-多代理對話式編排機制解析">AutoGen 跨模型協同：多代理對話式編排機制解析</h1>
+<div class="callout callout-summary">
+<h2 id="摘要">摘要</h2>
+<p>AutoGen 是微軟研究院 2023 年提出的多代理對話框架，核心思路是把複雜任務拆解為代理間的自然語言對話，交由 GroupChat 編排層（RoundRobin／Selector／Swarm／MagenticOne）自動決定發言順序與終止時機 [G2][G5]。每個 AssistantAgent 可綁定獨立 model_client，構成跨模型協同的技術基礎 [G5]。2026 年 AutoGen 已與 Semantic Kernel 整合為 Microsoft Agent Framework，顯示多代理編排正從研究原型邁向企業級生產工具 [G3]。</p>
+</div>
+<h2 id="背景與現況">背景與現況</h2>
+<p>AutoGen 源於微軟研究院 2023 年 8 月發表的研究成果，主張複雜 AI 任務可拆解為具備不同角色的代理之間的對話，如同一組分工明確的人類團隊 [G3]。這個定位使它與同期出現的 LangGraph、CrewAI 並列為多代理框架的三強之一，三者在 2026 年的市場論述中經常被放在一起比較 [G7][G8]。截至 2026 年，官方倉庫在 GitHub 累積約 61.1k star、9.3k fork，issue 與 PR 討論量仍相當活躍 [G4]，框架本身也經歷了一次重大版本更迭：從 v0.2 的同步、鬆散型 API，改寫為 v0.4 的非同步優先架構，引入強型別訊息與原生分散式執行能力 [G5]，兩個版本的 API 並不相容，官方也明確提醒使用者需對照安裝版本查閱文件 [G5]。</p>
+<p>更關鍵的現況變化是，2026 年微軟將 AutoGen 與 Semantic Kernel 統一整合為「Microsoft Agent Framework」，形成同時支援 Python 與 .NET 的單一企業級 SDK [G3]。這意味著 AutoGen 作為獨立專案的定位正在轉變為底層對話式編排引擎，被納入更大的企業代理平台版圖，並與 Azure AI 服務深度整合 [G3]。與此同時，GitHub Trending 上同期出現多個標榜「agent harness」的獨立專案（如 Z.ai 的程式代理、非侵入式對話副駕、原生決策模型執行環境等）[G9]，顯示「多代理／代理外殼」已是 2026 年整個開源生態的普遍關鍵詞，而非 AutoGen 獨有現象——這點需要與 AutoGen 自身的採用數據分開看待（詳見觀點與趨勢判讀）。</p>
+<h2 id="機制與技術分析">機制與技術分析</h2>
+<p>AutoGen 的自動編排機制可以拆成三層來理解：對話範式、團隊編排層、以及支撐跨模型協同的用戶端抽象。</p>
+<p><strong>第一層：對話即協作的基本單元。</strong> 最基礎的角色劃分是 UserProxyAgent（代表人類或外部系統發起請求的入口）、AssistantAgent（負責理解問題、產生推理、協調任務執行的核心解題者）、以及 Tool/Function Agent（處理資料檢索、運算、API 呼叫等專項操作，擴展助理代理的能力邊界）[G1]。其運作可進一步對應到感知—推理—行動三個模組：感知模組把輸入轉為結構化格式，推理模組用 LLM 分析並規劃、同時協調多代理維持邏輯一致，行動模組執行程式碼生成、API 呼叫、資料摘要或視覺化輸出 [G1]。這是入門教學常見的簡化心智模型，方便初學者建立直覺。</p>
+<p><strong>第二層：真正的自動編排引擎在「團隊」抽象裡。</strong> 官方文件把多代理協作正式定義在 Team Orchestration 之下，關鍵子系統包含 Termination Conditions（終止條件）、GraphFlow（圖形化流程）與 MagenticOne（專門的編排器模式），並提供多種群聊策略：RoundRobinGroupChat 依固定順序輪流發言、SelectorGroupChat 則由 LLM 動態挑選下一位發言者、SwarmGroupChat 採任務交接（handoff）機制、以及源自 Magentic-One 研究的 MagenticOneGroupChat／Orchestrator [G2]。其中 SelectorGroupChat 最直接回應「自動編排」這個研究切入角度——發言權不是寫死的規則，而是由另一個 LLM 即時判讀對話狀態後決定，使協作路徑具備適應性，而非固定劇本 [G5]。终止條件同樣是可組合的模組化設計，例如 TextMentionTermination（偵測特定文字如 "APPROVE"）、MaxMessageTermination（訊息數上限）、FunctionCallTermination 等可自由疊加 [G5]，這是避免自動化多代理迴圈失控、無限對話燒錢的關鍵工程機制。一個典型範例是 planner／writer／critic 三代理組成 RoundRobinGroupChat，搭配 TextMentionTermination("APPROVE") 作為收斂條件，讓寫作與審核代理反覆迭代直到品質達標才停止 [G5]。</p>
+<p><strong>第三層：model_client 抽象是跨模型協同的技術基礎。</strong> 每個 AssistantAgent 在建構時都需要傳入獨立的 model_client（範例中使用 OpenAIChatCompletionClient）[G5]，而官方文件也把「Model Client System」與「Model Integrations」（涵蓋 OpenAI／Azure OpenAI 及其他模型供應商）列為獨立子系統 [G2]。這代表同一個團隊內，planner、writer、critic 等不同角色的代理理論上可以各自綁定不同廠牌或不同能力層級的模型——例如用較強的模型負責推理規劃、用較便宜的模型負責格式化輸出——在單一對話迴圈中形成真正的跨模型協同，而非單一模型分飾多角。v0.4 導入的非同步 actor 執行模型與代理執行環境（Agent Runtime System）[G2][G5]，進一步讓這種跨模型、跨進程甚至分散式部署的協同具備可擴展性。</p>
+<p><strong>為什麼需要自動編排：單代理的結構性缺陷。</strong> 以典型客服系統為例，若由單一代理承擔意圖分類、知識檢索、帳戶查詢、回應生成、升級判斷等全部職責，會出現上下文視窗耗盡、推理邏輯在不同認知模式間反覆切換而混亂、任務只能序列執行無法並行、除錯時面對數千行提示詞難以定位問題等結構性問題 [G8]。AutoGen 的自動編排機制本質上是用「對話式責任分工＋動態路由」取代這種「God Agent」反模式，讓編排器（無論是 GroupChatManager 的固定規則，或 SelectorGroupChat／MagenticOneOrchestrator 的 LLM 動態決策）負責把對話輪次導向當下最合適的專責代理與模型配對 [G2][G8]。在更宏觀的多代理設計模式分類中，AutoGen 的路線被歸類為「群聊模式」，與 Handoff 模式、Master-Worker 分層模式、Pipeline 流水線模式、辯論／競爭模式並列，是目前公認的幾種主流協作拓撲之一 [G6]。</p>
+<h2 id="應用與實務啟示">應用與實務啟示</h2>
+<p>AutoGen 的協同編排最適合套用在解法路徑事先未知、需要多輪腦力激盪與反覆修正的任務，例如程式除錯、研究型寫作——讓一組代理提出構想、互相批評、執行程式碼、反覆迭代直到收斂 [G5]。上述 planner／writer／critic＋RoundRobinGroupChat＋TextMentionTermination 的組合，可直接作為此類任務的實作範本 [G5]，對開發者而言是一個低成本可複用的起手式。</p>
+<p>相對地，若任務結構本身是固定、可預先定義流程的（例如標準化資料處理管線），官方比較文章直言 CrewAI 用更少的編排程式碼就能達成，因為其角色分工是預先聲明的，而不像 AutoGen 需要額外配置發言選擇邏輯 [G5]。這對實務選型是重要提醒：先判斷任務的「確定性需求」，再決定是否需要 AutoGen 這種對話式、較不確定但彈性高的編排模型，或改用圖形化顯式編排的 LangGraph／CrewAI [G5][G7][G8]。</p>
+<p>在企業落地層面，2026 年 AutoGen 併入 Microsoft Agent Framework、並與 Semantic Kernel、Azure AI 服務整合的走向 [G3]，意味著正在生產環境使用 AutoGen v0.4 的團隊，應提前評估未來遷移到統一 SDK 的路徑成本，尤其考慮到 v0.2 到 v0.4 本身就曾發生過一次不相容的 API 重寫 [G5]。此外，官方文件也把 MCP（Model Context Protocol）整合列入工具擴充系統 [G2]，這代表 AutoGen 代理呼叫外部工具的方式正朝標準化協議靠攏，與跨模型協同的敘事互為呼應：不僅模型可以換，連工具介接層也在走向與底層模型解耦的標準化路線。</p>
+<h2 id="觀點與趨勢判讀">觀點與趨勢判讀</h2>
+<p>從材料交叉比對可以看出一個值得指出的落差：入門教學（如 [G1]）呈現的是簡化的三角色心智模型，強調「感知—推理—行動」的線性流程；而官方技術文件與深入分析（[G2][G5]）揭露的實際架構遠比這複雜——多種群聊策略、可組合終止條件、獨立模型用戶端、非同步分散式執行環境。這不構成材料間真正的事實矛盾，而是「教學簡化版」與「工程實作版」的抽象層級差異。對想要評估 AutoGen 是否適合生產環境的讀者，判讀時應以 DeepWiki 與版本更新細節為準，把入門教學當作建立直覺的起點，而非架構事實依據。</p>
+<p>其次，關於材料中「另有 4 來源獨立印證」標注在 [G4]（microsoft/autogen 官方倉庫）底下的四個 GitHub 專案——Z.ai 的程式代理、非侵入式聊天副駕、原生決策模型執行環境、非同步優先代理外殼——逐一檢視內容後，這些專案與 AutoGen 並無直接技術關聯，更像是同期在 GitHub Trending 上同時出現的「agent harness」類專案，機械化比對可能誤將「同屬代理類專案」判定為「同題印證」。這是本報告刻意標注、但選擇不予採信為 AutoGen 採用度證據的一點：它的真實意涵是 2026 年的開源生態裡，「多代理／代理外殼」已是廣泛趨勢用詞，而非 AutoGen 本身觸發了這些專案的出現 [G4][G9]。同樣地，[G6]（中文 Agent Wiki 分類條目）與 [G9]（GitHub Trending 快照）在材料中均為孤證，於本報告中僅作為輔助脈絡與分類參照，不作為獨立核心論據。</p>
+<p>整體判斷，AutoGen 真正的技術差異化不在「多代理」這個概念本身——LangGraph、CrewAI 同樣支援——而在於它把協調狀態隱式編碼在對話歷史裡，用 LLM（尤其是 SelectorGroupChat）即時決定發言順序，而非像 LangGraph 那樣顯式定義圖形節點與邊 [G5]。這個設計選擇的代價是官方自己也承認的：確定性低於角色固定式框架 [G5]。這使 AutoGen 特別適合探索性、路徑未知的推理任務，但在需要高稽核性、可重現流程的生產管線中應保持謹慎。隨著 2026 年 AutoGen 併入 Microsoft Agent Framework，多代理對話式編排正從研究工具走向與 Azure 生態綁定的企業產品，這條路線能否維持其「對話式、低確定性但高彈性」的原始優勢，還是逐漸向顯式流程編排靠攏以滿足企業可控性需求，是接下來值得持續觀察的走向。</p>
+<h2 id="來源">來源</h2>
+<ul>
+<li>[G1] Building AI Agents using Autogen - GeeksforGeeks — https://www.geeksforgeeks.org/artificial-intelligence/building-ai-agents-using-autogen/</li>
+<li>[G2] Multi-Agent Teams | microsoft/autogen | DeepWiki — https://deepwiki.com/microsoft/autogen/4-multi-agent-teams</li>
+<li>[G3] Microsoft AutoGen: Complete Guide to Multi-Agent AI Development — https://www.autolearningagents.com/autogen/</li>
+<li>[G4] GitHub - microsoft/autogen: A programming framework for agentic AI — https://github.com/microsoft/autogen</li>
+<li>[G5] AutoGen — Microsoft's Conversation-Based Multi-Agent Framework — https://tokrepo.com/en/multi-agent/autogen</li>
+<li>[G6] AutoGen（微软多Agent框架）：核心概念、使用场景与实践说明 | Agent Wiki — https://learnagent.wiki/agent/cards/autogen</li>
+<li>[G7] AutoGen vs LangGraph: Comparing Multi-Agent AI Frameworks — https://www.truefoundry.com/blog/autogen-vs-langgraph</li>
+<li>[G8] LangGraph vs CrewAI vs AutoGen: The Complete Multi-Agent AI Orchestration Guide — https://pockit.tools/blog/langgraph-crewai-autogen-multi-agent-orchestration-guide/</li>
+<li>[G9] GitHub Trending 快照 — https://github.com/trending</li>
+</ul>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
