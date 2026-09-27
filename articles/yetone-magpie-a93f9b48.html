@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="偵察｜yetone/magpie">
+  <title>偵察｜yetone/magpie | 知識庫</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../article-content.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="../" class="logo">知識庫</a>
+      <nav>
+        <a href="../#buddhism">佛學</a>
+        <a href="../#thinking">思維方法</a>
+        <a href="../#ai">AI技術</a>
+        <a href="../#claude">Claude Code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <article>
+      <div class="article-header">
+        <span class="category-badge category-other">其他</span>
+        <h1>偵察｜yetone/magpie</h1>
+        <div class="article-meta">
+          <div class="tags"><span class="tag">GitHub</span><span class="tag">偵察提案</span></div>
+        </div>
+      </div>
+
+      <div class="article-content">
+        <nav class="toc"><ul>
+<li class="toc-level-1"><a href="#偵察提案-yetone-magpie">偵察提案：yetone/magpie</a></li>
+<li class="toc-level-2"><a href="#專案是什麼">專案是什麼</a></li>
+<li class="toc-level-2"><a href="#對本系統的借鑑點">對本系統的借鑑點</a></li>
+<li class="toc-level-2"><a href="#建議行動">建議行動</a></li>
+</ul></nav>
+<h1 id="偵察提案-yetone-magpie">偵察提案：yetone/magpie</h1>
+<h2 id="專案是什麼">專案是什麼</h2>
+<p>Magpie 在本機起一個閘道（127.0.0.1:3425），同時說 OpenAI Chat/Responses、Anthropic Messages、Gemini 三種 API 方言；靠環境變數（如 ANTHROPIC_BASE_URL）或「外科式改寫」各 agent 設定檔（~/.claude/settings.json 的 env 區塊、~/.codex/config.toml 的 [model_providers.magpie]），讓 Claude Code、Codex 等 CLI 免改程式碼就能切換到任意已登入的模型後端，且只動被改的那個 key，註解/順序/縮排原樣保留。模型清單即時向廠商 API 查詢，不寫死，已有選單列／視窗／TUI／CLI 四層介面，屬可用產品。</p>
+<h2 id="對本系統的借鑑點">對本系統的借鑑點</h2>
+<ol>
+<li>Cordis 現有的 examples/plugins/llm-router/index.mjs 已解決「多供應商＋備援鏈＋記錄嘗試」（DEFAULT_CHAIN、attempts），但只透過 ctx.provide('llm.generate', …) 對 Cordis 內部插件開放——外部獨立跑的 Claude Code／Codex CLI 用不到這條路由鏈，各自讀自己的設定檔，看不見 configuredChain／attempts 邏輯。</li>
+<li>Magpie 的閘道模式指出具體缺口：可讓 llm-router 多長出一個 OpenAI/Anthropic 相容的本機 HTTP 端點（新 capability，如 llm.gateway.serve），把既有 llm.generate 的 chain 邏輯包成外部 CLI 可直接指向的位址，而非重寫路由本身。</li>
+</ol>
+<p>3.「只動被改的那個 key，其餘原樣保留」的外科式編輯手法，值得用在日後若要自動把外部 CLI 導向 Cordis 閘道時的設定檔寫入邏輯，避免整檔覆寫使用者的 ~/.claude/settings.json。</p>
+<h2 id="建議行動">建議行動</h2>
+<p>低風險：先寫一支最小原型（僅讀不寫），本機固定埠把 llm-router 的 llm.generate 包成 /v1/chat/completions；用 5 組輸入（含 1 組會觸發 fallback 的情境）讓真實 Claude Code CLI 指向該端點，比對「經閘道」與「直接呼叫 llm.generate」兩者的 attempts 記錄與回應文字是否一致，並記錄延遲差（ms）。</p>
+<p>需人工決策：是否要做「外科式改寫外部 CLI 設定檔」——此舉寫入 Cordis 之外的檔案，屬 sideEffects: filesystem 且影響 Cordis 之外的工具鏈，須先定案由誰核准寫入，不宜由模型自動觸發。</p>
+      </div>
+
+      <a href="../" class="back-link">← 返回首頁</a>
+    </article>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by RAG Knowledge Base</p>
+    </div>
+  </footer>
+</body>
+</html>
